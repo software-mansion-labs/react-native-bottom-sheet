@@ -119,6 +119,9 @@ export const BottomSheetBase = ({
   const dragStartTranslateY = useSharedValue(0);
   const isTouchWithinScrollable = useSharedValue(false);
   const detentsValue = useSharedValue(normalizedDetents);
+  const firstNonzeroDetent = useSharedValue(
+    normalizedDetents.find((d) => d > 0) ?? 0
+  );
   const currentIndex = useSharedValue(resolvedIndex);
   const internalPosition = useDerivedValue(() =>
     Math.max(0, sheetHeight.value - translateY.value)
@@ -130,9 +133,9 @@ export const BottomSheetBase = ({
     }
   );
   const scrimProgress = useDerivedValue(() => {
-    const maxSnap = sheetHeight.value;
-    if (maxSnap <= 0) return 0;
-    const progress = internalPosition.value / maxSnap;
+    const target = firstNonzeroDetent.value;
+    if (target <= 0) return 0;
+    const progress = internalPosition.value / target;
     return Math.min(1, Math.max(0, progress));
   });
   const handleIndexChange = (nextIndex: number) => {
@@ -142,7 +145,8 @@ export const BottomSheetBase = ({
     const maxSnap = Math.max(0, ...normalizedDetents);
     detentsValue.set(normalizedDetents);
     sheetHeight.set(maxSnap);
-  }, [normalizedDetents, sheetHeight, detentsValue]);
+    firstNonzeroDetent.set(normalizedDetents.find((d) => d > 0) ?? 0);
+  }, [normalizedDetents, sheetHeight, detentsValue, firstNonzeroDetent]);
   const animateToIndex = useCallback(
     (targetIndex: number, velocity?: number) => {
       'worklet';
