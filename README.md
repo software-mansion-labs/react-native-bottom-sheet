@@ -115,7 +115,8 @@ available screen height). The default detents are `[0, 'max']`.
 
 The `index` prop is a zero&zwj;-&zwj;based index into the `detents` array.
 `onIndexChange` is called when the sheet snaps to a different detent after
-a&nbsp;drag.
+a&nbsp;drag. You can also control the sheet externally by updating the index
+state.
 
 ```tsx
 const [index, setIndex] = useState(0);
@@ -151,6 +152,11 @@ const position = useSharedValue(0);
   {/* ... */}
 </BottomSheet>
 ```
+
+### Customizing animations
+
+Use the `openAnimationConfig` and `closeAnimationConfig` props to tweak the
+spring parameters for opening and&nbsp;closing.
 
 ### Scrollable content
 
