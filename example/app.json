@@ -2,7 +2,7 @@
   "expo": {
     "name": "React Native Bottom Sheet",
     "slug": "@swmansion/react-native-bottom-sheet-example",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
