@@ -187,10 +187,10 @@ export const BottomSheetBase = ({
       isScrollableLocked.set(false);
       isTouchWithinScrollable.set(false);
       const touch = event.changedTouches[0] ?? event.allTouches[0];
-      if (touch) panStartY.set(touch.absoluteY);
-      if (touch && hasScrollable.value) {
+      if (touch !== undefined) panStartY.set(touch.absoluteY);
+      if (touch !== undefined && hasScrollable.value) {
         const layout = measure(scrollableRef);
-        if (layout) {
+        if (layout !== null) {
           const withinX =
             touch.absoluteX >= layout.pageX &&
             touch.absoluteX <= layout.pageX + layout.width;
@@ -323,7 +323,7 @@ export const BottomSheetBase = ({
   const isCollapsed = normalizedDetents[resolvedIndex] === 0;
   const pointerEvents = modal ? (isCollapsed ? 'none' : 'auto') : 'box-none';
   let scrimElement: ReactNode | null = null;
-  if (renderScrim) {
+  if (renderScrim !== undefined) {
     scrimElement = renderScrim(scrimProgress);
   } else if (modal) {
     scrimElement = <DefaultScrim progress={scrimProgress} />;
@@ -369,7 +369,7 @@ export const BottomSheetBase = ({
       style={StyleSheet.absoluteFill}
       pointerEvents={pointerEvents}
     >
-      {modal && scrimElement ? (
+      {modal && scrimElement !== null ? (
         <Pressable style={StyleSheet.absoluteFill} onPress={handleScrimPress}>
           {scrimElement}
         </Pressable>
