@@ -50,9 +50,9 @@ export const useBottomSheetScrollable = (
     });
   const animatedProps = useAnimatedProps(() => {
     const resolvedScrollEnabled =
-      typeof baseScrollEnabled === 'object' && baseScrollEnabled !== null
-        ? baseScrollEnabled.value ?? true
-        : baseScrollEnabled ?? true;
+      (typeof baseScrollEnabled === 'object' && baseScrollEnabled !== null
+        ? baseScrollEnabled.value
+        : baseScrollEnabled) ?? true;
     return {
       scrollEnabled: resolvedScrollEnabled && !isScrollableLocked.value,
     };

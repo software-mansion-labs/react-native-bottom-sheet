@@ -187,17 +187,19 @@ export const BottomSheetBase = ({
       isScrollableLocked.set(false);
       isTouchWithinScrollable.set(false);
       const touch = event.changedTouches[0] ?? event.allTouches[0];
-      if (touch !== undefined) panStartY.set(touch.absoluteY);
-      if (touch !== undefined && hasScrollable.value) {
-        const layout = measure(scrollableRef);
-        if (layout !== null) {
-          const withinX =
-            touch.absoluteX >= layout.pageX &&
-            touch.absoluteX <= layout.pageX + layout.width;
-          const withinY =
-            touch.absoluteY >= layout.pageY &&
-            touch.absoluteY <= layout.pageY + layout.height;
-          isTouchWithinScrollable.set(withinX && withinY);
+      if (touch !== undefined) {
+        panStartY.set(touch.absoluteY);
+        if (hasScrollable.value) {
+          const layout = measure(scrollableRef);
+          if (layout !== null) {
+            const withinX =
+              touch.absoluteX >= layout.pageX &&
+              touch.absoluteX <= layout.pageX + layout.width;
+            const withinY =
+              touch.absoluteY >= layout.pageY &&
+              touch.absoluteY <= layout.pageY + layout.height;
+            isTouchWithinScrollable.set(withinX && withinY);
+          }
         }
       }
     })
@@ -232,30 +234,25 @@ export const BottomSheetBase = ({
         if (isDraggingFromScrollable.value) {
           scrollTo(scrollableRef, 0, 0, false);
         }
-        const nextTranslate = Math.min(
-          Math.max(dragStartTranslateY.value + event.translationY, 0),
-          sheetHeight.value
+      } else {
+        const isDraggingDown = event.translationY > 0;
+        const canStartDrag =
+          !hasScrollable.value ||
+          scrollOffset.value <= 0 ||
+          !isTouchWithinScrollable.value;
+        if (!canStartDrag || (!isDraggingDown && translateY.value <= 0)) {
+          return;
+        }
+        const isScrollableActive =
+          hasScrollable.value && isScrollableGestureActive.value;
+        isDraggingSheet.set(true);
+        isDraggingFromScrollable.set(
+          isScrollableActive && isTouchWithinScrollable.value
         );
-        translateY.set(nextTranslate);
-        return;
-      }
-      const isDraggingDown = event.translationY > 0;
-      const canStartDrag =
-        !hasScrollable.value ||
-        scrollOffset.value <= 0 ||
-        !isTouchWithinScrollable.value;
-      if (!canStartDrag || (!isDraggingDown && translateY.value <= 0)) {
-        return;
-      }
-      const isScrollableActive =
-        hasScrollable.value && isScrollableGestureActive.value;
-      isDraggingSheet.set(true);
-      isDraggingFromScrollable.set(
-        isScrollableActive && isTouchWithinScrollable.value
-      );
-      isScrollableLocked.set(hasScrollable.value);
-      if (isTouchWithinScrollable.value && hasScrollable.value) {
-        scrollTo(scrollableRef, 0, 0, false);
+        isScrollableLocked.set(hasScrollable.value);
+        if (isTouchWithinScrollable.value && hasScrollable.value) {
+          scrollTo(scrollableRef, 0, 0, false);
+        }
       }
       const nextTranslate = Math.min(
         Math.max(dragStartTranslateY.value + event.translationY, 0),
@@ -292,13 +289,13 @@ export const BottomSheetBase = ({
         if (velocityY > 0) {
           const lower = allPositions
             .filter((pos) => pos.translateY > currentTranslate + 1)
-            .sort((a, b) => a.translateY - b.translateY);
-          if (lower.length > 0) targetIndex = lower[0]!.index;
+            .sort((a, b) => a.translateY - b.translateY)[0];
+          if (lower !== undefined) targetIndex = lower.index;
         } else {
           const upper = allPositions
             .filter((pos) => pos.translateY < currentTranslate - 1)
-            .sort((a, b) => b.translateY - a.translateY);
-          if (upper.length > 0) targetIndex = upper[0]!.index;
+            .sort((a, b) => b.translateY - a.translateY)[0];
+          if (upper !== undefined) targetIndex = upper.index;
         }
       }
       const hasIndexChanged = targetIndex !== currentIndex.value;
