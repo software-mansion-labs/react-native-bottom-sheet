@@ -2,6 +2,8 @@
 
 ![](https://img.shields.io/npm/v/@swmansion/react-native-bottom-sheet)
 
+![](cover.png)
+
 React Native Bottom Sheet provides bottom&zwj;-&zwj;sheet components for
 React&nbsp;Native.
 
