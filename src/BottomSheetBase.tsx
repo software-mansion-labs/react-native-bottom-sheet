@@ -249,19 +249,21 @@ export const BottomSheetBase = ({
         isDraggingFromScrollable.set(
           isScrollableActive && isTouchWithinScrollable.value
         );
+        dragStartTranslateY.set(translateY.value - event.translationY);
         isScrollableLocked.set(hasScrollable.value);
         if (isTouchWithinScrollable.value && hasScrollable.value) {
           scrollTo(scrollableRef, 0, 0, false);
         }
       }
+      const rawTranslate = dragStartTranslateY.value + event.translationY;
       const nextTranslate = Math.min(
-        Math.max(dragStartTranslateY.value + event.translationY, 0),
+        Math.max(rawTranslate, 0),
         sheetHeight.value
       );
       translateY.set(nextTranslate);
       if (
         isDraggingSheet.value &&
-        nextTranslate <= 0 &&
+        rawTranslate < 0 &&
         isTouchWithinScrollable.value &&
         hasScrollable.value
       ) {
