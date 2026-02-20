@@ -4,8 +4,6 @@ import type { LayoutChangeEvent } from 'react-native';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import type { SharedValue, WithSpringConfig } from 'react-native-reanimated';
 import Animated, {
-  measure,
-  scrollTo,
   useAnimatedRef,
   useAnimatedReaction,
   useAnimatedStyle,
@@ -13,13 +11,15 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
-import { scheduleOnRN, scheduleOnUI } from 'react-native-worklets';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { scheduleOnUI } from 'react-native-worklets';
+import { GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Portal } from './BottomSheetProvider';
 import { BottomSheetContextProvider } from './BottomSheetContext';
-
-export type Detent = number | 'max';
+import { clampIndex, resolveDetent } from './bottomSheetUtils';
+import type { Detent } from './bottomSheetUtils';
+import { useBottomSheetPanGesture } from './useBottomSheetPanGesture';
+export type { Detent } from './bottomSheetUtils';
 
 export interface BottomSheetCommonProps {
   children: ReactNode;
@@ -46,57 +46,6 @@ const DEFAULT_CLOSE_ANIMATION_CONFIG: WithSpringConfig = {
   dampingRatio: 1,
   duration: 250,
   overshootClamping: true,
-};
-
-const VELOCITY_THRESHOLD = 800;
-
-const findSnapTarget = (
-  currentTranslate: number,
-  velocityY: number,
-  currentIndex: number,
-  allPositions: { index: number; translateY: number }[]
-) => {
-  'worklet';
-  let targetIndex = currentIndex;
-  let minDistance = Infinity;
-  for (const pos of allPositions) {
-    const distance = Math.abs(currentTranslate - pos.translateY);
-    if (distance < minDistance) {
-      minDistance = distance;
-      targetIndex = pos.index;
-    }
-  }
-  if (Math.abs(velocityY) > VELOCITY_THRESHOLD) {
-    if (velocityY > 0) {
-      const lower = allPositions
-        .filter((pos) => pos.translateY > currentTranslate + 1)
-        .sort((a, b) => a.translateY - b.translateY)[0];
-      if (lower !== undefined) targetIndex = lower.index;
-    } else {
-      const upper = allPositions
-        .filter((pos) => pos.translateY < currentTranslate - 1)
-        .sort((a, b) => b.translateY - a.translateY)[0];
-      if (upper !== undefined) targetIndex = upper.index;
-    }
-  }
-  return targetIndex;
-};
-
-const resolveDetent = (
-  detent: Detent,
-  contentHeight: number,
-  maxHeight: number
-) => {
-  if (typeof detent === 'number') return detent;
-  if (detent === 'max') {
-    return contentHeight > 0 ? Math.min(contentHeight, maxHeight) : maxHeight;
-  }
-  throw new Error(`Invalid detent: \`${detent}\`.`);
-};
-
-const clampIndex = (index: number, detentCount: number) => {
-  if (detentCount <= 0) return 0;
-  return Math.min(Math.max(index, 0), detentCount - 1);
 };
 
 const DefaultScrim = ({ progress }: { progress: SharedValue<number> }) => {
@@ -144,12 +93,6 @@ export const BottomSheetBase = ({
   const isScrollableGestureActive = useSharedValue(false);
   const isScrollableLocked = useSharedValue(false);
   const scrollableRef = useAnimatedRef();
-  const isDraggingSheet = useSharedValue(false);
-  const isDraggingFromScrollable = useSharedValue(false);
-  const panStartY = useSharedValue(0);
-  const panActivated = useSharedValue(false);
-  const dragStartTranslateY = useSharedValue(0);
-  const isTouchWithinScrollable = useSharedValue(false);
   const detentsValue = useSharedValue(normalizedDetents);
   const firstNonzeroDetent = useSharedValue(
     normalizedDetents.find((d) => d > 0) ?? 0
@@ -209,139 +152,20 @@ export const BottomSheetBase = ({
   useEffect(() => {
     scheduleOnUI(animateToIndex, resolvedIndex);
   }, [animateToIndex, resolvedIndex, normalizedDetents]);
-  const panGesture = Gesture.Pan()
-    .manualActivation(true)
-    .onTouchesDown((event) => {
-      'worklet';
-      panActivated.set(false);
-      isDraggingSheet.set(false);
-      isDraggingFromScrollable.set(false);
-      isScrollableLocked.set(false);
-      isTouchWithinScrollable.set(false);
-      const touch = event.changedTouches[0] ?? event.allTouches[0];
-      if (touch !== undefined) {
-        panStartY.set(touch.absoluteY);
-        if (hasScrollable.value) {
-          const layout = measure(scrollableRef);
-          if (layout !== null) {
-            const withinX =
-              touch.absoluteX >= layout.pageX &&
-              touch.absoluteX <= layout.pageX + layout.width;
-            const withinY =
-              touch.absoluteY >= layout.pageY &&
-              touch.absoluteY <= layout.pageY + layout.height;
-            isTouchWithinScrollable.set(withinX && withinY);
-          }
-        }
-      }
-    })
-    .onTouchesMove((event, stateManager) => {
-      'worklet';
-      if (panActivated.value) return;
-      const touch = event.changedTouches[0] ?? event.allTouches[0];
-      if (!touch) return;
-      const deltaY = touch.absoluteY - panStartY.value;
-      if (
-        hasScrollable.value &&
-        scrollOffset.value > 0 &&
-        isTouchWithinScrollable.value
-      ) {
-        return;
-      }
-      if (deltaY > 0 || translateY.value > 0) {
-        panActivated.set(true);
-        stateManager.activate();
-      }
-    })
-    .onBegin(() => {
-      'worklet';
-      animationTarget.set(NaN);
-      isDraggingSheet.set(false);
-      isDraggingFromScrollable.set(false);
-      dragStartTranslateY.set(translateY.value);
-    })
-    .onUpdate((event) => {
-      'worklet';
-      if (isDraggingSheet.value) {
-        if (isDraggingFromScrollable.value) {
-          scrollTo(scrollableRef, 0, 0, false);
-        }
-      } else {
-        const isDraggingDown = event.translationY > 0;
-        const canStartDrag =
-          !hasScrollable.value ||
-          scrollOffset.value <= 0 ||
-          !isTouchWithinScrollable.value;
-        if (!canStartDrag || (!isDraggingDown && translateY.value <= 0)) {
-          return;
-        }
-        const isScrollableActive =
-          hasScrollable.value && isScrollableGestureActive.value;
-        isDraggingSheet.set(true);
-        isDraggingFromScrollable.set(
-          isScrollableActive && isTouchWithinScrollable.value
-        );
-        dragStartTranslateY.set(translateY.value - event.translationY);
-        isScrollableLocked.set(hasScrollable.value);
-        if (isTouchWithinScrollable.value && hasScrollable.value) {
-          scrollTo(scrollableRef, 0, 0, false);
-        }
-      }
-      const rawTranslate = dragStartTranslateY.value + event.translationY;
-      const nextTranslate = Math.min(
-        Math.max(rawTranslate, 0),
-        sheetHeight.value
-      );
-      translateY.set(nextTranslate);
-      if (
-        isDraggingSheet.value &&
-        rawTranslate < 0 &&
-        isTouchWithinScrollable.value &&
-        hasScrollable.value
-      ) {
-        isDraggingSheet.set(false);
-        isScrollableLocked.set(false);
-        const resolvedDetents = detentsValue.value;
-        const maxSnap = sheetHeight.value;
-        for (let i = resolvedDetents.length - 1; i >= 0; i--) {
-          if (resolvedDetents[i] === maxSnap) {
-            if (i !== currentIndex.value) scheduleOnRN(handleIndexChange, i);
-            animateToIndex(i);
-            break;
-          }
-        }
-      }
-    })
-    .onEnd((event) => {
-      'worklet';
-      const wasDragging = isDraggingSheet.value;
-      isScrollableLocked.set(false);
-      isDraggingSheet.set(false);
-      animationTarget.set(NaN);
-      if (!wasDragging) {
-        animateToIndex(currentIndex.value);
-        return;
-      }
-      const maxSnap = sheetHeight.value;
-      const allPositions = detentsValue.value.map((point, snapIndex) => ({
-        index: snapIndex,
-        translateY: maxSnap - point,
-      }));
-      const targetIndex = findSnapTarget(
-        translateY.value,
-        event.velocityY,
-        currentIndex.value,
-        allPositions
-      );
-      const hasIndexChanged = targetIndex !== currentIndex.value;
-      if (hasIndexChanged) scheduleOnRN(handleIndexChange, targetIndex);
-      const shouldApplyVelocity =
-        hasIndexChanged && Number.isFinite(event.velocityY);
-      animateToIndex(
-        targetIndex,
-        shouldApplyVelocity ? event.velocityY : undefined
-      );
-    });
+  const panGesture = useBottomSheetPanGesture({
+    animationTarget,
+    translateY,
+    sheetHeight,
+    detentsValue,
+    currentIndex,
+    scrollOffset,
+    hasScrollable,
+    isScrollableGestureActive,
+    isScrollableLocked,
+    scrollableRef,
+    handleIndexChange,
+    animateToIndex,
+  });
   const handleSentinelLayout = (event: LayoutChangeEvent) => {
     setContentHeight(event.nativeEvent.layout.y);
   };
