@@ -259,12 +259,31 @@ export const BottomSheetBase = ({
         sheetHeight.value
       );
       translateY.set(nextTranslate);
+      if (
+        isDraggingSheet.value &&
+        nextTranslate <= 0 &&
+        isTouchWithinScrollable.value &&
+        hasScrollable.value
+      ) {
+        isDraggingSheet.set(false);
+        isScrollableLocked.set(false);
+        const resolvedDetents = detentsValue.value;
+        const maxSnap = sheetHeight.value;
+        for (let i = resolvedDetents.length - 1; i >= 0; i--) {
+          if (resolvedDetents[i] === maxSnap) {
+            if (i !== currentIndex.value) scheduleOnRN(handleIndexChange, i);
+            animateToIndex(i);
+            break;
+          }
+        }
+      }
     })
     .onEnd((event) => {
       'worklet';
       const wasDragging = isDraggingSheet.value;
       isScrollableLocked.set(false);
       isDraggingSheet.set(false);
+      animationTarget.set(NaN);
       if (!wasDragging) {
         animateToIndex(currentIndex.value);
         return;
