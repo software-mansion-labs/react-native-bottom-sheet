@@ -1,6 +1,6 @@
 {
   "name": "@swmansion/react-native-bottom-sheet",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Provides bottom-sheet components for React Native.",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
