@@ -50,6 +50,38 @@ const DEFAULT_CLOSE_ANIMATION_CONFIG: WithSpringConfig = {
 
 const VELOCITY_THRESHOLD = 800;
 
+const findSnapTarget = (
+  currentTranslate: number,
+  velocityY: number,
+  currentIndex: number,
+  allPositions: { index: number; translateY: number }[]
+) => {
+  'worklet';
+  let targetIndex = currentIndex;
+  let minDistance = Infinity;
+  for (const pos of allPositions) {
+    const distance = Math.abs(currentTranslate - pos.translateY);
+    if (distance < minDistance) {
+      minDistance = distance;
+      targetIndex = pos.index;
+    }
+  }
+  if (Math.abs(velocityY) > VELOCITY_THRESHOLD) {
+    if (velocityY > 0) {
+      const lower = allPositions
+        .filter((pos) => pos.translateY > currentTranslate + 1)
+        .sort((a, b) => a.translateY - b.translateY)[0];
+      if (lower !== undefined) targetIndex = lower.index;
+    } else {
+      const upper = allPositions
+        .filter((pos) => pos.translateY < currentTranslate - 1)
+        .sort((a, b) => b.translateY - a.translateY)[0];
+      if (upper !== undefined) targetIndex = upper.index;
+    }
+  }
+  return targetIndex;
+};
+
 const resolveDetent = (
   detent: Detent,
   contentHeight: number,
@@ -295,34 +327,20 @@ export const BottomSheetBase = ({
         index: snapIndex,
         translateY: maxSnap - point,
       }));
-      const currentTranslate = translateY.value;
-      const velocityY = event.velocityY;
-      let targetIndex = currentIndex.value;
-      let minDistance = Infinity;
-      for (const pos of allPositions) {
-        const distance = Math.abs(currentTranslate - pos.translateY);
-        if (distance < minDistance) {
-          minDistance = distance;
-          targetIndex = pos.index;
-        }
-      }
-      if (Math.abs(velocityY) > VELOCITY_THRESHOLD) {
-        if (velocityY > 0) {
-          const lower = allPositions
-            .filter((pos) => pos.translateY > currentTranslate + 1)
-            .sort((a, b) => a.translateY - b.translateY)[0];
-          if (lower !== undefined) targetIndex = lower.index;
-        } else {
-          const upper = allPositions
-            .filter((pos) => pos.translateY < currentTranslate - 1)
-            .sort((a, b) => b.translateY - a.translateY)[0];
-          if (upper !== undefined) targetIndex = upper.index;
-        }
-      }
+      const targetIndex = findSnapTarget(
+        translateY.value,
+        event.velocityY,
+        currentIndex.value,
+        allPositions
+      );
       const hasIndexChanged = targetIndex !== currentIndex.value;
       if (hasIndexChanged) scheduleOnRN(handleIndexChange, targetIndex);
-      const shouldApplyVelocity = hasIndexChanged && Number.isFinite(velocityY);
-      animateToIndex(targetIndex, shouldApplyVelocity ? velocityY : undefined);
+      const shouldApplyVelocity =
+        hasIndexChanged && Number.isFinite(event.velocityY);
+      animateToIndex(
+        targetIndex,
+        shouldApplyVelocity ? event.velocityY : undefined
+      );
     });
   const handleSentinelLayout = (event: LayoutChangeEvent) => {
     setContentHeight(event.nativeEvent.layout.y);
