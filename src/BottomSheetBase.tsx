@@ -82,15 +82,18 @@ export const BottomSheetBase = ({
   const maxHeight = screenHeight - insets.top;
   const resolvedIndex = clampIndex(index, detents.length);
   const [contentHeight, setContentHeight] = useState(0);
+
   if (detents.length === 0) {
     throw new Error('detents must include at least one value.');
   }
-  const normalizedDetents = detents.map((point) => {
-    const resolved = resolveDetent(point, contentHeight, maxHeight);
+
+  const normalizedDetents = detents.map((detent) => {
+    const resolved = resolveDetent(detent, contentHeight, maxHeight);
     return Math.max(0, Math.min(resolved, maxHeight));
   });
-  const isDraggable = detents.map((d) => !isDetentProgrammatic(d));
+  const isDraggable = detents.map((detent) => !isDetentProgrammatic(detent));
   const initialMaxSnap = Math.max(0, ...normalizedDetents);
+
   const translateY = useSharedValue(initialMaxSnap);
   const animationTarget = useSharedValue(NaN);
   const sheetHeight = useSharedValue(initialMaxSnap);
@@ -99,36 +102,41 @@ export const BottomSheetBase = ({
   const isScrollableGestureActive = useSharedValue(false);
   const isScrollableLocked = useSharedValue(false);
   const scrollableRef = useAnimatedRef();
+
   const detentsValue = useSharedValue(normalizedDetents);
   const isDraggableValue = useSharedValue(isDraggable);
   const firstNonzeroDetent = useSharedValue(
-    normalizedDetents.find((d) => d > 0) ?? 0
+    normalizedDetents.find((detent) => detent > 0) ?? 0
   );
   const currentIndex = useSharedValue(resolvedIndex);
   const internalPosition = useDerivedValue(() =>
     Math.max(0, sheetHeight.value - translateY.value)
   );
+
   useAnimatedReaction(
     () => internalPosition.value,
     (value) => {
       if (externalPosition !== undefined) externalPosition.set(value);
     }
   );
+
   const scrimProgress = useDerivedValue(() => {
     const target = firstNonzeroDetent.value;
     if (target <= 0) return 0;
     const progress = internalPosition.value / target;
     return Math.min(1, Math.max(0, progress));
   });
+
   const handleIndexChange = (nextIndex: number) => {
     onIndexChange?.(nextIndex);
   };
+
   useEffect(() => {
     const maxSnap = Math.max(0, ...normalizedDetents);
     detentsValue.set(normalizedDetents);
     isDraggableValue.set(isDraggable);
     sheetHeight.set(maxSnap);
-    firstNonzeroDetent.set(normalizedDetents.find((d) => d > 0) ?? 0);
+    firstNonzeroDetent.set(normalizedDetents.find((detent) => detent > 0) ?? 0);
   }, [
     normalizedDetents,
     isDraggable,
@@ -137,6 +145,7 @@ export const BottomSheetBase = ({
     isDraggableValue,
     firstNonzeroDetent,
   ]);
+
   const animateToIndex = useCallback(
     (targetIndex: number, velocity?: number) => {
       'worklet';
@@ -164,9 +173,11 @@ export const BottomSheetBase = ({
       translateY,
     ]
   );
+
   useEffect(() => {
     scheduleOnUI(animateToIndex, resolvedIndex);
   }, [animateToIndex, resolvedIndex, normalizedDetents]);
+
   const panGesture = useBottomSheetPanGesture({
     animationTarget,
     translateY,
@@ -182,6 +193,7 @@ export const BottomSheetBase = ({
     handleIndexChange,
     animateToIndex,
   });
+
   const handleSentinelLayout = (event: LayoutChangeEvent) => {
     setContentHeight(event.nativeEvent.layout.y);
   };
@@ -191,6 +203,7 @@ export const BottomSheetBase = ({
     handleIndexChange(closedIndex);
     scheduleOnUI(animateToIndex, closedIndex);
   };
+
   const wrapperStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
     height: sheetHeight.value,
@@ -204,6 +217,7 @@ export const BottomSheetBase = ({
   } else if (modal) {
     scrimElement = <DefaultScrim progress={scrimProgress} />;
   }
+
   const sheetContent = (
     <BottomSheetContextProvider
       value={{
@@ -240,6 +254,7 @@ export const BottomSheetBase = ({
       </Animated.View>
     </BottomSheetContextProvider>
   );
+
   const sheetContainer = (
     <Animated.View
       style={StyleSheet.absoluteFill}
@@ -254,5 +269,6 @@ export const BottomSheetBase = ({
     </Animated.View>
   );
   if (modal) return <Portal>{sheetContainer}</Portal>;
+
   return sheetContainer;
 };

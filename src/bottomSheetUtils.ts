@@ -30,28 +30,34 @@ export const findSnapTarget = (
   allPositions: { index: number; translateY: number; isDraggable: boolean }[]
 ) => {
   'worklet';
-  const candidates = allPositions.filter((pos) => pos.isDraggable);
-  const effectivePositions = candidates.length > 0 ? candidates : allPositions;
+  const draggablePositions = allPositions.filter(
+    (position) => position.isDraggable
+  );
+  const effectivePositions =
+    draggablePositions.length > 0 ? draggablePositions : allPositions;
+
   let targetIndex = currentIndex;
   let minDistance = Infinity;
-  for (const pos of effectivePositions) {
-    const distance = Math.abs(currentTranslate - pos.translateY);
+
+  for (const position of effectivePositions) {
+    const distance = Math.abs(currentTranslate - position.translateY);
     if (distance < minDistance) {
       minDistance = distance;
-      targetIndex = pos.index;
+      targetIndex = position.index;
     }
   }
+
   if (Math.abs(velocityY) > VELOCITY_THRESHOLD) {
     if (velocityY > 0) {
-      const lower = effectivePositions
-        .filter((pos) => pos.translateY > currentTranslate + 1)
+      const lowerPosition = effectivePositions
+        .filter((position) => position.translateY > currentTranslate + 1)
         .sort((a, b) => a.translateY - b.translateY)[0];
-      if (lower !== undefined) targetIndex = lower.index;
+      if (lowerPosition !== undefined) targetIndex = lowerPosition.index;
     } else {
-      const upper = effectivePositions
-        .filter((pos) => pos.translateY < currentTranslate - 1)
+      const upperPosition = effectivePositions
+        .filter((position) => position.translateY < currentTranslate - 1)
         .sort((a, b) => b.translateY - a.translateY)[0];
-      if (upper !== undefined) targetIndex = upper.index;
+      if (upperPosition !== undefined) targetIndex = upperPosition.index;
     }
   }
   return targetIndex;
@@ -62,12 +68,12 @@ export const resolveDetent = (
   contentHeight: number,
   maxHeight: number
 ) => {
-  const raw = detentValue(detent);
-  if (typeof raw === 'number') return raw;
-  if (raw === 'max') {
+  const detentValueInput = detentValue(detent);
+  if (typeof detentValueInput === 'number') return detentValueInput;
+  if (detentValueInput === 'max') {
     return contentHeight > 0 ? Math.min(contentHeight, maxHeight) : maxHeight;
   }
-  throw new Error(`Invalid detent: \`${raw}\`.`);
+  throw new Error(`Invalid detent: \`${detentValueInput}\`.`);
 };
 
 export const clampIndex = (index: number, detentCount: number) => {

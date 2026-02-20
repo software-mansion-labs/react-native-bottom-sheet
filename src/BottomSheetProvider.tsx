@@ -24,6 +24,7 @@ const PortalHost = () => {
   useEffect(() => {
     return context.subscribe(forceRender);
   }, [context]);
+
   return Array.from(context.getPortals().entries()).map(([key, element]) => (
     <View key={key} style={StyleSheet.absoluteFill} pointerEvents="box-none">
       {element}
@@ -56,6 +57,7 @@ export const BottomSheetProvider = ({ children }: { children: ReactNode }) => {
       getPortals: () => portals,
     };
   });
+
   return (
     <PortalContext.Provider value={context}>
       {children}
@@ -69,8 +71,10 @@ export const Portal = ({ children }: { children: ReactNode }) => {
   if (context === null) {
     throw new Error('`Portal` must be used within `BottomSheetProvider`.');
   }
+
   const { addPortal, removePortal } = context;
   const id = useId();
+
   useEffect(() => {
     addPortal(id, children);
   }, [id, children, addPortal]);

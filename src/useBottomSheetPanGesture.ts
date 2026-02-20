@@ -141,25 +141,25 @@ export const useBottomSheetPanGesture = ({
       ) {
         isDraggingSheet.set(false);
         isScrollableLocked.set(false);
-        const resolvedDetents = detentsValue.value;
+        const resolvedDetentValues = detentsValue.value;
         const draggable = isDraggableValue.value;
         let targetSnapIndex = -1;
         let targetSnapValue = -1;
-        for (let i = resolvedDetents.length - 1; i >= 0; i--) {
-          const detentVal = resolvedDetents[i];
+        for (let i = resolvedDetentValues.length - 1; i >= 0; i--) {
+          const detentValue = resolvedDetentValues[i];
           if (
-            detentVal !== undefined &&
+            detentValue !== undefined &&
             (draggable[i] ?? true) &&
-            detentVal > targetSnapValue
+            detentValue > targetSnapValue
           ) {
-            targetSnapValue = detentVal;
+            targetSnapValue = detentValue;
             targetSnapIndex = i;
           }
         }
         if (targetSnapIndex === -1) {
           const maxSnap = sheetHeight.value;
-          for (let i = resolvedDetents.length - 1; i >= 0; i--) {
-            if (resolvedDetents[i] === maxSnap) {
+          for (let i = resolvedDetentValues.length - 1; i >= 0; i--) {
+            if (resolvedDetentValues[i] === maxSnap) {
               targetSnapIndex = i;
               break;
             }
@@ -185,9 +185,9 @@ export const useBottomSheetPanGesture = ({
       }
       const maxSnap = sheetHeight.value;
       const draggable = isDraggableValue.value;
-      const allPositions = detentsValue.value.map((point, snapIndex) => ({
+      const allPositions = detentsValue.value.map((detentValue, snapIndex) => ({
         index: snapIndex,
-        translateY: maxSnap - point,
+        translateY: maxSnap - detentValue,
         isDraggable: draggable[snapIndex] ?? true,
       }));
       const targetIndex = findSnapTarget(
