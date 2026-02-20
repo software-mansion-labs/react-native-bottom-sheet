@@ -16,10 +16,15 @@ import { GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Portal } from './BottomSheetProvider';
 import { BottomSheetContextProvider } from './BottomSheetContext';
-import { clampIndex, resolveDetent } from './bottomSheetUtils';
+import {
+  clampIndex,
+  isDetentProgrammatic,
+  resolveDetent,
+} from './bottomSheetUtils';
 import type { Detent } from './bottomSheetUtils';
 import { useBottomSheetPanGesture } from './useBottomSheetPanGesture';
-export type { Detent } from './bottomSheetUtils';
+export type { Detent, DetentValue } from './bottomSheetUtils';
+export { programmatic } from './bottomSheetUtils';
 
 export interface BottomSheetCommonProps {
   children: ReactNode;
@@ -84,6 +89,7 @@ export const BottomSheetBase = ({
     const resolved = resolveDetent(point, contentHeight, maxHeight);
     return Math.max(0, Math.min(resolved, maxHeight));
   });
+  const isDraggable = detents.map((d) => !isDetentProgrammatic(d));
   const initialMaxSnap = Math.max(0, ...normalizedDetents);
   const translateY = useSharedValue(initialMaxSnap);
   const animationTarget = useSharedValue(NaN);
@@ -94,6 +100,7 @@ export const BottomSheetBase = ({
   const isScrollableLocked = useSharedValue(false);
   const scrollableRef = useAnimatedRef();
   const detentsValue = useSharedValue(normalizedDetents);
+  const isDraggableValue = useSharedValue(isDraggable);
   const firstNonzeroDetent = useSharedValue(
     normalizedDetents.find((d) => d > 0) ?? 0
   );
@@ -119,9 +126,17 @@ export const BottomSheetBase = ({
   useEffect(() => {
     const maxSnap = Math.max(0, ...normalizedDetents);
     detentsValue.set(normalizedDetents);
+    isDraggableValue.set(isDraggable);
     sheetHeight.set(maxSnap);
     firstNonzeroDetent.set(normalizedDetents.find((d) => d > 0) ?? 0);
-  }, [normalizedDetents, sheetHeight, detentsValue, firstNonzeroDetent]);
+  }, [
+    normalizedDetents,
+    isDraggable,
+    sheetHeight,
+    detentsValue,
+    isDraggableValue,
+    firstNonzeroDetent,
+  ]);
   const animateToIndex = useCallback(
     (targetIndex: number, velocity?: number) => {
       'worklet';
@@ -157,6 +172,7 @@ export const BottomSheetBase = ({
     translateY,
     sheetHeight,
     detentsValue,
+    isDraggableValue,
     currentIndex,
     scrollOffset,
     hasScrollable,

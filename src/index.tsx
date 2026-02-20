@@ -13,4 +13,5 @@ export type {
   BottomSheetScrollViewMethods,
   BottomSheetScrollViewProps,
 } from './BottomSheetScrollView';
-export type { Detent } from './BottomSheetBase';
+export type { Detent, DetentValue } from './BottomSheetBase';
+export { programmatic } from './BottomSheetBase';

@@ -1,4 +1,25 @@
-export type Detent = number | 'max';
+export type DetentValue = number | 'max';
+
+export type Detent =
+  | DetentValue
+  | { value: DetentValue; programmatic?: boolean };
+
+export const programmatic = (value: DetentValue): Detent => ({
+  value,
+  programmatic: true,
+});
+
+export const detentValue = (detent: Detent): DetentValue => {
+  if (typeof detent === 'object' && detent !== null) return detent.value;
+  return detent;
+};
+
+export const isDetentProgrammatic = (detent: Detent): boolean => {
+  if (typeof detent === 'object' && detent !== null) {
+    return detent.programmatic === true;
+  }
+  return false;
+};
 
 const VELOCITY_THRESHOLD = 800;
 
@@ -6,12 +27,14 @@ export const findSnapTarget = (
   currentTranslate: number,
   velocityY: number,
   currentIndex: number,
-  allPositions: { index: number; translateY: number }[]
+  allPositions: { index: number; translateY: number; isDraggable: boolean }[]
 ) => {
   'worklet';
+  const candidates = allPositions.filter((pos) => pos.isDraggable);
+  const effectivePositions = candidates.length > 0 ? candidates : allPositions;
   let targetIndex = currentIndex;
   let minDistance = Infinity;
-  for (const pos of allPositions) {
+  for (const pos of effectivePositions) {
     const distance = Math.abs(currentTranslate - pos.translateY);
     if (distance < minDistance) {
       minDistance = distance;
@@ -20,12 +43,12 @@ export const findSnapTarget = (
   }
   if (Math.abs(velocityY) > VELOCITY_THRESHOLD) {
     if (velocityY > 0) {
-      const lower = allPositions
+      const lower = effectivePositions
         .filter((pos) => pos.translateY > currentTranslate + 1)
         .sort((a, b) => a.translateY - b.translateY)[0];
       if (lower !== undefined) targetIndex = lower.index;
     } else {
-      const upper = allPositions
+      const upper = effectivePositions
         .filter((pos) => pos.translateY < currentTranslate - 1)
         .sort((a, b) => b.translateY - a.translateY)[0];
       if (upper !== undefined) targetIndex = upper.index;
@@ -39,11 +62,12 @@ export const resolveDetent = (
   contentHeight: number,
   maxHeight: number
 ) => {
-  if (typeof detent === 'number') return detent;
-  if (detent === 'max') {
+  const raw = detentValue(detent);
+  if (typeof raw === 'number') return raw;
+  if (raw === 'max') {
     return contentHeight > 0 ? Math.min(contentHeight, maxHeight) : maxHeight;
   }
-  throw new Error(`Invalid detent: \`${detent}\`.`);
+  throw new Error(`Invalid detent: \`${raw}\`.`);
 };
 
 export const clampIndex = (index: number, detentCount: number) => {
