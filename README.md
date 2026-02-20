@@ -132,6 +132,22 @@ const [index, setIndex] = useState(0);
 </BottomSheet>
 ```
 
+#### Programmatic-only detents
+
+If you want a detent to be reachable only via code (not by dragging), use the
+object form or the `programmatic` helper. Programmatic detents are excluded from
+drag snapping but can still be targeted via `index`&nbsp;updates.
+
+```tsx
+<BottomSheet
+  detents={[0, programmatic(300), 'max']}
+  index={index}
+  onIndexChange={setIndex}
+>
+  {/* ... */}
+</BottomSheet>
+```
+
 ### Position tracking
 
 The `position` prop accepts a `SharedValue` that the library keeps in sync with
@@ -164,6 +180,18 @@ For scrollable sheet content, use `BottomSheetScrollView` or
 `BottomSheetFlatList` instead of the standard React Native components. These
 integrate scrolling with the sheet’s drag gesture so that dragging down while
 scrolled to the top collapses the&nbsp;sheet.
+
+Both components expose imperative methods on their&nbsp;refs:
+
+```tsx
+const scrollViewRef = useRef<BottomSheetScrollViewMethods>(null);
+const listRef = useRef<BottomSheetFlatListMethods>(null);
+```
+
+```tsx
+scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+listRef.current?.scrollToOffset({ offset: 0, animated: true });
+```
 
 ## By [Software Mansion](https://swmansion.com)
 
