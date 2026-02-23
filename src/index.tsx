@@ -15,3 +15,4 @@ export type {
 } from './BottomSheetScrollView';
 export type { Detent, DetentValue } from './BottomSheetBase';
 export { programmatic } from './BottomSheetBase';
+export { useBottomSheetScrollable } from './useBottomSheetScrollable';
