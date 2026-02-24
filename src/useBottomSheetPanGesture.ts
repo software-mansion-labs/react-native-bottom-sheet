@@ -44,6 +44,7 @@ export const useBottomSheetPanGesture = ({
 }: BottomSheetPanGestureParams): PanGesture => {
   const isDraggingSheet = useSharedValue(false);
   const isDraggingFromScrollable = useSharedValue(false);
+  const panStartX = useSharedValue(0);
   const panStartY = useSharedValue(0);
   const panActivated = useSharedValue(false);
   const dragStartTranslateY = useSharedValue(0);
@@ -60,6 +61,7 @@ export const useBottomSheetPanGesture = ({
       isTouchWithinScrollable.set(false);
       const touch = event.changedTouches[0] ?? event.allTouches[0];
       if (touch !== undefined) {
+        panStartX.set(touch.absoluteX);
         panStartY.set(touch.absoluteY);
         if (hasScrollable.value) {
           const layout = measure(scrollableRef);
@@ -80,6 +82,7 @@ export const useBottomSheetPanGesture = ({
       if (panActivated.value) return;
       const touch = event.changedTouches[0] ?? event.allTouches[0];
       if (!touch) return;
+      const deltaX = touch.absoluteX - panStartX.value;
       const deltaY = touch.absoluteY - panStartY.value;
       if (
         hasScrollable.value &&
@@ -88,7 +91,14 @@ export const useBottomSheetPanGesture = ({
       ) {
         return;
       }
-      if (deltaY > 0 || translateY.value > 0) {
+      if (Math.abs(deltaX) > Math.abs(deltaY)) {
+        stateManager.fail();
+        return;
+      }
+      if (
+        Math.abs(deltaY) > Math.abs(deltaX) &&
+        (deltaY > 0 || translateY.value > 0)
+      ) {
         panActivated.set(true);
         stateManager.activate();
       }
