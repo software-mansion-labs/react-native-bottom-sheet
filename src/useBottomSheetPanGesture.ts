@@ -87,7 +87,8 @@ export const useBottomSheetPanGesture = ({
       if (
         hasScrollable.value &&
         scrollOffset.value > 0 &&
-        isTouchWithinScrollable.value
+        isTouchWithinScrollable.value &&
+        translateY.value <= 0
       ) {
         return;
       }
@@ -121,6 +122,7 @@ export const useBottomSheetPanGesture = ({
         const canStartDrag =
           !hasScrollable.value ||
           scrollOffset.value <= 0 ||
+          translateY.value > 0 ||
           !isTouchWithinScrollable.value;
         if (!canStartDrag || (!isDraggingDown && translateY.value <= 0)) {
           return;
@@ -129,11 +131,17 @@ export const useBottomSheetPanGesture = ({
           hasScrollable.value && isScrollableGestureActive.value;
         isDraggingSheet.set(true);
         isDraggingFromScrollable.set(
-          isScrollableActive && isTouchWithinScrollable.value
+          isScrollableActive &&
+            isTouchWithinScrollable.value &&
+            scrollOffset.value <= 0
         );
         dragStartTranslateY.set(translateY.value - event.translationY);
         isScrollableLocked.set(hasScrollable.value);
-        if (isTouchWithinScrollable.value && hasScrollable.value) {
+        if (
+          isTouchWithinScrollable.value &&
+          hasScrollable.value &&
+          scrollOffset.value <= 0
+        ) {
           scrollTo(scrollableRef, 0, 0, false);
         }
       }
