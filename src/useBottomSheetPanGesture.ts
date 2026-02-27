@@ -146,9 +146,21 @@ export const useBottomSheetPanGesture = ({
         }
       }
       const rawTranslate = dragStartTranslateY.value + event.translationY;
+      const resolvedDetents = detentsValue.value;
+      const draggable = isDraggableValue.value;
+      let maxDraggableTranslateY = sheetHeight.value;
+      let foundDraggable = false;
+      for (let i = 0; i < resolvedDetents.length; i++) {
+        if (!(draggable[i] ?? true)) continue;
+        const t = sheetHeight.value - (resolvedDetents[i] ?? 0);
+        if (!foundDraggable || t > maxDraggableTranslateY) {
+          maxDraggableTranslateY = t;
+          foundDraggable = true;
+        }
+      }
       const nextTranslate = Math.min(
         Math.max(rawTranslate, 0),
-        sheetHeight.value
+        maxDraggableTranslateY
       );
       translateY.set(nextTranslate);
       if (
@@ -159,12 +171,10 @@ export const useBottomSheetPanGesture = ({
       ) {
         isDraggingSheet.set(false);
         isScrollableLocked.set(false);
-        const resolvedDetentValues = detentsValue.value;
-        const draggable = isDraggableValue.value;
         let targetSnapIndex = -1;
         let targetSnapValue = -1;
-        for (let i = resolvedDetentValues.length - 1; i >= 0; i--) {
-          const detentValue = resolvedDetentValues[i];
+        for (let i = resolvedDetents.length - 1; i >= 0; i--) {
+          const detentValue = resolvedDetents[i];
           if (
             detentValue !== undefined &&
             (draggable[i] ?? true) &&
@@ -176,8 +186,8 @@ export const useBottomSheetPanGesture = ({
         }
         if (targetSnapIndex === -1) {
           const maxSnap = sheetHeight.value;
-          for (let i = resolvedDetentValues.length - 1; i >= 0; i--) {
-            if (resolvedDetentValues[i] === maxSnap) {
+          for (let i = resolvedDetents.length - 1; i >= 0; i--) {
+            if (resolvedDetents[i] === maxSnap) {
               targetSnapIndex = i;
               break;
             }
