@@ -181,16 +181,24 @@ For scrollable sheet content, use `BottomSheetScrollView` or
 integrate scrolling with the sheet’s drag gesture so that dragging down while
 scrolled to the top collapses the&nbsp;sheet.
 
-Both components expose imperative methods on their&nbsp;refs:
+If you need a custom scrollable (for example, a `FlashList`), wrap it with
+`bottomSheetScrollable`. The returned component forwards the underlying
+scrollable ref, so you can call any imperative methods supported by the
+wrapped&nbsp;component.
 
 ```tsx
-const scrollViewRef = useRef<BottomSheetScrollViewMethods>(null);
-const listRef = useRef<BottomSheetFlatListMethods>(null);
+const BottomSheetFlashList = bottomSheetScrollable<
+  FlashListProps<string>,
+  FlashListRef<string>
+>(FlashList);
 ```
 
 ```tsx
-scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-listRef.current?.scrollToOffset({ offset: 0, animated: true });
+const listRef = useRef<FlashListRef<string>>(null);
+```
+
+```tsx
+<BottomSheetFlashList ref={listRef} /* ... */ />
 ```
 
 ## By [Software Mansion](https://swmansion.com)
