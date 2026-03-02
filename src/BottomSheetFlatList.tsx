@@ -1,63 +1,21 @@
-import { useImperativeHandle, type Ref } from 'react';
-import type { NativeScrollEvent } from 'react-native';
-import { GestureDetector } from 'react-native-gesture-handler';
-import type { FlatListPropsWithLayout } from 'react-native-reanimated';
-import Animated, { scrollTo } from 'react-native-reanimated';
-import { scheduleOnUI } from 'react-native-worklets';
+import { FlatList, type NativeScrollEvent } from 'react-native';
+import type {
+  FlatListPropsWithLayout,
+  SharedValue,
+} from 'react-native-reanimated';
+import type { Ref, ReactElement } from 'react';
 
-import { useBottomSheetScrollable } from './useBottomSheetScrollable';
+import { bottomSheetScrollable } from './bottomSheetScrollable';
 
-export interface BottomSheetFlatListProps<T>
-  extends Omit<FlatListPropsWithLayout<T>, 'onScroll' | 'ref'> {
+export type BottomSheetFlatListProps<T> = Omit<
+  FlatListPropsWithLayout<T>,
+  'onScroll' | 'scrollEnabled' | 'ref'
+> & {
+  scrollEnabled?: boolean | SharedValue<boolean | undefined>;
   onScroll?: (event: NativeScrollEvent) => void;
-  ref?: Ref<BottomSheetFlatListMethods>;
-}
-
-export const BottomSheetFlatList = <T,>({
-  scrollEnabled,
-  onScroll,
-  ref,
-  ...rest
-}: BottomSheetFlatListProps<T>) => {
-  const { scrollHandler, scrollableRef, nativeGesture, animatedProps } =
-    useBottomSheetScrollable(scrollEnabled, onScroll);
-
-  useImperativeHandle(
-    ref,
-    () => ({
-      scrollToOffset: ({ offset, animated }) => {
-        const resolvedAnimated = animated ?? true;
-        scheduleOnUI(
-          (
-            animatedRef: Parameters<typeof scrollTo>[0],
-            y: number,
-            shouldAnimate: boolean
-          ) => {
-            'worklet';
-            scrollTo(animatedRef, 0, y, shouldAnimate);
-          },
-          scrollableRef,
-          offset,
-          resolvedAnimated
-        );
-      },
-    }),
-    [scrollableRef]
-  );
-
-  return (
-    <GestureDetector gesture={nativeGesture}>
-      <Animated.FlatList
-        {...rest}
-        animatedProps={animatedProps}
-        ref={scrollableRef}
-        onScroll={scrollHandler}
-        scrollEventThrottle={16}
-      />
-    </GestureDetector>
-  );
+  ref?: Ref<FlatList<T>>;
 };
 
-export type BottomSheetFlatListMethods = {
-  scrollToOffset: (params: { offset: number; animated?: boolean }) => void;
-};
+export const BottomSheetFlatList = bottomSheetScrollable(FlatList) as <T>(
+  props: BottomSheetFlatListProps<T>
+) => ReactElement;

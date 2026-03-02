@@ -4,11 +4,11 @@ import { scheduleOnRN } from 'react-native-worklets';
 import {
   measure,
   scrollTo,
-  type AnimatedRef,
   type SharedValue,
   useSharedValue,
 } from 'react-native-reanimated';
 
+import type { ScrollableEntry } from './BottomSheetContext';
 import { findSnapTarget } from './bottomSheetUtils';
 
 interface BottomSheetPanGestureParams {
@@ -18,11 +18,8 @@ interface BottomSheetPanGestureParams {
   detentsValue: SharedValue<number[]>;
   isDraggableValue: SharedValue<boolean[]>;
   currentIndex: SharedValue<number>;
-  scrollOffset: SharedValue<number>;
-  hasScrollable: SharedValue<boolean>;
-  isScrollableGestureActive: SharedValue<boolean>;
+  scrollableEntries: ScrollableEntry[];
   isScrollableLocked: SharedValue<boolean>;
-  scrollableRef: AnimatedRef<any>;
   handleIndexChange: (nextIndex: number) => void;
   animateToIndex: (targetIndex: number, velocity?: number) => void;
 }
@@ -34,11 +31,8 @@ export const useBottomSheetPanGesture = ({
   detentsValue,
   isDraggableValue,
   currentIndex,
-  scrollOffset,
-  hasScrollable,
-  isScrollableGestureActive,
+  scrollableEntries,
   isScrollableLocked,
-  scrollableRef,
   handleIndexChange,
   animateToIndex,
 }: BottomSheetPanGestureParams): PanGesture => {
@@ -48,7 +42,7 @@ export const useBottomSheetPanGesture = ({
   const panStartY = useSharedValue(0);
   const panActivated = useSharedValue(false);
   const dragStartTranslateY = useSharedValue(0);
-  const isTouchWithinScrollable = useSharedValue(false);
+  const activeScrollableIndex = useSharedValue(-1);
 
   return Gesture.Pan()
     .manualActivation(true)
@@ -58,21 +52,26 @@ export const useBottomSheetPanGesture = ({
       isDraggingSheet.set(false);
       isDraggingFromScrollable.set(false);
       isScrollableLocked.set(false);
-      isTouchWithinScrollable.set(false);
+      activeScrollableIndex.set(-1);
       const touch = event.changedTouches[0] ?? event.allTouches[0];
       if (touch !== undefined) {
         panStartX.set(touch.absoluteX);
         panStartY.set(touch.absoluteY);
-        if (hasScrollable.value) {
-          const layout = measure(scrollableRef);
-          if (layout !== null) {
-            const withinX =
-              touch.absoluteX >= layout.pageX &&
-              touch.absoluteX <= layout.pageX + layout.width;
-            const withinY =
-              touch.absoluteY >= layout.pageY &&
-              touch.absoluteY <= layout.pageY + layout.height;
-            isTouchWithinScrollable.set(withinX && withinY);
+        const entries = scrollableEntries;
+        for (let i = 0; i < entries.length; i++) {
+          const entry = entries[i];
+          if (entry === undefined) continue;
+          const layout = measure(entry.ref);
+          if (layout === null) continue;
+          const withinX =
+            touch.absoluteX >= layout.pageX &&
+            touch.absoluteX <= layout.pageX + layout.width;
+          const withinY =
+            touch.absoluteY >= layout.pageY &&
+            touch.absoluteY <= layout.pageY + layout.height;
+          if (withinX && withinY) {
+            activeScrollableIndex.set(i);
+            break;
           }
         }
       }
@@ -84,13 +83,16 @@ export const useBottomSheetPanGesture = ({
       if (!touch) return;
       const deltaX = touch.absoluteX - panStartX.value;
       const deltaY = touch.absoluteY - panStartY.value;
-      if (
-        hasScrollable.value &&
-        scrollOffset.value > 0 &&
-        isTouchWithinScrollable.value &&
-        translateY.value <= 0
-      ) {
-        return;
+      const activeIdx = activeScrollableIndex.value;
+      if (activeIdx !== -1) {
+        const active = scrollableEntries[activeIdx];
+        if (
+          active !== undefined &&
+          active.scrollOffset.value > 0 &&
+          translateY.value <= 0
+        ) {
+          return;
+        }
       }
       if (Math.abs(deltaX) > Math.abs(deltaY)) {
         stateManager.fail();
@@ -113,36 +115,30 @@ export const useBottomSheetPanGesture = ({
     })
     .onUpdate((event) => {
       'worklet';
+      const activeIdx = activeScrollableIndex.value;
+      const hasActive = activeIdx !== -1;
+      const active = hasActive ? scrollableEntries[activeIdx] : undefined;
+      const activeOffset = active !== undefined ? active.scrollOffset.value : 0;
+
       if (isDraggingSheet.value) {
-        if (isDraggingFromScrollable.value) {
-          scrollTo(scrollableRef, 0, 0, false);
+        if (isDraggingFromScrollable.value && active !== undefined) {
+          scrollTo(active.ref, 0, 0, false);
         }
       } else {
         const isDraggingDown = event.translationY > 0;
         const canStartDrag =
-          !hasScrollable.value ||
-          scrollOffset.value <= 0 ||
-          translateY.value > 0 ||
-          !isTouchWithinScrollable.value;
+          !hasActive || activeOffset <= 0 || translateY.value > 0;
         if (!canStartDrag || (!isDraggingDown && translateY.value <= 0)) {
           return;
         }
         const isScrollableActive =
-          hasScrollable.value && isScrollableGestureActive.value;
+          hasActive && active !== undefined && active.isGestureActive.value;
         isDraggingSheet.set(true);
-        isDraggingFromScrollable.set(
-          isScrollableActive &&
-            isTouchWithinScrollable.value &&
-            scrollOffset.value <= 0
-        );
+        isDraggingFromScrollable.set(isScrollableActive && activeOffset <= 0);
         dragStartTranslateY.set(translateY.value - event.translationY);
-        isScrollableLocked.set(hasScrollable.value);
-        if (
-          isTouchWithinScrollable.value &&
-          hasScrollable.value &&
-          scrollOffset.value <= 0
-        ) {
-          scrollTo(scrollableRef, 0, 0, false);
+        isScrollableLocked.set(hasActive);
+        if (hasActive && active !== undefined && activeOffset <= 0) {
+          scrollTo(active.ref, 0, 0, false);
         }
       }
       const rawTranslate = dragStartTranslateY.value + event.translationY;
@@ -163,12 +159,7 @@ export const useBottomSheetPanGesture = ({
         maxDraggableTranslateY
       );
       translateY.set(nextTranslate);
-      if (
-        isDraggingSheet.value &&
-        rawTranslate < 0 &&
-        isTouchWithinScrollable.value &&
-        hasScrollable.value
-      ) {
+      if (isDraggingSheet.value && rawTranslate < 0 && hasActive) {
         isDraggingSheet.set(false);
         isScrollableLocked.set(false);
         let targetSnapIndex = -1;

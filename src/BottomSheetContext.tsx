@@ -2,16 +2,19 @@ import { createContext, useContext } from 'react';
 import type { PanGesture } from 'react-native-gesture-handler';
 import type { AnimatedRef, SharedValue } from 'react-native-reanimated';
 
+export interface ScrollableEntry {
+  ref: AnimatedRef<any>;
+  scrollOffset: SharedValue<number>;
+  isGestureActive: SharedValue<boolean>;
+}
+
 export interface BottomSheetContextType {
   translateY: SharedValue<number>;
   position: SharedValue<number>;
   index: SharedValue<number>;
   sheetHeight: SharedValue<number>;
-  scrollOffset: SharedValue<number>;
-  scrollableRef: AnimatedRef<any>;
-  hasScrollable: SharedValue<boolean>;
-  isScrollableGestureActive: SharedValue<boolean>;
   isScrollableLocked: SharedValue<boolean>;
+  registerScrollable: (entry: ScrollableEntry) => () => void;
   panGesture: PanGesture;
 }
 

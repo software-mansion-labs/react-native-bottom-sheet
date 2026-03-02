@@ -4,7 +4,6 @@ import type { LayoutChangeEvent } from 'react-native';
 import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import type { SharedValue, WithSpringConfig } from 'react-native-reanimated';
 import Animated, {
-  useAnimatedRef,
   useAnimatedReaction,
   useAnimatedStyle,
   useDerivedValue,
@@ -15,7 +14,10 @@ import { scheduleOnUI } from 'react-native-worklets';
 import { GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Portal } from './BottomSheetProvider';
-import { BottomSheetContextProvider } from './BottomSheetContext';
+import {
+  BottomSheetContextProvider,
+  type ScrollableEntry,
+} from './BottomSheetContext';
 import {
   clampIndex,
   isDetentProgrammatic,
@@ -97,11 +99,17 @@ export const BottomSheetBase = ({
   const translateY = useSharedValue(initialMaxSnap);
   const animationTarget = useSharedValue(NaN);
   const sheetHeight = useSharedValue(initialMaxSnap);
-  const scrollOffset = useSharedValue(0);
-  const hasScrollable = useSharedValue(false);
-  const isScrollableGestureActive = useSharedValue(false);
+  const [scrollableEntries, setScrollableEntries] = useState<ScrollableEntry[]>(
+    []
+  );
   const isScrollableLocked = useSharedValue(false);
-  const scrollableRef = useAnimatedRef();
+
+  const registerScrollable = useCallback((entry: ScrollableEntry) => {
+    setScrollableEntries((prev) => [...prev, entry]);
+    return () => {
+      setScrollableEntries((prev) => prev.filter((e) => e !== entry));
+    };
+  }, []);
 
   const detentsValue = useSharedValue(normalizedDetents);
   const isDraggableValue = useSharedValue(isDraggable);
@@ -185,11 +193,8 @@ export const BottomSheetBase = ({
     detentsValue,
     isDraggableValue,
     currentIndex,
-    scrollOffset,
-    hasScrollable,
-    isScrollableGestureActive,
+    scrollableEntries,
     isScrollableLocked,
-    scrollableRef,
     handleIndexChange,
     animateToIndex,
   });
@@ -225,11 +230,8 @@ export const BottomSheetBase = ({
         position: internalPosition,
         index: currentIndex,
         sheetHeight,
-        scrollOffset,
-        scrollableRef,
-        hasScrollable,
-        isScrollableGestureActive,
         isScrollableLocked,
+        registerScrollable,
         panGesture,
       }}
     >

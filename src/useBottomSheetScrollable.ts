@@ -5,7 +5,9 @@ import { isWorkletFunction, scheduleOnRN } from 'react-native-worklets';
 import {
   type SharedValue,
   useAnimatedProps,
+  useAnimatedRef,
   useAnimatedScrollHandler,
+  useSharedValue,
 } from 'react-native-reanimated';
 
 import { useBottomSheetContext } from './BottomSheetContext';
@@ -16,14 +18,11 @@ export const useBottomSheetScrollable = (
   baseScrollEnabled: boolean | SharedValue<boolean | undefined> = true,
   onScroll?: ScrollHandler
 ) => {
-  const {
-    scrollOffset,
-    scrollableRef,
-    hasScrollable,
-    isScrollableGestureActive,
-    isScrollableLocked,
-    panGesture,
-  } = useBottomSheetContext();
+  const { isScrollableLocked, registerScrollable, panGesture } =
+    useBottomSheetContext();
+  const scrollableRef = useAnimatedRef();
+  const scrollOffset = useSharedValue(0);
+  const isGestureActive = useSharedValue(false);
   const isWorkletScrollHandler =
     onScroll !== undefined ? isWorkletFunction(onScroll) : false;
   const scrollHandler = useAnimatedScrollHandler({
@@ -42,11 +41,11 @@ export const useBottomSheetScrollable = (
     .simultaneousWithExternalGesture(panGesture)
     .onStart(() => {
       'worklet';
-      isScrollableGestureActive.set(true);
+      isGestureActive.set(true);
     })
     .onFinalize(() => {
       'worklet';
-      isScrollableGestureActive.set(false);
+      isGestureActive.set(false);
     });
   const animatedProps = useAnimatedProps(() => {
     const resolvedScrollEnabled =
@@ -58,18 +57,12 @@ export const useBottomSheetScrollable = (
     };
   });
   useEffect(() => {
-    if (__DEV__ && hasScrollable.value) {
-      console.warn(
-        'Multiple scrollables within a single bottom sheet. Only one `BottomSheetScrollView` ' +
-          'or `BottomSheetFlatList` is supported per bottom sheet.'
-      );
-    }
-    hasScrollable.set(true);
-    return () => {
-      hasScrollable.set(false);
-      isScrollableGestureActive.set(false);
-      isScrollableLocked.set(false);
-    };
-  }, [hasScrollable, isScrollableGestureActive, isScrollableLocked]);
+    const unregister = registerScrollable({
+      ref: scrollableRef,
+      scrollOffset,
+      isGestureActive,
+    });
+    return unregister;
+  }, [registerScrollable, scrollableRef, scrollOffset, isGestureActive]);
   return { scrollHandler, scrollableRef, nativeGesture, animatedProps };
 };

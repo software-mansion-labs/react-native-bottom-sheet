@@ -4,15 +4,9 @@ export { ModalBottomSheet } from './ModalBottomSheet';
 export type { ModalBottomSheetProps } from './ModalBottomSheet';
 export { BottomSheetProvider } from './BottomSheetProvider';
 export { BottomSheetFlatList } from './BottomSheetFlatList';
-export type {
-  BottomSheetFlatListMethods,
-  BottomSheetFlatListProps,
-} from './BottomSheetFlatList';
+export type { BottomSheetFlatListProps } from './BottomSheetFlatList';
 export { BottomSheetScrollView } from './BottomSheetScrollView';
-export type {
-  BottomSheetScrollViewMethods,
-  BottomSheetScrollViewProps,
-} from './BottomSheetScrollView';
+export type { BottomSheetScrollViewProps } from './BottomSheetScrollView';
 export type { Detent, DetentValue } from './BottomSheetBase';
 export { programmatic } from './BottomSheetBase';
-export { useBottomSheetScrollable } from './useBottomSheetScrollable';
+export { bottomSheetScrollable } from './bottomSheetScrollable';
