@@ -212,3 +212,9 @@ product&zwj;—&zwj;[hire&nbsp;us](https://swmansion.com/contact/projects?utm_so
 [![](https://logo.swmansion.com/logo?color=white&variant=desktop&width=152&tag=react-native-bottom-sheet-github)](https://swmansion.com)
 
 [![](https://contrib.rocks/image?repo=software-mansion-labs/react-native-bottom-sheet)](https://github.com/software-mansion-labs/react-native-bottom-sheet/graphs/contributors)
+
+## Sponsored by [Gobi Maps](https://www.gobimaps.com)
+
+A social map for exploring your&nbsp;city.
+
+[<img src="gobi.png" height="80" />](https://www.gobimaps.com)
