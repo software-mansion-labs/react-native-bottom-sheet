@@ -83,6 +83,27 @@ export const useBottomSheetPanGesture = ({
       if (!touch) return;
       const deltaX = touch.absoluteX - panStartX.value;
       const deltaY = touch.absoluteY - panStartY.value;
+      // When multiple scrollables overlap (e.g. stacked views), the hit-test
+      // in onTouchesDown may pick the wrong one. Prefer the scrollable whose
+      // native gesture is already active — that is definitively the one
+      // receiving touches (respects pointerEvents, z-order, etc.).
+      // If multiple scrollables are registered but none has confirmed via
+      // isGestureActive yet, defer the decision to avoid acting on a
+      // potentially incorrect hit-test result.
+      const entries = scrollableEntries;
+      let gestureActiveIdx = -1;
+      for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i];
+        if (entry !== undefined && entry.isGestureActive.value) {
+          gestureActiveIdx = i;
+          break;
+        }
+      }
+      if (gestureActiveIdx !== -1) {
+        activeScrollableIndex.set(gestureActiveIdx);
+      } else if (entries.length > 1) {
+        return;
+      }
       const activeIdx = activeScrollableIndex.value;
       if (activeIdx !== -1) {
         const active = scrollableEntries[activeIdx];
