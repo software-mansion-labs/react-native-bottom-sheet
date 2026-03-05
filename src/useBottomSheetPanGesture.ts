@@ -166,17 +166,22 @@ export const useBottomSheetPanGesture = ({
       const resolvedDetents = detentsValue.value;
       const draggable = isDraggableValue.value;
       let maxDraggableTranslateY = sheetHeight.value;
+      let minDraggableTranslateY = 0;
       let foundDraggable = false;
       for (let i = 0; i < resolvedDetents.length; i++) {
         if (!(draggable[i] ?? true)) continue;
         const t = sheetHeight.value - (resolvedDetents[i] ?? 0);
-        if (!foundDraggable || t > maxDraggableTranslateY) {
+        if (!foundDraggable) {
           maxDraggableTranslateY = t;
+          minDraggableTranslateY = t;
           foundDraggable = true;
+        } else {
+          if (t > maxDraggableTranslateY) maxDraggableTranslateY = t;
+          if (t < minDraggableTranslateY) minDraggableTranslateY = t;
         }
       }
       const nextTranslate = Math.min(
-        Math.max(rawTranslate, 0),
+        Math.max(rawTranslate, minDraggableTranslateY),
         maxDraggableTranslateY
       );
       translateY.set(nextTranslate);
