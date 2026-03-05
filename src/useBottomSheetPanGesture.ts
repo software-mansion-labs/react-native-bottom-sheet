@@ -101,7 +101,7 @@ export const useBottomSheetPanGesture = ({
       }
       if (gestureActiveIdx !== -1) {
         activeScrollableIndex.set(gestureActiveIdx);
-      } else if (entries.length > 1) {
+      } else if (entries.length > 1 && activeScrollableIndex.value !== -1) {
         return;
       }
       const activeIdx = activeScrollableIndex.value;
