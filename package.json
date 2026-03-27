@@ -108,6 +108,19 @@
       ]
     ]
   },
+  "codegenConfig": {
+    "name": "ReactNativeBottomSheetSpec",
+    "type": "all",
+    "jsSrcsDir": "src",
+    "ios": {
+      "componentProvider": {
+        "BottomSheetView": "BottomSheetComponentView"
+      }
+    },
+    "android": {
+      "javaPackageName": "com.swmansion.reactnativebottomsheet"
+    }
+  },
   "prettier": {
     "quoteProps": "consistent",
     "singleQuote": true,

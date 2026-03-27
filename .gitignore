@@ -28,8 +28,8 @@ project.xcworkspace
 .settings
 local.properties
 android.iml
-example/ios/Pods
-example/vendor/
+example/android/
+example/ios/
 node_modules/
 npm-debug.log
 yarn-debug.log

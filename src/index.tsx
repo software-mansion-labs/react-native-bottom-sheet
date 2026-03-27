@@ -7,6 +7,6 @@ export { BottomSheetFlatList } from './BottomSheetFlatList';
 export type { BottomSheetFlatListProps } from './BottomSheetFlatList';
 export { BottomSheetScrollView } from './BottomSheetScrollView';
 export type { BottomSheetScrollViewProps } from './BottomSheetScrollView';
-export type { Detent, DetentValue } from './BottomSheetBase';
-export { programmatic } from './BottomSheetBase';
+export type { Detent, DetentValue } from './bottomSheetUtils';
+export { programmatic } from './bottomSheetUtils';
 export { bottomSheetScrollable } from './bottomSheetScrollable';
