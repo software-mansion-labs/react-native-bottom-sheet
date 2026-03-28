@@ -48,6 +48,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
 
   // Touch tracking
   private var initialTouchY = 0f
+  private var initialTouchX = 0f
   private var lastTouchY = 0f
   private var activePointerId = MotionEvent.INVALID_POINTER_ID
 
@@ -282,12 +283,13 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
 
   override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
     val sheetTop = sheetContainer.top + sheetContainer.translationY
-    if (ev.y < sheetTop) {
+    if (ev.actionMasked == MotionEvent.ACTION_DOWN && ev.y < sheetTop) {
       return false
     }
 
     when (ev.actionMasked) {
       MotionEvent.ACTION_DOWN -> {
+        initialTouchX = ev.x
         initialTouchY = ev.y
         lastTouchY = ev.y
         activePointerId = ev.getPointerId(0)
@@ -296,10 +298,12 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
         if (activePointerId == MotionEvent.INVALID_POINTER_ID) return false
         val pointerIndex = ev.findPointerIndex(activePointerId)
         if (pointerIndex < 0) return false
+        val x = ev.getX(pointerIndex)
         val y = ev.getY(pointerIndex)
+        val dx = x - initialTouchX
         val dy = y - initialTouchY
 
-        if (abs(dy) > touchSlop) {
+        if (abs(dy) > touchSlop && abs(dy) > abs(dx)) {
           if (!isAtMaxDraggable) {
             lastTouchY = y
             requestDisallowInterceptTouchEvent(false)
@@ -313,6 +317,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
         }
       }
       MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+        initialTouchX = 0f
         activePointerId = MotionEvent.INVALID_POINTER_ID
       }
     }
@@ -321,7 +326,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
 
   override fun onTouchEvent(event: MotionEvent): Boolean {
     val sheetTop = sheetContainer.top + sheetContainer.translationY
-    if (event.y < sheetTop) {
+    if (event.actionMasked == MotionEvent.ACTION_DOWN && event.y < sheetTop) {
       return false
     }
 
@@ -418,6 +423,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
     hasLaidOut = false
     isPanning = false
     initialTouchY = 0f
+    initialTouchX = 0f
     lastTouchY = 0f
     activePointerId = MotionEvent.INVALID_POINTER_ID
     sheetContainer.translationY = 0f
