@@ -12,6 +12,7 @@ React&nbsp;Native.
 - Native implementation for optimal&nbsp;performance.
 - Bring your own sheet&nbsp;surface.
 - Dynamic, content&zwj;-&zwj;based sizing out of the&nbsp;box.
+- Automatic handling of vertically scrollable&nbsp;children.
 - Position tracking for driving UI tied to&nbsp;sheets.
 - Programmatic&zwj;-&zwj;only detents for snap points unreachable
   by&nbsp;dragging.
@@ -178,7 +179,7 @@ const position = useSharedValue(0);
   }}
 >
   {/* ... */}
-</BottomSheet>;
+</BottomSheet>
 ```
 
 ## By [Software Mansion](https://swmansion.com)
