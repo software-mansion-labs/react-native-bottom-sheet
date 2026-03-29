@@ -7,6 +7,15 @@
 React Native Bottom Sheet provides bottom&zwj;-&zwj;sheet components for
 React&nbsp;Native.
 
+## Highlights
+
+- Native implementation for optimal&nbsp;performance.
+- Bring your own sheet&nbsp;surface.
+- Dynamic, content&zwj;-&zwj;based sizing out of the&nbsp;box.
+- Position tracking for driving UI tied to&nbsp;sheets.
+- Programmatic&zwj;-&zwj;only detents for snap points unreachable
+  by&nbsp;dragging.
+
 ## Getting started
 
 1. Install React Native Bottom&nbsp;Sheet:
@@ -15,20 +24,16 @@ React&nbsp;Native.
    npm i @swmansion/react-native-bottom-sheet
    ```
 
-2. Ensure the peer dependencies are&nbsp;installed:
+2. Ensure the peer dependency is&nbsp;installed:
 
    ```sh
-   npm i react-native-gesture-handler@^2.14.0 react-native-reanimated@^3.16.0 react-native-safe-area-context@^4.0.0 react-native-worklets@^0.4.0
+   npm i react-native-safe-area-context@^4.0.0
    ```
 
-3. Wrap your app with `GestureHandlerRootView` and&nbsp;`BottomSheetProvider`:
+3. Wrap your app with&nbsp;`BottomSheetProvider`:
 
    ```tsx
-   const App = () => (
-     <GestureHandlerRootView>
-       <BottomSheetProvider>{/* ... */}</BottomSheetProvider>
-     </GestureHandlerRootView>
-   );
+   const App = () => <BottomSheetProvider>{/* ... */}</BottomSheetProvider>;
    ```
 
 ## Usage
@@ -86,22 +91,14 @@ const insets = useSafeAreaInsets();
 
 #### Scrim
 
-Tapping the scrim collapses the sheet. You can provide a custom scrim via the
-`scrim` prop, which receives a `SharedValue` that goes from 0 when collapsed to
-1 when the first nonzero detent is&nbsp;reached:
+Tapping the scrim collapses the sheet. Use `scrimColor` to customize
+its&nbsp;color:
 
 ```tsx
 <ModalBottomSheet
   index={index}
   onIndexChange={setIndex}
-  scrim={(progress) => (
-    <Animated.View
-      style={useAnimatedStyle(() => ({
-        backgroundColor: `rgba(0, 0, 255, ${0.3 * progress.value})`,
-        flex: 1,
-      }))}
-    />
-  )}
+  scrimColor="rgba(0, 0, 0, 0.3)"
 >
   {/* ... */}
 </ModalBottomSheet>
@@ -115,8 +112,8 @@ available screen height). The default detents are `[0, 'max']`.
 
 The `index` prop is a zero&zwj;-&zwj;based index into the `detents` array.
 `onIndexChange` is called when the sheet snaps to a different detent after
-a&nbsp;drag. You can also control the sheet externally by updating the index
-state.
+a drag. You can also control the sheet externally by updating the
+index&nbsp;state.
 
 ```tsx
 const [index, setIndex] = useState(0);
@@ -150,55 +147,38 @@ drag snapping but can still be targeted via `index`&nbsp;updates.
 
 ### Position tracking
 
-The `position` prop accepts a `SharedValue` that the library keeps in sync with
-the sheet’s current position (the distance in pixels from the bottom of the
-screen to the top of the sheet). Use it to drive animations tied to the
-sheet&nbsp;position.
+Use `onPositionChange` to observe the sheet’s current position (the distance in
+pixels from the bottom of the screen to the top of the&nbsp;sheet).
+
+```tsx
+<BottomSheet // Or `ModalBottomSheet`.
+  index={index}
+  onIndexChange={setIndex}
+  onPositionChange={(position) => {
+    console.log(position);
+  }}
+>
+  {/* ... */}
+</BottomSheet>
+```
+
+If you want to keep the latest position in a Reanimated shared value, update it
+from the&nbsp;callback:
 
 ```tsx
 const position = useSharedValue(0);
 ```
 
 ```tsx
-<BottomSheet // Or `ModalBottomSheet`.
+<BottomSheet
   index={index}
   onIndexChange={setIndex}
-  position={position}
+  onPositionChange={(nextPosition) => {
+    position.value = nextPosition;
+  }}
 >
   {/* ... */}
-</BottomSheet>
-```
-
-### Customizing animations
-
-Use the `openAnimationConfig` and `closeAnimationConfig` props to tweak the
-spring parameters for opening and&nbsp;closing.
-
-### Scrollable content
-
-For scrollable sheet content, use `BottomSheetScrollView` or
-`BottomSheetFlatList` instead of the standard React Native components. These
-integrate scrolling with the sheet’s drag gesture so that dragging down while
-scrolled to the top collapses the&nbsp;sheet.
-
-If you need a custom scrollable (for example, a `FlashList`), wrap it with
-`bottomSheetScrollable`. The returned component forwards the underlying
-scrollable ref, so you can call any imperative methods supported by the
-wrapped&nbsp;component.
-
-```tsx
-const BottomSheetFlashList = bottomSheetScrollable<
-  FlashListProps<string>,
-  FlashListRef<string>
->(FlashList);
-```
-
-```tsx
-const listRef = useRef<FlashListRef<string>>(null);
-```
-
-```tsx
-<BottomSheetFlashList ref={listRef} /* ... */ />
+</BottomSheet>;
 ```
 
 ## By [Software Mansion](https://swmansion.com)
