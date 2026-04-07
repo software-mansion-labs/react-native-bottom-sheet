@@ -140,11 +140,10 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
         val closedTy = detentSpecs.lastOrNull()?.height ?: h.toFloat()
         sheetContainer.translationY = closedTy
         emitPosition()
-        snapToIndex(targetIndex, 0f)
+        snapToIndex(targetIndex, 0f, emitIndexChange = false)
       } else {
         sheetContainer.translationY = translationY(targetIndex)
         emitPosition()
-        listener?.onIndexChange(targetIndex)
       }
       return
     }
@@ -288,7 +287,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
 
   // MARK: - Spring animation
 
-  private fun snapToIndex(index: Int, velocity: Float) {
+  private fun snapToIndex(index: Int, velocity: Float, emitIndexChange: Boolean = true) {
     if (index < 0 || index >= detentSpecs.size) return
     targetIndex = index
 
@@ -310,7 +309,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
         emitPosition()
         activeAnimation = null
         updateInteractionState()
-        listener?.onIndexChange(index)
+        if (emitIndexChange) listener?.onIndexChange(index)
       }
     }
 

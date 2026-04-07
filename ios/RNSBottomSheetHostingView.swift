@@ -112,11 +112,10 @@ public final class RNSBottomSheetHostingView: UIView {
         let closedTy = detentSpecs.last?.height ?? bounds.height
         sheetContainer.transform = CGAffineTransform(translationX: 0, y: closedTy)
         emitPosition()
-        snapToIndex(targetIndex, velocity: 0)
+        snapToIndex(targetIndex, velocity: 0, emitIndexChange: false)
       } else {
         sheetContainer.transform = CGAffineTransform(translationX: 0, y: translationY(for: targetIndex))
         emitPosition()
-        eventDelegate?.bottomSheetHostingView(self, didChangeIndex: targetIndex)
       }
       return
     }
@@ -297,7 +296,7 @@ public final class RNSBottomSheetHostingView: UIView {
     snapToIndex(closedIndex, velocity: 0)
   }
 
-  private func snapToIndex(_ index: Int, velocity: CGFloat) {
+  private func snapToIndex(_ index: Int, velocity: CGFloat, emitIndexChange: Bool = true) {
     guard index >= 0, index < detentSpecs.count else { return }
     targetIndex = index
 
@@ -323,7 +322,9 @@ public final class RNSBottomSheetHostingView: UIView {
       self.activeAnimator = nil
       self.setContentInteractionEnabled(true)
       self.updateInteractionState()
-      self.eventDelegate?.bottomSheetHostingView(self, didChangeIndex: index)
+      if emitIndexChange {
+        self.eventDelegate?.bottomSheetHostingView(self, didChangeIndex: index)
+      }
     }
     animator.startAnimation()
     activeAnimator = animator
