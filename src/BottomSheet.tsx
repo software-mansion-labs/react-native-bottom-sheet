@@ -96,7 +96,7 @@ export const BottomSheet = ({
           onIndexChange={handleIndexChange}
           onPositionChange={handlePositionChange}
         >
-          <View collapsable={false} style={{ flex: 1 }}>
+          <View collapsable={false} style={{ flex: 1, maxHeight }}>
             {children}
             <View onLayout={handleSentinelLayout} pointerEvents="none" />
           </View>
