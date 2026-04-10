@@ -272,7 +272,7 @@ public final class RNSBottomSheetHostingView: UIView {
   }
 
   private var isScrimVisible: Bool {
-    modal && currentSheetHeight > 0.5
+    modal && !scrimView.isHidden
   }
 
   private func emitPosition() {
@@ -518,6 +518,19 @@ private extension RNSBottomSheetHostingView {
 
   func updateScrim(forPosition position: CGFloat) {
     guard modal else {
+      scrimView.alpha = 0
+      scrimView.isHidden = true
+      return
+    }
+
+    // If we're settled on the closed detent, dynamic detent/content updates can
+    // momentarily report a stale non-zero position. Keep scrim fully hidden.
+    if
+      let closedIndex,
+      targetIndex == closedIndex,
+      activeAnimator == nil,
+      !isPanning
+    {
       scrimView.alpha = 0
       scrimView.isHidden = true
       return

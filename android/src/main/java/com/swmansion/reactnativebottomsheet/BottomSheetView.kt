@@ -581,6 +581,14 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
       return
     }
 
+    // When settled at the closed detent, dynamic content updates can briefly
+    // produce stale non-zero positions. Keep scrim hidden in this state.
+    if (closedIndex != null && targetIndex == closedIndex && activeAnimation == null && !isPanning) {
+      scrimProgress = 0f
+      invalidate()
+      return
+    }
+
     val threshold = firstNonZeroDetentHeight
     scrimProgress =
       if (threshold <= 0f) 0f else (position / threshold).coerceIn(0f, 1f)
@@ -601,7 +609,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
     return maxHeight - sheetContainer.translationY
   }
 
-  private fun isScrimVisible(): Boolean = modal && currentSheetHeight() > 1f
+  private fun isScrimVisible(): Boolean = modal && scrimProgress > 0.001f
 
   private fun drawScrim(canvas: Canvas) {
     if (!modal || scrimProgress <= 0.001f) {
