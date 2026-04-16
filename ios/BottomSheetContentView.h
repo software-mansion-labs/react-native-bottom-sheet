@@ -18,6 +18,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) UIView *sheetContainer;
 
 - (void)setDetents:(NSArray<NSDictionary *> *)raw;
+- (void)setMaxDetentHeight:(CGFloat)maxDetentHeight;
 - (void)setDetentIndex:(NSInteger)newIndex;
 - (void)setScrimColor:(UIColor *_Nullable)color;
 - (CGFloat)currentContentOffsetY;

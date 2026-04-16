@@ -55,6 +55,11 @@
   [_impl setDetents:raw];
 }
 
+- (void)setMaxDetentHeight:(CGFloat)maxDetentHeight
+{
+  _impl.maxDetentHeight = maxDetentHeight;
+}
+
 - (void)setDetentIndex:(NSInteger)newIndex
 {
   [_impl setDetentIndex:newIndex];

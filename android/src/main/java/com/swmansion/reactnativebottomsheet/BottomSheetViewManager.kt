@@ -101,13 +101,19 @@ class BottomSheetViewManager :
     for (i in 0 until detents.size()) {
       val map = detents.getMap(i) ?: continue
       list.add(
-        mapOf(
-          "height" to map.getDouble("height"),
+        mapOf<String, Any>(
+          "value" to map.getDouble("value"),
+          "kind" to (map.getString("kind") ?: "points"),
           "programmatic" to map.getBoolean("programmatic"),
         )
       )
     }
     view.setDetents(list)
+  }
+
+  @ReactProp(name = "maxDetentHeight")
+  override fun setMaxDetentHeight(view: BottomSheetView, maxDetentHeight: Double) {
+    view.setMaxDetentHeight(maxDetentHeight)
   }
 
   @ReactProp(name = "index")

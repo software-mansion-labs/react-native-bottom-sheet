@@ -6,12 +6,14 @@ import {
 } from 'react-native';
 
 type NativeDetent = Readonly<{
-  height: CodegenTypes.Double;
+  value: CodegenTypes.Double;
+  kind: string;
   programmatic: boolean;
 }>;
 
 export interface NativeProps extends ViewProps {
   detents: ReadonlyArray<NativeDetent>;
+  maxDetentHeight: CodegenTypes.Double;
   index: CodegenTypes.Int32;
   animateIn: boolean;
   modal: boolean;

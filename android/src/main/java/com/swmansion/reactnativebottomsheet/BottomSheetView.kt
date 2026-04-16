@@ -21,6 +21,12 @@ import com.facebook.react.views.view.ReactViewGroup
 import com.facebook.react.uimanager.events.NativeGestureUtil
 import kotlin.math.abs
 
+private enum class DetentKind {
+  POINTS,
+  CONTENT,
+}
+
+private data class RawDetentSpec(val value: Float, val kind: DetentKind, val programmatic: Boolean)
 private data class DetentSpec(val height: Float, val programmatic: Boolean)
 
 interface BottomSheetViewListener {
@@ -38,6 +44,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
 
   // MARK: - State
 
+  private var rawDetentSpecs: List<RawDetentSpec> = emptyList()
   private var detentSpecs: List<DetentSpec> = emptyList()
   private var targetIndex: Int = 0
   var animateIn: Boolean = true
@@ -70,6 +77,13 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
   private var scrimPressed = false
   private var scrimColor = Color.argb(128, 0, 0, 0)
   private var scrimProgress = 0f
+  private var maxDetentHeight = Float.NaN
+  private var contentHeightMarker: View? = null
+
+  private val contentHeightMarkerLayoutListener =
+    View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+      refreshDetentsFromLayout()
+    }
 
   init {
     clipChildren = false
@@ -94,10 +108,12 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
 
   fun addSheetChild(child: View, index: Int) {
     sheetContainer.addView(child, index)
+    refreshContentHeightMarker()
   }
 
   fun removeSheetChildAt(index: Int) {
     sheetContainer.removeViewAt(index)
+    refreshContentHeightMarker()
   }
 
   // MARK: - Child view management
@@ -115,11 +131,13 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
       super.removeView(view)
     } else {
       sheetContainer.removeView(view)
+      refreshContentHeightMarker()
     }
   }
 
   override fun removeViewAt(index: Int) {
     sheetContainer.removeViewAt(index)
+    refreshContentHeightMarker()
   }
 
   // MARK: - Layout
@@ -130,6 +148,8 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
     val h = b - t
     if (w <= 0 || h <= 0) return
 
+    refreshContentHeightMarker()
+    refreshDetentsFromLayout()
     layoutSheetContainer(w, h)
 
     if (!hasLaidOut && detentSpecs.isNotEmpty()) {
@@ -139,7 +159,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
       targetIndex = indexToApply.coerceIn(0, detentSpecs.size - 1)
 
       if (animateIn) {
-        val closedTy = detentSpecs.lastOrNull()?.height ?: h.toFloat()
+        val closedTy = detentSpecs.maxOfOrNull { it.height } ?: h.toFloat()
         sheetContainer.translationY = closedTy
         emitPosition()
         snapToIndex(targetIndex, 0f, emitIndexChange = false, emitSettle = false)
@@ -168,7 +188,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
   }
 
   private fun layoutSheetContainer(viewWidth: Int, viewHeight: Int) {
-    val maxHeight = detentSpecs.lastOrNull()?.height ?: viewHeight.toFloat()
+    val maxHeight = detentSpecs.maxOfOrNull { it.height } ?: resolvedMaxDetentHeight(viewHeight)
     val containerTop = (viewHeight - maxHeight).toInt()
     sheetContainer.layout(0, containerTop, viewWidth, containerTop + maxHeight.toInt())
     layoutSheetChildren()
@@ -177,36 +197,17 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
   // MARK: - Prop setters
 
   fun setDetents(raw: List<Map<String, Any>>) {
-    detentSpecs = raw.mapNotNull { dict ->
-      val height = (dict["height"] as? Number)?.toDouble() ?: return@mapNotNull null
-      val programmatic = dict["programmatic"] as? Boolean ?: false
-      DetentSpec(height = (height * density).toFloat(), programmatic = programmatic)
-    }
-    if (width > 0 && height > 0 && detentSpecs.isNotEmpty()) {
-      layoutSheetContainer(width, height)
-
-      if (hasLaidOut && !isPanning) {
-        targetIndex = targetIndex.coerceIn(0, detentSpecs.size - 1)
-        if (activeAnimation != null) {
-          val currentTy = sheetContainer.translationY
-          val shouldEmitSettle = activeAnimationEmitsSettle
-          activeAnimation?.cancel()
-          activeAnimation = null
-          activeAnimationEmitsSettle = false
-          stopChoreographer()
-          sheetContainer.translationY =
-            currentTy.coerceIn(0f, detentSpecs.lastOrNull()?.height ?: currentTy)
-          emitPosition()
-          snapToIndex(targetIndex, 0f, emitIndexChange = false, emitSettle = shouldEmitSettle)
-        } else {
-          sheetContainer.translationY = translationY(targetIndex)
-          emitPosition()
+    rawDetentSpecs = raw.mapNotNull { dict ->
+      val value = (dict["value"] as? Number)?.toDouble() ?: return@mapNotNull null
+      val kind =
+        when ((dict["kind"] as? String)?.lowercase()) {
+          "content" -> DetentKind.CONTENT
+          else -> DetentKind.POINTS
         }
-      }
+      val programmatic = dict["programmatic"] as? Boolean ?: false
+      RawDetentSpec(value = (value * density).toFloat(), kind = kind, programmatic = programmatic)
     }
-
-    requestLayout()
-    updateScrim()
+    refreshDetentsFromLayout()
   }
 
   fun setIndex(newIndex: Int) {
@@ -227,10 +228,90 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
     invalidate()
   }
 
+  fun setMaxDetentHeight(maxDetentHeight: Double) {
+    this.maxDetentHeight = (maxDetentHeight * density).toFloat()
+    refreshDetentsFromLayout()
+  }
+
+  private fun resolvedMaxDetentHeight(viewHeight: Int = height): Float {
+    val viewHeightPx = viewHeight.toFloat()
+    if (!maxDetentHeight.isFinite() || maxDetentHeight <= 0f) {
+      return viewHeightPx
+    }
+    return maxDetentHeight.coerceIn(0f, viewHeightPx)
+  }
+
+  private fun resolveDetentSpecs(): List<DetentSpec> {
+    val maxHeight = resolvedMaxDetentHeight()
+    val contentHeight = currentContentHeight().takeIf { it.isFinite() && it > 0f } ?: maxHeight
+    return rawDetentSpecs.map { spec ->
+      val height =
+        when (spec.kind) {
+          DetentKind.POINTS -> spec.value
+          DetentKind.CONTENT -> contentHeight.coerceAtMost(maxHeight)
+        }.coerceIn(0f, maxHeight)
+      DetentSpec(height = height, programmatic = spec.programmatic)
+    }
+  }
+
+  private fun refreshDetentsFromLayout() {
+    val resolvedDetents = resolveDetentSpecs()
+    if (resolvedDetents == detentSpecs) {
+      updateScrim()
+      return
+    }
+
+    detentSpecs = resolvedDetents
+    if (width > 0 && height > 0 && detentSpecs.isNotEmpty()) {
+      layoutSheetContainer(width, height)
+
+      if (hasLaidOut && !isPanning) {
+        targetIndex = targetIndex.coerceIn(0, detentSpecs.size - 1)
+        if (activeAnimation != null) {
+          val currentTy = sheetContainer.translationY
+          val shouldEmitSettle = activeAnimationEmitsSettle
+          activeAnimation?.cancel()
+          activeAnimation = null
+          activeAnimationEmitsSettle = false
+          stopChoreographer()
+          sheetContainer.translationY =
+            currentTy.coerceIn(0f, detentSpecs.maxOfOrNull { it.height } ?: currentTy)
+          emitPosition()
+          snapToIndex(targetIndex, 0f, emitIndexChange = false, emitSettle = shouldEmitSettle)
+        } else {
+          sheetContainer.translationY = translationY(targetIndex)
+          emitPosition()
+        }
+      }
+    }
+
+    requestLayout()
+    updateScrim()
+  }
+
+  private fun currentContentHeight(): Float {
+    val marker = contentHeightMarker ?: return Float.NaN
+    return marker.top.toFloat()
+  }
+
+  private fun refreshContentHeightMarker() {
+    val marker = findContentHeightMarker()
+    if (marker === contentHeightMarker) return
+    contentHeightMarker?.removeOnLayoutChangeListener(contentHeightMarkerLayoutListener)
+    contentHeightMarker = marker
+    contentHeightMarker?.addOnLayoutChangeListener(contentHeightMarkerLayoutListener)
+  }
+
+  private fun findContentHeightMarker(): View? {
+    val contentView = sheetContainer.getChildAt(0) as? ViewGroup ?: return null
+    if (contentView.childCount == 0) return null
+    return contentView.getChildAt(contentView.childCount - 1)
+  }
+
   // MARK: - Snap logic
 
   private fun translationY(index: Int): Float {
-    val maxHeight = detentSpecs.lastOrNull()?.height ?: height.toFloat()
+    val maxHeight = detentSpecs.maxOfOrNull { it.height } ?: resolvedMaxDetentHeight()
     val snapHeight = detentSpecs.getOrNull(index)?.height ?: 0f
     return maxHeight - snapHeight
   }
@@ -257,7 +338,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
     get() = sheetContainer.translationY <= draggableMinTy + 1f
 
   private fun emitPosition() {
-    val maxHeight = detentSpecs.lastOrNull()?.height ?: height.toFloat()
+    val maxHeight = detentSpecs.maxOfOrNull { it.height } ?: resolvedMaxDetentHeight()
     val ty = sheetContainer.translationY
     val position = maxHeight - ty
     updateScrim(position)
@@ -274,7 +355,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
   private var lastShadowOffsetY = Float.NaN
 
   private fun updateShadowState(translationY: Float) {
-    val maxDetentHeight = detentSpecs.lastOrNull()?.height ?: height.toFloat()
+    val maxDetentHeight = detentSpecs.maxOfOrNull { it.height } ?: resolvedMaxDetentHeight()
     val containerTop = height.toFloat() - maxDetentHeight
     val offsetY = ((containerTop + translationY) / density).toDouble()
     if (offsetY.toFloat() == lastShadowOffsetY) return
@@ -472,7 +553,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
           v
         } ?: 0f
         velocityTracker = null
-        val maxHeight = detentSpecs.lastOrNull()?.height ?: height.toFloat()
+        val maxHeight = detentSpecs.maxOfOrNull { it.height } ?: resolvedMaxDetentHeight()
         val currentHeight = maxHeight - sheetContainer.translationY
         val index = bestSnapIndex(currentHeight, velocity)
         snapToIndex(index, velocity)
@@ -562,6 +643,9 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
     stopChoreographer()
     velocityTracker?.recycle()
     velocityTracker = null
+    contentHeightMarker?.removeOnLayoutChangeListener(contentHeightMarkerLayoutListener)
+    contentHeightMarker = null
+    rawDetentSpecs = emptyList()
     detentSpecs = emptyList()
     targetIndex = 0
     pendingIndex = null
@@ -610,7 +694,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
   }
 
   private fun currentSheetHeight(): Float {
-    val maxHeight = detentSpecs.lastOrNull()?.height ?: height.toFloat()
+    val maxHeight = detentSpecs.maxOfOrNull { it.height } ?: resolvedMaxDetentHeight()
     return maxHeight - sheetContainer.translationY
   }
 

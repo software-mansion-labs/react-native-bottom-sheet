@@ -51,11 +51,16 @@ using namespace facebook::react;
     NSMutableArray<NSDictionary *> *detentsArray = [NSMutableArray new];
     for (const auto &detent : newViewProps.detents) {
       [detentsArray addObject:@{
-        @"height": @(detent.height),
+        @"value": @(detent.value),
+        @"kind": detent.kind == "content" ? @"content" : @"points",
         @"programmatic": @(detent.programmatic),
       }];
     }
     [_sheetView setDetents:detentsArray];
+  }
+
+  if (newViewProps.maxDetentHeight != oldViewProps.maxDetentHeight) {
+    [_sheetView setMaxDetentHeight:newViewProps.maxDetentHeight];
   }
 
   if (_needsIndexSyncAfterRecycle || newViewProps.index != oldViewProps.index) {

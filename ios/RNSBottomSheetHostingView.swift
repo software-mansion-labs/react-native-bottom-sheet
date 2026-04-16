@@ -6,8 +6,19 @@ import UIKit
   func bottomSheetHostingView(_ view: RNSBottomSheetHostingView, didChangePosition position: CGFloat)
 }
 
-private struct DetentSpec {
+private struct DetentSpec: Equatable {
   let height: CGFloat
+  let programmatic: Bool
+}
+
+private enum DetentKind {
+  case points
+  case content
+}
+
+private struct RawDetentSpec {
+  let value: CGFloat
+  let kind: DetentKind
   let programmatic: Bool
 }
 
@@ -20,7 +31,11 @@ public final class RNSBottomSheetHostingView: UIView {
   public var scrimColor: UIColor? = UIColor.black.withAlphaComponent(0.5) {
     didSet { scrimView.backgroundColor = scrimColor }
   }
+  public var maxDetentHeight: CGFloat = .nan {
+    didSet { refreshDetentsFromLayout() }
+  }
 
+  private var rawDetentSpecs: [RawDetentSpec] = []
   private var detentSpecs: [DetentSpec] = [] {
     didSet {
       setNeedsLayout()
@@ -41,6 +56,7 @@ public final class RNSBottomSheetHostingView: UIView {
   private var hasLaidOut = false
   private var isPanning = false
   private var isContentInteractionDisabled = false
+  private weak var contentHeightMarker: UIView?
 
   public override init(frame: CGRect) {
     super.init(frame: frame)
@@ -100,7 +116,8 @@ public final class RNSBottomSheetHostingView: UIView {
     guard bounds.width > 0, bounds.height > 0 else { return }
 
     scrimView.frame = bounds
-    let maxHeight = detentSpecs.last?.height ?? bounds.height
+    refreshDetentsFromLayout()
+    let maxHeight = maximumResolvedDetentHeight ?? resolvedMaxDetentHeight
     sheetContainer.bounds = CGRect(x: 0, y: 0, width: bounds.width, height: maxHeight)
     sheetContainer.center = CGPoint(x: bounds.width / 2, y: bounds.height - maxHeight / 2)
 
@@ -111,7 +128,7 @@ public final class RNSBottomSheetHostingView: UIView {
       targetIndex = max(0, min(detentSpecs.count - 1, indexToApply))
 
       if animateIn {
-        let closedTy = detentSpecs.last?.height ?? bounds.height
+        let closedTy = maximumResolvedDetentHeight ?? bounds.height
         sheetContainer.transform = CGAffineTransform(translationX: 0, y: closedTy)
         emitPosition()
         snapToIndex(targetIndex, velocity: 0, emitIndexChange: false, emitSettle: false)
@@ -156,13 +173,16 @@ public final class RNSBottomSheetHostingView: UIView {
   }
 
   public func setDetents(_ raw: [NSDictionary]) {
-    detentSpecs = raw.compactMap { dict in
-      guard let height = dict["height"] as? Double ?? (dict["height"] as? NSNumber)?.doubleValue else {
+    rawDetentSpecs = raw.compactMap { dict in
+      guard let value = dict["value"] as? Double ?? (dict["value"] as? NSNumber)?.doubleValue else {
         return nil
       }
+      let kindString = (dict["kind"] as? String) ?? ((dict["kind"] as? NSString) as String?) ?? "points"
+      let kind: DetentKind = kindString == "content" ? .content : .points
       let programmatic = (dict["programmatic"] as? Bool) ?? (dict["programmatic"] as? NSNumber)?.boolValue ?? false
-      return DetentSpec(height: CGFloat(height), programmatic: programmatic)
+      return RawDetentSpec(value: CGFloat(value), kind: kind, programmatic: programmatic)
     }
+    refreshDetentsFromLayout()
     guard bounds.width > 0, bounds.height > 0, !detentSpecs.isEmpty else {
       return
     }
@@ -180,7 +200,7 @@ public final class RNSBottomSheetHostingView: UIView {
         activeAnimatorEmitsSettle = false
         sheetContainer.transform = CGAffineTransform(
           translationX: 0,
-          y: min(max(visualTy, 0), detentSpecs.last?.height ?? visualTy)
+          y: min(max(visualTy, 0), maximumResolvedDetentHeight ?? visualTy)
         )
         emitPosition()
         snapToIndex(targetIndex, velocity: 0, emitIndexChange: false, emitSettle: shouldEmitSettle)
@@ -206,22 +226,28 @@ public final class RNSBottomSheetHostingView: UIView {
 
   public func mountChildComponentView(_ childView: UIView, atIndex index: Int) {
     sheetContainer.insertSubview(childView, at: index)
+    refreshContentHeightMarker()
+    setNeedsLayout()
   }
 
   public func unmountChildComponentView(_ childView: UIView) {
     childView.removeFromSuperview()
+    refreshContentHeightMarker()
+    setNeedsLayout()
   }
 
   public func resetSheetState() {
     activeAnimator?.stopAnimation(true)
     activeAnimator = nil
     stopDisplayLink()
+    rawDetentSpecs = []
     detentSpecs = []
     targetIndex = 0
     pendingIndex = nil
     hasLaidOut = false
     isPanning = false
     setContentInteractionEnabled(true)
+    contentHeightMarker = nil
     sheetContainer.transform = .identity
     scrimView.alpha = 0
     scrimView.isHidden = true
@@ -238,7 +264,7 @@ public final class RNSBottomSheetHostingView: UIView {
   }
 
   private func translationY(for index: Int) -> CGFloat {
-    let maxHeight = detentSpecs.last?.height ?? bounds.height
+    let maxHeight = maximumResolvedDetentHeight ?? resolvedMaxDetentHeight
     let snapHeight = detent(at: index).height
     return maxHeight - snapHeight
   }
@@ -259,13 +285,13 @@ public final class RNSBottomSheetHostingView: UIView {
   }
 
   private var currentSheetHeight: CGFloat {
-    let maxHeight = detentSpecs.last?.height ?? bounds.height
+    let maxHeight = maximumResolvedDetentHeight ?? resolvedMaxDetentHeight
     let ty = currentTranslationY
     return maxHeight - ty
   }
 
   public var currentContentOffsetY: CGFloat {
-    let maxHeight = detentSpecs.last?.height ?? bounds.height
+    let maxHeight = maximumResolvedDetentHeight ?? resolvedMaxDetentHeight
     let containerTop = bounds.height - maxHeight
     let ty = currentTranslationY
     return containerTop + ty
@@ -276,7 +302,7 @@ public final class RNSBottomSheetHostingView: UIView {
   }
 
   private func emitPosition() {
-    let maxHeight = detentSpecs.last?.height ?? bounds.height
+    let maxHeight = maximumResolvedDetentHeight ?? resolvedMaxDetentHeight
     let ty = currentTranslationY
     let position = maxHeight - ty
     updateScrim(forPosition: position)
@@ -371,7 +397,7 @@ public final class RNSBottomSheetHostingView: UIView {
   }
 
   @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
-    let maxHeight = detentSpecs.last?.height ?? bounds.height
+    let maxHeight = maximumResolvedDetentHeight ?? resolvedMaxDetentHeight
 
     switch gesture.state {
     case .began:
@@ -497,6 +523,83 @@ public final class RNSBottomSheetHostingView: UIView {
       return scrollView.contentOffset.y >= maxOffsetY
     }
     return scrollView.contentOffset.y <= 0
+  }
+
+  private var resolvedMaxDetentHeight: CGFloat {
+    if !maxDetentHeight.isFinite || maxDetentHeight <= 0 {
+      return bounds.height
+    }
+    return min(max(0, maxDetentHeight), bounds.height)
+  }
+
+  private var maximumResolvedDetentHeight: CGFloat? {
+    detentSpecs.map(\.height).max()
+  }
+
+  private func resolveDetentSpecs() -> [DetentSpec] {
+    let maxHeight = resolvedMaxDetentHeight
+    let contentHeight = currentContentHeight.map { min($0, maxHeight) } ?? maxHeight
+    return rawDetentSpecs.map { spec in
+      let height: CGFloat
+      switch spec.kind {
+      case .points:
+        height = spec.value
+      case .content:
+        height = contentHeight
+      }
+      return DetentSpec(height: min(max(0, height), maxHeight), programmatic: spec.programmatic)
+    }
+  }
+
+  private func refreshDetentsFromLayout() {
+    refreshContentHeightMarker()
+    let resolvedDetents = resolveDetentSpecs()
+    guard resolvedDetents != detentSpecs else {
+      updateScrim()
+      return
+    }
+
+    detentSpecs = resolvedDetents
+
+    guard bounds.width > 0, bounds.height > 0, !detentSpecs.isEmpty else {
+      return
+    }
+
+    if hasLaidOut && !isPanning {
+      targetIndex = max(0, min(detentSpecs.count - 1, targetIndex))
+
+      if let animator = activeAnimator {
+        stopDisplayLink()
+        let visualTy = sheetContainer.layer.presentation()?.affineTransform().ty ?? sheetContainer.transform.ty
+        let shouldEmitSettle = activeAnimatorEmitsSettle
+        animator.stopAnimation(true)
+        activeAnimator = nil
+        activeAnimatorEmitsSettle = false
+        sheetContainer.transform = CGAffineTransform(
+          translationX: 0,
+          y: min(max(visualTy, 0), maximumResolvedDetentHeight ?? visualTy)
+        )
+        emitPosition()
+        snapToIndex(targetIndex, velocity: 0, emitIndexChange: false, emitSettle: shouldEmitSettle)
+      } else {
+        sheetContainer.transform = CGAffineTransform(translationX: 0, y: translationY(for: targetIndex))
+        emitPosition()
+      }
+    }
+  }
+
+  private func refreshContentHeightMarker() {
+    contentHeightMarker = findContentHeightMarker()
+  }
+
+  private func findContentHeightMarker() -> UIView? {
+    guard let contentView = sheetContainer.subviews.first else { return nil }
+    return contentView.subviews.last
+  }
+
+  private var currentContentHeight: CGFloat? {
+    guard let marker = contentHeightMarker else { return nil }
+    return marker.frame.minY.isFinite ? marker.frame.minY : nil
   }
 }
 
