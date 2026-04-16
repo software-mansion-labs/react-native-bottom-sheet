@@ -279,8 +279,14 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
           emitPosition()
           snapToIndex(targetIndex, 0f, emitIndexChange = false, emitSettle = shouldEmitSettle)
         } else {
-          sheetContainer.translationY = translationY(targetIndex)
-          emitPosition()
+          val targetTy = translationY(targetIndex)
+          val currentTy = sheetContainer.translationY
+          if (abs(targetTy - currentTy) <= 0.5f) {
+            sheetContainer.translationY = targetTy
+            emitPosition()
+          } else {
+            snapToIndex(targetIndex, 0f, emitIndexChange = false, emitSettle = false)
+          }
         }
       }
     }

@@ -183,32 +183,6 @@ public final class RNSBottomSheetHostingView: UIView {
       return RawDetentSpec(value: CGFloat(value), kind: kind, programmatic: programmatic)
     }
     refreshDetentsFromLayout()
-    guard bounds.width > 0, bounds.height > 0, !detentSpecs.isEmpty else {
-      return
-    }
-
-    if hasLaidOut && !isPanning {
-      targetIndex = max(0, min(detentSpecs.count - 1, targetIndex))
-      layoutIfNeeded()
-
-      if let animator = activeAnimator {
-        stopDisplayLink()
-        let visualTy = sheetContainer.layer.presentation()?.affineTransform().ty ?? sheetContainer.transform.ty
-        let shouldEmitSettle = activeAnimatorEmitsSettle
-        animator.stopAnimation(true)
-        activeAnimator = nil
-        activeAnimatorEmitsSettle = false
-        sheetContainer.transform = CGAffineTransform(
-          translationX: 0,
-          y: min(max(visualTy, 0), maximumResolvedDetentHeight ?? visualTy)
-        )
-        emitPosition()
-        snapToIndex(targetIndex, velocity: 0, emitIndexChange: false, emitSettle: shouldEmitSettle)
-      } else {
-        sheetContainer.transform = CGAffineTransform(translationX: 0, y: translationY(for: targetIndex))
-        emitPosition()
-      }
-    }
   }
 
   public func setDetentIndex(_ newIndex: Int) {
@@ -582,8 +556,14 @@ public final class RNSBottomSheetHostingView: UIView {
         emitPosition()
         snapToIndex(targetIndex, velocity: 0, emitIndexChange: false, emitSettle: shouldEmitSettle)
       } else {
-        sheetContainer.transform = CGAffineTransform(translationX: 0, y: translationY(for: targetIndex))
-        emitPosition()
+        let targetTy = translationY(for: targetIndex)
+        let currentTy = currentTranslationY
+        if abs(targetTy - currentTy) <= 0.5 {
+          sheetContainer.transform = CGAffineTransform(translationX: 0, y: targetTy)
+          emitPosition()
+        } else {
+          snapToIndex(targetIndex, velocity: 0, emitIndexChange: false, emitSettle: false)
+        }
       }
     }
   }
