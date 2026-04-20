@@ -9,20 +9,39 @@ import { type Detent } from './bottomSheetUtils';
 export type { Detent, DetentValue } from './bottomSheetUtils';
 export { programmatic } from './bottomSheetUtils';
 
+/**
+ * Props for the inline bottom-sheet component.
+ */
 export interface BottomSheetProps {
+  /** Sheet contents, including any background or scrollable content. */
   children: ReactNode;
+  /** Additional style applied to the native sheet host view. */
   style?: StyleProp<ViewStyle>;
+  /** Snap points for the sheet. Defaults to `[0, 'content']`. */
   detents?: Detent[];
+  /** Zero-based index into `detents`. */
   index: number;
+  /** Whether the sheet should animate in on first layout. */
   animateIn?: boolean;
+  /** Called after a user-driven snap changes the active index. */
   onIndexChange?: (index: number) => void;
+  /** Called when a snap animation settles, including programmatic changes. */
   onSettle?: (index: number) => void;
+  /** Called as the sheet position changes, in points from the bottom. */
   onPositionChange?: (position: number) => void;
+  /** Internal flag used by `ModalBottomSheet`. */
   modal?: boolean;
+  /**
+   * Escape hatch that disables sheet/list gesture negotiation.
+   * If a gesture starts inside a nested scrollable, that scrollable keeps it
+   * even when it cannot scroll any further.
+   */
   disableScrollableNegotiation?: boolean;
+  /** Scrim color used by `ModalBottomSheet`. */
   scrimColor?: string;
 }
 
+/** Native bottom sheet that renders inline within the current screen layout. */
 export const BottomSheet = ({
   children,
   style,

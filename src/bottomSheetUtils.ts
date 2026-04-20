@@ -1,9 +1,12 @@
+/** A detent value in points, or `'content'` to size to the measured content height. */
 export type DetentValue = number | 'content';
 
+/** A draggable detent or an object form that can mark a detent as programmatic-only. */
 export type Detent =
   | DetentValue
   | { value: DetentValue; programmatic?: boolean };
 
+/** Marks a detent as reachable only via controlled `index` updates, not dragging. */
 export const programmatic = (value: DetentValue): Detent => ({
   value,
   programmatic: true,

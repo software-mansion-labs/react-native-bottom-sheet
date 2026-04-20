@@ -32,6 +32,7 @@ const PortalHost = () => {
   ));
 };
 
+/** Provides the portal host required for modal bottom sheets. */
 export const BottomSheetProvider = ({ children }: { children: ReactNode }) => {
   const [context] = useState<PortalContextType>(() => {
     const portals = new Map<string, ReactNode>();
