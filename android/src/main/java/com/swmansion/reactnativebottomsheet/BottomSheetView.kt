@@ -324,6 +324,12 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
     return maxHeight - snapHeight
   }
 
+  private val minDetentTranslationY: Float
+    get() = detentSpecs.indices.minOfOrNull(::translationY) ?: 0f
+
+  private val maxDetentTranslationY: Float
+    get() = detentSpecs.indices.maxOfOrNull(::translationY) ?: 0f
+
   private val closedIndex: Int?
     get() = detentSpecs.indexOfFirst { it.height == 0f }.takeIf { it >= 0 }
 
@@ -413,6 +419,8 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
         dampingRatio = SpringForce.DAMPING_RATIO_NO_BOUNCY
         stiffness = SpringForce.STIFFNESS_MEDIUM
       }
+      setMinValue(minDetentTranslationY)
+      setMaxValue(maxDetentTranslationY)
       setStartVelocity(velocity)
       addEndListener { _, canceled, _, _ ->
         if (canceled) {
