@@ -80,9 +80,9 @@ public final class RNSBottomSheetHostingView: UIView {
     panGesture = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
     panGesture.delegate = self
     panGesture.cancelsTouchesInView = true
-    // Delay touch delivery to views so that Pressable doesn't flash its pressed
-    // state while the pan gesture is still being disambiguated.
-    panGesture.delaysTouchesBegan = true
+    // Let child controls show immediate press feedback. If the interaction
+    // becomes a sheet drag, handlePan(.began) cancels in-flight RN touches.
+    panGesture.delaysTouchesBegan = false
     panGesture.delaysTouchesEnded = false
     sheetContainer.addGestureRecognizer(panGesture)
   }
