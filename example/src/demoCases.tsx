@@ -24,6 +24,7 @@ export type CaseKey =
   | 'modal-flat-list'
   | 'inline-detents'
   | 'inline-flat-list'
+  | 'clamped-detents'
   | 'disable-scrollable-negotiation'
   | 'dynamic-detents';
 
@@ -216,6 +217,93 @@ export const InlineFlatListScreen = () => {
   );
 };
 
+const CLAMPED_DETENTS_CONTENT_HEIGHT = 120;
+
+export const ClampedDetentsScreen = () => {
+  const [index, setIndex] = useState(1);
+
+  return (
+    <DemoScreen
+      title="Clamped detents"
+      sheet={
+        <BottomSheet
+          detents={[120, 360, 'content']}
+          index={index}
+          onIndexChange={setIndex}
+        >
+          <SheetBackground>
+            <View>
+              <View
+                style={{
+                  alignItems: 'center',
+                  paddingTop: 8,
+                  paddingBottom: 4,
+                }}
+              >
+                <View
+                  style={{
+                    width: 36,
+                    height: 4,
+                    borderRadius: 2,
+                    backgroundColor: '#ddd',
+                  }}
+                />
+              </View>
+              <View
+                style={{
+                  height: 64,
+                  justifyContent: 'center',
+                  paddingHorizontal: 20,
+                  borderBottomWidth: 1,
+                  borderBottomColor: '#eee',
+                }}
+              >
+                <Text style={{ fontSize: 20, fontWeight: 'bold' }}>
+                  Clamped detents
+                </Text>
+              </View>
+            </View>
+            <View
+              style={{
+                height: CLAMPED_DETENTS_CONTENT_HEIGHT,
+                paddingHorizontal: 20,
+                justifyContent: 'center',
+                gap: 12,
+              }}
+            >
+              <Text style={{ fontSize: 18, fontWeight: '600' }}>
+                The 360pt detent is taller than this content.
+              </Text>
+              <Text style={{ fontSize: 15, lineHeight: 22, color: '#555' }}>
+                It should clamp to the content height and behave the same as the
+                content detent.
+              </Text>
+            </View>
+          </SheetBackground>
+        </BottomSheet>
+      }
+    >
+      <View style={{ gap: 12 }}>
+        <Button title="Snap to 120pt" onPress={() => setIndex(0)} />
+        <Button title="Snap to 360pt" onPress={() => setIndex(1)} />
+        <Button title="Snap to content" onPress={() => setIndex(2)} />
+      </View>
+      <View
+        style={{
+          padding: 16,
+          borderRadius: 16,
+          backgroundColor: '#f3f3f3',
+          gap: 6,
+        }}
+      >
+        <Text style={{ fontWeight: '600' }}>Current state</Text>
+        <Text>detents: [{`120, 360, 'content'`}]</Text>
+        <Text>index: {index}</Text>
+      </View>
+    </DemoScreen>
+  );
+};
+
 export const DisableScrollableNegotiationScreen = () => {
   const [index, setIndex] = useState(0);
 
@@ -385,6 +473,12 @@ export const DEMO_CASES: DemoCase[] = [
     title: 'Inline with FlatList',
     description: 'Inline sheet with FlatList content and preview detent.',
     href: '/inline-flat-list',
+  },
+  {
+    key: 'clamped-detents',
+    title: 'Clamped detents',
+    description: 'Inline sheet with a fixed detent taller than its content.',
+    href: '/clamped-detents',
   },
   {
     key: 'disable-scrollable-negotiation',

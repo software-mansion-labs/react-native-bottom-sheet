@@ -260,12 +260,13 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
 
   private fun resolveDetentSpecs(): List<DetentSpec> {
     val maxHeight = resolvedMaxDetentHeight()
-    val contentHeight = validContentHeight().takeIf { it.isFinite() } ?: maxHeight
+    val contentHeight =
+      validContentHeight().takeIf { it.isFinite() }?.coerceAtMost(maxHeight) ?: maxHeight
     return rawDetentSpecs.map { spec ->
       val height =
         when (spec.kind) {
-          DetentKind.POINTS -> spec.value
-          DetentKind.CONTENT -> contentHeight.coerceAtMost(maxHeight)
+          DetentKind.POINTS -> spec.value.coerceAtMost(contentHeight)
+          DetentKind.CONTENT -> contentHeight
         }.coerceIn(0f, maxHeight)
       DetentSpec(height = height, programmatic = spec.programmatic)
     }
@@ -451,6 +452,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
     }
 
     val targetTy = translationY(index)
+    val currentTy = sheetContainer.translationY
     activeAnimationEmitsSettle = emitSettle
     activeAnimation?.cancel()
 
@@ -461,8 +463,8 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
             dampingRatio = SpringForce.DAMPING_RATIO_NO_BOUNCY
             stiffness = SpringForce.STIFFNESS_MEDIUM
           }
-        setMinValue(minDetentTranslationY)
-        setMaxValue(maxDetentTranslationY)
+        setMinValue(minOf(minDetentTranslationY, currentTy, targetTy))
+        setMaxValue(maxOf(maxDetentTranslationY, currentTy, targetTy))
         setStartVelocity(velocity)
         addEndListener { _, canceled, _, _ ->
           if (canceled) {

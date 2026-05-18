@@ -130,7 +130,7 @@ public final class RNSBottomSheetHostingView: UIView {
       let indexToApply = pendingIndex ?? targetIndex
       let clampedIndex = max(0, min(detentSpecs.count - 1, indexToApply))
 
-      if animateIn && isInvalidContentDetentTarget(clampedIndex) {
+      if animateIn, isInvalidContentDetentTarget(clampedIndex) {
         targetIndex = clampedIndex
         pendingIndex = clampedIndex
         let closedTy = maximumResolvedDetentHeight ?? bounds.height
@@ -546,7 +546,7 @@ public final class RNSBottomSheetHostingView: UIView {
       let height: CGFloat
       switch spec.kind {
       case .points:
-        height = spec.value
+        height = min(spec.value, contentHeight)
       case .content:
         height = contentHeight
       }
