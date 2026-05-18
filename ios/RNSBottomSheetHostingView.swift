@@ -392,6 +392,7 @@ public final class RNSBottomSheetHostingView: UIView {
     switch gesture.state {
     case .began:
       isPanning = true
+      sheetContainer.endEditing(true)
       setContentInteractionEnabled(false)
       if let handler = surfaceTouchHandler {
         handler.isEnabled = false
