@@ -260,12 +260,20 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
 
   private fun resolveDetentSpecs(): List<DetentSpec> {
     val maxHeight = resolvedMaxDetentHeight()
-    val contentHeight =
-      validContentHeight().takeIf { it.isFinite() }?.coerceAtMost(maxHeight) ?: maxHeight
-    return rawDetentSpecs.map { spec ->
+    val measuredContentHeight =
+      validContentHeight().takeIf { maxHeight > 0f && it.isFinite() }?.coerceAtMost(maxHeight)
+    val contentHeight = measuredContentHeight ?: maxHeight
+    return rawDetentSpecs.mapIndexed { index, spec ->
       val height =
         when (spec.kind) {
-          DetentKind.POINTS -> spec.value.coerceAtMost(contentHeight)
+          DetentKind.POINTS -> {
+            if (measuredContentHeight != null && spec.value > contentHeight) {
+              throw IllegalArgumentException(
+                "Invalid bottom sheet detent at index $index: fixed detent ${spec.value / density} exceeds measured content height ${contentHeight / density}."
+              )
+            }
+            spec.value
+          }
           DetentKind.CONTENT -> contentHeight
         }.coerceIn(0f, maxHeight)
       DetentSpec(height = height, programmatic = spec.programmatic)

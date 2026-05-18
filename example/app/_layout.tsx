@@ -34,8 +34,8 @@ export default function RootLayout() {
             options={{ title: 'Inline with FlatList', headerShown: false }}
           />
           <Stack.Screen
-            name="clamped-detents"
-            options={{ title: 'Clamped detents', headerShown: false }}
+            name="invalid-detents"
+            options={{ title: 'Invalid detents', headerShown: false }}
           />
           <Stack.Screen
             name="disable-scrollable-negotiation"

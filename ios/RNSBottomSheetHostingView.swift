@@ -541,12 +541,21 @@ public final class RNSBottomSheetHostingView: UIView {
 
   private func resolveDetentSpecs() -> [DetentSpec] {
     let maxHeight = resolvedMaxDetentHeight
-    let contentHeight = validContentHeight.map { min($0, maxHeight) } ?? maxHeight
-    return rawDetentSpecs.map { spec in
+    let measuredContentHeight = maxHeight > 0 ? validContentHeight.map { min($0, maxHeight) } : nil
+    let contentHeight = measuredContentHeight ?? maxHeight
+    return rawDetentSpecs.enumerated().map { index, spec in
       let height: CGFloat
       switch spec.kind {
       case .points:
-        height = min(spec.value, contentHeight)
+        if measuredContentHeight != nil, spec.value > contentHeight {
+          NSException(
+            name: NSExceptionName.invalidArgumentException,
+            reason:
+            "Invalid bottom sheet detent at index \(index): fixed detent \(spec.value) exceeds measured content height \(contentHeight).",
+            userInfo: nil
+          ).raise()
+        }
+        height = spec.value
       case .content:
         height = contentHeight
       }
