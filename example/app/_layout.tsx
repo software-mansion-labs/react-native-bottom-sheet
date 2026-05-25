@@ -1,10 +1,12 @@
 import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { BottomSheetProvider } from '@swmansion/react-native-bottom-sheet';
 
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
+      <StatusBar style="dark" />
       <BottomSheetProvider>
         <Stack
           screenOptions={{
