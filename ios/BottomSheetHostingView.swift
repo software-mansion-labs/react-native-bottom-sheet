@@ -152,7 +152,7 @@ public final class BottomSheetHostingView: UIView {
         let closedTy = maximumResolvedDetentHeight ?? bounds.height
         sheetContainer.transform = CGAffineTransform(translationX: 0, y: closedTy)
         emitPosition()
-        snapToIndex(targetIndex, velocity: 0, emitIndexChange: false, emitSettle: false)
+        snapToIndex(targetIndex, velocity: 0, emitIndexChange: false, emitSettle: true)
       } else {
         sheetContainer.transform = CGAffineTransform(translationX: 0, y: translationY(for: targetIndex))
         emitPosition()

@@ -180,7 +180,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
         val closedTy = detentSpecs.maxOfOrNull { it.height } ?: h.toFloat()
         sheetContainer.translationY = closedTy
         emitPosition()
-        snapToIndex(targetIndex, 0f, emitIndexChange = false, emitSettle = false)
+        snapToIndex(targetIndex, 0f, emitIndexChange = false, emitSettle = true)
       } else {
         sheetContainer.translationY = translationY(targetIndex)
         emitPosition()
