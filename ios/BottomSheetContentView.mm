@@ -80,6 +80,11 @@
   _impl.scrimColor = color;
 }
 
+- (void)setScrimOpacities:(NSArray<NSNumber *> *)opacities
+{
+  [_impl setScrimOpacities:opacities];
+}
+
 - (CGFloat)currentContentOffsetY
 {
   return _impl.currentContentOffsetY;

@@ -138,6 +138,17 @@ class BottomSheetViewManager :
     view.setScrimColor(scrimColor)
   }
 
+  @ReactProp(name = "scrimOpacities")
+  override fun setScrimOpacities(view: BottomSheetView, value: ReadableArray?) {
+    val opacities = mutableListOf<Float>()
+    if (value != null) {
+      for (i in 0 until value.size()) {
+        opacities.add(value.getDouble(i).toFloat())
+      }
+    }
+    view.setScrimOpacities(opacities)
+  }
+
   override fun onDropViewInstance(view: BottomSheetView) {
     super.onDropViewInstance(view)
     view.destroy()

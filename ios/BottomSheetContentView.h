@@ -23,6 +23,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setMaxDetentHeight:(CGFloat)maxDetentHeight;
 - (void)setDetentIndex:(NSInteger)newIndex;
 - (void)setScrimColor:(UIColor *_Nullable)color;
+- (void)setScrimOpacities:(NSArray<NSNumber *> *)opacities;
 - (CGFloat)currentContentOffsetY;
 - (void)mountChildComponentView:(UIView *)childView atIndex:(NSInteger)index;
 - (void)unmountChildComponentView:(UIView *)childView;

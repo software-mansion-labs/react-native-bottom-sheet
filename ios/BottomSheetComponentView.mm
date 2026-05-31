@@ -86,6 +86,14 @@ using namespace facebook::react;
     [_sheetView setScrimColor:RCTUIColorFromSharedColor(newViewProps.scrimColor)];
   }
 
+  if (newViewProps.scrimOpacities != oldViewProps.scrimOpacities) {
+    NSMutableArray<NSNumber *> *opacities = [NSMutableArray new];
+    for (const auto &opacity : newViewProps.scrimOpacities) {
+      [opacities addObject:@(opacity)];
+    }
+    [_sheetView setScrimOpacities:opacities];
+  }
+
   [super updateProps:props oldProps:oldProps];
 }
 

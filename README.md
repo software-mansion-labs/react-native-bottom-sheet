@@ -150,6 +150,31 @@ its&nbsp;color:
 </ModalBottomSheet>
 ```
 
+By default, the scrim fades in as the sheet opens and then holds at full
+opacity, so detents above the first share the same scrim. Use `scrimOpacities`
+to control the opacity at each detent: It takes one value in 0–1 per detent,
+indexed to match `detents`, and interpolates linearly as the sheet is dragged
+between them. A shorter array reuses its last value for any remaining detents.
+
+The default maps each detent to 0 when it is closed and 1 otherwise, so the
+scrim is transparent at any closed detent and fully opaque at every open one,
+whatever order the detents are passed in.
+
+To keep the scrim deepening across every detent, pass one value per detent:
+
+```tsx
+<ModalBottomSheet
+  index={index}
+  onIndexChange={setIndex}
+  detents={[0, 300, 'content']}
+  scrimColor="rgba(0, 0, 0, 0.3)"
+  scrimOpacities={[0, 0.5, 1]}
+  surface={/* ... */}
+>
+  {/* ... */}
+</ModalBottomSheet>
+```
+
 ### Surface
 
 Provide the sheet’s background through the `surface` prop. The library renders

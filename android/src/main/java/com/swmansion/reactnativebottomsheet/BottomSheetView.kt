@@ -83,6 +83,9 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
   private var scrimPressed = false
   private var scrimTouchActive = false
   private var scrimColor = Color.TRANSPARENT
+  // The JS layer always supplies a per-detent array; the fully-opaque fallback
+  // only guards against empty input (indexing requires a non-empty array).
+  private var scrimOpacities = listOf(1f)
   private var scrimProgress = 0f
   private var suppressScrimForClosingTarget = false
   private var scrimPinnedFull = false
@@ -253,6 +256,11 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
   fun setScrimColor(color: Int?) {
     scrimColor = color ?: Color.TRANSPARENT
     invalidate()
+  }
+
+  fun setScrimOpacities(values: List<Float>) {
+    scrimOpacities = if (values.isEmpty()) listOf(1f) else values
+    updateScrim()
   }
 
   fun setMaxDetentHeight(maxDetentHeight: Double) {
@@ -878,16 +886,53 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
 
     // While the sheet is fully open and only its content/detent geometry is
     // resizing, the position momentarily lags the grown detent height. Keep the
-    // scrim at full opacity instead of dipping it until the re-anchor settles.
+    // scrim pinned to the fully-open opacity instead of dipping it until the
+    // re-anchor settles.
     if (scrimPinnedFull) {
-      scrimProgress = 1f
+      scrimProgress = fullyOpenScrimOpacity()
       invalidate()
       return
     }
 
-    val threshold = firstNonZeroDetentHeight
-    scrimProgress = if (threshold <= 0f) 0f else (position / threshold).coerceIn(0f, 1f)
+    scrimProgress = scrimOpacityAt(position)
     invalidate()
+  }
+
+  /** The opacity at the tallest detent, held while the sheet re-anchors. */
+  private fun fullyOpenScrimOpacity(): Float {
+    val maxHeight = detentSpecs.maxOfOrNull { it.height } ?: return 1f
+    return scrimOpacityAt(maxHeight)
+  }
+
+  /**
+   * Interpolates the scrim opacity for a sheet height by bracketing it between adjacent detent
+   * heights and lerping each detent index's configured value.
+   */
+  private fun scrimOpacityAt(position: Float): Float {
+    if (detentSpecs.isEmpty()) return 0f
+    val pairs =
+      detentSpecs.indices
+        .map { index ->
+          detentSpecs[index].height to
+            scrimOpacities[index.coerceAtMost(scrimOpacities.size - 1)].coerceIn(0f, 1f)
+        }
+        .sortedBy { it.first }
+
+    val first = pairs.first()
+    val last = pairs.last()
+    if (position <= first.first) return first.second
+    if (position >= last.first) return last.second
+
+    for (i in 1 until pairs.size) {
+      val upper = pairs[i]
+      if (position <= upper.first) {
+        val lower = pairs[i - 1]
+        val span = upper.first - lower.first
+        val t = if (span <= 0f) 1f else (position - lower.first) / span
+        return lower.second + (upper.second - lower.second) * t
+      }
+    }
+    return last.second
   }
 
   private fun hideScrim() {

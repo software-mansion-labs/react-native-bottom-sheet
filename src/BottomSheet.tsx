@@ -52,6 +52,20 @@ export interface BottomSheetProps {
   disableScrollableNegotiation?: boolean;
   /** Scrim color used by `ModalBottomSheet`. */
   scrimColor?: string;
+  /**
+   * Scrim opacities per detent, indexed to match `detents`. Each value in 0–1
+   * scales the scrim color’s alpha at the detent of the same index, and the
+   * opacity is linearly interpolated as the sheet is dragged between detents.
+   * A shorter array than `detents` reuses its last value for any remaining
+   * detents.
+   *
+   * The default maps each detent to 0 when it is closed and 1 otherwise,
+   * so the scrim is transparent at any closed detent and fully opaque at every
+   * open one; e.g., `[0, 'content']` defaults to `[0, 1]`, and all-open detents
+   * default to a constant opaque scrim. Pass one value per detent—e.g.,
+   * `[0, 0.5, 1]`—to keep the scrim deepening across every detent.
+   */
+  scrimOpacities?: number[];
 }
 
 /** Native bottom sheet that renders inline within the current screen layout. */
@@ -68,6 +82,7 @@ export const BottomSheet = ({
   modal = false,
   disableScrollableNegotiation = false,
   scrimColor,
+  scrimOpacities,
 }: BottomSheetProps) => {
   const { height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -96,6 +111,12 @@ export const BottomSheet = ({
     ? resolveDetentValue(detents[clampedIndex])
     : 0;
   const isCollapsed = selectedDetentValue === 0;
+  // Default the scrim opacity per detent: transparent at any closed detent,
+  // fully opaque at every open one. Mapping each detent independently keeps
+  // this correct regardless of the order detents are passed in.
+  const resolvedScrimOpacity =
+    scrimOpacities ??
+    detents.map((detent) => (resolveDetentValue(detent) === 0 ? 0 : 1));
   const handleIndexChange = (event: { nativeEvent: { index: number } }) => {
     onIndexChange?.(event.nativeEvent.index);
   };
@@ -138,6 +159,7 @@ export const BottomSheet = ({
           modal={modal}
           disableScrollableNegotiation={disableScrollableNegotiation}
           scrimColor={scrimColor}
+          scrimOpacities={resolvedScrimOpacity}
           onIndexChange={handleIndexChange}
           onSettle={handleSettle}
           onPositionChange={handlePositionChange}

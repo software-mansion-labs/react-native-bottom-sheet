@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import {
   BottomSheet,
@@ -30,6 +31,7 @@ export type CaseKey =
   | 'basic-modal'
   | 'modal-scroll-view'
   | 'modal-flat-list'
+  | 'scrim-opacity'
   | 'inline-detents'
   | 'inline-flat-list'
   | 'invalid-detents'
@@ -129,6 +131,52 @@ export const ModalFlatListScreen = () => {
             data={DATA}
             keyExtractor={(item) => item.id}
             contentContainerStyle={{ paddingBottom: 24 }}
+            renderItem={({ item, index: itemIndex }) => (
+              <ListRow item={item} index={itemIndex} />
+            )}
+          />
+        </ModalBottomSheet>
+      }
+    >
+      <Button title="Open sheet" onPress={() => setIndex(1)} />
+    </DemoScreen>
+  );
+};
+
+export const ScrimOpacityScreen = () => {
+  const [index, setIndex] = useState(0);
+  const { height: windowHeight } = useWindowDimensions();
+
+  return (
+    <DemoScreen
+      title="Per-detent scrim opacity"
+      sheet={
+        <ModalBottomSheet
+          detents={[0, windowHeight / 2, 'content']}
+          index={index}
+          onIndexChange={setIndex}
+          scrimColor={MODAL_SCRIM_COLOR}
+          scrimOpacities={[0, 0.5, 1]}
+          surface={<SheetBackground style={StyleSheet.absoluteFill} />}
+        >
+          <SheetHeader
+            title="Per-detent scrim opacity"
+            onClose={() => setIndex(0)}
+          />
+          <FlatList
+            data={DATA}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={{ paddingBottom: 24 }}
+            ListHeaderComponent={
+              <View style={{ padding: 20 }}>
+                <Text style={{ fontSize: 15, lineHeight: 22, color: '#555' }}>
+                  With three detents and scrimOpacities={'{[0, 0.5, 1]}'}, the
+                  scrim keeps deepening from the half detent to the full detent
+                  instead of snapping to full opacity at the first open detent.
+                  Drag between detents to watch it interpolate.
+                </Text>
+              </View>
+            }
             renderItem={({ item, index: itemIndex }) => (
               <ListRow item={item} index={itemIndex} />
             )}
@@ -640,6 +688,13 @@ export const DEMO_CASES: DemoCase[] = [
     title: 'Modal with FlatList',
     description: 'Modal bottom sheet containing a FlatList.',
     href: '/modal-flat-list',
+  },
+  {
+    key: 'scrim-opacity',
+    title: 'Per-detent scrim opacity',
+    description:
+      'Three-detent modal with scrimOpacities={[0, 0.5, 1]} so the scrim deepens at every detent.',
+    href: '/scrim-opacity',
   },
   {
     key: 'inline-detents',

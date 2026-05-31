@@ -34,6 +34,19 @@ public final class BottomSheetHostingView: UIView {
     didSet { scrimView.backgroundColor = scrimColor }
   }
 
+  /// Scrim opacity per detent index. Linearly interpolated between detents and
+  /// clamped to the last value for detents beyond the array. The JS layer always
+  /// supplies a per-detent array; the fully-opaque fallback only guards against
+  /// empty input (indexing requires a non-empty array).
+  private var scrimOpacities: [CGFloat] = [1] {
+    didSet { updateScrim() }
+  }
+
+  public func setScrimOpacities(_ values: [NSNumber]) {
+    let mapped = values.map { CGFloat(truncating: $0) }
+    scrimOpacities = mapped.isEmpty ? [1] : mapped
+  }
+
   public var maxDetentHeight: CGFloat = .nan {
     didSet { refreshDetentsFromLayout() }
   }
@@ -860,22 +873,53 @@ private extension BottomSheetHostingView {
 
     // While the sheet is fully open and only its content/detent geometry is
     // resizing, the position momentarily lags the grown detent height. Keep the
-    // scrim at full opacity instead of dipping it until the re-anchor settles.
+    // scrim pinned to the fully-open opacity instead of dipping it until the
+    // re-anchor settles.
     if scrimPinnedFull {
-      scrimView.alpha = 1
-      scrimView.isHidden = false
+      let opacity = fullyOpenScrimOpacity
+      scrimView.alpha = opacity
+      scrimView.isHidden = opacity <= 0.001
       return
     }
 
-    let threshold = firstNonZeroDetentHeight
-    let progress: CGFloat
-    if threshold <= 0 {
-      progress = 0
-    } else {
-      progress = min(1, max(0, position / threshold))
-    }
+    let progress = scrimOpacity(forPosition: position)
     scrimView.alpha = progress
     scrimView.isHidden = progress <= 0.001
+  }
+
+  /// The opacity at the tallest detent, held while the sheet re-anchors.
+  private var fullyOpenScrimOpacity: CGFloat {
+    guard let maxHeight = detentSpecs.map({ $0.height }).max() else { return 1 }
+    return scrimOpacity(forPosition: maxHeight)
+  }
+
+  /// Interpolates the scrim opacity for a sheet height by bracketing it between
+  /// adjacent detent heights and lerping each detent index's configured value.
+  private func scrimOpacity(forPosition position: CGFloat) -> CGFloat {
+    guard !detentSpecs.isEmpty else { return 0 }
+    let pairs = detentSpecs.indices
+      .map { (
+        height: detentSpecs[$0].height,
+        opacity: clampOpacity(scrimOpacities[min($0, scrimOpacities.count - 1)])
+      ) }
+      .sorted { $0.height < $1.height }
+
+    guard let first = pairs.first, let last = pairs.last else { return 0 }
+    if position <= first.height { return first.opacity }
+    if position >= last.height { return last.opacity }
+
+    for i in 1 ..< pairs.count where position <= pairs[i].height {
+      let lower = pairs[i - 1]
+      let upper = pairs[i]
+      let span = upper.height - lower.height
+      let t = span <= 0 ? 1 : (position - lower.height) / span
+      return lower.opacity + (upper.opacity - lower.opacity) * t
+    }
+    return last.opacity
+  }
+
+  private func clampOpacity(_ value: CGFloat) -> CGFloat {
+    min(1, max(0, value))
   }
 
   func updateInteractionState() {

@@ -28,6 +28,10 @@ export default function RootLayout() {
             options={{ title: 'Modal with FlatList', headerShown: false }}
           />
           <Stack.Screen
+            name="scrim-opacity"
+            options={{ title: 'Per-detent scrim opacity', headerShown: false }}
+          />
+          <Stack.Screen
             name="inline-detents"
             options={{ title: 'Inline with detents', headerShown: false }}
           />
