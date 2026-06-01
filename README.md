@@ -301,24 +301,27 @@ drag snapping but can still be targeted via `index`&nbsp;updates.
 
 ### Position tracking
 
-Use `onPositionChange` to observe the sheet’s current position (the distance in
-pixels from the bottom of the screen to the top of the&nbsp;sheet).
+Use `onPositionChange` to observe the sheet’s current position. It is a standard
+native event; read the distance in pixels from the bottom of the screen to the
+top of the sheet from&nbsp;`event.nativeEvent.position`.
 
 ```tsx
 <BottomSheet // Or `ModalBottomSheet`.
   index={index}
   onIndexChange={setIndex}
   surface={/* ... */}
-  onPositionChange={(position) => {
-    console.log(position);
+  onPositionChange={(event) => {
+    console.log(event.nativeEvent.position);
   }}
 >
   {/* ... */}
 </BottomSheet>
 ```
 
-If you want to keep the latest position in a Reanimated shared value, update it
-from the&nbsp;callback:
+#### With Reanimated
+
+To keep the latest position in a Reanimated shared value, update it from
+the&nbsp;callback:
 
 ```tsx
 const position = useSharedValue(0);
@@ -329,13 +332,62 @@ const position = useSharedValue(0);
   index={index}
   onIndexChange={setIndex}
   surface={/* ... */}
-  onPositionChange={(nextPosition) => {
-    position.value = nextPosition;
+  onPositionChange={(event) => {
+    position.value = event.nativeEvent.position;
   }}
 >
   {/* ... */}
 </BottomSheet>
 ```
+
+Because `onPositionChange` is a native event, you can also handle it on the UI
+thread. Pass `Animated.createAnimatedComponent` to `wrapNativeView`—the library
+applies it to the native sheet view—and give `onPositionChange` a worklet
+handler from&nbsp;`useEvent`:
+
+```tsx
+import type { NativeSyntheticEvent } from 'react-native';
+import Animated, { useEvent, useSharedValue } from 'react-native-reanimated';
+import {
+  BottomSheet,
+  type PositionChangeEventData,
+} from '@swmansion/react-native-bottom-sheet';
+```
+
+```tsx
+const position = useSharedValue(0);
+
+const onPositionChange = useEvent<
+  NativeSyntheticEvent<PositionChangeEventData>
+>(
+  (event) => {
+    'worklet';
+    position.value = event.position;
+  },
+  ['onPositionChange']
+);
+```
+
+```tsx
+<BottomSheet // Or `ModalBottomSheet`.
+  index={index}
+  onIndexChange={setIndex}
+  surface={/* ... */}
+  wrapNativeView={Animated.createAnimatedComponent}
+  onPositionChange={onPositionChange}
+>
+  {/* ... */}
+</BottomSheet>
+```
+
+`wrapNativeView` keeps the animated wrapper on the native sheet view itself, so
+the worklet binds on first render—for both inline and modal sheets—without the
+library depending on Reanimated. Pass a stable function (such as
+`Animated.createAnimatedComponent`), not an inline lambda.
+
+Inside the worklet, Reanimated unwraps the native event, so you read
+`event.position` directly rather than `event.nativeEvent.position`. The handler
+runs on the UI thread on every frame the sheet&nbsp;moves.
 
 ## By [Software Mansion](https://swmansion.com)
 

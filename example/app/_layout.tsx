@@ -77,6 +77,13 @@ export default function RootLayout() {
               headerShown: false,
             }}
           />
+          <Stack.Screen
+            name="ui-thread-modal-position"
+            options={{
+              title: 'UI-thread modal onPositionChange',
+              headerShown: false,
+            }}
+          />
         </Stack>
       </BottomSheetProvider>
     </SafeAreaProvider>

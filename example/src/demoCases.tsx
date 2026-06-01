@@ -41,7 +41,8 @@ export type CaseKey =
   | 'dynamic-content-height'
   | 'snap-callbacks'
   | 'no-animate-in'
-  | 'ui-thread-position';
+  | 'ui-thread-position'
+  | 'ui-thread-modal-position';
 
 export type DemoCase = {
   key: CaseKey;
@@ -877,5 +878,12 @@ export const DEMO_CASES: DemoCase[] = [
     description:
       'createAnimatedComponent(BottomSheet) with a Reanimated worklet handling onPositionChange synchronously on the UI thread.',
     href: '/ui-thread-position',
+  },
+  {
+    key: 'ui-thread-modal-position',
+    title: 'UI-thread modal onPositionChange',
+    description:
+      'createAnimatedComponent(ModalBottomSheet): a worklet onPositionChange on a portal-rendered modal, via the in-place host anchor.',
+    href: '/ui-thread-modal-position',
   },
 ];

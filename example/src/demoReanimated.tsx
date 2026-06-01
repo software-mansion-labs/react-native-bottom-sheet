@@ -17,11 +17,10 @@ import { DemoScreen, SheetBackground, SheetHeader } from './demoShared';
 const DETENTS = [120, 360, 600];
 const MAX_POSITION = DETENTS[DETENTS.length - 1]!;
 
-// The library stays unopinionated about Reanimated: BottomSheet forwards its ref
-// to the native view that emits onPositionChange, so you make it animatable
-// yourself. onPositionChange is a standard native event, so a useEvent worklet
-// runs on the UI thread, synchronously, as the sheet moves—no cast needed.
-const AnimatedBottomSheet = Animated.createAnimatedComponent(BottomSheet);
+// The library stays unopinionated about Reanimated: hand it
+// `createAnimatedComponent` via `wrapNativeView` and it wraps the native sheet
+// view itself. onPositionChange is a standard native event, so a useEvent
+// worklet runs on the UI thread, synchronously, as the sheet moves—no cast.
 const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
 
 export const UIThreadPositionScreen = () => {
@@ -29,7 +28,7 @@ export const UIThreadPositionScreen = () => {
 
   // Driven entirely on the UI thread by the worklet below—no JS-thread
   // round-trip, so it stays in sync with the sheet even during a fast drag.
-  const position = useSharedValue(DETENTS[index]!);
+  const position = useSharedValue(0);
 
   // Parameterized with the prop's event type, so the handler is assignable with
   // no cast. Reanimated still unwraps `nativeEvent` for the worklet body, so we
@@ -71,7 +70,8 @@ export const UIThreadPositionScreen = () => {
           >
             <View style={styles.markerDot} />
           </Animated.View>
-          <AnimatedBottomSheet
+          <BottomSheet
+            wrapNativeView={Animated.createAnimatedComponent}
             detents={DETENTS}
             index={index}
             onIndexChange={setIndex}
@@ -90,7 +90,7 @@ export const UIThreadPositionScreen = () => {
                 JS-thread state, no per-frame bridge traffic.
               </Text>
             </View>
-          </AnimatedBottomSheet>
+          </BottomSheet>
         </>
       }
     >

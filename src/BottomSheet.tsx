@@ -1,23 +1,16 @@
-import { type ComponentRef, type ReactNode, type Ref } from 'react';
+import { useState, type ComponentType, type ReactNode } from 'react';
 import type { NativeSyntheticEvent, StyleProp, ViewStyle } from 'react-native';
 import { Dimensions, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import BottomSheetNativeComponent from './BottomSheetNativeComponent';
+import BottomSheetNativeView, {
+  type NativeProps,
+} from './BottomSheetNativeComponent';
 import BottomSheetSurfaceNativeComponent from './BottomSheetSurfaceNativeComponent';
 import { Portal } from './BottomSheetProvider';
 import { type Detent } from './bottomSheetUtils';
 export type { Detent, DetentValue } from './bottomSheetUtils';
 export { programmatic } from './bottomSheetUtils';
-
-/**
- * Imperative handle for a `BottomSheet`. It resolves to the underlying native
- * sheet view—the one that emits `onPositionChange`—so it plugs straight into
- * Reanimated’s `createAnimatedComponent`.
- */
-export type BottomSheetInstance = ComponentRef<
-  typeof BottomSheetNativeComponent
->;
 
 /**
  * Payload of the {@link BottomSheetProps.onPositionChange} event, accessed as
@@ -65,13 +58,27 @@ export interface BottomSheetProps {
   onSettle?: (index: number) => void;
   /**
    * Called as the sheet position changes. A standard native direct event; read
-   * `event.nativeEvent.position` (points from the bottom). Because it is a real
-   * native event, it also works on the UI thread when the component is wrapped
-   * with Reanimated’s `createAnimatedComponent` and given a worklet handler.
+   * `event.nativeEvent.position` (points from the bottom). To handle it on the
+   * UI thread, see `wrapNativeView`.
    */
   onPositionChange?: (
     event: NativeSyntheticEvent<PositionChangeEventData>
   ) => void;
+  /**
+   * Wraps the native sheet view—the one that emits `onPositionChange`—before it
+   * is rendered. Pass `Animated.createAnimatedComponent` to handle
+   * `onPositionChange` on the UI thread with a Reanimated worklet (e.g., from
+   * `useEvent`): Because the animated wrapper sits directly on the native view,
+   * the worklet binds to the sheet at mount, for both inline and modal sheets,
+   * without the library depending on Reanimated.
+   *
+   * Called once; pass a stable function (a module-level reference such as
+   * `Animated.createAnimatedComponent`, not an inline lambda recreated each
+   * render).
+   */
+  wrapNativeView?: (
+    component: ComponentType<NativeProps>
+  ) => ComponentType<NativeProps>;
   /** Internal flag used by `ModalBottomSheet`. */
   modal?: boolean;
   /**
@@ -109,12 +116,12 @@ export const BottomSheet = ({
   onIndexChange,
   onSettle,
   onPositionChange,
+  wrapNativeView,
   modal = false,
   disableScrollableNegotiation = false,
   scrimColor,
   scrimOpacities,
-  ref,
-}: BottomSheetProps & { ref?: Ref<BottomSheetInstance> }) => {
+}: BottomSheetProps) => {
   const { height: windowHeight } = Dimensions.get('screen');
   const insets = useSafeAreaInsets();
   const maxHeight = windowHeight - insets.top;
@@ -155,14 +162,28 @@ export const BottomSheet = ({
     onSettle?.(event.nativeEvent.index);
   };
 
+  // The native sheet view, optionally wrapped (e.g. with
+  // `Animated.createAnimatedComponent`) so a Reanimated worklet can handle
+  // `onPositionChange` on the UI thread. Wrapping the leaf native view (rather
+  // than this whole component) keeps the animated boundary on the host that
+  // emits events—so it resolves at mount, inline or inside the modal portal
+  // alike. Computed once: a fresh wrapped component each render would remount
+  // the native sheet.
+  const [NativeView] = useState(
+    () =>
+      (wrapNativeView?.(BottomSheetNativeView) ??
+        BottomSheetNativeView) as ComponentType<
+        NativeProps & { children?: ReactNode }
+      >
+  );
+
   const sheet = (
     <View
       style={StyleSheet.absoluteFill}
       pointerEvents={modal ? (isCollapsed ? 'none' : 'auto') : 'box-none'}
     >
       <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-        <BottomSheetNativeComponent
-          ref={ref}
+        <NativeView
           pointerEvents="box-none"
           style={[
             {
@@ -202,7 +223,7 @@ export const BottomSheet = ({
             {children}
             <View collapsable={false} pointerEvents="none" />
           </View>
-        </BottomSheetNativeComponent>
+        </NativeView>
       </View>
     </View>
   );
