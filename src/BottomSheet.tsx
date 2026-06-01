@@ -1,5 +1,5 @@
-import { type ReactNode } from 'react';
-import type { StyleProp, ViewStyle } from 'react-native';
+import { type ComponentRef, type ReactNode, type Ref } from 'react';
+import type { NativeSyntheticEvent, StyleProp, ViewStyle } from 'react-native';
 import { Dimensions, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -9,6 +9,24 @@ import { Portal } from './BottomSheetProvider';
 import { type Detent } from './bottomSheetUtils';
 export type { Detent, DetentValue } from './bottomSheetUtils';
 export { programmatic } from './bottomSheetUtils';
+
+/**
+ * Imperative handle for a `BottomSheet`. It resolves to the underlying native
+ * sheet view—the one that emits `onPositionChange`—so it plugs straight into
+ * Reanimated’s `createAnimatedComponent`.
+ */
+export type BottomSheetInstance = ComponentRef<
+  typeof BottomSheetNativeComponent
+>;
+
+/**
+ * Payload of the {@link BottomSheetProps.onPositionChange} event, accessed as
+ * `event.nativeEvent`.
+ */
+export type PositionChangeEventData = Readonly<{
+  /** Sheet position, in points from the bottom. */
+  position: number;
+}>;
 
 /**
  * Props for the inline bottom-sheet component.
@@ -45,8 +63,15 @@ export interface BottomSheetProps {
   onIndexChange?: (index: number) => void;
   /** Called when a snap animation settles, including programmatic changes. */
   onSettle?: (index: number) => void;
-  /** Called as the sheet position changes, in points from the bottom. */
-  onPositionChange?: (position: number) => void;
+  /**
+   * Called as the sheet position changes. A standard native direct event; read
+   * `event.nativeEvent.position` (points from the bottom). Because it is a real
+   * native event, it also works on the UI thread when the component is wrapped
+   * with Reanimated’s `createAnimatedComponent` and given a worklet handler.
+   */
+  onPositionChange?: (
+    event: NativeSyntheticEvent<PositionChangeEventData>
+  ) => void;
   /** Internal flag used by `ModalBottomSheet`. */
   modal?: boolean;
   /**
@@ -88,7 +113,8 @@ export const BottomSheet = ({
   disableScrollableNegotiation = false,
   scrimColor,
   scrimOpacities,
-}: BottomSheetProps) => {
+  ref,
+}: BottomSheetProps & { ref?: Ref<BottomSheetInstance> }) => {
   const { height: windowHeight } = Dimensions.get('screen');
   const insets = useSafeAreaInsets();
   const maxHeight = windowHeight - insets.top;
@@ -129,13 +155,6 @@ export const BottomSheet = ({
     onSettle?.(event.nativeEvent.index);
   };
 
-  const handlePositionChange = (event: {
-    nativeEvent: { position: number };
-  }) => {
-    const height = event.nativeEvent.position;
-    onPositionChange?.(height);
-  };
-
   const sheet = (
     <View
       style={StyleSheet.absoluteFill}
@@ -143,6 +162,7 @@ export const BottomSheet = ({
     >
       <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
         <BottomSheetNativeComponent
+          ref={ref}
           pointerEvents="box-none"
           style={[
             {
@@ -167,7 +187,7 @@ export const BottomSheet = ({
           scrimOpacities={resolvedScrimOpacity}
           onIndexChange={handleIndexChange}
           onSettle={handleSettle}
-          onPositionChange={handlePositionChange}
+          onPositionChange={onPositionChange}
         >
           {surface != null && (
             <BottomSheetSurfaceNativeComponent

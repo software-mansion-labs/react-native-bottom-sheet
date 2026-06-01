@@ -70,6 +70,13 @@ export default function RootLayout() {
             name="no-animate-in"
             options={{ title: 'No animate in', headerShown: false }}
           />
+          <Stack.Screen
+            name="ui-thread-position"
+            options={{
+              title: 'UI-thread onPositionChange',
+              headerShown: false,
+            }}
+          />
         </Stack>
       </BottomSheetProvider>
     </SafeAreaProvider>

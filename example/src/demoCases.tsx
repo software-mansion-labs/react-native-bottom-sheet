@@ -40,7 +40,8 @@ export type CaseKey =
   | 'dynamic-detents'
   | 'dynamic-content-height'
   | 'snap-callbacks'
-  | 'no-animate-in';
+  | 'no-animate-in'
+  | 'ui-thread-position';
 
 export type DemoCase = {
   key: CaseKey;
@@ -413,7 +414,7 @@ export const ProgrammaticDetentDragScreen = () => {
           detents={[120, 320, programmatic(720)]}
           index={index}
           onIndexChange={setIndex}
-          onPositionChange={setPosition}
+          onPositionChange={(event) => setPosition(event.nativeEvent.position)}
           surface={<SheetBackground style={StyleSheet.absoluteFill} />}
         >
           <SheetHeader
@@ -482,7 +483,7 @@ export const DynamicDetentsScreen = () => {
           detents={[...detents]}
           index={index}
           onIndexChange={setIndex}
-          onPositionChange={setPosition}
+          onPositionChange={(event) => setPosition(event.nativeEvent.position)}
           surface={<SheetBackground style={StyleSheet.absoluteFill} />}
         >
           <SheetHeader
@@ -557,7 +558,7 @@ export const DynamicContentHeightScreen = () => {
           detents={[0, 'content']}
           index={index}
           onIndexChange={setIndex}
-          onPositionChange={setPosition}
+          onPositionChange={(event) => setPosition(event.nativeEvent.position)}
           scrimColor={MODAL_SCRIM_COLOR}
           surface={<SheetBackground style={StyleSheet.absoluteFill} />}
         >
@@ -869,5 +870,12 @@ export const DEMO_CASES: DemoCase[] = [
     description:
       'Inline sheet with animateIn={false}: it should appear at its detent without sliding up.',
     href: '/no-animate-in',
+  },
+  {
+    key: 'ui-thread-position',
+    title: 'UI-thread onPositionChange',
+    description:
+      'createAnimatedComponent(BottomSheet) with a Reanimated worklet handling onPositionChange synchronously on the UI thread.',
+    href: '/ui-thread-position',
   },
 ];
