@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Dimensions, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import BottomSheetNativeComponent from './BottomSheetNativeComponent';
@@ -89,7 +89,7 @@ export const BottomSheet = ({
   scrimColor,
   scrimOpacities,
 }: BottomSheetProps) => {
-  const { height: windowHeight } = useWindowDimensions();
+  const { height: windowHeight } = Dimensions.get('screen');
   const insets = useSafeAreaInsets();
   const maxHeight = windowHeight - insets.top;
   const nativeDetents = detents.map((detent) => {
