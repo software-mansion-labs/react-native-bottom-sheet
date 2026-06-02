@@ -125,9 +125,11 @@
   [self.delegate bottomSheetView:self didSettle:index];
 }
 
-- (void)bottomSheetHostingView:(BottomSheetHostingView *)view didChangePosition:(CGFloat)position
+- (void)bottomSheetHostingView:(BottomSheetHostingView *)view
+              didChangePosition:(CGFloat)position
+                          index:(CGFloat)index
 {
-  [self.delegate bottomSheetView:self didChangePosition:position];
+  [self.delegate bottomSheetView:self didChangePosition:position index:index];
 }
 
 - (void)bottomSheetHostingView:(BottomSheetHostingView *)view didReportError:(NSString *)message

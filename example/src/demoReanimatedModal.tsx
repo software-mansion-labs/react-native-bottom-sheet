@@ -26,12 +26,17 @@ export const UIThreadModalPositionScreen = () => {
   const [index, setIndex] = useState(1);
   const position = useSharedValue(0);
 
+  // The same event also carries `index`: a fractional detent index, so the UI
+  // can track which detent the sheet is heading toward without knowing heights.
+  const detentIndex = useSharedValue(0);
+
   const onPositionChange = useEvent<
     NativeSyntheticEvent<PositionChangeEventData>
   >(
     (event) => {
       'worklet';
       position.value = event.position;
+      detentIndex.value = event.index;
     },
     ['onPositionChange']
   );
@@ -39,6 +44,17 @@ export const UIThreadModalPositionScreen = () => {
   const readoutProps = useAnimatedProps(() => ({
     text: `${Math.round(position.value)} pt`,
     defaultValue: '',
+  }));
+
+  // A second read-out for the fractional detent index from `index`.
+  const detentIndexReadoutProps = useAnimatedProps(() => ({
+    text: `detent ${detentIndex.value.toFixed(2)}`,
+    defaultValue: '',
+  }));
+
+  // A bar driven off `index` normalized across the detent range.
+  const detentIndexBarStyle = useAnimatedStyle(() => ({
+    width: `${(detentIndex.value / (DETENTS.length - 1)) * 100}%`,
   }));
 
   // A blue circle that rides the modal sheet's top edge on the UI thread.
@@ -94,6 +110,21 @@ export const UIThreadModalPositionScreen = () => {
         />
         <Text style={styles.hint}>max detent: {MAX_POSITION}pt</Text>
       </View>
+      <View style={styles.card}>
+        <Text style={styles.cardLabel}>
+          Detent index / progress (UI thread)
+        </Text>
+        <AnimatedTextInput
+          editable={false}
+          value={undefined}
+          animatedProps={detentIndexReadoutProps}
+          style={styles.readout}
+        />
+        <Text style={styles.hint}>detent index 0 → {DETENTS.length - 1}</Text>
+        <View style={styles.track}>
+          <Animated.View style={[styles.fill, detentIndexBarStyle]} />
+        </View>
+      </View>
     </DemoScreen>
   );
 };
@@ -111,6 +142,17 @@ const styles = StyleSheet.create({
   cardLabel: { fontWeight: '600', color: '#1f1f1f' },
   hint: { color: '#555' },
   readout: { fontSize: 36, fontWeight: '700', color: '#1f1f1f', padding: 0 },
+  track: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#ddd',
+    overflow: 'hidden',
+  },
+  fill: {
+    height: '100%',
+    borderRadius: 4,
+    backgroundColor: '#3b82f6',
+  },
   circleAnchor: {
     position: 'absolute',
     left: 0,

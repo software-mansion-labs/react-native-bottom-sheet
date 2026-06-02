@@ -30,6 +30,10 @@ export const UIThreadPositionScreen = () => {
   // round-trip, so it stays in sync with the sheet even during a fast drag.
   const position = useSharedValue(0);
 
+  // The same event also carries `index`: a fractional detent index, so the UI
+  // can track which detent the sheet is heading toward without knowing heights.
+  const detentIndex = useSharedValue(0);
+
   // Parameterized with the prop's event type, so the handler is assignable with
   // no cast. Reanimated still unwraps `nativeEvent` for the worklet body, so we
   // read `event.position` directly.
@@ -39,19 +43,31 @@ export const UIThreadPositionScreen = () => {
     (event) => {
       'worklet';
       position.value = event.position;
+      detentIndex.value = event.index;
     },
     ['onPositionChange']
   );
 
-  // A read-out updated from the UI thread by animating a TextInput's text.
+  // A read-out animating a TextInput's text from the UI thread.
   const readoutProps = useAnimatedProps(() => ({
     text: `${Math.round(position.value)} pt`,
+    defaultValue: '',
+  }));
+
+  // A second read-out for the fractional detent index from `index`.
+  const detentIndexReadoutProps = useAnimatedProps(() => ({
+    text: `detent ${detentIndex.value.toFixed(2)}`,
     defaultValue: '',
   }));
 
   // A progress bar whose width tracks the sheet height in real time.
   const barStyle = useAnimatedStyle(() => ({
     width: `${Math.min(1, position.value / MAX_POSITION) * 100}%`,
+  }));
+
+  // The same bar, driven off `index` normalized across the detent range.
+  const detentIndexBarStyle = useAnimatedStyle(() => ({
+    width: `${(detentIndex.value / (DETENTS.length - 1)) * 100}%`,
   }));
 
   // A marker pinned to the bottom that rides the sheet's top edge upward.
@@ -105,6 +121,21 @@ export const UIThreadPositionScreen = () => {
         />
         <View style={styles.track}>
           <Animated.View style={[styles.fill, barStyle]} />
+        </View>
+      </View>
+      <View style={styles.card}>
+        <Text style={styles.cardLabel}>
+          Detent index / progress (UI thread)
+        </Text>
+        <AnimatedTextInput
+          editable={false}
+          value={undefined}
+          animatedProps={detentIndexReadoutProps}
+          style={styles.readout}
+        />
+        <Text style={styles.hint}>detent index 0 → {DETENTS.length - 1}</Text>
+        <View style={styles.track}>
+          <Animated.View style={[styles.fill, detentIndexBarStyle]} />
         </View>
       </View>
       <Text style={styles.hint}>

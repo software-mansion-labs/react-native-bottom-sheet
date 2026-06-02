@@ -140,11 +140,14 @@ using namespace facebook::react;
   }
 }
 
-- (void)bottomSheetView:(BottomSheetContentView *)view didChangePosition:(CGFloat)position
+- (void)bottomSheetView:(BottomSheetContentView *)view
+      didChangePosition:(CGFloat)position
+                  index:(CGFloat)index
 {
   if (_eventEmitter) {
     auto emitter = std::static_pointer_cast<const BottomSheetViewEventEmitter>(_eventEmitter);
-    emitter->onPositionChange({.position = static_cast<double>(position)});
+    emitter->onPositionChange(
+        {.position = static_cast<double>(position), .index = static_cast<double>(index)});
   }
 
   float contentOffsetY = static_cast<float>(view.currentContentOffsetY);

@@ -3,7 +3,8 @@ import UIKit
 @objc public protocol BottomSheetHostingViewDelegate: AnyObject {
   func bottomSheetHostingView(_ view: BottomSheetHostingView, didChangeIndex index: Int)
   func bottomSheetHostingView(_ view: BottomSheetHostingView, didSettle index: Int)
-  func bottomSheetHostingView(_ view: BottomSheetHostingView, didChangePosition position: CGFloat)
+  func bottomSheetHostingView(
+    _ view: BottomSheetHostingView, didChangePosition position: CGFloat, index: CGFloat)
   func bottomSheetHostingView(_ view: BottomSheetHostingView, didReportError message: String)
 }
 
@@ -357,7 +358,8 @@ public final class BottomSheetHostingView: UIView {
     updateScrim(forPosition: position)
     updateSheetVisibility(forPosition: position)
     updateInteractionState()
-    eventDelegate?.bottomSheetHostingView(self, didChangePosition: position)
+    eventDelegate?.bottomSheetHostingView(
+      self, didChangePosition: position, index: detentIndex(forPosition: position))
   }
 
   private func startDisplayLink() {
@@ -899,26 +901,40 @@ private extension BottomSheetHostingView {
   /// Interpolates the scrim opacity for a sheet height by bracketing it between
   /// adjacent detent heights and lerping each detent index's configured value.
   private func scrimOpacity(forPosition position: CGFloat) -> CGFloat {
-    guard !detentSpecs.isEmpty else { return 0 }
-    let pairs = detentSpecs.indices
-      .map { (
-        height: detentSpecs[$0].height,
-        opacity: clampOpacity(scrimOpacities[min($0, scrimOpacities.count - 1)])
-      ) }
+    interpolate(
+      forPosition: position,
+      values: detentSpecs.indices.map {
+        clampOpacity(scrimOpacities[min($0, scrimOpacities.count - 1)])
+      })
+  }
+
+  // Fractional detent index in 0...(detentSpecs.count - 1): 0 at the shortest
+  // detent, 1 at the next, and so on, interpolated by position in between. The
+  // continuous counterpart of `onIndexChange`, so consumers can drive a backdrop
+  // or animate per detent without knowing the sheet's height.
+  private func detentIndex(forPosition position: CGFloat) -> CGFloat {
+    interpolate(forPosition: position, values: detentSpecs.indices.map { CGFloat($0) })
+  }
+
+  // Interpolates a per-detent value (one per detent, by index) by the sheet
+  // position, using each detent's resolved height as the breakpoint.
+  private func interpolate(forPosition position: CGFloat, values: [CGFloat]) -> CGFloat {
+    let pairs = zip(detentSpecs.map(\.height), values)
+      .map { (height: $0, value: $1) }
       .sorted { $0.height < $1.height }
 
     guard let first = pairs.first, let last = pairs.last else { return 0 }
-    if position <= first.height { return first.opacity }
-    if position >= last.height { return last.opacity }
+    if position <= first.height { return first.value }
+    if position >= last.height { return last.value }
 
     for i in 1 ..< pairs.count where position <= pairs[i].height {
       let lower = pairs[i - 1]
       let upper = pairs[i]
       let span = upper.height - lower.height
       let t = span <= 0 ? 1 : (position - lower.height) / span
-      return lower.opacity + (upper.opacity - lower.opacity) * t
+      return lower.value + (upper.value - lower.value) * t
     }
-    return last.opacity
+    return last.value
   }
 
   private func clampOpacity(_ value: CGFloat) -> CGFloat {

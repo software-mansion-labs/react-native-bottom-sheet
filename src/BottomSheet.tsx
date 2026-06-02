@@ -19,6 +19,13 @@ export { programmatic } from './bottomSheetUtils';
 export type PositionChangeEventData = Readonly<{
   /** Sheet position, in points from the bottom. */
   position: number;
+  /**
+   * Fractional detent index in `0..(detents.length - 1)`: `0` at the shortest
+   * detent, `1` at the next, and so on, interpolated as the sheet moves between
+   * them. The continuous counterpart of `onIndexChange`, so a backdrop or
+   * per-detent animation can be driven without knowing the sheet's height.
+   */
+  index: number;
 }>;
 
 /**

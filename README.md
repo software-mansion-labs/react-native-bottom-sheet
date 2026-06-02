@@ -303,7 +303,12 @@ drag snapping but can still be targeted via `index`&nbsp;updates.
 
 Use `onPositionChange` to observe the sheet’s current position. It is a standard
 native event; read the distance in pixels from the bottom of the screen to the
-top of the sheet from&nbsp;`event.nativeEvent.position`.
+top of the sheet from&nbsp;`event.nativeEvent.position`. The same event also
+carries `event.nativeEvent.index`—the fractional detent index in
+`0..(detents.length - 1)` (`0` at the shortest detent, `1` at the next, and so
+on, interpolated in between)—the continuous counterpart of `onIndexChange`,
+handy for driving a backdrop or per-detent animation without knowing the
+sheet’s height.
 
 ```tsx
 <BottomSheet // Or `ModalBottomSheet`.
@@ -311,7 +316,7 @@ top of the sheet from&nbsp;`event.nativeEvent.position`.
   onIndexChange={setIndex}
   surface={/* ... */}
   onPositionChange={(event) => {
-    console.log(event.nativeEvent.position);
+    console.log(event.nativeEvent.position, event.nativeEvent.index);
   }}
 >
   {/* ... */}
@@ -356,6 +361,7 @@ import {
 
 ```tsx
 const position = useSharedValue(0);
+const detentIndex = useSharedValue(0);
 
 const onPositionChange = useEvent<
   NativeSyntheticEvent<PositionChangeEventData>
@@ -363,6 +369,7 @@ const onPositionChange = useEvent<
   (event) => {
     'worklet';
     position.value = event.position;
+    detentIndex.value = event.index;
   },
   ['onPositionChange']
 );

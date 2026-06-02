@@ -35,7 +35,7 @@ interface BottomSheetViewListener {
 
   fun onSettle(index: Int)
 
-  fun onPositionChange(position: Double)
+  fun onPositionChange(position: Double, index: Double)
 }
 
 class BottomSheetView(context: Context) : ReactViewGroup(context) {
@@ -484,9 +484,16 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
     updateScrim(position)
     updateSheetVisibility(position)
     updateInteractionState()
-    listener?.onPositionChange((position / density).toDouble())
+    listener?.onPositionChange((position / density).toDouble(), detentIndexAt(position).toDouble())
     updateShadowState(ty)
   }
+
+  // Fractional detent index in 0..(detentSpecs.size - 1): 0 at the shortest
+  // detent, 1 at the next, and so on, interpolated by position in between. The
+  // continuous counterpart of `onIndexChange`, so consumers can drive a backdrop
+  // or animate per detent without knowing the sheet's height.
+  private fun detentIndexAt(position: Float): Float =
+    interpolateAtPosition(position, detentSpecs.indices.map { it.toFloat() })
 
   private fun updateSheetVisibility(position: Float) {
     sheetContainer.alpha = if (position <= 0.5f) 0f else 1f
@@ -911,15 +918,20 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
    * Interpolates the scrim opacity for a sheet height by bracketing it between adjacent detent
    * heights and lerping each detent index's configured value.
    */
-  private fun scrimOpacityAt(position: Float): Float {
+  private fun scrimOpacityAt(position: Float): Float =
+    interpolateAtPosition(
+      position,
+      detentSpecs.indices.map {
+        scrimOpacities[it.coerceAtMost(scrimOpacities.size - 1)].coerceIn(0f, 1f)
+      },
+    )
+
+  // Interpolates a per-detent value (one per detent, by index) by the sheet
+  // position, using each detent's resolved height as the breakpoint.
+  private fun interpolateAtPosition(position: Float, values: List<Float>): Float {
     if (detentSpecs.isEmpty()) return 0f
     val pairs =
-      detentSpecs.indices
-        .map { index ->
-          detentSpecs[index].height to
-            scrimOpacities[index.coerceAtMost(scrimOpacities.size - 1)].coerceIn(0f, 1f)
-        }
-        .sortedBy { it.first }
+      detentSpecs.indices.map { detentSpecs[it].height to values[it] }.sortedBy { it.first }
 
     val first = pairs.first()
     val last = pairs.last()

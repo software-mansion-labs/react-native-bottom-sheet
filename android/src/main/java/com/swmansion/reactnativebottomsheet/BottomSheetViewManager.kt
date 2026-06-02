@@ -44,8 +44,12 @@ class BottomSheetViewManager :
           dispatchEvent(view, "topSettle", event)
         }
 
-        override fun onPositionChange(position: Double) {
-          val event = Arguments.createMap().apply { putDouble("position", position) }
+        override fun onPositionChange(position: Double, index: Double) {
+          val event =
+            Arguments.createMap().apply {
+              putDouble("position", position)
+              putDouble("index", index)
+            }
           dispatchEvent(view, "topPositionChange", event)
         }
       }
