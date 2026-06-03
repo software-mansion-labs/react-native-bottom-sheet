@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.view.Choreographer
 import android.view.MotionEvent
 import android.view.VelocityTracker
 import android.view.View
@@ -71,7 +70,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
   private var activeAnimation: SpringAnimation? = null
   private var activeAnimationEmitsSettle = false
   private var velocityTracker: VelocityTracker? = null
-  private var choreographerCallback: Choreographer.FrameCallback? = null
   private val density = context.resources.displayMetrics.density
   private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
 
@@ -94,7 +92,9 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
   private var surfaceView: View? = null
 
   private val contentHeightMarkerLayoutListener =
-    View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> refreshDetentsFromLayout() }
+    View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+      refreshDetentsFromLayout()
+    }
 
   init {
     clipChildren = false
@@ -226,17 +226,16 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
   // MARK: - Prop setters
 
   fun setDetents(raw: List<Map<String, Any>>) {
-    rawDetentSpecs =
-      raw.mapNotNull { dict ->
-        val value = (dict["value"] as? Number)?.toDouble() ?: return@mapNotNull null
-        val kind =
-          when ((dict["kind"] as? String)?.lowercase()) {
-            "content" -> DetentKind.CONTENT
-            else -> DetentKind.POINTS
-          }
-        val programmatic = dict["programmatic"] as? Boolean ?: false
-        RawDetentSpec(value = (value * density).toFloat(), kind = kind, programmatic = programmatic)
-      }
+    rawDetentSpecs = raw.mapNotNull { dict ->
+      val value = (dict["value"] as? Number)?.toDouble() ?: return@mapNotNull null
+      val kind =
+        when ((dict["kind"] as? String)?.lowercase()) {
+          "content" -> DetentKind.CONTENT
+          else -> DetentKind.POINTS
+        }
+      val programmatic = dict["programmatic"] as? Boolean ?: false
+      RawDetentSpec(value = (value * density).toFloat(), kind = kind, programmatic = programmatic)
+    }
     refreshDetentsFromLayout()
   }
 
@@ -342,7 +341,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
           activeAnimation?.cancel()
           activeAnimation = null
           activeAnimationEmitsSettle = false
-          stopChoreographer()
           // Re-anchor the in-flight position to the new container height so the
           // sheet surface keeps the same on-screen height across the resize.
           val visibleHeight = previousMaxHeight - currentTy
@@ -513,26 +511,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
     sw.updateState(map)
   }
 
-  // MARK: - Choreographer (position tracking during animation)
-
-  private fun startChoreographer() {
-    if (choreographerCallback != null) return
-    val callback =
-      object : Choreographer.FrameCallback {
-        override fun doFrame(frameTimeNanos: Long) {
-          emitPosition()
-          choreographerCallback?.let { Choreographer.getInstance().postFrameCallback(it) }
-        }
-      }
-    choreographerCallback = callback
-    Choreographer.getInstance().postFrameCallback(callback)
-  }
-
-  private fun stopChoreographer() {
-    choreographerCallback?.let { Choreographer.getInstance().removeFrameCallback(it) }
-    choreographerCallback = null
-  }
-
   // MARK: - Spring animation
 
   private fun snapToIndex(
@@ -566,11 +544,15 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
         setMinValue(minOf(minDetentTranslationY, currentTy, targetTy))
         setMaxValue(maxOf(maxDetentTranslationY, currentTy, targetTy))
         setStartVelocity(velocity)
+        // Forward the position on every frame of the settle. The listener fires
+        // immediately after the spring writes `translationY`, so `emitPosition`
+        // reads the value being shown this frame — keeping followers that track
+        // `onPositionChange` (e.g. a Reanimated view) in lockstep with the sheet.
+        addUpdateListener { _, _, _ -> emitPosition() }
         addEndListener { _, canceled, _, _ ->
           if (canceled) {
             return@addEndListener
           }
-          stopChoreographer()
           activeAnimation = null
           activeAnimationEmitsSettle = false
           suppressScrimForClosingTarget = false
@@ -586,7 +568,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
       }
 
     activeAnimation = spring
-    startChoreographer()
     // Report the index change as soon as the snap is committed, not when it
     // finishes: targetIndex is already set, and a programmatic snap's start is
     // known to the caller. onSettle remains the signal for movement end.
@@ -777,7 +758,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
     activeAnimation?.let {
       it.cancel()
       activeAnimation = null
-      stopChoreographer()
     }
   }
 
@@ -850,7 +830,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context) {
   fun destroy() {
     activeAnimation?.cancel()
     activeAnimation = null
-    stopChoreographer()
     velocityTracker?.recycle()
     velocityTracker = null
     contentHeightMarker?.removeOnLayoutChangeListener(contentHeightMarkerLayoutListener)
