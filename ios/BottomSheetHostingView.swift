@@ -70,6 +70,9 @@ public final class BottomSheetHostingView: UIView {
   private let scrimView = UIControl()
   // DEBUG (temporary): native-driven follower dot (see init).
   private let debugNativeDot = UIView()
+  // DEBUG (temporary): last frame's presentation-layer ty, for one-frame
+  // extrapolation of the green dot from CA's own (single) sampler.
+  private var debugLastPresTy: CGFloat?
   private var panGesture: UIPanGestureRecognizer!
   private var activeSpring: CriticalSpring?
   private var activeSpringTargetIndex: Int = 0
@@ -416,27 +419,21 @@ public final class BottomSheetHostingView: UIView {
   }
 
   @objc private func displayLinkFired(_ link: CADisplayLink) {
-    // DEBUG (temporary): compare what we're about to emit against the modal's
-    // ACTUAL rendered position (presentation layer = ground truth, CA's value for
-    // the frame currently on screen). `emitTy` is value(at: targetTimestamp) —
-    // what the dot will show next frame. `presTy` is what the modal shows NOW.
-    // `nowTy` is value(at: timestamp) — the curve value for the current frame.
-    if let spring = activeSpring, let pres = sheetContainer.layer.presentation() {
+    // DEBUG (temporary): drive the GREEN dot from CA's OWN sampler — the
+    // presentation layer — extrapolated one frame forward using the on-screen
+    // velocity (this frame's presentation ty minus last frame's). This is a
+    // single sampler (CA), so there's no second curve to drift against (no
+    // wobble); the one-frame lead cancels presentation()'s read staleness.
+    // Pink stays on value(at: targetTimestamp), unchanged, as the baseline.
+    var debugGreenTy: CGFloat?
+    if let pres = sheetContainer.layer.presentation() {
       let presTy = pres.affineTransform().ty
-      let nowTy = spring.value(at: link.timestamp)
-      let emitTy = spring.value(at: link.targetTimestamp)
-      // presTy should equal nowTy if our curve == CA's curve at the same frame.
-      // emitTy − presTy is how far AHEAD the dot is vs. the modal on screen now.
-      NSLog(
-        "[bottomsheet] presTy=%.3f nowTy=%.3f emitTy=%.3f  curveErr=%.3f leadVsModal=%.3f",
-        presTy, nowTy, emitTy, nowTy - presTy, emitTy - presTy)
+      let velocity = debugLastPresTy.map { presTy - $0 } ?? 0
+      debugGreenTy = presTy + velocity
+      debugLastPresTy = presTy
     }
 
-    // Pink (JS) dot is fed value(at: targetTimestamp). Green (native) dot is fed
-    // value(at: timestamp) — the curve value for the frame rendering NOW — so we
-    // can A/B which sample time tracks the modal best, and whether the emitted
-    // position value itself is right.
-    stepSpring(targetTime: link.targetTimestamp, debugCurrentFrameTime: link.timestamp)
+    stepSpring(targetTime: link.targetTimestamp, debugGreenTy: debugGreenTy)
   }
 
   @objc private func handleScrimPress() {
@@ -520,6 +517,7 @@ public final class BottomSheetHostingView: UIView {
     sheetContainer.transform = CGAffineTransform(translationX: 0, y: targetTy)
     sheetContainer.layer.add(animation, forKey: Self.springAnimationKey)
     activeSpring = spring
+    debugLastPresTy = nil // DEBUG (temporary): reset green extrapolation state.
 
     // The display link no longer drives the modal; it only samples the spring
     // to keep the follower (`onPositionChange`) in lockstep with the modal.
@@ -537,9 +535,8 @@ public final class BottomSheetHostingView: UIView {
   /// animation; here we evaluate `value(at:)` at the next frame's display time
   /// (`targetTime`, see `displayLinkFired`) and forward it so a follower
   /// (`onPositionChange`) lands on screen in lockstep with the modal.
-  private func stepSpring(targetTime: CFTimeInterval, debugCurrentFrameTime: CFTimeInterval? = nil) {
+  private func stepSpring(targetTime: CFTimeInterval, debugGreenTy: CGFloat? = nil) {
     guard let spring = activeSpring else { return }
-    let debugGreenTy = debugCurrentFrameTime.map { spring.value(at: $0) }
     emitPosition(overrideTy: spring.value(at: targetTime), debugGreenTy: debugGreenTy)
   }
 
