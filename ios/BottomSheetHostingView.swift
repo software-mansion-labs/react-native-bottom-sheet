@@ -1,4 +1,5 @@
 import UIKit
+import os.signpost // DEBUG (temporary)
 
 @objc public protocol BottomSheetHostingViewDelegate: AnyObject {
   func bottomSheetHostingView(_ view: BottomSheetHostingView, didChangeIndex index: Int)
@@ -67,12 +68,16 @@ public final class BottomSheetHostingView: UIView {
 
   public let sheetContainer = UIView()
   private let scrimView = UIControl()
+  // DEBUG (temporary): native-driven follower dot (see init).
+  private let debugNativeDot = UIView()
   private var panGesture: UIPanGestureRecognizer!
   private var activeSpring: CriticalSpring?
   private var activeSpringTargetIndex: Int = 0
   private var activeSpringEmitsSettle = false
   private var scrimPinnedFull = false
   private var displayLink: CADisplayLink?
+  // DEBUG (temporary): signpost log for prediction-error instrumentation.
+  private static let debugSignpostLog = OSLog(subsystem: "com.swmansion.bottomsheet", category: "follower")
   private var pendingIndex: Int?
   private var hasLaidOut = false
   private var isPanning = false
@@ -82,6 +87,7 @@ public final class BottomSheetHostingView: UIView {
   private var contentHeightMarker: UIView?
   private weak var surfaceView: UIView?
   private static var markerObservationContext = 0
+  private static let springAnimationKey = "bottomSheetSettle"
 
   override public init(frame: CGRect) {
     super.init(frame: frame)
@@ -97,6 +103,16 @@ public final class BottomSheetHostingView: UIView {
     sheetContainer.backgroundColor = .clear
     sheetContainer.clipsToBounds = false
     addSubview(sheetContainer)
+
+    // DEBUG (temporary): a purely-native follower dot, driven by the SAME
+    // `position` value we emit to JS — but positioned directly here, skipping the
+    // entire RN/Reanimated pipeline. If this dot tracks the modal cleanly while
+    // the JS dot jitters, the jitter is in the JS pipeline, not our curve/timing.
+    debugNativeDot.backgroundColor = .systemGreen
+    debugNativeDot.bounds = CGRect(x: 0, y: 0, width: 18, height: 18)
+    debugNativeDot.layer.cornerRadius = 9
+    debugNativeDot.isUserInteractionEnabled = false
+    addSubview(debugNativeDot)
 
     panGesture = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
     panGesture.delegate = self
@@ -187,8 +203,17 @@ public final class BottomSheetHostingView: UIView {
     updateScrim()
   }
 
+  /// The sheet's on-screen frame. During a settle the model `frame` sits at the
+  /// final target, so we use the presentation layer for the live position.
+  private var presentedSheetFrame: CGRect {
+    if activeSpring != nil, let presentation = sheetContainer.layer.presentation() {
+      return presentation.frame
+    }
+    return sheetContainer.frame
+  }
+
   override public func point(inside point: CGPoint, with _: UIEvent?) -> Bool {
-    if sheetContainer.frame.contains(point) {
+    if presentedSheetFrame.contains(point) {
       return true
     }
 
@@ -198,7 +223,7 @@ public final class BottomSheetHostingView: UIView {
   override public func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
     guard self.point(inside: point, with: event) else { return nil }
 
-    if isScrimVisible, !sheetContainer.frame.contains(point) {
+    if isScrimVisible, !presentedSheetFrame.contains(point) {
       let scrimPoint = convert(point, to: scrimView)
       return scrimView.hitTest(scrimPoint, with: event)
     }
@@ -266,6 +291,7 @@ public final class BottomSheetHostingView: UIView {
     activeSpring = nil
     activeSpringEmitsSettle = false
     stopDisplayLink()
+    sheetContainer.layer.removeAnimation(forKey: Self.springAnimationKey)
     rawDetentSpecs = []
     detentSpecs = []
     targetIndex = 0
@@ -345,13 +371,23 @@ public final class BottomSheetHostingView: UIView {
     modal && !scrimView.isHidden
   }
 
-  private func emitPosition() {
+  /// `overrideTy` is the spring's predicted translationY for the upcoming frame
+  /// (passed during a settle). Without it we read the current on-screen value.
+  private func emitPosition(overrideTy: CGFloat? = nil, debugGreenTy: CGFloat? = nil) {
     let maxHeight = sheetContainerHeight
-    let ty = currentTranslationY
+    let ty = overrideTy ?? currentTranslationY
     let position = maxHeight - ty
     updateScrim(forPosition: position)
     updateSheetVisibility(forPosition: position)
     updateInteractionState()
+    // DEBUG (temporary): green native dot. If `debugGreenTy` is given it uses the
+    // CURRENT-frame curve value (value(at: timestamp)); otherwise the emitted
+    // `position`. Implicit animation disabled so it jumps to the exact value.
+    let greenPosition = maxHeight - (debugGreenTy ?? ty)
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    debugNativeDot.center = CGPoint(x: bounds.width / 2 + 40, y: bounds.height - greenPosition)
+    CATransaction.commit()
     eventDelegate?.bottomSheetHostingView(
       self, didChangePosition: position, index: detentIndex(forPosition: position))
   }
@@ -380,8 +416,27 @@ public final class BottomSheetHostingView: UIView {
   }
 
   @objc private func displayLinkFired(_ link: CADisplayLink) {
-    // `targetTimestamp` is predicted when the NEXT frame will be shown
-    stepSpring(targetTime: link.targetTimestamp)
+    // DEBUG (temporary): compare what we're about to emit against the modal's
+    // ACTUAL rendered position (presentation layer = ground truth, CA's value for
+    // the frame currently on screen). `emitTy` is value(at: targetTimestamp) —
+    // what the dot will show next frame. `presTy` is what the modal shows NOW.
+    // `nowTy` is value(at: timestamp) — the curve value for the current frame.
+    if let spring = activeSpring, let pres = sheetContainer.layer.presentation() {
+      let presTy = pres.affineTransform().ty
+      let nowTy = spring.value(at: link.timestamp)
+      let emitTy = spring.value(at: link.targetTimestamp)
+      // presTy should equal nowTy if our curve == CA's curve at the same frame.
+      // emitTy − presTy is how far AHEAD the dot is vs. the modal on screen now.
+      NSLog(
+        "[bottomsheet] presTy=%.3f nowTy=%.3f emitTy=%.3f  curveErr=%.3f leadVsModal=%.3f",
+        presTy, nowTy, emitTy, nowTy - presTy, emitTy - presTy)
+    }
+
+    // Pink (JS) dot is fed value(at: targetTimestamp). Green (native) dot is fed
+    // value(at: timestamp) — the curve value for the frame rendering NOW — so we
+    // can A/B which sample time tracks the modal best, and whether the emitted
+    // position value itself is right.
+    stepSpring(targetTime: link.targetTimestamp, debugCurrentFrameTime: link.timestamp)
   }
 
   @objc private func handleScrimPress() {
@@ -421,23 +476,54 @@ public final class BottomSheetHostingView: UIView {
     let duration: CFTimeInterval = 0.45
     // Pick the stiffness so the sheet looks settled (within ~0.5% of target)
     // right at `duration`. For a critically-damped spring that point is
-    // ω·t ≈ 8, so ω = 8 / duration. Exact agreement with UIKit's spring doesn't
-    // matter here — we drive the modal from this curve.
-    //
-    // NOTE: This solution may affect the animation performance when the main thread is busy.
-    // If that becomes a problem, consider adopting this solution: https://github.com/kirillzyusko/react-native-keyboard-controller/pull/412
+    // ω·t ≈ 8, so ω = 8 / duration.
     let omega = 8.0 / CGFloat(duration)
     activeSpringEmitsSettle = emitSettle
     activeSpringTargetIndex = index
 
-    activeSpring = CriticalSpring(
+    // The single instant both the modal animation and the follower curve are
+    // anchored to. We pin the animation's `beginTime` to this explicitly (rather
+    // than read CA's resolved begin time, which is still 0 right after `add`), so
+    // `value(at:)` and CA's keyframe sampling share the exact same t = 0.
+    let startTime = CACurrentMediaTime()
+
+    // Build the curve. Both the modal and the follower run off *this one*
+    // `CriticalSpring`: the modal via a keyframe animation sampled from it
+    // (below), the follower via `value(at:)`.
+    let spring = CriticalSpring(
       from: currentTy,
       target: targetTy,
       v0: v0,
       omega: omega,
-      startTime: CACurrentMediaTime(),
+      startTime: startTime,
       duration: duration
     )
+
+    // Animate the modal on the render server so it stays smooth even when the
+    // main thread is busy. Rather than ask CA to *generate* a spring (its
+    // internal solver + `settlingDuration` won't match `value(at:)`), we hand it
+    // *our* curve as keyframe values — CA just replays them, so the modal traces
+    // the exact same curve the follower does.
+    let animation = CAKeyframeAnimation(keyPath: "transform.translation.y")
+    // ~1 sample per frame at 120 Hz over `duration`; CA interpolates between them.
+    let sampleCount = max(Int((duration * 120).rounded()), 1)
+    animation.values = spring.keyframeValues(count: sampleCount)
+    animation.duration = duration
+    animation.calculationMode = .linear
+    // Pin CA's start to `startTime` (in the layer's time space) so the modal's
+    // keyframe sampling and the follower's `value(at:)` agree frame-for-frame.
+    animation.beginTime = sheetContainer.layer.convertTime(startTime, from: nil)
+    animation.isRemovedOnCompletion = false
+    animation.fillMode = .forwards
+    animation.delegate = self
+
+    sheetContainer.transform = CGAffineTransform(translationX: 0, y: targetTy)
+    sheetContainer.layer.add(animation, forKey: Self.springAnimationKey)
+    activeSpring = spring
+
+    // The display link no longer drives the modal; it only samples the spring
+    // to keep the follower (`onPositionChange`) in lockstep with the modal.
+    startDisplayLink()
 
     // Report the index change as soon as the snap is committed, not when it
     // finishes: `targetIndex` is already set, and a programmatic snap's start is
@@ -445,21 +531,22 @@ public final class BottomSheetHostingView: UIView {
     if emitIndexChange {
       eventDelegate?.bottomSheetHostingView(self, didChangeIndex: index)
     }
-    startDisplayLink()
   }
 
-  private func stepSpring(targetTime: CFTimeInterval) {
+  /// Per-frame follower feed. The modal replays this same curve as a keyframe
+  /// animation; here we evaluate `value(at:)` at the next frame's display time
+  /// (`targetTime`, see `displayLinkFired`) and forward it so a follower
+  /// (`onPositionChange`) lands on screen in lockstep with the modal.
+  private func stepSpring(targetTime: CFTimeInterval, debugCurrentFrameTime: CFTimeInterval? = nil) {
     guard let spring = activeSpring else { return }
-    if spring.isFinished(at: targetTime) {
-      finishSpring()
-      return
-    }
-    let ty = spring.value(at: targetTime)
-    sheetContainer.transform = CGAffineTransform(translationX: 0, y: ty)
-    emitPosition()
+    let debugGreenTy = debugCurrentFrameTime.map { spring.value(at: $0) }
+    emitPosition(overrideTy: spring.value(at: targetTime), debugGreenTy: debugGreenTy)
   }
 
+  /// Settle reached its end (the keyframe animation completed): pin the model
+  /// transform to the exact target and run completion side effects.
   private func finishSpring() {
+    guard activeSpring != nil else { return }
     let index = activeSpringTargetIndex
     let emitSettle = activeSpringEmitsSettle
     let targetTy = translationY(for: index)
@@ -467,6 +554,7 @@ public final class BottomSheetHostingView: UIView {
     activeSpring = nil
     activeSpringEmitsSettle = false
     stopDisplayLink()
+    sheetContainer.layer.removeAnimation(forKey: Self.springAnimationKey)
 
     sheetContainer.transform = CGAffineTransform(translationX: 0, y: targetTy)
     emitPosition()
@@ -476,6 +564,21 @@ public final class BottomSheetHostingView: UIView {
     if emitSettle {
       eventDelegate?.bottomSheetHostingView(self, didSettle: index)
     }
+  }
+
+  /// Cancel an in-flight settle, leaving the model `transform` at the sheet's
+  /// current on-screen position (read from the presentation layer, since the
+  /// keyframe animation animates the presentation, not the model). Returns the
+  /// visual translationY so callers can re-anchor or hand off momentum.
+  @discardableResult
+  private func cancelActiveSpring() -> CGFloat {
+    let visualTy = sheetContainer.layer.presentation()?.affineTransform().ty ?? sheetContainer.transform.ty
+    activeSpring = nil
+    activeSpringEmitsSettle = false
+    stopDisplayLink()
+    sheetContainer.layer.removeAnimation(forKey: Self.springAnimationKey)
+    sheetContainer.transform = CGAffineTransform(translationX: 0, y: visualTy)
+    return visualTy
   }
 
   @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
@@ -493,10 +596,10 @@ public final class BottomSheetHostingView: UIView {
         handler.isEnabled = true
       }
       gesture.setTranslation(.zero, in: self)
+      // Grab the sheet mid-settle: pin the model transform to the current
+      // on-screen position so the drag below continues from there.
       if activeSpring != nil {
-        stopDisplayLink()
-        activeSpring = nil
-        activeSpringEmitsSettle = false
+        cancelActiveSpring()
       }
 
     case .changed:
@@ -715,12 +818,11 @@ public final class BottomSheetHostingView: UIView {
       let targetTy = translationY(for: targetIndex)
 
       if activeSpring != nil {
-        stopDisplayLink()
-        // `transform.ty` is the live on-screen value (set each frame).
-        let visualTy = sheetContainer.transform.ty
         let shouldEmitSettle = activeSpringEmitsSettle
-        activeSpring = nil
-        activeSpringEmitsSettle = false
+        // Cancel the settle and read the live on-screen position from the
+        // presentation layer (the keyframe animation animates the presentation,
+        // not the model transform).
+        let visualTy = cancelActiveSpring()
         // Re-anchor the in-flight position to the new container height so the
         // sheet surface keeps the same on-screen height across the resize.
         let visibleHeight = previousMaxHeight - visualTy
@@ -807,6 +909,10 @@ public final class BottomSheetHostingView: UIView {
 
   deinit {
     stopObservingContentHeightMarker()
+    // The settle animation holds a strong delegate reference back to us; drop it
+    // (and the display link) so nothing outlives the view.
+    displayLink?.invalidate()
+    sheetContainer.layer.removeAnimation(forKey: Self.springAnimationKey)
   }
 
   private func findContentHeightMarker() -> UIView? {
@@ -842,6 +948,16 @@ public final class BottomSheetHostingView: UIView {
   }
 }
 
+extension BottomSheetHostingView: CAAnimationDelegate {
+  public func animationDidStop(_: CAAnimation, finished: Bool) {
+    // Only the settle spring sets us as its delegate. `finished` is false when
+    // the animation was removed by an interruption (drag/resize), which already
+    // ran its own cleanup via `cancelActiveSpring()` — so ignore those.
+    guard finished, activeSpring != nil else { return }
+    finishSpring()
+  }
+}
+
 extension BottomSheetHostingView: UIGestureRecognizerDelegate {
   public func gestureRecognizer(
     _ gestureRecognizer: UIGestureRecognizer,
@@ -861,10 +977,13 @@ extension BottomSheetHostingView: UIGestureRecognizerDelegate {
 
 private extension BottomSheetHostingView {
   var currentTranslationY: CGFloat {
-    // Both the drag and the settle assign `transform` directly every frame, so
-    // it always holds the live on-screen value. (If the settle were run by a
-    // UIViewPropertyAnimator instead, the in-flight value would live on the
-    // render server and we'd have to read `layer.presentation()` here.)
+    // During a settle the modal is driven by a keyframe animation on the render
+    // server, so the live on-screen value lives on the presentation layer (the
+    // model `transform` already holds the final target). A drag assigns
+    // `transform` directly, so outside a settle the model value is correct.
+    if activeSpring != nil, let presentation = sheetContainer.layer.presentation() {
+      return presentation.affineTransform().ty
+    }
     return sheetContainer.transform.ty
   }
 

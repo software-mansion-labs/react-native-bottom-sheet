@@ -1,10 +1,14 @@
 import QuartzCore
 
-/// A spring we evaluate ourselves each frame instead of letting
-/// `UIViewPropertyAnimator` run the settle. The animator runs on the "render
-/// server", so its value is only readable one frame late via `presentation()` —
-/// the cause of the follower view (fed by `onPositionChange`) trailing the
-/// modal. Computing it in-process lets us emit the exact value we set.
+/// A critically-damped (ζ = 1) spring described in closed form.
+///
+/// One curve drives both the modal and the follower. The modal is animated by a
+/// `CAKeyframeAnimation` whose `values` we sample from `value(at:)` (see
+/// `keyframeValues(count:)`), so CA just replays *our* curve on the render
+/// server — smooth even when the main thread is busy, and identical to the
+/// follower by construction. The follower (`onPositionChange`) is fed the same
+/// `value(at:)`, so there is no second curve to drift against.
+///
 /// Critically damped (ζ = 1): reaches the target as fast as possible without
 /// overshooting.
 struct CriticalSpring {
@@ -12,8 +16,11 @@ struct CriticalSpring {
   let target: CGFloat
   /// Initial velocity (points/sec) — e.g. carried over from a finger flick.
   let v0: CGFloat
-  /// Angular frequency (rad/sec) — the spring's stiffness/speed. Higher ω snaps faster;
+  /// Angular frequency (rad/sec) — the spring's stiffness/speed. Higher ω snaps faster.
   let omega: CGFloat
+  /// Absolute media time the curve starts at — the same instant the modal's
+  /// keyframe animation is pinned to via its `beginTime`, so `value(at:)` and the
+  /// modal share one clock.
   let startTime: CFTimeInterval
   let duration: CFTimeInterval
 
@@ -33,7 +40,18 @@ struct CriticalSpring {
     return target + decay * (a + (v0 + omega * a) * t)
   }
 
-  func isFinished(at time: CFTimeInterval) -> Bool {
-    time - startTime >= duration
+  /// Samples this curve into `count + 1` evenly-spaced points over `[0, duration]`,
+  /// for use as `CAKeyframeAnimation.values`. CA replays these (linearly
+  /// interpolating between them) on the render server, so the modal traces this
+  /// exact curve — identical to what `value(at:)` feeds the follower, by
+  /// construction. The samples are relative to t = 0, so they don't depend on
+  /// `startTime` (which is resolved only after the animation is committed).
+  func keyframeValues(count: Int) -> [CGFloat] {
+    let n = max(count, 1)
+    return (0...n).map { i in
+      let t = duration * CFTimeInterval(i) / CFTimeInterval(n)
+      // Evaluate relative to the start: `startTime + t` minus `startTime` = t.
+      return value(at: startTime + t)
+    }
   }
 }
