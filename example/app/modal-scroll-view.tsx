@@ -1,1 +1,1 @@
-export { ModalScrollViewScreen as default } from '../src/demoCases';
+export { ModalScrollViewScreen as default } from '../src/demos/ModalScrollViewScreen';

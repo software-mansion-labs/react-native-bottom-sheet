@@ -1,1 +1,1 @@
-export { BasicModalScreen as default } from '../src/demoCases';
+export { BasicModalScreen as default } from '../src/demos/BasicModalScreen';

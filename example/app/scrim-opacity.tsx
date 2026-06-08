@@ -1,1 +1,1 @@
-export { ScrimOpacityScreen as default } from '../src/demoCases';
+export { ScrimOpacityScreen as default } from '../src/demos/ScrimOpacityScreen';

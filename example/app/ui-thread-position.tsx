@@ -1,1 +1,1 @@
-export { UIThreadPositionScreen as default } from '../src/demoReanimated';
+export { UIThreadPositionScreen as default } from '../src/demos/UIThreadPositionScreen';

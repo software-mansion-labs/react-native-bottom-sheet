@@ -1,1 +1,1 @@
-export { InlineDetentsScreen as default } from '../src/demoCases';
+export { InlineDetentsScreen as default } from '../src/demos/InlineDetentsScreen';

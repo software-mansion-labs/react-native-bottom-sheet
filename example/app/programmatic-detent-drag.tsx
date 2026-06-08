@@ -1,1 +1,1 @@
-export { ProgrammaticDetentDragScreen as default } from '../src/demoCases';
+export { ProgrammaticDetentDragScreen as default } from '../src/demos/ProgrammaticDetentDragScreen';

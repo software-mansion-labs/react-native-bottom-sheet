@@ -1,1 +1,1 @@
-export { DynamicContentHeightScreen as default } from '../src/demoCases';
+export { DynamicContentHeightScreen as default } from '../src/demos/DynamicContentHeightScreen';

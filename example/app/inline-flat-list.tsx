@@ -1,1 +1,1 @@
-export { InlineFlatListScreen as default } from '../src/demoCases';
+export { InlineFlatListScreen as default } from '../src/demos/InlineFlatListScreen';

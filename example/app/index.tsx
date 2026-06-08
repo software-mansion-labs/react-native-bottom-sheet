@@ -5,6 +5,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DEMO_CASES } from '../src/demoCases';
 import { CaseRow } from '../src/demoShared';
 
+const DemoCaseSeparator = () => (
+  <View style={{ height: 1, backgroundColor: '#eee' }} />
+);
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
 
@@ -22,9 +26,7 @@ export default function HomeScreen() {
           paddingTop: insets.top,
           paddingBottom: insets.bottom,
         }}
-        ItemSeparatorComponent={() => (
-          <View style={{ height: 1, backgroundColor: '#eee' }} />
-        )}
+        ItemSeparatorComponent={DemoCaseSeparator}
         renderItem={({ item }) => (
           <CaseRow
             title={item.title}

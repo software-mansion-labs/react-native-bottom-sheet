@@ -1,1 +1,1 @@
-export { NoAnimateInScreen as default } from '../src/demoCases';
+export { NoAnimateInScreen as default } from '../src/demos/NoAnimateInScreen';

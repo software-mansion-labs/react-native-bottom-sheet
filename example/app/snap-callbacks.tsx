@@ -1,1 +1,1 @@
-export { SnapCallbacksScreen as default } from '../src/demoCases';
+export { SnapCallbacksScreen as default } from '../src/demos/SnapCallbacksScreen';

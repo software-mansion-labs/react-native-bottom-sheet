@@ -1,1 +1,1 @@
-export { DynamicDetentsScreen as default } from '../src/demoCases';
+export { DynamicDetentsScreen as default } from '../src/demos/DynamicDetentsScreen';
