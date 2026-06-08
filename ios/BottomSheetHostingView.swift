@@ -188,8 +188,6 @@ public final class BottomSheetHostingView: UIView {
     updateScrim()
   }
 
-  /// The sheet's on-screen frame. During a settle the model `frame` sits at the
-  /// final target, so we use the presentation layer for the live position.
   private var presentedSheetFrame: CGRect {
     if activeSpring != nil, let presentation = sheetContainer.layer.presentation() {
       return presentation.frame
@@ -393,8 +391,7 @@ public final class BottomSheetHostingView: UIView {
   }
 
   @objc private func displayLinkFired(_ link: CADisplayLink) {
-    // `targetTimestamp` is the predicted display time of the next frame — the
-    // value we sample now is committed and shown then, in step with the modal.
+    // `targetTimestamp` is the predicted display time of the next frame
     stepSpring(targetTime: link.targetTimestamp)
   }
 
@@ -440,15 +437,8 @@ public final class BottomSheetHostingView: UIView {
     activeSpringEmitsSettle = emitSettle
     activeSpringTargetIndex = index
 
-    // The single instant both the modal animation and the follower curve are
-    // anchored to. We pin the animation's `beginTime` to this explicitly (rather
-    // than read CA's resolved begin time, which is still 0 right after `add`), so
-    // `value(at:)` and CA's keyframe sampling share the exact same t = 0.
+    // The single instant both the modal animation and the follower curve are anchored to.
     let startTime = CACurrentMediaTime()
-
-    // Build the curve. Both the modal and the follower run off *this one*
-    // `CriticalSpring`: the modal via a keyframe animation sampled from it
-    // (below), the follower via `value(at:)`.
     let spring = CriticalSpring(
       from: currentTy,
       target: targetTy,
@@ -458,20 +448,13 @@ public final class BottomSheetHostingView: UIView {
       duration: duration
     )
 
-    // Animate the modal on the render server so it stays smooth even when the
-    // main thread is busy. Rather than ask CA to *generate* a spring (its
-    // internal solver + `settlingDuration` won't match `value(at:)`), we hand it
-    // *our* curve as keyframe values — CA just replays them, so the modal traces
-    // the exact same curve the follower does.
+    // Make sure animation curve is the same for the sheet and follower.
+    // Sheet is animated on the render server.
     let animation = CAKeyframeAnimation(keyPath: "transform.translation.y")
-    // ~1 sample per frame at 120 Hz over `duration`; CA interpolates between them.
     let sampleCount = max(Int((duration * 120).rounded()), 1)
     animation.values = spring.keyframeValues(count: sampleCount)
     animation.duration = duration
     animation.calculationMode = .linear
-    // Pin CA's start to `startTime` (in the layer's time space) so the modal's
-    // keyframe sampling and the follower's `value(at:)` agree frame-for-frame.
-    animation.beginTime = sheetContainer.layer.convertTime(startTime, from: nil)
     animation.isRemovedOnCompletion = false
     animation.fillMode = .forwards
     animation.delegate = self
@@ -480,8 +463,6 @@ public final class BottomSheetHostingView: UIView {
     sheetContainer.layer.add(animation, forKey: Self.springAnimationKey)
     activeSpring = spring
 
-    // The display link no longer drives the modal; it only samples the spring
-    // to keep the follower (`onPositionChange`) in lockstep with the modal.
     startDisplayLink()
 
     // Report the index change as soon as the snap is committed, not when it
@@ -524,10 +505,6 @@ public final class BottomSheetHostingView: UIView {
     }
   }
 
-  /// Cancel an in-flight settle, leaving the model `transform` at the sheet's
-  /// current on-screen position (read from the presentation layer, since the
-  /// keyframe animation animates the presentation, not the model). Returns the
-  /// visual translationY so callers can re-anchor or hand off momentum.
   @discardableResult
   private func cancelActiveSpring() -> CGFloat {
     let visualTy = sheetContainer.layer.presentation()?.affineTransform().ty ?? sheetContainer.transform.ty
@@ -554,8 +531,6 @@ public final class BottomSheetHostingView: UIView {
         handler.isEnabled = true
       }
       gesture.setTranslation(.zero, in: self)
-      // Grab the sheet mid-settle: pin the model transform to the current
-      // on-screen position so the drag below continues from there.
       if activeSpring != nil {
         cancelActiveSpring()
       }
@@ -777,9 +752,6 @@ public final class BottomSheetHostingView: UIView {
 
       if activeSpring != nil {
         let shouldEmitSettle = activeSpringEmitsSettle
-        // Cancel the settle and read the live on-screen position from the
-        // presentation layer (the keyframe animation animates the presentation,
-        // not the model transform).
         let visualTy = cancelActiveSpring()
         // Re-anchor the in-flight position to the new container height so the
         // sheet surface keeps the same on-screen height across the resize.
@@ -867,8 +839,6 @@ public final class BottomSheetHostingView: UIView {
 
   deinit {
     stopObservingContentHeightMarker()
-    // The settle animation holds a strong delegate reference back to us; drop it
-    // (and the display link) so nothing outlives the view.
     displayLink?.invalidate()
     sheetContainer.layer.removeAnimation(forKey: Self.springAnimationKey)
   }
@@ -908,9 +878,6 @@ public final class BottomSheetHostingView: UIView {
 
 extension BottomSheetHostingView: CAAnimationDelegate {
   public func animationDidStop(_: CAAnimation, finished: Bool) {
-    // Only the settle spring sets us as its delegate. `finished` is false when
-    // the animation was removed by an interruption (drag/resize), which already
-    // ran its own cleanup via `cancelActiveSpring()` — so ignore those.
     guard finished, activeSpring != nil else { return }
     finishSpring()
   }
