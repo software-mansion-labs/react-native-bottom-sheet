@@ -1,16 +1,7 @@
 import QuartzCore
 
-/// A critically-damped (ζ = 1) spring described in closed form.
-///
-/// One curve drives both the modal and the follower. The modal is animated by a
-/// `CAKeyframeAnimation` whose `values` we sample from `value(at:)` (see
-/// `keyframeValues(count:)`), so CA just replays *our* curve on the render
-/// server — smooth even when the main thread is busy, and identical to the
-/// follower by construction. The follower (`onPositionChange`) is fed the same
-/// `value(at:)`, so there is no second curve to drift against.
-///
-/// Critically damped (ζ = 1): reaches the target as fast as possible without
-/// overshooting.
+
+/// Critically damped (ζ = 1): reaches the target as fast as possible without overshooting.
 struct CriticalSpring {
   let from: CGFloat
   let target: CGFloat
