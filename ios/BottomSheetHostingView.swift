@@ -392,6 +392,10 @@ public final class BottomSheetHostingView: UIView {
 
   @objc private func displayLinkFired(_ link: CADisplayLink) {
     // `targetTimestamp` is the predicted display time of the next frame
+    // Ideal synchronization with animations running on the render server
+    // hasn't been achieved. Render server is a black box and it's hard to
+    // find out why exactly. This approach however gives better results
+    // than lagging one frame behind.
     stepSpring(targetTime: link.targetTimestamp)
   }
 
@@ -473,17 +477,11 @@ public final class BottomSheetHostingView: UIView {
     }
   }
 
-  /// Per-frame follower feed. The modal replays this same curve as a keyframe
-  /// animation; here we evaluate `value(at:)` at the next frame's display time
-  /// (`targetTime`, see `displayLinkFired`) and forward it so a follower
-  /// (`onPositionChange`) lands on screen in lockstep with the modal.
   private func stepSpring(targetTime: CFTimeInterval) {
     guard let spring = activeSpring else { return }
     emitPosition(overrideTy: spring.value(at: targetTime))
   }
 
-  /// Settle reached its end (the keyframe animation completed): pin the model
-  /// transform to the exact target and run completion side effects.
   private func finishSpring() {
     guard activeSpring != nil else { return }
     let index = activeSpringTargetIndex
