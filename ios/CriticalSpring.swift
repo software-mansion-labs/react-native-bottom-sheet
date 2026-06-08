@@ -1,6 +1,5 @@
 import QuartzCore
 
-
 /// Critically damped (ζ = 1): reaches the target as fast as possible without overshooting.
 struct CriticalSpring {
   let from: CGFloat
@@ -31,17 +30,14 @@ struct CriticalSpring {
     return target + decay * (a + (v0 + omega * a) * t)
   }
 
-  /// Samples this curve into `count + 1` evenly-spaced points over `[0, duration]`,
-  /// for use as `CAKeyframeAnimation.values`. CA replays these (linearly
-  /// interpolating between them) on the render server, so the modal traces this
-  /// exact curve — identical to what `value(at:)` feeds the follower, by
-  /// construction. The samples are relative to t = 0, so they don't depend on
-  /// `startTime` (which is resolved only after the animation is committed).
+  /// Samples this curve into `count + 1` evenly-spaced points over `[0, duration]`
+  /// for use as `CAKeyframeAnimation.values`. CA replays these samples on the
+  /// render server, while `value(at:)` feeds the follower from the analytical
+  /// spring on the app thread.
   func keyframeValues(count: Int) -> [CGFloat] {
     let n = max(count, 1)
     return (0...n).map { i in
       let t = duration * CFTimeInterval(i) / CFTimeInterval(n)
-      // Evaluate relative to the start: `startTime + t` minus `startTime` = t.
       return value(at: startTime + t)
     }
   }

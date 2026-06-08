@@ -164,6 +164,6 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: 'pink',
+    backgroundColor: '#3b82f6',
   },
 });

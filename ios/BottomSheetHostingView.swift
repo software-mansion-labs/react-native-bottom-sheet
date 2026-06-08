@@ -425,7 +425,12 @@ public final class BottomSheetHostingView: UIView {
       scrimPinnedFull = false
     }
 
-    let currentTy = sheetContainer.transform.ty
+    let currentTy: CGFloat
+    if activeSpring != nil {
+      currentTy = cancelActiveSpring()
+    } else {
+      currentTy = sheetContainer.transform.ty
+    }
     let targetTy = translationY(for: index)
     let distance = targetTy - currentTy
 
@@ -452,13 +457,17 @@ public final class BottomSheetHostingView: UIView {
       duration: duration
     )
 
-    // Make sure animation curve is the same for the sheet and follower.
-    // Sheet is animated on the render server.
+    // The sheet is animated on the render server from samples of the same spring
+    // that feeds the follower position events.
     let animation = CAKeyframeAnimation(keyPath: "transform.translation.y")
     let sampleCount = max(Int((duration * 120).rounded()), 1)
     animation.values = spring.keyframeValues(count: sampleCount)
+    animation.keyTimes = (0...sampleCount).map {
+      NSNumber(value: Double($0) / Double(sampleCount))
+    }
     animation.duration = duration
     animation.calculationMode = .linear
+    animation.beginTime = sheetContainer.layer.convertTime(startTime, from: nil)
     animation.isRemovedOnCompletion = false
     animation.fillMode = .forwards
     animation.delegate = self
