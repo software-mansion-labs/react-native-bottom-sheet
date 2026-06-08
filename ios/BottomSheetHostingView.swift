@@ -1,5 +1,4 @@
 import UIKit
-import os.signpost // DEBUG (temporary)
 
 @objc public protocol BottomSheetHostingViewDelegate: AnyObject {
   func bottomSheetHostingView(_ view: BottomSheetHostingView, didChangeIndex index: Int)
@@ -68,19 +67,12 @@ public final class BottomSheetHostingView: UIView {
 
   public let sheetContainer = UIView()
   private let scrimView = UIControl()
-  // DEBUG (temporary): native-driven follower dot (see init).
-  private let debugNativeDot = UIView()
-  // DEBUG (temporary): last frame's presentation-layer ty, for one-frame
-  // extrapolation of the green dot from CA's own (single) sampler.
-  private var debugLastPresTy: CGFloat?
   private var panGesture: UIPanGestureRecognizer!
   private var activeSpring: CriticalSpring?
   private var activeSpringTargetIndex: Int = 0
   private var activeSpringEmitsSettle = false
   private var scrimPinnedFull = false
   private var displayLink: CADisplayLink?
-  // DEBUG (temporary): signpost log for prediction-error instrumentation.
-  private static let debugSignpostLog = OSLog(subsystem: "com.swmansion.bottomsheet", category: "follower")
   private var pendingIndex: Int?
   private var hasLaidOut = false
   private var isPanning = false
@@ -106,16 +98,6 @@ public final class BottomSheetHostingView: UIView {
     sheetContainer.backgroundColor = .clear
     sheetContainer.clipsToBounds = false
     addSubview(sheetContainer)
-
-    // DEBUG (temporary): a purely-native follower dot, driven by the SAME
-    // `position` value we emit to JS — but positioned directly here, skipping the
-    // entire RN/Reanimated pipeline. If this dot tracks the modal cleanly while
-    // the JS dot jitters, the jitter is in the JS pipeline, not our curve/timing.
-    debugNativeDot.backgroundColor = .systemGreen
-    debugNativeDot.bounds = CGRect(x: 0, y: 0, width: 18, height: 18)
-    debugNativeDot.layer.cornerRadius = 9
-    debugNativeDot.isUserInteractionEnabled = false
-    addSubview(debugNativeDot)
 
     panGesture = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
     panGesture.delegate = self
@@ -376,21 +358,13 @@ public final class BottomSheetHostingView: UIView {
 
   /// `overrideTy` is the spring's predicted translationY for the upcoming frame
   /// (passed during a settle). Without it we read the current on-screen value.
-  private func emitPosition(overrideTy: CGFloat? = nil, debugGreenTy: CGFloat? = nil) {
+  private func emitPosition(overrideTy: CGFloat? = nil) {
     let maxHeight = sheetContainerHeight
     let ty = overrideTy ?? currentTranslationY
     let position = maxHeight - ty
     updateScrim(forPosition: position)
     updateSheetVisibility(forPosition: position)
     updateInteractionState()
-    // DEBUG (temporary): green native dot. If `debugGreenTy` is given it uses the
-    // CURRENT-frame curve value (value(at: timestamp)); otherwise the emitted
-    // `position`. Implicit animation disabled so it jumps to the exact value.
-    let greenPosition = maxHeight - (debugGreenTy ?? ty)
-    CATransaction.begin()
-    CATransaction.setDisableActions(true)
-    debugNativeDot.center = CGPoint(x: bounds.width / 2 + 40, y: bounds.height - greenPosition)
-    CATransaction.commit()
     eventDelegate?.bottomSheetHostingView(
       self, didChangePosition: position, index: detentIndex(forPosition: position))
   }
@@ -419,21 +393,9 @@ public final class BottomSheetHostingView: UIView {
   }
 
   @objc private func displayLinkFired(_ link: CADisplayLink) {
-    // DEBUG (temporary): drive the GREEN dot from CA's OWN sampler — the
-    // presentation layer — extrapolated one frame forward using the on-screen
-    // velocity (this frame's presentation ty minus last frame's). This is a
-    // single sampler (CA), so there's no second curve to drift against (no
-    // wobble); the one-frame lead cancels presentation()'s read staleness.
-    // Pink stays on value(at: targetTimestamp), unchanged, as the baseline.
-    var debugGreenTy: CGFloat?
-    if let pres = sheetContainer.layer.presentation() {
-      let presTy = pres.affineTransform().ty
-      let velocity = debugLastPresTy.map { presTy - $0 } ?? 0
-      debugGreenTy = presTy + velocity
-      debugLastPresTy = presTy
-    }
-
-    stepSpring(targetTime: link.targetTimestamp, debugGreenTy: debugGreenTy)
+    // `targetTimestamp` is the predicted display time of the next frame — the
+    // value we sample now is committed and shown then, in step with the modal.
+    stepSpring(targetTime: link.targetTimestamp)
   }
 
   @objc private func handleScrimPress() {
@@ -517,7 +479,6 @@ public final class BottomSheetHostingView: UIView {
     sheetContainer.transform = CGAffineTransform(translationX: 0, y: targetTy)
     sheetContainer.layer.add(animation, forKey: Self.springAnimationKey)
     activeSpring = spring
-    debugLastPresTy = nil // DEBUG (temporary): reset green extrapolation state.
 
     // The display link no longer drives the modal; it only samples the spring
     // to keep the follower (`onPositionChange`) in lockstep with the modal.
@@ -535,9 +496,9 @@ public final class BottomSheetHostingView: UIView {
   /// animation; here we evaluate `value(at:)` at the next frame's display time
   /// (`targetTime`, see `displayLinkFired`) and forward it so a follower
   /// (`onPositionChange`) lands on screen in lockstep with the modal.
-  private func stepSpring(targetTime: CFTimeInterval, debugGreenTy: CGFloat? = nil) {
+  private func stepSpring(targetTime: CFTimeInterval) {
     guard let spring = activeSpring else { return }
-    emitPosition(overrideTy: spring.value(at: targetTime), debugGreenTy: debugGreenTy)
+    emitPosition(overrideTy: spring.value(at: targetTime))
   }
 
   /// Settle reached its end (the keyframe animation completed): pin the model
