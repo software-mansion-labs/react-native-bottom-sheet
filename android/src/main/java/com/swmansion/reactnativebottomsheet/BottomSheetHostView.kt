@@ -570,6 +570,9 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
     val minAnimationTy = animationBounds?.start ?: minOf(minDetentTranslationY, currentTy, targetTy)
     val maxAnimationTy =
       animationBounds?.endInclusive ?: maxOf(maxDetentTranslationY, currentTy, targetTy)
+    val distance = targetTy - currentTy
+    val velocityRatio = if (distance != 0f) velocity / distance else 0f
+    val initialVelocity = velocityRatio.coerceIn(-5f, 5f) * distance
 
     val spring =
       SpringAnimation(sheetContainer, DynamicAnimation.TRANSLATION_Y, targetTy).apply {
@@ -580,7 +583,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
           }
         setMinValue(minAnimationTy)
         setMaxValue(maxAnimationTy)
-        setStartVelocity(velocity)
+        setStartVelocity(initialVelocity)
         // Forward the position on every frame of the settle. The listener fires
         // immediately after the spring writes `translationY`, so `emitPosition`
         // reads the value being shown this frame — keeping followers that track
