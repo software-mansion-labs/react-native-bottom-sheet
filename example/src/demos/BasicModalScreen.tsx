@@ -8,10 +8,12 @@ import {
   SECTION_HEIGHT,
   SheetBackground,
   SheetHeader,
+  useSheetBottomPadding,
 } from '../demoShared';
 
 export const BasicModalScreen = () => {
   const [index, setIndex] = useState(0);
+  const sheetBottomPadding = useSheetBottomPadding(0);
 
   return (
     <DemoScreen
@@ -26,7 +28,8 @@ export const BasicModalScreen = () => {
           <SheetHeader title="Basic modal" onClose={() => setIndex(0)} />
           <View
             style={{
-              height: SECTION_HEIGHT,
+              height: SECTION_HEIGHT + sheetBottomPadding,
+              paddingBottom: sheetBottomPadding,
               alignItems: 'center',
               justifyContent: 'center',
             }}

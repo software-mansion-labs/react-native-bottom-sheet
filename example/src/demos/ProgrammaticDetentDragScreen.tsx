@@ -5,11 +5,17 @@ import {
   programmatic,
 } from '@swmansion/react-native-bottom-sheet';
 
-import { DemoScreen, SheetBackground, SheetHeader } from '../demoShared';
+import {
+  DemoScreen,
+  SheetBackground,
+  SheetHeader,
+  useSheetBottomPadding,
+} from '../demoShared';
 
 export const ProgrammaticDetentDragScreen = () => {
   const [index, setIndex] = useState(0);
   const [position, setPosition] = useState(120);
+  const sheetBottomPadding = useSheetBottomPadding(0);
 
   return (
     <DemoScreen
@@ -28,8 +34,9 @@ export const ProgrammaticDetentDragScreen = () => {
           />
           <View
             style={{
-              height: 760,
+              height: 760 + sheetBottomPadding,
               paddingHorizontal: 20,
+              paddingBottom: sheetBottomPadding,
               justifyContent: 'center',
               gap: 12,
             }}

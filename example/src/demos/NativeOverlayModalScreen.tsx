@@ -7,10 +7,12 @@ import {
   SECTION_HEIGHT,
   SheetBackground,
   SheetHeader,
+  useSheetBottomPadding,
 } from '../demoShared';
 
 export const NativeOverlayModalScreen = () => {
   const [index, setIndex] = useState(0);
+  const sheetBottomPadding = useSheetBottomPadding(0);
 
   return (
     <View style={{ flex: 1, backgroundColor: 'white' }}>
@@ -43,7 +45,8 @@ export const NativeOverlayModalScreen = () => {
         <SheetHeader title="Native overlay" onClose={() => setIndex(0)} />
         <View
           style={{
-            height: SECTION_HEIGHT,
+            height: SECTION_HEIGHT + sheetBottomPadding,
+            paddingBottom: sheetBottomPadding,
             alignItems: 'center',
             justifyContent: 'center',
           }}

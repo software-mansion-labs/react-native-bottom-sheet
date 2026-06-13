@@ -3,6 +3,8 @@ export type CaseKey =
   | 'native-overlay-modal'
   | 'modal-scroll-view'
   | 'modal-flat-list'
+  | 'keyboard-content-detent'
+  | 'keyboard-aware-list'
   | 'scrim-opacity'
   | 'inline-detents'
   | 'inline-flat-list'
@@ -43,6 +45,16 @@ export const DEMO_CASES: DemoCase[] = [
     key: 'modal-flat-list',
     title: 'Modal with FlatList',
     href: '/modal-flat-list',
+  },
+  {
+    key: 'keyboard-content-detent',
+    title: 'Keyboard content detent',
+    href: '/keyboard-content-detent',
+  },
+  {
+    key: 'keyboard-aware-list',
+    title: 'Keyboard-aware list',
+    href: '/keyboard-aware-list',
   },
   {
     key: 'scrim-opacity',

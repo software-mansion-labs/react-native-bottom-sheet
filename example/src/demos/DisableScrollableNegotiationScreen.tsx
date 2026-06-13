@@ -11,11 +11,13 @@ import {
   SHEET_HEADER_HEIGHT,
   SheetBackground,
   SheetHeader,
+  useSheetBottomPadding,
 } from '../demoShared';
 
 export const DisableScrollableNegotiationScreen = () => {
   const [index, setIndex] = useState(0);
   const [scrollEnabled, setScrollEnabled] = useState(true);
+  const sheetBottomPadding = useSheetBottomPadding();
 
   return (
     <DemoScreen
@@ -73,7 +75,7 @@ export const DisableScrollableNegotiationScreen = () => {
             data={DATA}
             scrollEnabled={scrollEnabled}
             keyExtractor={(item) => item.id}
-            contentContainerStyle={{ paddingBottom: 24 }}
+            contentContainerStyle={{ paddingBottom: sheetBottomPadding }}
             renderItem={({ item, index: itemIndex }) => (
               <ListRow item={item} index={itemIndex} />
             )}

@@ -16,11 +16,13 @@ import {
   MODAL_SCRIM_COLOR,
   SheetBackground,
   SheetHeader,
+  useSheetBottomPadding,
 } from '../demoShared';
 
 export const ScrimOpacityScreen = () => {
   const [index, setIndex] = useState(0);
   const { height: windowHeight } = useWindowDimensions();
+  const sheetBottomPadding = useSheetBottomPadding();
 
   return (
     <DemoScreen
@@ -41,7 +43,7 @@ export const ScrimOpacityScreen = () => {
           <FlatList
             data={DATA}
             keyExtractor={(item) => item.id}
-            contentContainerStyle={{ paddingBottom: 24 }}
+            contentContainerStyle={{ paddingBottom: sheetBottomPadding }}
             ListHeaderComponent={
               <View style={{ padding: 20 }}>
                 <Text style={{ fontSize: 15, lineHeight: 22, color: '#555' }}>

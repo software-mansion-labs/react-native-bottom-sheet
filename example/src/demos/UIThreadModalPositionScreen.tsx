@@ -12,7 +12,12 @@ import {
   type PositionChangeEventData,
 } from '@swmansion/react-native-bottom-sheet';
 
-import { DemoScreen, SheetBackground, SheetHeader } from '../demoShared';
+import {
+  DemoScreen,
+  SheetBackground,
+  SheetHeader,
+  useSheetBottomPadding,
+} from '../demoShared';
 
 const DETENTS = [0, 360, 600];
 const MAX_POSITION = DETENTS[DETENTS.length - 1]!;
@@ -24,6 +29,7 @@ const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
 
 export const UIThreadModalPositionScreen = () => {
   const [index, setIndex] = useState(1);
+  const sheetBottomPadding = useSheetBottomPadding(0);
   const position = useSharedValue(0);
 
   // The same event also carries `index`: a fractional detent index, so the UI
@@ -83,7 +89,15 @@ export const UIThreadModalPositionScreen = () => {
             surface={<SheetBackground style={StyleSheet.absoluteFill} />}
           >
             <SheetHeader title="UI-thread modal" onClose={() => setIndex(0)} />
-            <View style={styles.sheetBody}>
+            <View
+              style={[
+                styles.sheetBody,
+                {
+                  height: 560 + sheetBottomPadding,
+                  paddingBottom: sheetBottomPadding,
+                },
+              ]}
+            >
               <Text style={styles.heading}>Drag the modal sheet</Text>
               <Text style={styles.body}>
                 The read-out behind the scrim is updated by a Reanimated worklet
@@ -130,7 +144,7 @@ export const UIThreadModalPositionScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  sheetBody: { height: 560, paddingHorizontal: 20, paddingTop: 16, gap: 12 },
+  sheetBody: { paddingHorizontal: 20, paddingTop: 16, gap: 12 },
   heading: { fontSize: 18, fontWeight: '600' },
   body: { fontSize: 15, lineHeight: 22, color: '#555' },
   card: {

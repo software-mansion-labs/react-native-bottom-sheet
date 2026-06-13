@@ -11,11 +11,17 @@ export const SECTION_HEIGHT = 176;
 export const LIST_ITEM_HEIGHT = 48;
 export const INLINE_FLATLIST_PREVIEW_ITEMS = 5;
 export const MODAL_SCRIM_COLOR = 'rgba(0, 0, 0, 0.5)';
+export const SHEET_BOTTOM_PADDING = 24;
 
 export const DATA = Array.from({ length: 48 }, (_, i) => ({
   id: String(i),
   title: `Item ${i + 1}`,
 }));
+
+export const useSheetBottomPadding = (padding = SHEET_BOTTOM_PADDING) => {
+  const insets = useSafeAreaInsets();
+  return insets.bottom + padding;
+};
 
 export const CloseButton = ({ onPress }: { onPress: () => void }) => (
   <TouchableOpacity

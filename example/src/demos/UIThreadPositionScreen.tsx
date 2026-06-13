@@ -12,7 +12,12 @@ import {
   type PositionChangeEventData,
 } from '@swmansion/react-native-bottom-sheet';
 
-import { DemoScreen, SheetBackground, SheetHeader } from '../demoShared';
+import {
+  DemoScreen,
+  SheetBackground,
+  SheetHeader,
+  useSheetBottomPadding,
+} from '../demoShared';
 
 const DETENTS = [120, 360, 600];
 const MAX_POSITION = DETENTS[DETENTS.length - 1]!;
@@ -25,6 +30,7 @@ const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
 
 export const UIThreadPositionScreen = () => {
   const [index, setIndex] = useState(1);
+  const sheetBottomPadding = useSheetBottomPadding(0);
 
   // Driven entirely on the UI thread by the worklet below—no JS-thread
   // round-trip, so it stays in sync with the sheet even during a fast drag.
@@ -98,7 +104,15 @@ export const UIThreadPositionScreen = () => {
               title="UI-thread onPositionChange"
               onClose={() => setIndex(0)}
             />
-            <View style={styles.sheetBody}>
+            <View
+              style={[
+                styles.sheetBody,
+                {
+                  height: 560 + sheetBottomPadding,
+                  paddingBottom: sheetBottomPadding,
+                },
+              ]}
+            >
               <Text style={styles.heading}>Drag the sheet</Text>
               <Text style={styles.body}>
                 The read-out, progress bar, and the dot riding the sheet edge
@@ -147,7 +161,6 @@ export const UIThreadPositionScreen = () => {
 
 const styles = StyleSheet.create({
   sheetBody: {
-    height: 560,
     paddingHorizontal: 20,
     paddingTop: 16,
     gap: 12,

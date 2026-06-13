@@ -9,10 +9,12 @@ import {
   MODAL_SCRIM_COLOR,
   SheetBackground,
   SheetHeader,
+  useSheetBottomPadding,
 } from '../demoShared';
 
 export const ModalFlatListScreen = () => {
   const [index, setIndex] = useState(0);
+  const sheetBottomPadding = useSheetBottomPadding();
 
   return (
     <DemoScreen
@@ -31,7 +33,7 @@ export const ModalFlatListScreen = () => {
           <FlatList
             data={DATA}
             keyExtractor={(item) => item.id}
-            contentContainerStyle={{ paddingBottom: 24 }}
+            contentContainerStyle={{ paddingBottom: sheetBottomPadding }}
             renderItem={({ item, index: itemIndex }) => (
               <ListRow item={item} index={itemIndex} />
             )}

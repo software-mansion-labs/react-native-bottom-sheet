@@ -2,12 +2,18 @@ import { useMemo, useState } from 'react';
 import { Button, StyleSheet, Text, View } from 'react-native';
 import { BottomSheet } from '@swmansion/react-native-bottom-sheet';
 
-import { DemoScreen, SheetBackground, SheetHeader } from '../demoShared';
+import {
+  DemoScreen,
+  SheetBackground,
+  SheetHeader,
+  useSheetBottomPadding,
+} from '../demoShared';
 
 export const DynamicDetentsScreen = () => {
   const [index, setIndex] = useState(0);
   const [middleDetent, setMiddleDetent] = useState(200);
   const [position, setPosition] = useState(0);
+  const sheetBottomPadding = useSheetBottomPadding(0);
   const detents = useMemo(
     () => [0, middleDetent, 'content'] as const,
     [middleDetent]
@@ -30,8 +36,9 @@ export const DynamicDetentsScreen = () => {
           />
           <View
             style={{
-              height: 360,
+              height: 360 + sheetBottomPadding,
               paddingHorizontal: 20,
+              paddingBottom: sheetBottomPadding,
               justifyContent: 'center',
               gap: 12,
             }}

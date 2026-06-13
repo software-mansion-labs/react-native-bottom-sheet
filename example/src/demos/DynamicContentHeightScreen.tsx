@@ -7,6 +7,7 @@ import {
   MODAL_SCRIM_COLOR,
   SheetBackground,
   SheetHeader,
+  useSheetBottomPadding,
 } from '../demoShared';
 
 const SHORT_CONTENT_HEIGHT = 160;
@@ -18,6 +19,7 @@ export const DynamicContentHeightScreen = () => {
   const [contentHeight, setContentHeight] = useState(SHORT_CONTENT_HEIGHT);
   const [position, setPosition] = useState(0);
   const [animateContentResize, setAnimateContentResize] = useState(true);
+  const sheetBottomPadding = useSheetBottomPadding(20);
   const animatedHeight = useRef(
     new Animated.Value(SHORT_CONTENT_HEIGHT)
   ).current;
@@ -63,7 +65,9 @@ export const DynamicContentHeightScreen = () => {
             title="Dynamic content height"
             onClose={() => setIndex(0)}
           />
-          <View style={styles.sheetBody}>
+          <View
+            style={[styles.sheetBody, { paddingBottom: sheetBottomPadding }]}
+          >
             <Text style={styles.title}>
               Resize the content while the sheet is open
             </Text>
@@ -117,7 +121,8 @@ export const DynamicContentHeightScreen = () => {
 
 const styles = StyleSheet.create({
   sheetBody: {
-    padding: 20,
+    paddingTop: 20,
+    paddingHorizontal: 20,
     gap: 12,
   },
   title: {
