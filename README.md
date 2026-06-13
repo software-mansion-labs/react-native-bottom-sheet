@@ -154,13 +154,14 @@ By default, the scrim fades in as the sheet opens and then holds at full
 opacity, so detents above the first share the same scrim. Use `scrimOpacities`
 to control the opacity at each detent: It takes one value in 0–1 per detent,
 indexed to match `detents`, and interpolates linearly as the sheet is dragged
-between them. A shorter array reuses its last value for any remaining detents.
+between them. A shorter array reuses its last value for any
+remaining&nbsp;detents.
 
 The default maps each detent to 0 when it is closed and 1 otherwise, so the
-scrim is transparent at any closed detent and fully opaque at every open one,
-whatever order the detents are passed in.
+scrim is transparent at any closed detent and fully opaque at every
+open&nbsp;one.
 
-To keep the scrim deepening across every detent, pass one value per detent:
+To keep the scrim deepening across every detent, pass one value per&nbsp;detent:
 
 ```tsx
 <ModalBottomSheet
@@ -276,7 +277,8 @@ set&nbsp;`disableScrollableNegotiation`:
 
 Detents are the points to which the sheet snaps. Each detent is either a number
 (a fixed height in pixels) or `'content'` (the sheet’s content height, capped by
-the available screen height). The default detents are `[0, 'content']`.
+the available screen height). The default detents are `[0, 'content']`. Pass
+detents in ascending order, from shortest to&nbsp;tallest.
 
 Sheet children are laid out in a flex container. For a full&zwj;-&zwj;height
 sheet, apply `flex: 1` to your content and use the `'content'`&nbsp;detent.

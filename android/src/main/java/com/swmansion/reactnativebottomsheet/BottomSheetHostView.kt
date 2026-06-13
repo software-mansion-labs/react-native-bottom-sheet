@@ -294,6 +294,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
     val measuredContentHeight =
       validContentHeight().takeIf { maxHeight > 0f && it.isFinite() }?.coerceAtMost(maxHeight)
     val contentHeight = measuredContentHeight ?: maxHeight
+    var previousHeight: Float? = null
     return rawDetentSpecs.mapIndexed { index, spec ->
       val height =
         when (spec.kind) {
@@ -307,6 +308,14 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
           }
           DetentKind.CONTENT -> contentHeight
         }.coerceIn(0f, maxHeight)
+      previousHeight?.let {
+        if (height < it) {
+          throw IllegalArgumentException(
+            "Invalid bottom sheet detent at index $index: resolved height ${height / density} is lower than previous detent height ${it / density}. Detents must be passed in ascending order."
+          )
+        }
+      }
+      previousHeight = height
       DetentSpec(height = height, programmatic = spec.programmatic)
     }
   }

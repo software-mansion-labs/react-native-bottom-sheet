@@ -730,7 +730,17 @@ public final class BottomSheetHostingView: UIView {
       case .content:
         height = contentHeight
       }
-      resolvedDetents.append(DetentSpec(height: min(max(0, height), maxHeight), programmatic: spec.programmatic))
+      let resolvedHeight = min(max(0, height), maxHeight)
+      if let previous = resolvedDetents.last, resolvedHeight < previous.height {
+        let message =
+          "Invalid bottom sheet detent at index \(index): resolved height \(resolvedHeight) is lower than previous detent height \(previous.height). Detents must be passed in ascending order."
+        if lastReportedInvalidDetentMessage != message {
+          lastReportedInvalidDetentMessage = message
+          eventDelegate?.bottomSheetHostingView(self, didReportError: message)
+        }
+        return nil
+      }
+      resolvedDetents.append(DetentSpec(height: resolvedHeight, programmatic: spec.programmatic))
     }
 
     lastReportedInvalidDetentMessage = nil

@@ -25,8 +25,9 @@ export type PositionChangeEventData = Readonly<{
   /**
    * Fractional detent index in `0..(detents.length - 1)`: `0` at the shortest
    * detent, `1` at the next, and so on, interpolated as the sheet moves between
-   * them. The continuous counterpart of `onIndexChange`, so a backdrop or
-   * per-detent animation can be driven without knowing the sheet's height.
+   * them. Detents are required to be in ascending order by height. The
+   * continuous counterpart of `onIndexChange`, so a backdrop or per-detent
+   * animation can be driven without knowing the sheet's height.
    */
   index: number;
 }>;
@@ -51,7 +52,10 @@ export interface BottomSheetProps {
   surface?: ReactNode;
   /** Additional style applied to the native sheet host view. */
   style?: StyleProp<ViewStyle>;
-  /** Snap points for the sheet. Defaults to `[0, 'content']`. */
+  /**
+   * Snap points for the sheet, in ascending order by height. Defaults to
+   * `[0, 'content']`.
+   */
   detents?: Detent[];
   /** Zero-based index into `detents`. */
   index: number;
@@ -182,8 +186,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
     : 0;
   const isCollapsed = selectedDetentValue === 0;
   // Default the scrim opacity per detent: transparent at any closed detent,
-  // fully opaque at every open one. Mapping each detent independently keeps
-  // this correct regardless of the order detents are passed in.
+  // fully opaque at every open one.
   const resolvedScrimOpacity =
     scrimOpacities ??
     detents.map((detent) => (resolveDetentValue(detent) === 0 ? 0 : 1));
