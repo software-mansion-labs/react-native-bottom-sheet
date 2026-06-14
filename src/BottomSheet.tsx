@@ -71,6 +71,11 @@ export interface BottomSheetProps {
    */
   animateContentResize?: boolean;
   /**
+   * Whether the sheet may extend under the status bar when using full-height
+   * detents. Defaults to `false`, so detents remain capped below the status bar.
+   */
+  extendUnderStatusBar?: boolean;
+  /**
    * Called when a user-driven snap is initiated: the moment a drag commits to a
    * detent, before the animation settles. Does not fire for programmatic `index`
    * changes; you already know when you make those. Use it to keep your controlled
@@ -150,6 +155,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
     index,
     animateIn = true,
     animateContentResize = true,
+    extendUnderStatusBar = false,
     onIndexChange,
     onSettle,
     onPositionChange,
@@ -162,7 +168,9 @@ export const BottomSheet = (props: BottomSheetProps) => {
   } = props as BottomSheetInternalProps;
   const { height: windowHeight } = useSafeAreaFrame();
   const insets = useSafeAreaInsets();
-  const maxHeight = windowHeight - insets.top;
+  const maxHeight = extendUnderStatusBar
+    ? windowHeight
+    : windowHeight - insets.top;
   const nativeDetents = detents.map((detent) => {
     const programmatic = isDetentProgrammatic(detent);
     const value = resolveDetentValue(detent);
@@ -230,8 +238,8 @@ export const BottomSheet = (props: BottomSheetProps) => {
               right: 0,
               bottom: 0,
               // The native host always spans the full height of its container.
-              // Detents are still capped to `maxHeight`, so the sheet itself
-              // never extends under the status bar.
+              // Detents are still capped to `maxHeight`, so the sheet only
+              // extends under the status bar when explicitly requested.
               height: windowHeight,
             },
             style,

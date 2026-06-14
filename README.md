@@ -300,6 +300,21 @@ content, never on the&nbsp;surface:
 </BottomSheet>
 ```
 
+By default, full-height detents are capped below the status bar. Set
+`extendUnderStatusBar` when the sheet should be allowed to occupy the full
+screen&nbsp;height:
+
+```tsx
+<BottomSheet // Or `ModalBottomSheet`.
+  extendUnderStatusBar
+  index={index}
+  onIndexChange={setIndex}
+  surface={/* ... */}
+>
+  <View style={{ flex: 1 }}>{/* Full-screen sheet content. */}</View>
+</BottomSheet>
+```
+
 The `index` prop is a zero&zwj;-&zwj;based index into the `detents` array.
 `onIndexChange` and `onSettle` have different&nbsp;responsibilities:
 

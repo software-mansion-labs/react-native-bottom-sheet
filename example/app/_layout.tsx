@@ -60,6 +60,10 @@ export default function RootLayout() {
               options={{ title: 'Inline with detents', headerShown: false }}
             />
             <Stack.Screen
+              name="under-status-bar"
+              options={{ title: 'Under status bar', headerShown: false }}
+            />
+            <Stack.Screen
               name="content-larger-detent"
               options={{
                 title: 'Content plus larger detent',
