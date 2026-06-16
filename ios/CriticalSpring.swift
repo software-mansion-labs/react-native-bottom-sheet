@@ -36,7 +36,7 @@ struct CriticalSpring {
   /// spring on the app thread.
   func keyframeValues(count: Int) -> [CGFloat] {
     let n = max(count, 1)
-    return (0...n).map { i in
+    return (0 ... n).map { i in
       let t = duration * CFTimeInterval(i) / CFTimeInterval(n)
       return value(at: startTime + t)
     }

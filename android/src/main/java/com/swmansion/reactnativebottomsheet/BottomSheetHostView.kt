@@ -101,9 +101,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   private var surfaceView: View? = null
 
   private val contentHeightMarkerLayoutListener =
-    View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-      refreshDetentsFromLayout()
-    }
+    View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> refreshDetentsFromLayout() }
 
   init {
     clipChildren = false
@@ -235,16 +233,17 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   // MARK: - Prop setters
 
   fun setDetents(raw: List<Map<String, Any>>) {
-    rawDetentSpecs = raw.mapNotNull { dict ->
-      val value = (dict["value"] as? Number)?.toDouble() ?: return@mapNotNull null
-      val kind =
-        when ((dict["kind"] as? String)?.lowercase()) {
-          "content" -> DetentKind.CONTENT
-          else -> DetentKind.POINTS
-        }
-      val programmatic = dict["programmatic"] as? Boolean ?: false
-      RawDetentSpec(value = (value * density).toFloat(), kind = kind, programmatic = programmatic)
-    }
+    rawDetentSpecs =
+      raw.mapNotNull { dict ->
+        val value = (dict["value"] as? Number)?.toDouble() ?: return@mapNotNull null
+        val kind =
+          when ((dict["kind"] as? String)?.lowercase()) {
+            "content" -> DetentKind.CONTENT
+            else -> DetentKind.POINTS
+          }
+        val programmatic = dict["programmatic"] as? Boolean ?: false
+        RawDetentSpec(value = (value * density).toFloat(), kind = kind, programmatic = programmatic)
+      }
     refreshDetentsFromLayout()
   }
 
