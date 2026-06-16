@@ -136,7 +136,8 @@ const insets = useSafeAreaInsets();
 
 #### Scrim
 
-Tapping the scrim collapses the sheet. Use `scrimColor` to customize
+Tapping the scrim collapses the sheet. Pass `disableDismissOnScrimPress` to keep
+the sheet open when the native scrim is pressed. Use `scrimColor` to customize
 its&nbsp;color:
 
 ```tsx
