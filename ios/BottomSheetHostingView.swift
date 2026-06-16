@@ -354,6 +354,13 @@ public final class BottomSheetHostingView: UIView {
     detentSpecs.firstIndex(where: { $0.height == 0 })
   }
 
+  private var scrimDismissIndex: Int? {
+    guard let closedIndex, !detentSpecs[closedIndex].programmatic else {
+      return nil
+    }
+    return closedIndex
+  }
+
   private var firstNonZeroDetentHeight: CGFloat {
     detentSpecs.first(where: { $0.height > 0 })?.height ?? 0
   }
@@ -427,7 +434,7 @@ public final class BottomSheetHostingView: UIView {
   @objc private func handleScrimPress() {
     guard
       modal,
-      let closedIndex,
+      let closedIndex = scrimDismissIndex,
       targetIndex != closedIndex,
       activeSpring == nil || currentSheetHeight > 0.5
     else {
