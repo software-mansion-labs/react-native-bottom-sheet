@@ -480,7 +480,7 @@ public final class BottomSheetHostingView: UIView {
     }
     animation.duration = duration
     animation.calculationMode = .linear
-    animation.beginTime = sheetContainer.layer.convertTime(startTime, from: nil)
+    animation.beginTime = 0
     animation.isRemovedOnCompletion = false
     animation.fillMode = .forwards
     animation.delegate = self
