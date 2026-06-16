@@ -24,6 +24,14 @@ private struct RawDetentSpec {
   let programmatic: Bool
 }
 
+private struct PendingSnapRequest {
+  let index: Int
+  let velocity: CGFloat
+  let emitIndexChange: Bool
+  let emitSettle: Bool
+  let preserveScrimPin: Bool
+}
+
 @objcMembers
 public final class BottomSheetHostingView: UIView {
   public weak var eventDelegate: BottomSheetHostingViewDelegate?
@@ -75,6 +83,7 @@ public final class BottomSheetHostingView: UIView {
   private var scrimPinnedFull = false
   private var displayLink: CADisplayLink?
   private var pendingIndex: Int?
+  private var pendingSnapRequest: PendingSnapRequest?
   private var hasLaidOut = false
   private var isPanning = false
   private var lastReportedInvalidDetentMessage: String?
@@ -132,11 +141,13 @@ public final class BottomSheetHostingView: UIView {
       for gr in view.gestureRecognizers ?? [] {
         if NSStringFromClass(type(of: gr)).contains("TouchHandler") {
           surfaceTouchHandler = gr
-          return
+          break
         }
       }
+      if surfaceTouchHandler != nil { break }
       current = view.superview
     }
+    flushPendingSnapIfNeeded()
   }
 
   override public func layoutSubviews() {
@@ -288,6 +299,7 @@ public final class BottomSheetHostingView: UIView {
     detentSpecs = []
     targetIndex = 0
     pendingIndex = nil
+    pendingSnapRequest = nil
     hasLaidOut = false
     isPanning = false
     panStartingIndex = nil
@@ -433,6 +445,19 @@ public final class BottomSheetHostingView: UIView {
     preserveScrimPin: Bool = false
   ) {
     guard index >= 0, index < detentSpecs.count else { return }
+    if window == nil, activeSpring == nil {
+      // Avoid starting a render-server animation before the layer is attached:
+      // UIKit may briefly display the model transform before keyframes begin.
+      pendingSnapRequest = PendingSnapRequest(
+        index: index,
+        velocity: velocity,
+        emitIndexChange: emitIndexChange,
+        emitSettle: emitSettle,
+        preserveScrimPin: preserveScrimPin
+      )
+      return
+    }
+
     targetIndex = index
     if !preserveScrimPin {
       scrimPinnedFull = false
@@ -497,6 +522,18 @@ public final class BottomSheetHostingView: UIView {
     if emitIndexChange {
       eventDelegate?.bottomSheetHostingView(self, didChangeIndex: index)
     }
+  }
+
+  private func flushPendingSnapIfNeeded() {
+    guard window != nil, let request = pendingSnapRequest else { return }
+    pendingSnapRequest = nil
+    snapToIndex(
+      request.index,
+      velocity: request.velocity,
+      emitIndexChange: request.emitIndexChange,
+      emitSettle: request.emitSettle,
+      preserveScrimPin: request.preserveScrimPin
+    )
   }
 
   private func stepSpring(targetTime: CFTimeInterval) {
