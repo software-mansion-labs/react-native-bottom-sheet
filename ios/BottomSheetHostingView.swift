@@ -805,9 +805,12 @@ public final class BottomSheetHostingView: UIView {
     // Whether the scrim is currently fully opaque, i.e. the sheet is settled at
     // or above the first non-zero detent. If so, a detent resize must not dip
     // the scrim while the sheet re-anchors to the new geometry.
-    let wasScrimFull = modal
+    let wasScrimFull = hasLaidOut
+      && !isPanning
+      && modal
       && firstNonZeroDetentHeight > 0
       && currentSheetHeight + 0.5 >= firstNonZeroDetentHeight
+    scrimPinnedFull = scrimPinnedFull || wasScrimFull
     detentSpecs = resolvedDetents
 
     guard bounds.width > 0, bounds.height > 0, !detentSpecs.isEmpty else {
@@ -827,7 +830,6 @@ public final class BottomSheetHostingView: UIView {
         let visibleHeight = previousMaxHeight - visualTy
         let reanchoredTy = min(max(newMaxHeight - visibleHeight, 0), newMaxHeight)
         sheetContainer.transform = CGAffineTransform(translationX: 0, y: reanchoredTy)
-        scrimPinnedFull = scrimPinnedFull || wasScrimFull
         emitPosition()
         snapToIndex(
           targetIndex,
@@ -844,16 +846,17 @@ public final class BottomSheetHostingView: UIView {
           // No meaningful change.
           sheetContainer.transform = CGAffineTransform(translationX: 0, y: targetTy)
           emitPosition()
+          scrimPinnedFull = false
         } else if !shouldAnimateHeight {
           sheetContainer.transform = CGAffineTransform(translationX: 0, y: targetTy)
           emitPosition()
+          scrimPinnedFull = false
         } else {
           // The content detent changed (grew or shrank): re-anchor at the
           // current visible height, then animate to the new target. The surface
           // covers the full sheet, so a shrink no longer exposes blank space.
           let startTy = min(max(newMaxHeight - currentVisibleHeight, 0), newMaxHeight)
           sheetContainer.transform = CGAffineTransform(translationX: 0, y: startTy)
-          scrimPinnedFull = scrimPinnedFull || wasScrimFull
           emitPosition()
           snapToIndex(
             targetIndex,
