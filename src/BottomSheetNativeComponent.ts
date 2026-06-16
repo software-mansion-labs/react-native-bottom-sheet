@@ -20,6 +20,7 @@ export interface NativeProps extends ViewProps {
   modal: boolean;
   nativeOverlay?: boolean;
   disableScrollableNegotiation?: boolean;
+  disableDismissOnScrimPress?: boolean;
   scrimColor?: ColorValue;
   scrimOpacities?: ReadonlyArray<CodegenTypes.Double>;
   onIndexChange?: CodegenTypes.DirectEventHandler<

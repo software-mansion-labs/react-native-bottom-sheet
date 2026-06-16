@@ -124,6 +124,8 @@ type ModalOnlyBottomSheetProps = {
    * instead of the `BottomSheetProvider` portal.
    */
   nativeOverlay?: boolean;
+  /** Disable dismissing the modal sheet when pressing the native scrim. */
+  disableDismissOnScrimPress?: boolean;
   /** Scrim color used by `ModalBottomSheet`. */
   scrimColor?: string;
   /**
@@ -163,6 +165,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
     modal = false,
     nativeOverlay = false,
     disableScrollableNegotiation = false,
+    disableDismissOnScrimPress = false,
     scrimColor,
     scrimOpacities,
   } = props as BottomSheetInternalProps;
@@ -252,6 +255,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
           modal={modal}
           nativeOverlay={usesNativeOverlay}
           disableScrollableNegotiation={disableScrollableNegotiation}
+          disableDismissOnScrimPress={disableDismissOnScrimPress}
           scrimColor={scrimColor}
           scrimOpacities={resolvedScrimOpacity}
           onIndexChange={handleIndexChange}

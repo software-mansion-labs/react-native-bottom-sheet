@@ -29,6 +29,12 @@ export interface ModalBottomSheetProps extends BottomSheetProps {
   /** Scrim color shown behind the modal sheet. */
   scrimColor?: string;
   /**
+   * Whether pressing the native scrim should leave the sheet open.
+   *
+   * @default false
+   */
+  disableDismissOnScrimPress?: boolean;
+  /**
    * Scrim opacities per detent, indexed to match `detents`. Each value in 0-1
    * scales the scrim color's alpha at the detent of the same index, and the
    * opacity is linearly interpolated as the sheet is dragged between detents.
