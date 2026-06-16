@@ -130,6 +130,10 @@ using namespace facebook::react;
     _sheetView.disableScrollableNegotiation = newViewProps.disableScrollableNegotiation;
   }
 
+  if (newViewProps.disableDismissOnScrimPress != oldViewProps.disableDismissOnScrimPress) {
+    _sheetView.disableDismissOnScrimPress = newViewProps.disableDismissOnScrimPress;
+  }
+
   if (newViewProps.scrimColor != oldViewProps.scrimColor) {
     [_sheetView setScrimColor:RCTUIColorFromSharedColor(newViewProps.scrimColor)];
   }

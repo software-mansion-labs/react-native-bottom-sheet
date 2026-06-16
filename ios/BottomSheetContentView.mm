@@ -60,6 +60,16 @@
   _impl.disableScrollableNegotiation = disableScrollableNegotiation;
 }
 
+- (BOOL)disableDismissOnScrimPress
+{
+  return _impl.disableDismissOnScrimPress;
+}
+
+- (void)setDisableDismissOnScrimPress:(BOOL)disableDismissOnScrimPress
+{
+  _impl.disableDismissOnScrimPress = disableDismissOnScrimPress;
+}
+
 - (BOOL)modal
 {
   return _impl.modal;

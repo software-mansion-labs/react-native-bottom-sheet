@@ -53,6 +53,7 @@ public final class BottomSheetHostingView: UIView {
   }
 
   public var disableScrollableNegotiation: Bool = false
+  public var disableDismissOnScrimPress: Bool = false
 
   private var rawDetentSpecs: [RawDetentSpec] = []
   private var detentSpecs: [DetentSpec] = [] {
@@ -415,6 +416,7 @@ public final class BottomSheetHostingView: UIView {
   @objc private func handleScrimPress() {
     guard
       modal,
+      !disableDismissOnScrimPress,
       let closedIndex,
       targetIndex != closedIndex,
       activeSpring == nil || currentSheetHeight > 0.5

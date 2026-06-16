@@ -20,6 +20,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL animateContentHeight;
 @property (nonatomic) BOOL modal;
 @property (nonatomic) BOOL disableScrollableNegotiation;
+@property (nonatomic) BOOL disableDismissOnScrimPress;
 @property (nonatomic, readonly) UIView *sheetContainer;
 @property (nonatomic, readonly) BOOL isModalAccessibilityActive;
 
