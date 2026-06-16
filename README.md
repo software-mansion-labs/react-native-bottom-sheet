@@ -136,8 +136,8 @@ const insets = useSafeAreaInsets();
 
 #### Scrim
 
-Tapping the scrim collapses the sheet. Use `scrimColor` to customize
-its&nbsp;color:
+Tapping the scrim collapses the sheet to the closed detent. Use `scrimColor` to
+customize the scrim&nbsp;color:
 
 ```tsx
 <ModalBottomSheet
@@ -353,7 +353,8 @@ the current index and animates to the updated detent height when needed.
 
 If you want a detent to be reachable only via code (not by dragging), use the
 object form or the `programmatic` helper. Programmatic detents are excluded from
-drag snapping but can still be targeted via `index`&nbsp;updates.
+drag snapping but can still be targeted via `index` updates. If the closed
+detent is programmatic-only, tapping the scrim does not dismiss the&nbsp;sheet.
 
 ```tsx
 <BottomSheet

@@ -4,7 +4,8 @@ import UIKit
   func bottomSheetHostingView(_ view: BottomSheetHostingView, didChangeIndex index: Int)
   func bottomSheetHostingView(_ view: BottomSheetHostingView, didSettle index: Int)
   func bottomSheetHostingView(
-    _ view: BottomSheetHostingView, didChangePosition position: CGFloat, index: CGFloat)
+    _ view: BottomSheetHostingView, didChangePosition position: CGFloat, index: CGFloat
+  )
   func bottomSheetHostingView(_ view: BottomSheetHostingView, didReportError message: String)
 }
 
@@ -354,6 +355,13 @@ public final class BottomSheetHostingView: UIView {
     detentSpecs.firstIndex(where: { $0.height == 0 })
   }
 
+  private var scrimDismissIndex: Int? {
+    guard let closedIndex, !detentSpecs[closedIndex].programmatic else {
+      return nil
+    }
+    return closedIndex
+  }
+
   private var firstNonZeroDetentHeight: CGFloat {
     detentSpecs.first(where: { $0.height > 0 })?.height ?? 0
   }
@@ -389,7 +397,8 @@ public final class BottomSheetHostingView: UIView {
     updateSheetVisibility(forPosition: position)
     updateInteractionState()
     eventDelegate?.bottomSheetHostingView(
-      self, didChangePosition: position, index: detentIndex(forPosition: position))
+      self, didChangePosition: position, index: detentIndex(forPosition: position)
+    )
   }
 
   private func startDisplayLink() {
@@ -427,7 +436,7 @@ public final class BottomSheetHostingView: UIView {
   @objc private func handleScrimPress() {
     guard
       modal,
-      let closedIndex,
+      let closedIndex = scrimDismissIndex,
       targetIndex != closedIndex,
       activeSpring == nil || currentSheetHeight > 0.5
     else {
@@ -500,7 +509,7 @@ public final class BottomSheetHostingView: UIView {
     let animation = CAKeyframeAnimation(keyPath: "transform.translation.y")
     let sampleCount = max(Int((duration * 120).rounded()), 1)
     animation.values = spring.keyframeValues(count: sampleCount)
-    animation.keyTimes = (0...sampleCount).map {
+    animation.keyTimes = (0 ... sampleCount).map {
       NSNumber(value: Double($0) / Double(sampleCount))
     }
     animation.duration = duration
@@ -1066,19 +1075,20 @@ private extension BottomSheetHostingView {
       forPosition: position,
       values: detentSpecs.indices.map {
         clampOpacity(scrimOpacities[min($0, scrimOpacities.count - 1)])
-      })
+      }
+    )
   }
 
-  // Fractional detent index in 0...(detentSpecs.count - 1): 0 at the shortest
-  // detent, 1 at the next, and so on, interpolated by position in between. The
-  // continuous counterpart of `onIndexChange`, so consumers can drive a backdrop
-  // or animate per detent without knowing the sheet's height.
+  /// Fractional detent index in 0...(detentSpecs.count - 1): 0 at the shortest
+  /// detent, 1 at the next, and so on, interpolated by position in between. The
+  /// continuous counterpart of `onIndexChange`, so consumers can drive a backdrop
+  /// or animate per detent without knowing the sheet's height.
   private func detentIndex(forPosition position: CGFloat) -> CGFloat {
     interpolate(forPosition: position, values: detentSpecs.indices.map { CGFloat($0) })
   }
 
-  // Interpolates a per-detent value (one per detent, by index) by the sheet
-  // position, using each detent's resolved height as the breakpoint.
+  /// Interpolates a per-detent value (one per detent, by index) by the sheet
+  /// position, using each detent's resolved height as the breakpoint.
   private func interpolate(forPosition position: CGFloat, values: [CGFloat]) -> CGFloat {
     let pairs = zip(detentSpecs.map(\.height), values)
       .map { (height: $0, value: $1) }

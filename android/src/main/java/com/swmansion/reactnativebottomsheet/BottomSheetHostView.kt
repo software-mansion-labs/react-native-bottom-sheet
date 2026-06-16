@@ -468,6 +468,9 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   private val closedIndex: Int?
     get() = detentSpecs.indexOfFirst { it.height == 0f }.takeIf { it >= 0 }
 
+  private val scrimDismissIndex: Int?
+    get() = closedIndex?.takeIf { !detentSpecs[it].programmatic }
+
   private val firstNonZeroDetentHeight: Float
     get() = detentSpecs.firstOrNull { it.height > 0f }?.height ?: 0f
 
@@ -708,7 +711,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
           return true
         }
         MotionEvent.ACTION_UP -> {
-          val closeIndex = closedIndex
+          val closeIndex = scrimDismissIndex
           val shouldDismiss = scrimPressed && isScrimVisible()
           scrimPressed = false
           scrimTouchActive = false
