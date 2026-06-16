@@ -149,6 +149,11 @@ class BottomSheetViewManager :
     view.disableScrollableNegotiation = value
   }
 
+  @ReactProp(name = "disableDismissOnScrimPress")
+  override fun setDisableDismissOnScrimPress(view: BottomSheetView, value: Boolean) {
+    view.disableDismissOnScrimPress = value
+  }
+
   @ReactProp(name = "scrimColor", customType = "Color")
   override fun setScrimColor(view: BottomSheetView, scrimColor: Int?) {
     view.setScrimColor(scrimColor)

@@ -130,6 +130,12 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       host.disableScrollableNegotiation = value
     }
 
+  var disableDismissOnScrimPress: Boolean
+    get() = host.disableDismissOnScrimPress
+    set(value) {
+      host.disableDismissOnScrimPress = value
+    }
+
   fun setScrimColor(color: Int?) = host.setScrimColor(color)
 
   fun setScrimOpacities(values: List<Float>) = host.setScrimOpacities(values)
@@ -280,15 +286,14 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
 
     WindowCompat.setDecorFitsSystemWindows(this, false)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-      attributes =
-        attributes.apply {
-          layoutInDisplayCutoutMode =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-              WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
-            } else {
-              WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-            }
-        }
+      attributes = attributes.apply {
+        layoutInDisplayCutoutMode =
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+          } else {
+            WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+          }
+      }
     }
 
     @Suppress("DEPRECATION")

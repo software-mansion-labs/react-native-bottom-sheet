@@ -67,6 +67,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
     }
 
   var disableScrollableNegotiation: Boolean = false
+  var disableDismissOnScrimPress: Boolean = false
   private var pendingIndex: Int? = null
   private var hasLaidOut = false
   private var isPanning = false
@@ -101,7 +102,9 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   private var surfaceView: View? = null
 
   private val contentHeightMarkerLayoutListener =
-    View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> refreshDetentsFromLayout() }
+    View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+      refreshDetentsFromLayout()
+    }
 
   init {
     clipChildren = false
@@ -233,17 +236,16 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   // MARK: - Prop setters
 
   fun setDetents(raw: List<Map<String, Any>>) {
-    rawDetentSpecs =
-      raw.mapNotNull { dict ->
-        val value = (dict["value"] as? Number)?.toDouble() ?: return@mapNotNull null
-        val kind =
-          when ((dict["kind"] as? String)?.lowercase()) {
-            "content" -> DetentKind.CONTENT
-            else -> DetentKind.POINTS
-          }
-        val programmatic = dict["programmatic"] as? Boolean ?: false
-        RawDetentSpec(value = (value * density).toFloat(), kind = kind, programmatic = programmatic)
-      }
+    rawDetentSpecs = raw.mapNotNull { dict ->
+      val value = (dict["value"] as? Number)?.toDouble() ?: return@mapNotNull null
+      val kind =
+        when ((dict["kind"] as? String)?.lowercase()) {
+          "content" -> DetentKind.CONTENT
+          else -> DetentKind.POINTS
+        }
+      val programmatic = dict["programmatic"] as? Boolean ?: false
+      RawDetentSpec(value = (value * density).toFloat(), kind = kind, programmatic = programmatic)
+    }
     refreshDetentsFromLayout()
   }
 
@@ -709,7 +711,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
         }
         MotionEvent.ACTION_UP -> {
           val closeIndex = closedIndex
-          val shouldDismiss = scrimPressed && isScrimVisible()
+          val shouldDismiss = scrimPressed && isScrimVisible() && !disableDismissOnScrimPress
           scrimPressed = false
           scrimTouchActive = false
           activePointerId = MotionEvent.INVALID_POINTER_ID
