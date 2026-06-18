@@ -9,6 +9,7 @@ import android.view.VelocityTracker
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import android.widget.FrameLayout
 import androidx.dynamicanimation.animation.DynamicAnimation
 import androidx.dynamicanimation.animation.SpringAnimation
@@ -101,6 +102,9 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   private var maxDetentHeight = Float.NaN
   private var contentHeightMarker: View? = null
   private var surfaceView: View? = null
+  private var pendingInitialContentDetentSnap = false
+  private var pendingInitialContentDetentObserver: ViewTreeObserver? = null
+  private var pendingInitialContentDetentPreDrawListener: ViewTreeObserver.OnPreDrawListener? = null
 
   private val contentHeightMarkerLayoutListener =
     View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> refreshDetentsFromLayout() }
@@ -177,17 +181,20 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
       val clampedIndex = indexToApply.coerceIn(0, detentSpecs.size - 1)
 
       if (animateIn && isInvalidContentDetentTarget(clampedIndex)) {
+        hasLaidOut = true
+        pendingIndex = null
         targetIndex = clampedIndex
-        pendingIndex = clampedIndex
-        val closedTy = resolvedMaxDetentHeight(h)
-        sheetContainer.translationY = closedTy
+        pendingInitialContentDetentSnap = true
+        sheetContainer.translationY = resolvedMaxDetentHeight(h)
         emitPosition()
+        observePendingInitialContentDetent()
         return
       }
 
       hasLaidOut = true
       pendingIndex = null
       targetIndex = clampedIndex
+      clearPendingInitialContentDetentSnap()
 
       if (animateIn) {
         val closedTy = resolvedMaxDetentHeight(h)
@@ -333,6 +340,9 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
 
     val resolvedDetents = resolveDetentSpecs()
     if (resolvedDetents == detentSpecs) {
+      if (trySnapPendingInitialContentDetent()) {
+        return
+      }
       updateScrim()
       return
     }
@@ -353,6 +363,9 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
         targetIndex = targetIndex.coerceIn(0, detentSpecs.size - 1)
         val newMaxHeight = resolvedMaxDetentHeight()
         val targetTy = translationY(targetIndex)
+        if (trySnapPendingInitialContentDetent()) {
+          return
+        }
         if (activeAnimation != null && isTargetingClosedDetent) {
           suppressScrimForClosingTarget = true
           hideScrim()
@@ -427,6 +440,55 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   private fun isInvalidContentDetentTarget(index: Int): Boolean {
     return rawDetentSpecs.getOrNull(index)?.kind == DetentKind.CONTENT &&
       !validContentHeight().isFinite()
+  }
+
+  private fun trySnapPendingInitialContentDetent(): Boolean {
+    if (!pendingInitialContentDetentSnap || isInvalidContentDetentTarget(targetIndex)) {
+      return false
+    }
+
+    pendingInitialContentDetentSnap = false
+    removePendingInitialContentDetentObserver()
+    snapToIndex(targetIndex, 0f, emitIndexChange = false, emitSettle = true)
+    return true
+  }
+
+  private fun clearPendingInitialContentDetentSnap() {
+    pendingInitialContentDetentSnap = false
+    removePendingInitialContentDetentObserver()
+  }
+
+  private fun observePendingInitialContentDetent() {
+    if (pendingInitialContentDetentPreDrawListener != null) return
+
+    val observer = viewTreeObserver
+    if (!observer.isAlive) return
+
+    val listener =
+      ViewTreeObserver.OnPreDrawListener {
+        refreshContentHeightMarker()
+        refreshDetentsFromLayout()
+        true
+      }
+
+    // Keep the exact observer instance used for registration. Android can
+    // replace a ViewTreeObserver across attach/detach boundaries, and listeners
+    // must be removed from the same live observer that received them.
+    pendingInitialContentDetentObserver = observer
+    pendingInitialContentDetentPreDrawListener = listener
+    observer.addOnPreDrawListener(listener)
+  }
+
+  private fun removePendingInitialContentDetentObserver() {
+    val observer = pendingInitialContentDetentObserver
+    val listener = pendingInitialContentDetentPreDrawListener
+
+    if (observer?.isAlive == true && listener != null) {
+      observer.removeOnPreDrawListener(listener)
+    }
+
+    pendingInitialContentDetentObserver = null
+    pendingInitialContentDetentPreDrawListener = null
   }
 
   private fun refreshContentHeightMarker() {
@@ -980,6 +1042,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
     activeAnimation = null
     velocityTracker?.recycle()
     velocityTracker = null
+    clearPendingInitialContentDetentSnap()
     contentHeightMarker?.removeOnLayoutChangeListener(contentHeightMarkerLayoutListener)
     contentHeightMarker = null
     surfaceView = null
