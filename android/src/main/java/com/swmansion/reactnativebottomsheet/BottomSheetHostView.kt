@@ -101,6 +101,9 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   private var maxDetentHeight = Float.NaN
   private var contentHeightMarker: View? = null
   private var surfaceView: View? = null
+  private var contentDetentRefreshPosted = false
+  private var contentDetentRefreshAttempts = 0
+  private var pendingInitialContentDetentSnap = false
 
   private val contentHeightMarkerLayoutListener =
     View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> refreshDetentsFromLayout() }
@@ -177,17 +180,21 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
       val clampedIndex = indexToApply.coerceIn(0, detentSpecs.size - 1)
 
       if (animateIn && isInvalidContentDetentTarget(clampedIndex)) {
+        hasLaidOut = true
+        pendingIndex = null
         targetIndex = clampedIndex
-        pendingIndex = clampedIndex
-        val closedTy = resolvedMaxDetentHeight(h)
-        sheetContainer.translationY = closedTy
+        pendingInitialContentDetentSnap = true
+        sheetContainer.translationY = resolvedMaxDetentHeight(h)
         emitPosition()
+        scheduleContentDetentRefresh()
         return
       }
 
       hasLaidOut = true
       pendingIndex = null
       targetIndex = clampedIndex
+      contentDetentRefreshAttempts = 0
+      pendingInitialContentDetentSnap = false
 
       if (animateIn) {
         val closedTy = resolvedMaxDetentHeight(h)
@@ -333,6 +340,9 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
 
     val resolvedDetents = resolveDetentSpecs()
     if (resolvedDetents == detentSpecs) {
+      if (trySnapPendingInitialContentDetent()) {
+        return
+      }
       updateScrim()
       return
     }
@@ -353,6 +363,9 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
         targetIndex = targetIndex.coerceIn(0, detentSpecs.size - 1)
         val newMaxHeight = resolvedMaxDetentHeight()
         val targetTy = translationY(targetIndex)
+        if (trySnapPendingInitialContentDetent()) {
+          return
+        }
         if (activeAnimation != null && isTargetingClosedDetent) {
           suppressScrimForClosingTarget = true
           hideScrim()
@@ -427,6 +440,37 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   private fun isInvalidContentDetentTarget(index: Int): Boolean {
     return rawDetentSpecs.getOrNull(index)?.kind == DetentKind.CONTENT &&
       !validContentHeight().isFinite()
+  }
+
+  private fun trySnapPendingInitialContentDetent(): Boolean {
+    if (!pendingInitialContentDetentSnap || isInvalidContentDetentTarget(targetIndex)) {
+      return false
+    }
+
+    pendingInitialContentDetentSnap = false
+    contentDetentRefreshAttempts = 0
+    snapToIndex(targetIndex, 0f, emitIndexChange = false, emitSettle = true)
+    return true
+  }
+
+  private fun scheduleContentDetentRefresh() {
+    if (contentDetentRefreshPosted) return
+    contentDetentRefreshPosted = true
+    postOnAnimation {
+      contentDetentRefreshPosted = false
+      refreshContentHeightMarker()
+      refreshDetentsFromLayout()
+
+      if (isInvalidContentDetentTarget(targetIndex)) {
+        if (contentDetentRefreshAttempts < 10) {
+          contentDetentRefreshAttempts += 1
+          requestLayout()
+          scheduleContentDetentRefresh()
+        }
+      } else {
+        contentDetentRefreshAttempts = 0
+      }
+    }
   }
 
   private fun refreshContentHeightMarker() {
