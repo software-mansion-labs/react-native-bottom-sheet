@@ -998,7 +998,6 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
     activePointerId = MotionEvent.INVALID_POINTER_ID
     scrimPressed = false
     scrimTouchActive = false
-    sheetContainer.translationY = 0f
     scrimProgress = 0f
     suppressScrimForClosingTarget = false
     sheetContainer.removeAllViews()
