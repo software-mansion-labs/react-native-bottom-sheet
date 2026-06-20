@@ -105,6 +105,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   private var pendingInitialContentDetentSnap = false
   private var pendingInitialContentDetentObserver: ViewTreeObserver? = null
   private var pendingInitialContentDetentPreDrawListener: ViewTreeObserver.OnPreDrawListener? = null
+  private var pendingInitialContentDetentFrames = 0
 
   private val contentHeightMarkerLayoutListener =
     View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> refreshDetentsFromLayout() }
@@ -165,6 +166,22 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   }
 
   // MARK: - Layout
+
+  override fun onAttachedToWindow() {
+    super.onAttachedToWindow()
+    // A re-attach gives us a fresh, live ViewTreeObserver; the previous one was
+    // dropped on detach. Resume observing if the initial snap is still pending.
+    if (pendingInitialContentDetentSnap) {
+      observePendingInitialContentDetent()
+    }
+  }
+
+  override fun onDetachedFromWindow() {
+    // Release the listener from the soon-to-be-replaced observer and clear our
+    // references so a later re-attach registers on the new live observer.
+    removePendingInitialContentDetentObserver()
+    super.onDetachedFromWindow()
+  }
 
   override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
     super.onLayout(changed, left, top, right, bottom)
@@ -262,6 +279,18 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
     if (!hasLaidOut) {
       pendingIndex = newIndex
       targetIndex = newIndex
+      return
+    }
+
+    if (pendingInitialContentDetentSnap) {
+      // The initial open is still deferred because the target content detent is
+      // not measurable yet. Retarget the deferred snap so the requested index is
+      // reflected, then either complete it now (e.g. a points detent that is
+      // already resolvable) or keep waiting for the content to measure.
+      targetIndex = newIndex.coerceIn(0, detentSpecs.size - 1)
+      if (!trySnapPendingInitialContentDetent()) {
+        observePendingInitialContentDetent()
+      }
       return
     }
 
@@ -464,10 +493,22 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
     val observer = viewTreeObserver
     if (!observer.isAlive) return
 
+    pendingInitialContentDetentFrames = 0
     val listener =
       ViewTreeObserver.OnPreDrawListener {
         refreshContentHeightMarker()
         refreshDetentsFromLayout()
+        // refreshDetentsFromLayout() completes and stops observing via
+        // trySnapPendingInitialContentDetent() once the target is measurable.
+        // If it is still pending, this frame was unproductive: bound how many
+        // such frames we spend so a content detent that never becomes
+        // measurable cannot keep us redrawing forever.
+        if (
+          pendingInitialContentDetentSnap &&
+            ++pendingInitialContentDetentFrames >= MAX_PENDING_INITIAL_CONTENT_DETENT_FRAMES
+        ) {
+          removePendingInitialContentDetentObserver()
+        }
         true
       }
 
@@ -1169,5 +1210,19 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
     scrimPaint.color =
       Color.argb(alpha, Color.red(scrimColor), Color.green(scrimColor), Color.blue(scrimColor))
     canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), scrimPaint)
+  }
+
+  companion object {
+    // Upper bound on pre-draw passes spent waiting for the initial content
+    // detent to become measurable. This is a safety valve, not the completion
+    // mechanism: the snap is driven by the marker layout listener and the
+    // pre-draw observer, which normally resolve within a few frames. Because a
+    // pending-but-unmeasurable content detent keeps re-invalidating via
+    // updateScrim(), an unbounded observer would redraw every frame forever if
+    // the content never produces a measurable height. The budget is generous
+    // (covers pathologically slow content) but finite; once exhausted we stop
+    // observing to end the redraw loop, while the marker layout listener can
+    // still complete the snap if the content becomes measurable later.
+    private const val MAX_PENDING_INITIAL_CONTENT_DETENT_FRAMES = 240
   }
 }
