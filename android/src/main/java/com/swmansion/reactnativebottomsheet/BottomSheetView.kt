@@ -19,7 +19,6 @@ import androidx.activity.ComponentDialog
 import androidx.activity.OnBackPressedCallback
 import androidx.core.view.WindowCompat
 import com.facebook.react.bridge.LifecycleEventListener
-import com.facebook.react.common.annotations.UnstableReactNativeAPI
 import com.facebook.react.config.ReactFeatureFlags
 import com.facebook.react.uimanager.JSPointerDispatcher
 import com.facebook.react.uimanager.JSTouchDispatcher
@@ -437,10 +436,13 @@ private class BottomSheetDialogRootView(context: ThemedReactContext) :
     return super.onHoverEvent(event)
   }
 
-  @OptIn(UnstableReactNativeAPI::class)
   override fun onChildStartedNativeGesture(childView: View?, ev: MotionEvent) {
     eventDispatcher?.let { dispatcher ->
-      jSTouchDispatcher.onChildStartedNativeGesture(ev, dispatcher, reactContext)
+      // Sweeps the active touch marked by handleTouchEvent when a native child takes over the
+      // gesture. The 3-arg overload that performs the sweep only exists on RN 0.82+, so it is
+      // resolved through a compat shim (see JSTouchDispatcherCompat) that uses it when present
+      // and falls back to the 2-arg overload on RN 0.76-0.81 (issue #35).
+      jSTouchDispatcher.onChildStartedNativeGestureCompat(ev, dispatcher, reactContext)
       jSPointerDispatcher?.onChildStartedNativeGesture(childView, ev, dispatcher)
     }
   }
