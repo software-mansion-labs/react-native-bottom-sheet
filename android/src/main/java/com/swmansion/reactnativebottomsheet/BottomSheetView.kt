@@ -19,7 +19,6 @@ import androidx.activity.ComponentDialog
 import androidx.activity.OnBackPressedCallback
 import androidx.core.view.WindowCompat
 import com.facebook.react.bridge.LifecycleEventListener
-import com.facebook.react.common.annotations.UnstableReactNativeAPI
 import com.facebook.react.config.ReactFeatureFlags
 import com.facebook.react.uimanager.JSPointerDispatcher
 import com.facebook.react.uimanager.JSTouchDispatcher
@@ -407,7 +406,8 @@ private class BottomSheetDialogRootView(context: ThemedReactContext) :
 
   override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
     eventDispatcher?.let { dispatcher ->
-      jSTouchDispatcher.handleTouchEvent(event, dispatcher, reactContext)
+      // 2-arg JSTouchDispatcher overloads throughout — see onChildStartedNativeGesture below.
+      jSTouchDispatcher.handleTouchEvent(event, dispatcher)
       jSPointerDispatcher?.handleMotionEvent(event, dispatcher, true)
     }
     return super.onInterceptTouchEvent(event)
@@ -416,7 +416,7 @@ private class BottomSheetDialogRootView(context: ThemedReactContext) :
   @SuppressLint("ClickableViewAccessibility")
   override fun onTouchEvent(event: MotionEvent): Boolean {
     eventDispatcher?.let { dispatcher ->
-      jSTouchDispatcher.handleTouchEvent(event, dispatcher, reactContext)
+      jSTouchDispatcher.handleTouchEvent(event, dispatcher)
       jSPointerDispatcher?.handleMotionEvent(event, dispatcher, false)
     }
     super.onTouchEvent(event)
@@ -437,10 +437,16 @@ private class BottomSheetDialogRootView(context: ThemedReactContext) :
     return super.onHoverEvent(event)
   }
 
-  @OptIn(UnstableReactNativeAPI::class)
   override fun onChildStartedNativeGesture(childView: View?, ev: MotionEvent) {
     eventDispatcher?.let { dispatcher ->
-      jSTouchDispatcher.onChildStartedNativeGesture(ev, dispatcher, reactContext)
+      // Use the 2-arg JSTouchDispatcher overloads here and in handleTouchEvent. The 3-arg forms
+      // opt into Fabric's active-touch tracking: handleTouchEvent marks the touch and this method
+      // sweeps it when a native child (e.g. a nested scrollable) takes over. The 3-arg
+      // onChildStartedNativeGesture that performs that sweep only exists on RN 0.82+ (issue #35),
+      // so to keep mark/sweep consistent and compile across the >=0.76 peer range we opt out of
+      // tracking entirely. Once support for RN 0.81 and below is dropped, this call and the
+      // handleTouchEvent calls can move back to the 3-arg overloads.
+      jSTouchDispatcher.onChildStartedNativeGesture(ev, dispatcher)
       jSPointerDispatcher?.onChildStartedNativeGesture(childView, ev, dispatcher)
     }
   }
