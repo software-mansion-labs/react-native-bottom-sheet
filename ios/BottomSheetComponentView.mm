@@ -121,7 +121,14 @@ using namespace facebook::react;
     _sheetView.modal = newViewProps.modal;
   }
 
-  if (newViewProps.nativeOverlay != oldViewProps.nativeOverlay) {
+  // Diff against the `_nativeOverlay` ivar, not `oldViewProps` (which reads the
+  // retained `_props`). On a recycled instance `_props` still holds the previous
+  // sheet's props, so an `oldProps`-based diff misses true→true and never
+  // re-hoists—leaving `prepareForRecycle`'s reset to inline presentation in
+  // place, so the sheet renders inline with no overlay or scrim. The ivar is the
+  // genuine current presentation state, reset in both `init` and
+  // `prepareForRecycle`, so it diffs correctly across recycling.
+  if (newViewProps.nativeOverlay != _nativeOverlay) {
     _nativeOverlay = newViewProps.nativeOverlay;
     [self updateOverlayPresentation];
   }
