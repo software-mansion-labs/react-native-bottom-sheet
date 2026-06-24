@@ -810,8 +810,9 @@ public final class BottomSheetHostingView: UIView {
     let maxCandidateHeight = candidates.map { detentSpecs[$0].height }.max() ?? 0
     // Below max: allow drag in either direction to reach other detents.
     guard currentSheetHeight >= maxCandidateHeight - 0.5 else { return true }
-    // At max: only allow downward drag, and only when the scroll view (if any)
-    // is at its top edge — otherwise the scroll view should handle the gesture.
+    // At max: only allow downward drag, and only when every vertically scrollable
+    // view under the touch is at its relevant edge. Otherwise, a scroll view
+    // should handle the gesture.
     if velocity.y < 0 {
       return false
     }
@@ -820,12 +821,22 @@ public final class BottomSheetHostingView: UIView {
     guard let scrollView = scrollView(containing: locationInContainer, in: sheetContainer) else {
       return true
     }
-    let inverted = isViewInverted(scrollView)
-    if inverted {
-      let maxOffsetY = scrollView.contentSize.height - scrollView.bounds.height + scrollView.adjustedContentInset.bottom
-      return scrollView.contentOffset.y >= maxOffsetY
+    var node: UIView? = scrollView
+    while let view = node, view !== self {
+      if let candidate = view as? UIScrollView, isVerticallyScrollable(candidate) {
+        if isViewInverted(candidate) {
+          let maxOffsetY =
+            candidate.contentSize.height - candidate.bounds.height + candidate.adjustedContentInset.bottom
+          if candidate.contentOffset.y < maxOffsetY - 0.5 {
+            return false
+          }
+        } else if candidate.contentOffset.y > 0.5 {
+          return false
+        }
+      }
+      node = view.superview
     }
-    return scrollView.contentOffset.y <= 0
+    return true
   }
 
   private var resolvedMaxDetentHeight: CGFloat {
