@@ -766,15 +766,6 @@ public final class BottomSheetHostingView: UIView {
     return scrollView.alwaysBounceVertical || scrollView.contentSize.height > visibleHeight
   }
 
-  private func isViewInverted(_ view: UIView) -> Bool {
-    var current: UIView? = view
-    while let v = current, v !== sheetContainer {
-      if v.transform.d < 0 { return true }
-      current = v.superview
-    }
-    return false
-  }
-
   private func scrollView(containing location: CGPoint, in view: UIView) -> UIScrollView? {
     for subview in view.subviews.reversed() {
       let locationInSubview = view.convert(location, to: subview)
@@ -810,22 +801,52 @@ public final class BottomSheetHostingView: UIView {
     let maxCandidateHeight = candidates.map { detentSpecs[$0].height }.max() ?? 0
     // Below max: allow drag in either direction to reach other detents.
     guard currentSheetHeight >= maxCandidateHeight - 0.5 else { return true }
-    // At max: only allow downward drag, and only when the scroll view (if any)
-    // is at its top edge — otherwise the scroll view should handle the gesture.
+    // At max: only allow a downward drag, and only when no scroller under the touch can
+    // still absorb it (see the ancestor walk below) — otherwise a scroller handles it.
     if velocity.y < 0 {
       return false
     }
 
     let locationInContainer = panGesture.location(in: sheetContainer)
-    guard let scrollView = scrollView(containing: locationInContainer, in: sheetContainer) else {
+    guard let touchedScrollView = scrollView(containing: locationInContainer, in: sheetContainer) else {
       return true
     }
-    let inverted = isViewInverted(scrollView)
-    if inverted {
-      let maxOffsetY = scrollView.contentSize.height - scrollView.bounds.height + scrollView.adjustedContentInset.bottom
-      return scrollView.contentOffset.y >= maxOffsetY
+
+    // Collapse the sheet only when EVERY vertically-scrollable scroller under the touch is
+    // already at its relevant edge; if any of them can still scroll, the gesture belongs to
+    // that scroller. Inspecting only the innermost scroller breaks on a nested *horizontal*
+    // carousel: it can pass isVerticallyScrollable(_:) via vertical bounce or a slightly
+    // taller contentSize, yet its contentOffset.y is always 0 ("at top"), so the sheet
+    // collapsed while the enclosing vertical list was still mid-scroll.
+    //
+    // Walk the touched scroller and its ancestors up to the sheet container, resolving
+    // inversion top-down as we go: a view is inverted when it — or any ancestor up to the
+    // container — has a flipped vertical axis. edgeTolerance absorbs a sub-pixel residual so
+    // the sheet can still collapse when a list is effectively, if not exactly, at its edge.
+    let edgeTolerance: CGFloat = 0.5
+
+    var chain: [UIView] = []
+    var node: UIView? = touchedScrollView
+    while let view = node, view !== sheetContainer {
+      chain.append(view)
+      node = view.superview
     }
-    return scrollView.contentOffset.y <= 0
+
+    var inverted = false
+    for view in chain.reversed() {
+      inverted = inverted || view.transform.d < 0
+      guard let candidate = view as? UIScrollView, isVerticallyScrollable(candidate) else {
+        continue
+      }
+      if inverted {
+        let maxOffsetY =
+          candidate.contentSize.height - candidate.bounds.height + candidate.adjustedContentInset.bottom
+        if candidate.contentOffset.y < maxOffsetY - edgeTolerance { return false }
+      } else if candidate.contentOffset.y > edgeTolerance {
+        return false
+      }
+    }
+    return true
   }
 
   private var resolvedMaxDetentHeight: CGFloat {
