@@ -651,6 +651,7 @@ public final class BottomSheetHostingView: UIView {
 
     case .ended:
       isPanning = false
+      setContentInteractionEnabled(true)
       let velocity = gesture.velocity(in: self).y
       let currentHeight = maxHeight - sheetContainer.transform.ty
       let index =
