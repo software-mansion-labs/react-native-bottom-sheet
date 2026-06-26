@@ -6,6 +6,7 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.graphics.Color
+import android.graphics.PointF
 import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.view.Gravity
@@ -213,6 +214,19 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
         }
       },
     )
+    // The host now lives in the dialog window; the shadow node still adds its
+    // content offset on top of this view's own layout origin. Report the
+    // displacement between the two so the host can cancel it out (see
+    // BottomSheetHostView.shadowOriginOffsetProvider). getLocationOnScreen lets
+    // us compare across the two windows; it reduces to zero when this view sits
+    // at the origin, so only nonzero-origin mounts are corrected.
+    host.shadowOriginOffsetProvider = {
+      val hostLoc = IntArray(2)
+      val selfLoc = IntArray(2)
+      host.getLocationOnScreen(hostLoc)
+      this@BottomSheetView.getLocationOnScreen(selfLoc)
+      PointF((selfLoc[0] - hostLoc[0]).toFloat(), (selfLoc[1] - hostLoc[1]).toFloat())
+    }
     overlayInteractive = null
     overlayRoot = root
     overlayDialog = dialog
@@ -226,6 +240,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       overlayDialog = null
       overlayRoot = null
       overlayInteractive = null
+      host.shadowOriginOffsetProvider = null
       nativeOverlay = false
       (host.parent as? ViewGroup)?.removeView(host)
       attachHostInline()
@@ -240,6 +255,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     overlayDialog = null
     overlayRoot = null
     overlayInteractive = null
+    host.shadowOriginOffsetProvider = null
     attachHostInline()
   }
 

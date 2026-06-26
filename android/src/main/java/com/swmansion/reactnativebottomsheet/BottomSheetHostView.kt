@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.PointF
 import android.view.MotionEvent
 import android.view.VelocityTracker
 import android.view.View
@@ -52,6 +53,17 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
    * closed.
    */
   var interactionListener: ((Boolean) -> Unit)? = null
+
+  /**
+   * In native-overlay mode the host is reparented into a separate full-screen dialog window, while
+   * the shadow node still anchors `contentOffsetY` on top of the BottomSheetView's own (possibly
+   * nonzero) layout origin in the activity window. This returns that origin displacement in px —
+   * the BottomSheetView's on-screen Y minus the host's — so [updateShadowState] can cancel it out
+   * and keep descendant coordinates aligned with where the content is physically drawn. Null while
+   * inline, where the host already sits at the BottomSheetView's origin and no correction is
+   * needed.
+   */
+  var shadowOriginOffsetProvider: (() -> PointF)? = null
 
   // MARK: - State
 
@@ -656,16 +668,26 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
     sheetContainer.alpha = if (position <= 0.5f) 0f else 1f
   }
 
+  private var lastShadowOffsetX = Float.NaN
   private var lastShadowOffsetY = Float.NaN
 
   private fun updateShadowState(translationY: Float) {
     val maxDetentHeight = resolvedMaxDetentHeight()
     val containerTop = height.toFloat() - maxDetentHeight
-    val offsetY = ((containerTop + translationY) / density).toDouble()
-    if (offsetY.toFloat() == lastShadowOffsetY) return
+    // The content fills the host horizontally, so its only in-host displacement is
+    // the vertical `containerTop + translationY`. In native-overlay mode the host
+    // is reparented to a separate full-screen window, so subtract the
+    // BottomSheetView's origin displacement on both axes (see
+    // shadowOriginOffsetProvider); inline that displacement is zero.
+    val originOffset = shadowOriginOffsetProvider?.invoke()
+    val offsetX = ((-(originOffset?.x ?: 0f)) / density).toDouble()
+    val offsetY = ((containerTop + translationY - (originOffset?.y ?: 0f)) / density).toDouble()
+    if (offsetX.toFloat() == lastShadowOffsetX && offsetY.toFloat() == lastShadowOffsetY) return
+    lastShadowOffsetX = offsetX.toFloat()
     lastShadowOffsetY = offsetY.toFloat()
     val sw = stateWrapper ?: return
     val map = Arguments.createMap()
+    map.putDouble("contentOffsetX", offsetX)
     map.putDouble("contentOffsetY", offsetY)
     sw.updateState(map)
   }

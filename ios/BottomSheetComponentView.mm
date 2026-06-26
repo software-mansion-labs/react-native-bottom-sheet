@@ -54,6 +54,7 @@ using namespace facebook::react;
 @implementation BottomSheetComponentView {
   BottomSheetContentView *_sheetView;
   State::Shared _sheetState;
+  float _lastContentOffsetX;
   float _lastContentOffsetY;
   BOOL _needsIndexSyncAfterRecycle;
   BOOL _nativeOverlay;
@@ -304,15 +305,39 @@ using namespace facebook::react;
         {.position = static_cast<double>(position), .index = static_cast<double>(index)});
   }
 
+  // The shadow node applies a content-origin offset on top of this view's own
+  // layout origin so descendant coordinates (measure, hit-testing) follow the
+  // sheet content to where it is physically drawn. `currentContentOffsetY` is the
+  // content's vertical displacement within the sheet host; horizontally the
+  // content fills the host, so its in-host displacement is zero.
+  //
+  // Inline that origin is already correct: the host is our `contentView`, so it
+  // sits at our frame and the offset is purely the in-host displacement. In
+  // native-overlay mode the host is reparented to a window-level container at the
+  // window's origin, decoupling it from our (possibly nonzero) layout position.
+  // The shadow node still adds the offset on top of our origin, so subtract that
+  // origin (on both axes) to keep the offset window-relative — matching where the
+  // content actually lives. Without this, a sheet mounted at a nonzero origin
+  // reports descendant positions shifted by exactly that origin.
+  float contentOffsetX = 0;
   float contentOffsetY = static_cast<float>(view.currentContentOffsetY);
-  if (contentOffsetY == _lastContentOffsetY) {
+  if (_nativeOverlay) {
+    UIWindow *window = self.window;
+    if (window != nil) {
+      CGPoint originInWindow = [self convertPoint:CGPointZero toView:window];
+      contentOffsetX -= static_cast<float>(originInWindow.x);
+      contentOffsetY -= static_cast<float>(originInWindow.y);
+    }
+  }
+  if (contentOffsetX == _lastContentOffsetX && contentOffsetY == _lastContentOffsetY) {
     [self updateOverlayAccessibilityState];
     return;
   }
+  _lastContentOffsetX = contentOffsetX;
   _lastContentOffsetY = contentOffsetY;
 
   if (_sheetState) {
-    updateBottomSheetContentOffsetY(_sheetState, contentOffsetY);
+    updateBottomSheetContentOffset(_sheetState, contentOffsetX, contentOffsetY);
   }
   [self updateOverlayAccessibilityState];
 }
@@ -332,6 +357,7 @@ using namespace facebook::react;
   _needsIndexSyncAfterRecycle = YES;
   [_sheetView resetSheetState];
   _sheetState.reset();
+  _lastContentOffsetX = 0;
   _lastContentOffsetY = 0;
 }
 
