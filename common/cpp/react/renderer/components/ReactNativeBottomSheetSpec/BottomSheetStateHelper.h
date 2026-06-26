@@ -5,9 +5,8 @@
 
 namespace facebook::react {
 
-void updateBottomSheetContentOffset(
+void updateBottomSheetContentOffsetY(
     const State::Shared& state,
-    float contentOffsetX,
     float contentOffsetY);
 
 } // namespace facebook::react

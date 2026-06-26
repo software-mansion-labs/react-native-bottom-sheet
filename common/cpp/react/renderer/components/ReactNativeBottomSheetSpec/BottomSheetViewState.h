@@ -16,19 +16,15 @@ class BottomSheetViewState final {
   BottomSheetViewState(
       const BottomSheetViewState& previousState,
       folly::dynamic data)
-      : contentOffsetX(
-            static_cast<float>(data["contentOffsetX"].getDouble())),
-        contentOffsetY(
+      : contentOffsetY(
             static_cast<float>(data["contentOffsetY"].getDouble())) {}
 #endif
 
-  float contentOffsetX{0};
   float contentOffsetY{0};
 
 #ifdef ANDROID
   folly::dynamic getDynamic() const {
-    return folly::dynamic::object("contentOffsetX", contentOffsetX)(
-        "contentOffsetY", contentOffsetY);
+    return folly::dynamic::object("contentOffsetY", contentOffsetY);
   }
 
   MapBuffer getMapBuffer() const {
