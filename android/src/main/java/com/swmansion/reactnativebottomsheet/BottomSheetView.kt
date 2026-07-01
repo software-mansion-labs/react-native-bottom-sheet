@@ -198,17 +198,19 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     )
     dialog.setCancelable(false)
     dialog.window?.let { configureOverlayWindow(it, activity) }
-    // Stay unopinionated about the system back gesture, exactly like the inline
-    // (portal-based) modal, which registers no back handling and leaves it to the
-    // consumer. The dialog is a separate focusable window that would otherwise
-    // consume the back press and dismiss itself, so instead of acting on it we
-    // forward it to the host activity. That runs whatever the consumer wired up
-    // (JS `BackHandler`, React Navigation, …), just as a back press would for an
-    // inline modal.
+    // A visible scrim means the sheet is presented modally, where a scrim tap dismisses it, so a
+    // hardware back should do the same. Unlike the inline (portal-based) modal — which lives in the
+    // host window, so the consumer's back handling can close it — this dialog is a separate,
+    // focusable window that consumes the back press itself; forwarding it to the host activity only
+    // runs React Navigation / JS `BackHandler`, which pops the screen instead of closing the sheet.
+    // So we dismiss the sheet here (host.requestCloseFromBack() mirrors scrim-tap dismissal and
+    // emits onIndexChange to keep a controlled `index` in sync). When there is nothing to dismiss we
+    // stay unopinionated and forward the back press to the host activity, just like an inline modal.
     dialog.onBackPressedDispatcher.addCallback(
       dialog,
       object : OnBackPressedCallback(true) {
         override fun handleOnBackPressed() {
+          if (host.requestCloseFromBack()) return
           (activity as? ComponentActivity)?.onBackPressedDispatcher?.onBackPressed()
         }
       },
