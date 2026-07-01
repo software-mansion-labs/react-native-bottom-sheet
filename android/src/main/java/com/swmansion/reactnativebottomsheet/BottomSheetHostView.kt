@@ -1205,6 +1205,21 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
 
   private fun isScrimVisible(): Boolean = modal && scrimProgress > 0.001f
 
+  /**
+   * Dismiss the sheet in response to a hardware back press, mirroring scrim-tap dismissal: snap to
+   * the closed detent (emitting `onIndexChange` so a controlled `index` stays in sync) when the
+   * scrim is visible and a non-programmatic close detent exists. Returns `true` when the back press
+   * was consumed, `false` otherwise so the caller can fall back to default back handling.
+   */
+  fun requestCloseFromBack(): Boolean {
+    val closeIndex = scrimDismissIndex
+    if (isScrimVisible() && closeIndex != null) {
+      snapToIndex(closeIndex, 0f)
+      return true
+    }
+    return false
+  }
+
   private fun drawScrim(canvas: Canvas) {
     if (!modal || scrimProgress <= 0.001f) {
       return
