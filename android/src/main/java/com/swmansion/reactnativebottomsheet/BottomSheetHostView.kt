@@ -110,6 +110,31 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   private val contentHeightMarkerLayoutListener =
     View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> refreshDetentsFromLayout() }
 
+  // The sheet children (surface + content wrapper) are laid out by layoutSheetChildren, which
+  // only runs from this host's own onLayout. This host and its container are plain (non-Fabric)
+  // views, so a child that is mounted *after* the host's layout pass — common with data-loaded or
+  // otherwise deferred content — is never sized: it is added at 0×0 and no layout pass re-runs to
+  // fill it. It then draws via overflow (so it looks correct) but has 0×0 native bounds, and
+  // Android hit-testing cannot descend into a zero-bounds view, so scroll and press are dead below
+  // it. Re-assert fillable bounds on any collapsed child before drawing; the container size is
+  // cached from layoutSheetContainer. Only fires while a child is collapsed, so it is a no-op once
+  // the child is filled and for sheets that never hit the timing.
+  private var lastContainerWidth = 0
+  private var lastContainerHeight = 0
+
+  private val fillCollapsedSheetChildrenPreDrawListener =
+    ViewTreeObserver.OnPreDrawListener {
+      if (lastContainerWidth > 0 && lastContainerHeight > 0) {
+        for (i in 0 until sheetContainer.childCount) {
+          val child = sheetContainer.getChildAt(i)
+          if (child.width == 0 || child.height == 0) {
+            child.layout(0, 0, lastContainerWidth, lastContainerHeight)
+          }
+        }
+      }
+      true
+    }
+
   init {
     clipChildren = false
     clipToPadding = false
@@ -169,6 +194,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
 
   override fun onAttachedToWindow() {
     super.onAttachedToWindow()
+    viewTreeObserver.addOnPreDrawListener(fillCollapsedSheetChildrenPreDrawListener)
     // A re-attach gives us a fresh, live ViewTreeObserver; the previous one was
     // dropped on detach. Resume observing if the initial snap is still pending.
     if (pendingInitialContentDetentSnap) {
@@ -177,6 +203,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   }
 
   override fun onDetachedFromWindow() {
+    viewTreeObserver.removeOnPreDrawListener(fillCollapsedSheetChildrenPreDrawListener)
     // Release the listener from the soon-to-be-replaced observer and clear our
     // references so a later re-attach registers on the new live observer.
     removePendingInitialContentDetentObserver()
@@ -252,6 +279,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   private fun layoutSheetContainer(viewWidth: Int, viewHeight: Int) {
     val maxHeight = resolvedMaxDetentHeight(viewHeight)
     val containerTop = (viewHeight - maxHeight).toInt()
+    lastContainerWidth = viewWidth
+    lastContainerHeight = maxHeight.toInt()
     sheetContainer.layout(0, containerTop, viewWidth, containerTop + maxHeight.toInt())
     layoutSheetChildren(viewWidth, maxHeight.toInt())
   }
