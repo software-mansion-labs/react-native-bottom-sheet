@@ -686,6 +686,36 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   }
 
   private var lastShadowOffsetY = Float.NaN
+  private var lastOverlayFrameWidth = 0
+  private var lastOverlayFrameHeight = 0
+
+  /**
+   * Reports the native-overlay dialog's real measured size into the shadow tree's state. The
+   * component descriptor forces the shadow node's size from it in overlay mode — exactly as <Modal>
+   * does — so Yoga lays the sheet subtree out against the dialog's true edge-to-edge bounds instead
+   * of JS-estimated window dimensions, which under edge-to-edge exclude the system bars
+   * (issue #48). Called from the overlay dialog root's onSizeChanged.
+   */
+  fun updateOverlayFrameState(widthPx: Int, heightPx: Int) {
+    if (widthPx <= 0 || heightPx <= 0) return
+    if (widthPx == lastOverlayFrameWidth && heightPx == lastOverlayFrameHeight) return
+    val sw = stateWrapper ?: return
+    lastOverlayFrameWidth = widthPx
+    lastOverlayFrameHeight = heightPx
+    val map = Arguments.createMap()
+    map.putDouble("frameWidth", (widthPx / density).toDouble())
+    map.putDouble("frameHeight", (heightPx / density).toDouble())
+    sw.updateState(map)
+  }
+
+  /**
+   * Forgets the last reported overlay frame so the next dialog (or a re-presented one) pushes its
+   * size again even if it happens to match.
+   */
+  fun resetOverlayFrameState() {
+    lastOverlayFrameWidth = 0
+    lastOverlayFrameHeight = 0
+  }
 
   private fun updateShadowState(translationY: Float) {
     val maxDetentHeight = resolvedMaxDetentHeight()
@@ -1119,6 +1149,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
     velocityTracker = null
     removeCallbacks(sheetChildrenLayoutPass)
     sheetChildrenLayoutEnqueued = false
+    resetOverlayFrameState()
     clearPendingInitialContentDetentSnap()
     contentHeightMarker?.removeOnLayoutChangeListener(contentHeightMarkerLayoutListener)
     contentHeightMarker = null

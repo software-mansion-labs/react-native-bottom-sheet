@@ -177,10 +177,13 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     (host.parent as? ViewGroup)?.removeView(host)
 
     val dialog = ComponentDialog(activity, android.R.style.Theme_Translucent_NoTitleBar)
+    // A fresh dialog must report its measured size even if it matches the last one.
+    host.resetOverlayFrameState()
     val root =
       BottomSheetDialogRootView(reactContext).apply {
         id = this@BottomSheetView.id
         eventDispatcher = this@BottomSheetView.eventDispatcher ?: currentEventDispatcher()
+        onSizeChangedListener = { w, h -> host.updateOverlayFrameState(w, h) }
         addView(
           host,
           ViewGroup.LayoutParams(
@@ -377,12 +380,24 @@ private class BottomSheetDialogRootView(context: ThemedReactContext) :
 
   var eventDispatcher: EventDispatcher? = null
 
+  /**
+   * Notified with the root's new size whenever the dialog window (re)measures it. The coordinator
+   * forwards this to the host's shadow-state so the sheet subtree is laid out against the dialog's
+   * real bounds.
+   */
+  var onSizeChangedListener: ((Int, Int) -> Unit)? = null
+
   private val jSTouchDispatcher = JSTouchDispatcher(this)
   @Suppress("DEPRECATION")
   private val jSPointerDispatcher: JSPointerDispatcher? =
     if (ReactFeatureFlags.dispatchPointerEvents) JSPointerDispatcher(this) else null
   private val reactContext: ThemedReactContext
     get() = context as ThemedReactContext
+
+  override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+    super.onSizeChanged(w, h, oldw, oldh)
+    onSizeChangedListener?.invoke(w, h)
+  }
 
   override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
     super.onMeasure(widthMeasureSpec, heightMeasureSpec)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ShadowNodes.h"
+#include <react/renderer/components/view/YogaLayoutableShadowNode.h>
 #include <react/renderer/core/ConcreteComponentDescriptor.h>
 
 namespace facebook::react {
@@ -27,6 +28,29 @@ class BottomSheetViewComponentDescriptor final
     const auto& props =
         static_cast<const BottomSheetViewProps&>(*node.getProps());
     node.setIsOverlayRoot(props.nativeOverlay);
+
+    // In native-overlay mode the sheet's real container is the full-screen
+    // dialog window, not the in-tree slot. Android reports the dialog's
+    // measured size through the state (BottomSheetHostView's
+    // updateOverlayFrameState); force the node's size from it — exactly as
+    // <Modal> does — so Yoga lays the subtree out against the dialog's true
+    // edge-to-edge bounds rather than JS-estimated window dimensions, which
+    // under edge-to-edge exclude the system bars. The size stays zero until
+    // the first native report (and always on iOS, where the sheet is sized by
+    // UIKit), leaving the JS-provided dimensions in effect.
+    if (props.nativeOverlay) {
+      const auto& stateData =
+          static_cast<const BottomSheetViewShadowNode::ConcreteState&>(
+              *shadowNode.getState())
+              .getData();
+      if (stateData.frameSize.width != 0 && stateData.frameSize.height != 0) {
+        auto& layoutableShadowNode =
+            static_cast<YogaLayoutableShadowNode&>(shadowNode);
+        layoutableShadowNode.setSize(stateData.frameSize);
+        layoutableShadowNode.setPositionType(YGPositionTypeAbsolute);
+      }
+    }
+
     ConcreteComponentDescriptor::adopt(shadowNode);
   }
 };

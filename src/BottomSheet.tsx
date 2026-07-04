@@ -1,6 +1,6 @@
 import { useState, type ComponentType, type ReactNode } from 'react';
 import type { NativeSyntheticEvent, StyleProp, ViewStyle } from 'react-native';
-import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import {
   useSafeAreaFrame,
   useSafeAreaInsets,
@@ -170,7 +170,19 @@ export const BottomSheet = (props: BottomSheetProps) => {
   const { height: safeAreaFrameHeight } = useSafeAreaFrame();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const hostHeight = usesNativeOverlay ? windowHeight : safeAreaFrameHeight;
+  // On Android the native-overlay dialog is a full-screen edge-to-edge window,
+  // so its height matches the safe-area frame. useWindowDimensions reports the
+  // layout window, which under edge-to-edge (the Expo / RN default) excludes
+  // the system bars — sizing the overlay from it leaves full-height sheets
+  // short by (top + bottom) insets (issue #48). The native side additionally
+  // reports the dialog's real measured size into the shadow tree (see
+  // BottomSheetHostView.updateOverlayFrameState), so this value only feeds the
+  // detent caps and the content wrapper's bounds. iOS keeps useWindowDimensions
+  // (frame == window there).
+  const hostHeight =
+    usesNativeOverlay && Platform.OS !== 'android'
+      ? windowHeight
+      : safeAreaFrameHeight;
   const maxHeight = extendUnderStatusBar ? hostHeight : hostHeight - insets.top;
   const nativeDetents = detents.map((detent) => {
     const programmatic = isDetentProgrammatic(detent);

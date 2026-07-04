@@ -33,9 +33,11 @@ void updateBottomSheetContentOffsetY(
       std::static_pointer_cast<const BottomSheetViewShadowNode::ConcreteState>(
           state);
   concreteState->updateState(
-      [contentOffsetY](const BottomSheetViewState& /*oldState*/)
+      [contentOffsetY](const BottomSheetViewState& oldState)
           -> BottomSheetViewShadowNode::ConcreteState::SharedData {
-        auto newState = std::make_shared<BottomSheetViewState>();
+        // Copy the previous state so unrelated fields (e.g. frameSize) survive
+        // this partial update.
+        auto newState = std::make_shared<BottomSheetViewState>(oldState);
         const_cast<BottomSheetViewState&>(*newState).contentOffsetY =
             contentOffsetY;
         return newState;
