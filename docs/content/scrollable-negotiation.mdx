@@ -1,0 +1,23 @@
+---
+title: Scrollable negotiation
+---
+
+# Scrollable negotiation
+
+By default, the sheet coordinates vertical gestures with nested scrollables,
+such as `ScrollView` and&nbsp;`FlatList`.
+
+If you want gestures that start inside a nested scrollable to stay with that
+scrollable even when it cannot scroll any further,
+set&nbsp;`disableScrollableNegotiation`:
+
+```tsx
+<BottomSheet
+  index={index}
+  onIndexChange={setIndex}
+  surface={/* ... */}
+  disableScrollableNegotiation
+>
+  {/* ... */}
+</BottomSheet>
+```

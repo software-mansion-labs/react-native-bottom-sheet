@@ -1,0 +1,73 @@
+name: Publish docs
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        (
+          !github.event.release.prerelease &&
+          !contains(github.event.release.tag_name, 'next') &&
+          !contains(github.event.release.name, 'next')
+        )
+      }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version-file: .bun-version
+
+      - name: Set up Pages
+        uses: actions/configure-pages@v6
+
+      - name: Install dependencies
+        working-directory: docs
+        run: bun install --frozen-lockfile
+
+      - name: Decrypt fonts
+        working-directory: docs
+        env:
+          AEONIK_PASSPHRASE: ${{ secrets.AEONIK_PASSPHRASE }}
+        run: |
+          test -n "$AEONIK_PASSPHRASE"
+          bun run fonts:decrypt
+
+      - name: Build docs
+        working-directory: docs
+        env:
+          DOCUSAURUS_BASE_URL: /react-native-bottom-sheet/
+        run: bun run build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: docs/build
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: docs
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

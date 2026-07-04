@@ -1,0 +1,33 @@
+---
+title: Surface
+---
+
+# Surface
+
+Provide the sheet’s background through the `surface` prop. The library renders
+it behind your content and sizes it natively to cover the whole sheet,
+independently of the content&nbsp;height.
+
+Decoupling the surface this way keeps the sheet covered as the content height
+changes. When content shrinks, the sheet animates to its new height without the
+background briefly exposing blank space behind the&nbsp;content.
+
+If your sheet content animates its own height, pass
+`animateContentHeight={false}` to update the sheet position immediately when the
+active `'content'` detent changes&nbsp;height.
+
+Give the surface a filling style such as `StyleSheet.absoluteFill`. It is
+mounted in a full&zwj;-&zwj;size host, so a surface sized only by its own
+content would collapse and not&nbsp;show.
+
+```tsx
+<BottomSheet // Or `ModalBottomSheet`.
+  index={index}
+  onIndexChange={setIndex}
+  surface={
+    <View style={[StyleSheet.absoluteFill, { backgroundColor: 'white' }]} />
+  }
+>
+  <Text>Sheet content</Text>
+</BottomSheet>
+```
