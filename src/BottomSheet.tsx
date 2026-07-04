@@ -5,7 +5,6 @@ import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import BottomSheetNativeView, {
   type NativeProps,
 } from './BottomSheetNativeComponent';
-import BottomSheetContentWrapperNativeComponent from './BottomSheetContentWrapperNativeComponent';
 import BottomSheetSurfaceNativeComponent from './BottomSheetSurfaceNativeComponent';
 import { Portal } from './BottomSheetProvider';
 import { type Detent } from './bottomSheetUtils';
@@ -276,19 +275,19 @@ export const BottomSheet = (props: BottomSheetProps) => {
               {surface}
             </BottomSheetSurfaceNativeComponent>
           )}
-          <BottomSheetContentWrapperNativeComponent
-            // The wrapper's real geometry comes from the shadow tree in every
-            // mode: native pushes the sheet's measured width and the natively
-            // computed detent cap into the wrapper's state, and its component
-            // descriptor forces the Yoga size from it — so the content lays
-            // out against measured window geometry on every device. flex: 1
-            // only fills the host for the first frame, before that state
-            // arrives.
+          <View
+            collapsable={false}
+            // The wrapper fills the sheet's content region exactly: the native
+            // side reports the region's top inset (the gap between the sheet
+            // top and the detent cap) into the shadow tree, where it is
+            // applied as Yoga top padding on the sheet node — so this in-flow
+            // flex: 1 child resolves to the region the sheet can actually
+            // show, on every device and in every mode.
             style={styles.contentWrapper}
           >
             {children}
             <View collapsable={false} pointerEvents="none" />
-          </BottomSheetContentWrapperNativeComponent>
+          </View>
         </NativeView>
       </View>
     </View>

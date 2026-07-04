@@ -44,34 +44,22 @@ void updateBottomSheetContentOffsetY(
       });
 }
 
-void updateBottomSheetFrameSize(const State::Shared& state, Size frameSize) {
+void updateBottomSheetGeometry(
+    const State::Shared& state,
+    Size frameSize,
+    Float contentRegionInsetTop) {
   auto concreteState =
       std::static_pointer_cast<const BottomSheetViewShadowNode::ConcreteState>(
           state);
   concreteState->updateState(
-      [frameSize](const BottomSheetViewState& oldState)
+      [frameSize, contentRegionInsetTop](const BottomSheetViewState& oldState)
           -> BottomSheetViewShadowNode::ConcreteState::SharedData {
         auto newState = std::make_shared<BottomSheetViewState>(oldState);
-        const_cast<BottomSheetViewState&>(*newState).frameSize = frameSize;
+        auto& mutableState = const_cast<BottomSheetViewState&>(*newState);
+        mutableState.frameSize = frameSize;
+        mutableState.contentRegionInsetTop = contentRegionInsetTop;
         return newState;
       });
-}
-
-void updateBottomSheetContentWrapperFrameSize(
-    const State::Shared& state,
-    Size frameSize) {
-  auto concreteState = std::static_pointer_cast<
-      const BottomSheetContentWrapperViewShadowNode::ConcreteState>(state);
-  concreteState->updateState(
-      [frameSize](const BottomSheetContentWrapperViewState& /*oldState*/)
-          -> BottomSheetContentWrapperViewShadowNode::ConcreteState::
-              SharedData {
-                auto newState =
-                    std::make_shared<BottomSheetContentWrapperViewState>();
-                const_cast<BottomSheetContentWrapperViewState&>(*newState)
-                    .frameSize = frameSize;
-                return newState;
-              });
 }
 
 } // namespace facebook::react

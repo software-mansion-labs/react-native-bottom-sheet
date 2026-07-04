@@ -1,6 +1,5 @@
 #import "BottomSheetComponentView.h"
 #import "BottomSheetContentView.h"
-#import "BottomSheetContentWrapperComponentView.h"
 #import "BottomSheetSurfaceComponentView.h"
 #import "../common/cpp/react/renderer/components/ReactNativeBottomSheetSpec/BottomSheetStateHelper.h"
 #import "../common/cpp/react/renderer/components/ReactNativeBottomSheetSpec/ComponentDescriptors.h"
@@ -61,8 +60,8 @@ using namespace facebook::react;
   BOOL _extendUnderStatusBar;
   BottomSheetOverlayContainerView *_overlayContainer;
   RCTSurfaceTouchHandler *_overlayTouchHandler;
-  __weak BottomSheetContentWrapperComponentView *_contentWrapper;
-  CGSize _lastOverlayFrameSize;
+  CGSize _lastGeometryFrameSize;
+  CGFloat _lastGeometryInsetTop;
 }
 
 + (ComponentDescriptorProvider)componentDescriptorProvider
@@ -252,13 +251,15 @@ using namespace facebook::react;
 }
 
 /// Pushes the current natively measured geometry into the shadow tree: the
-/// content wrapper's target size (full width × the native detent cap) in every
-/// mode, and — in overlay mode — the sheet node's frame size. Yoga then lays
-/// the sheet subtree out against measured window geometry instead of
-/// JS-provided dimensions. Driven by the hosting view's didLayout delegate.
+/// sheet's frame size (consumed by the component descriptor only in overlay
+/// mode, where the sheet is hoisted out of its in-tree slot) and the content
+/// region's top inset (applied as Yoga top padding in every mode, so in-flow
+/// content lays out exactly within the detent cap). Yoga then lays the sheet
+/// subtree out against measured window geometry instead of JS-provided
+/// dimensions. Driven by the hosting view's didLayout delegate.
 - (void)pushNativeGeometry
 {
-  if (_sheetView.window == nil) {
+  if (_sheetView.window == nil || !_sheetState) {
     return;
   }
   CGSize size = _sheetView.bounds.size;
@@ -266,16 +267,16 @@ using namespace facebook::react;
     return;
   }
 
-  [_contentWrapper updateFrameSize:_sheetView.contentWrapperTargetSize];
-
-  // The sheet node's own size is state-forced only in overlay mode (the
-  // descriptor gates on the nativeOverlay prop), where the sheet is hoisted
-  // out of its in-tree slot; inline it stays Fabric-owned.
-  if (_nativeOverlay && _sheetState && !CGSizeEqualToSize(size, _lastOverlayFrameSize)) {
-    _lastOverlayFrameSize = size;
-    updateBottomSheetFrameSize(
-        _sheetState, {static_cast<Float>(size.width), static_cast<Float>(size.height)});
+  CGFloat insetTop = _sheetView.contentRegionInsetTop;
+  if (CGSizeEqualToSize(size, _lastGeometryFrameSize) && insetTop == _lastGeometryInsetTop) {
+    return;
   }
+  _lastGeometryFrameSize = size;
+  _lastGeometryInsetTop = insetTop;
+  updateBottomSheetGeometry(
+      _sheetState,
+      {static_cast<Float>(size.width), static_cast<Float>(size.height)},
+      static_cast<Float>(insetTop));
 }
 
 /// Moves the sheet back under this component view and detaches the overlay
@@ -287,7 +288,6 @@ using namespace facebook::react;
     [self detachOverlayTouchHandler];
     [_overlayContainer removeFromSuperview];
   }
-  _lastOverlayFrameSize = CGSizeZero;
   self.contentView = nil;
   self.contentView = _sheetView;
   _overlayContainer = nil;
@@ -300,12 +300,6 @@ using namespace facebook::react;
   if ([childComponentView isKindOfClass:BottomSheetSurfaceComponentView.class]) {
     [_sheetView mountSurfaceComponentView:childComponentView atIndex:index];
   } else {
-    if ([childComponentView isKindOfClass:BottomSheetContentWrapperComponentView.class]) {
-      _contentWrapper = (BottomSheetContentWrapperComponentView *)childComponentView;
-      // A wrapper mounted after the sheet was measured (deferred content) must
-      // still receive its state-driven size.
-      [self pushNativeGeometry];
-    }
     [_sheetView mountChildComponentView:childComponentView atIndex:index];
   }
 }
@@ -315,9 +309,6 @@ using namespace facebook::react;
   if ([childComponentView isKindOfClass:BottomSheetSurfaceComponentView.class]) {
     [_sheetView unmountSurfaceComponentView:childComponentView];
   } else {
-    if (childComponentView == _contentWrapper) {
-      _contentWrapper = nil;
-    }
     [_sheetView unmountChildComponentView:childComponentView];
   }
 }
@@ -388,12 +379,12 @@ using namespace facebook::react;
   _nativeOverlay = NO;
   _extendUnderStatusBar = NO;
   [self restoreInlinePresentation];
-  _contentWrapper = nil;
   _needsIndexSyncAfterRecycle = YES;
   [_sheetView resetSheetState];
   _sheetState.reset();
   _lastContentOffsetY = 0;
-  _lastOverlayFrameSize = CGSizeZero;
+  _lastGeometryFrameSize = CGSizeZero;
+  _lastGeometryInsetTop = -1;
 }
 
 @end

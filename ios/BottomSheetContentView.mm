@@ -80,9 +80,9 @@
   _impl.extendUnderStatusBar = extendUnderStatusBar;
 }
 
-- (CGSize)contentWrapperTargetSize
+- (CGFloat)contentRegionInsetTop
 {
-  return _impl.contentWrapperTargetSize;
+  return _impl.contentRegionInsetTop;
 }
 
 - (void)setDetentIndex:(NSInteger)newIndex

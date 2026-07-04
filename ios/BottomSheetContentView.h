@@ -31,9 +31,9 @@ NS_ASSUME_NONNULL_BEGIN
 // Whether full-height detents may extend under the status bar; feeds the
 // natively computed detent cap.
 - (void)setExtendUnderStatusBar:(BOOL)extendUnderStatusBar;
-// Target size for the content wrapper's shadow state: full width by the native
-// detent cap.
-- (CGSize)contentWrapperTargetSize;
+// The natively measured top inset of the content region: the gap between the
+// sheet's top and the detent cap.
+- (CGFloat)contentRegionInsetTop;
 - (void)setDetentIndex:(NSInteger)newIndex;
 - (void)setScrimColor:(UIColor *_Nullable)color;
 - (void)setScrimOpacities:(NSArray<NSNumber *> *)opacities;

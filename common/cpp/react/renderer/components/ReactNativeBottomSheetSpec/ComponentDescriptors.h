@@ -29,6 +29,20 @@ class BottomSheetViewComponentDescriptor final
         static_cast<const BottomSheetViewProps&>(*node.getProps());
     node.setIsOverlayRoot(props.nativeOverlay);
 
+    const auto& stateData =
+        static_cast<const BottomSheetViewShadowNode::ConcreteState&>(
+            *shadowNode.getState())
+            .getData();
+    auto& layoutableShadowNode =
+        static_cast<YogaLayoutableShadowNode&>(shadowNode);
+
+    // The natively measured top inset of the content region — the gap between
+    // the sheet's top and the detent cap — applied as Yoga top padding in
+    // every mode. In-flow content (the flex: 1 wrapper) then lays out exactly
+    // within the region the sheet can actually show; absolutely positioned
+    // children (the surface) ignore padding and keep filling the node.
+    layoutableShadowNode.setPadding({0, stateData.contentRegionInsetTop, 0, 0});
+
     // In native-overlay mode the sheet's real container is the full-screen
     // overlay window, not the in-tree slot. Both platforms report the sheet's
     // measured size through the state; force the node's size from it — exactly
@@ -38,17 +52,10 @@ class BottomSheetViewComponentDescriptor final
     // until the first native report, leaving the JS-provided first-frame
     // estimate in effect; inline sheets are Fabric-owned (this branch is
     // gated on the prop).
-    if (props.nativeOverlay) {
-      const auto& stateData =
-          static_cast<const BottomSheetViewShadowNode::ConcreteState&>(
-              *shadowNode.getState())
-              .getData();
-      if (stateData.frameSize.width != 0 && stateData.frameSize.height != 0) {
-        auto& layoutableShadowNode =
-            static_cast<YogaLayoutableShadowNode&>(shadowNode);
-        layoutableShadowNode.setSize(stateData.frameSize);
-        layoutableShadowNode.setPositionType(YGPositionTypeAbsolute);
-      }
+    if (props.nativeOverlay &&
+        stateData.frameSize.width != 0 && stateData.frameSize.height != 0) {
+      layoutableShadowNode.setSize(stateData.frameSize);
+      layoutableShadowNode.setPositionType(YGPositionTypeAbsolute);
     }
 
     ConcreteComponentDescriptor::adopt(shadowNode);
@@ -58,41 +65,5 @@ class BottomSheetViewComponentDescriptor final
 // The surface needs no custom initial state, so this mirrors the codegen alias.
 using BottomSheetSurfaceViewComponentDescriptor =
     ConcreteComponentDescriptor<BottomSheetSurfaceViewShadowNode>;
-
-class BottomSheetContentWrapperViewComponentDescriptor final
-    : public ConcreteComponentDescriptor<BottomSheetContentWrapperViewShadowNode> {
- public:
-  using ConcreteComponentDescriptor::ConcreteComponentDescriptor;
-
-  State::Shared createInitialState(
-      const Props::Shared& /*props*/,
-      const ShadowNodeFamily::Shared& family) const override {
-    return std::make_shared<
-        BottomSheetContentWrapperViewShadowNode::ConcreteState>(
-        std::make_shared<const BottomSheetContentWrapperViewState>(),
-        family);
-  }
-
-  // The native side pushes the wrapper's target size (sheet width × natively
-  // computed detent cap) through the state in every mode; force the node's
-  // Yoga size from it so the content subtree lays out against measured window
-  // geometry. Zero state — before the sheet's first native measure — leaves
-  // the JS-provided styles in effect.
-  void adopt(ShadowNode& shadowNode) const override {
-    const auto& stateData =
-        static_cast<
-            const BottomSheetContentWrapperViewShadowNode::ConcreteState&>(
-            *shadowNode.getState())
-            .getData();
-    if (stateData.frameSize.width != 0 && stateData.frameSize.height != 0) {
-      auto& layoutableShadowNode =
-          static_cast<YogaLayoutableShadowNode&>(shadowNode);
-      layoutableShadowNode.setSize(stateData.frameSize);
-      layoutableShadowNode.setPositionType(YGPositionTypeAbsolute);
-    }
-
-    ConcreteComponentDescriptor::adopt(shadowNode);
-  }
-};
 
 } // namespace facebook::react

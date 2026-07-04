@@ -46,7 +46,19 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   // MARK: - Listener
 
   var listener: BottomSheetViewListener? = null
+
+  // The state wrapper can arrive after geometry has already been derived
+  // (mount ordering is not guaranteed), so flush the current snapshot and
+  // re-derive on assignment; pushes dedup, so this is cheap when nothing was
+  // pending.
   var stateWrapper: StateWrapper? = null
+    set(value) {
+      field = value
+      if (value != null) {
+        pushStateSnapshot()
+        recomputeNativeGeometry()
+      }
+    }
 
   /**
    * Notified whenever the sheet's interactivity changes (true while it is animating, being dragged,
@@ -136,11 +148,6 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   fun addSheetChild(child: View, index: Int) {
     sheetContainer.addView(child, index)
     refreshContentHeightMarker()
-    // A wrapper mounted after the overlay was measured (deferred content)
-    // must still receive its state-driven size.
-    if (child is BottomSheetContentWrapperView) {
-      pushContentWrapperFrameState()
-    }
   }
 
   fun removeSheetChildAt(index: Int) {
@@ -304,9 +311,17 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
     }
   }
 
+  // The cap value the container geometry and translations are currently
+  // anchored to. The native cap can change after a layout (insets arriving,
+  // rotation), and translations computed against the old value must then be
+  // re-anchored even when the resolved detent specs are unchanged — the
+  // specs store heights, but translationY derives from the cap.
+  private var lastAppliedMaxDetentHeight = Float.NaN
+
   private fun layoutSheetContainer(viewWidth: Int, viewHeight: Int) {
     val maxHeight = resolvedMaxDetentHeight(viewHeight)
     val containerTop = (viewHeight - maxHeight).toInt()
+    lastAppliedMaxDetentHeight = maxHeight
     sheetContainer.layout(0, containerTop, viewWidth, containerTop + maxHeight.toInt())
     layoutSheetChildren(viewWidth, maxHeight.toInt())
   }
@@ -421,7 +436,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
     }
 
     val resolvedDetents = resolveDetentSpecs()
-    if (resolvedDetents == detentSpecs) {
+    if (resolvedDetents == detentSpecs && resolvedMaxDetentHeight() == lastAppliedMaxDetentHeight) {
       if (trySnapPendingInitialContentDetent()) {
         return
       }
@@ -429,7 +444,12 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
       return
     }
 
-    val previousMaxHeight = resolvedMaxDetentHeight()
+    // The re-anchor math below preserves the on-screen sheet height across the
+    // geometry change, so it must relate the current translation to the cap it
+    // was computed against — not the freshly resolved one.
+    val previousMaxHeight =
+      if (lastAppliedMaxDetentHeight.isFinite()) lastAppliedMaxDetentHeight
+      else resolvedMaxDetentHeight()
     // Whether the scrim is currently fully opaque, i.e. the sheet is settled at
     // or above the first non-zero detent. If so, a detent resize must not dip
     // the scrim while the sheet re-anchors to the new geometry.
@@ -710,8 +730,9 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   }
 
   private var lastShadowOffsetY = Float.NaN
-  private var lastFrameStateWidth = 0
-  private var lastFrameStateHeight = 0
+  private var lastGeometryStateWidth = 0
+  private var lastGeometryStateHeight = 0
+  private var lastGeometryStateInsetTop = Float.NaN
   // The natively computed detent cap: this view's height minus the part of the
   // window's top (status bar / display cutout) inset that actually overlaps it.
   // Measured from real window geometry in every mode — inline, portal, and
@@ -729,15 +750,14 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   /**
    * Re-derives all natively measured geometry from this view's own size, window position, and the
    * window's top inset, then pushes it into the shadow tree: the sheet frame (consumed by the
-   * component descriptor only in overlay mode, exactly as <Modal> does) and the content wrapper's
-   * target size (full width × the detent cap, in every mode). Yoga thus lays the sheet subtree out
-   * against real window geometry instead of JS-provided dimensions (issue #48). In overlay mode
-   * this view fills the dialog, so its own metrics are the dialog's.
+   * component descriptor only in overlay mode, exactly as <Modal> does) and the content region's
+   * top inset (applied as Yoga top padding in every mode, so in-flow content lays out exactly
+   * within the detent cap). Yoga thus lays the sheet subtree out against real window geometry
+   * instead of JS-provided dimensions (issue #48). In overlay mode this view fills the dialog, so
+   * its own metrics are the dialog's.
    */
   private fun recomputeNativeGeometry() {
     if (width <= 0 || height <= 0 || !isAttachedToWindow) return
-
-    pushFrameState(width, height)
 
     val topInset =
       ViewCompat.getRootWindowInsets(this)
@@ -754,53 +774,60 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
 
     val capChanged = cap != nativeCapPx
     nativeCapPx = cap
-    // The wrapper push itself dedups, so this also covers a width-only change.
-    pushContentWrapperFrameState()
+    pushGeometryState(width, height, height - cap)
     if (capChanged) {
       refreshDetentsFromLayout()
       requestLayout()
     }
   }
 
-  private fun pushFrameState(widthPx: Int, heightPx: Int) {
-    if (widthPx == lastFrameStateWidth && heightPx == lastFrameStateHeight) return
-    val sw = stateWrapper ?: return
-    lastFrameStateWidth = widthPx
-    lastFrameStateHeight = heightPx
-    val map = Arguments.createMap()
-    map.putDouble("frameWidth", (widthPx / density).toDouble())
-    map.putDouble("frameHeight", (heightPx / density).toDouble())
-    sw.updateState(map)
-  }
-
-  private fun pushContentWrapperFrameState() {
-    if (nativeCapPx.isNaN() || width <= 0) return
-    findContentWrapper()?.updateFrameState(width, nativeCapPx)
-  }
-
-  private fun findContentWrapper(): BottomSheetContentWrapperView? {
-    for (i in 0 until sheetContainer.childCount) {
-      val child = sheetContainer.getChildAt(i)
-      if (child is BottomSheetContentWrapperView) return child
+  private fun pushGeometryState(widthPx: Int, heightPx: Int, insetTopPx: Float) {
+    if (
+      widthPx == lastGeometryStateWidth &&
+        heightPx == lastGeometryStateHeight &&
+        insetTopPx == lastGeometryStateInsetTop
+    ) {
+      return
     }
-    return null
+    lastGeometryStateWidth = widthPx
+    lastGeometryStateHeight = heightPx
+    lastGeometryStateInsetTop = insetTopPx
+    pushStateSnapshot()
+  }
+
+  /**
+   * Pushes the complete state — geometry and content offset together — in every update. Android's
+   * state-update path builds the new C++ state data from a base captured at call time and replaces
+   * it wholesale at commit time, so partial payloads from independent sources can wipe each other's
+   * keys when updates race within a commit window. Complete snapshots make the replacement harmless
+   * regardless of ordering.
+   */
+  private fun pushStateSnapshot() {
+    val sw = stateWrapper ?: return
+    val map = Arguments.createMap()
+    map.putDouble(
+      "contentOffsetY",
+      if (lastShadowOffsetY.isNaN()) 0.0 else lastShadowOffsetY.toDouble(),
+    )
+    map.putDouble("frameWidth", (lastGeometryStateWidth / density).toDouble())
+    map.putDouble("frameHeight", (lastGeometryStateHeight / density).toDouble())
+    map.putDouble(
+      "contentRegionInsetTop",
+      ((if (lastGeometryStateInsetTop.isNaN()) 0f else lastGeometryStateInsetTop) / density)
+        .toDouble(),
+    )
+    sw.updateState(map)
   }
 
   private fun updateShadowState(translationY: Float) {
-    val maxDetentHeight = resolvedMaxDetentHeight()
-    val containerTop = height.toFloat() - maxDetentHeight
-    // The content's in-host displacement. In native-overlay mode the content is
-    // re-rooted to a separate full-screen dialog window; the shadow node is marked
-    // as a layout root in that mode (see BottomSheetViewComponentDescriptor), so
-    // the outer-tree origin is dropped structurally and only this displacement
-    // remains to be applied as the content origin offset.
-    val offsetY = ((containerTop + translationY) / density).toDouble()
+    // The content's displacement from its Yoga position. The container's top
+    // offset (the content-region inset) is part of the Yoga layout — the sheet
+    // node carries it as state-driven top padding — so only the sheet's
+    // translation remains to be applied as the content origin offset.
+    val offsetY = (translationY / density).toDouble()
     if (offsetY.toFloat() == lastShadowOffsetY) return
     lastShadowOffsetY = offsetY.toFloat()
-    val sw = stateWrapper ?: return
-    val map = Arguments.createMap()
-    map.putDouble("contentOffsetY", offsetY)
-    sw.updateState(map)
+    pushStateSnapshot()
   }
 
   // MARK: - Spring animation
@@ -1219,8 +1246,10 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
     removeCallbacks(sheetChildrenLayoutPass)
     sheetChildrenLayoutEnqueued = false
     nativeCapPx = Float.NaN
-    lastFrameStateWidth = 0
-    lastFrameStateHeight = 0
+    lastAppliedMaxDetentHeight = Float.NaN
+    lastGeometryStateWidth = 0
+    lastGeometryStateHeight = 0
+    lastGeometryStateInsetTop = Float.NaN
     clearPendingInitialContentDetentSnap()
     contentHeightMarker?.removeOnLayoutChangeListener(contentHeightMarkerLayoutListener)
     contentHeightMarker = null

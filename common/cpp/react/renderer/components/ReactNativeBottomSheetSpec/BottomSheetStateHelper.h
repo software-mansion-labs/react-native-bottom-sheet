@@ -10,15 +10,12 @@ void updateBottomSheetContentOffsetY(
     const State::Shared& state,
     float contentOffsetY);
 
-// Pushes the overlay window's measured size into the sheet node's state
-// (consumed by BottomSheetViewComponentDescriptor::adopt in overlay mode).
-void updateBottomSheetFrameSize(const State::Shared& state, Size frameSize);
-
-// Pushes the content wrapper's target size (overlay width × detent cap) into
-// the wrapper node's state. Pass a zero size to clear, restoring JS-provided
-// styles.
-void updateBottomSheetContentWrapperFrameSize(
+// Pushes the sheet's measured geometry into its state: the frame size
+// (consumed by the component descriptor only in overlay mode) and the content
+// region's top inset (applied as Yoga top padding in every mode).
+void updateBottomSheetGeometry(
     const State::Shared& state,
-    Size frameSize);
+    Size frameSize,
+    Float contentRegionInsetTop);
 
 } // namespace facebook::react

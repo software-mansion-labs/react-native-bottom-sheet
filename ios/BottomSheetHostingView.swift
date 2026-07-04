@@ -61,6 +61,11 @@ public final class BottomSheetHostingView: UIView {
     scrimOpacities = mapped.isEmpty ? [1] : mapped
   }
 
+  /// The cap value the container geometry and translations are currently
+  /// anchored to; used to detect cap-only geometry changes and to re-anchor
+  /// against the value the current translation was computed with.
+  private var lastAppliedMaxDetentHeight: CGFloat = .nan
+
   /// Whether full-height detents may extend under the status bar. Feeds the
   /// natively computed detent cap; there is no JS-provided cap anymore.
   public var extendUnderStatusBar: Bool = false {
@@ -180,6 +185,7 @@ public final class BottomSheetHostingView: UIView {
     scrimView.frame = bounds
     refreshDetentsFromLayout()
     let maxHeight = sheetContainerHeight
+    lastAppliedMaxDetentHeight = maxHeight
     sheetContainer.bounds = CGRect(x: 0, y: 0, width: bounds.width, height: maxHeight)
     sheetContainer.center = CGPoint(x: bounds.width / 2, y: bounds.height - maxHeight / 2)
 
@@ -320,6 +326,7 @@ public final class BottomSheetHostingView: UIView {
   public func resetSheetState() {
     activeSpring = nil
     activeSpringEmitsSettle = false
+    lastAppliedMaxDetentHeight = .nan
     stopDisplayLink()
     sheetContainer.layer.removeAnimation(forKey: Self.springAnimationKey)
     rawDetentSpecs = []
@@ -433,10 +440,11 @@ public final class BottomSheetHostingView: UIView {
   }
 
   public var currentContentOffsetY: CGFloat {
-    let maxHeight = sheetContainerHeight
-    let containerTop = bounds.height - maxHeight
-    let ty = currentTranslationY
-    return containerTop + ty
+    // The content's displacement from its Yoga position. The container's top
+    // offset (the content-region inset) is part of the Yoga layout — the
+    // sheet node carries it as state-driven top padding — so only the sheet's
+    // translation remains to be applied as the content origin offset.
+    currentTranslationY
   }
 
   public var isModalAccessibilityActive: Bool {
@@ -894,10 +902,11 @@ public final class BottomSheetHostingView: UIView {
     return min(max(0, bounds.height - topOverlap), bounds.height)
   }
 
-  /// Target size for the content wrapper's shadow state: full width by the
-  /// native detent cap, i.e. the region content may lay out in.
-  public var contentWrapperTargetSize: CGSize {
-    CGSize(width: bounds.width, height: resolvedMaxDetentHeight)
+  /// The natively measured top inset of the content region: the gap between
+  /// the sheet's top and the detent cap. Reported into the shadow tree, where
+  /// it becomes Yoga top padding on the sheet node.
+  public var contentRegionInsetTop: CGFloat {
+    max(0, bounds.height - resolvedMaxDetentHeight)
   }
 
   /// Stable coordinate base for the sheet container. The container is sized to
@@ -967,12 +976,20 @@ public final class BottomSheetHostingView: UIView {
       updateScrim()
       return
     }
-    guard resolvedDetents != detentSpecs else {
+    // Also fall through when only the cap changed: the specs store heights,
+    // but translations derive from the cap, so they must be re-anchored even
+    // when the resolved detents are unchanged.
+    guard resolvedDetents != detentSpecs || sheetContainerHeight != lastAppliedMaxDetentHeight
+    else {
       updateScrim()
       return
     }
 
-    let previousMaxHeight = sheetContainerHeight
+    // The re-anchor math below preserves the on-screen sheet height across the
+    // geometry change, so it must relate the current translation to the cap it
+    // was computed against — not the freshly resolved one.
+    let previousMaxHeight =
+      lastAppliedMaxDetentHeight.isFinite ? lastAppliedMaxDetentHeight : sheetContainerHeight
     // Whether the scrim is currently fully opaque, i.e. the sheet is settled at
     // or above the first non-zero detent. If so, a detent resize must not dip
     // the scrim while the sheet re-anchors to the new geometry.

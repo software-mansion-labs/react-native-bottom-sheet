@@ -109,8 +109,7 @@
     "ios": {
       "componentProvider": {
         "BottomSheetView": "BottomSheetComponentView",
-        "BottomSheetSurfaceView": "BottomSheetSurfaceComponentView",
-        "BottomSheetContentWrapperView": "BottomSheetContentWrapperComponentView"
+        "BottomSheetSurfaceView": "BottomSheetSurfaceComponentView"
       }
     },
     "android": {
