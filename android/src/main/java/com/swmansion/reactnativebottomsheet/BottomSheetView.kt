@@ -13,14 +13,11 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.Window
-import android.view.WindowInsets
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.ComponentDialog
 import androidx.activity.OnBackPressedCallback
-import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
 import com.facebook.react.bridge.LifecycleEventListener
 import com.facebook.react.config.ReactFeatureFlags
 import com.facebook.react.uimanager.JSPointerDispatcher
@@ -142,8 +139,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
 
   fun setScrimOpacities(values: List<Float>) = host.setScrimOpacities(values)
 
-  fun setMaxDetentHeight(maxDetentHeight: Double) = host.setMaxDetentHeight(maxDetentHeight)
-
   fun setNativeOverlay(value: Boolean) {
     if (value == nativeOverlay) return
     nativeOverlay = value
@@ -186,15 +181,10 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     (host.parent as? ViewGroup)?.removeView(host)
 
     val dialog = ComponentDialog(activity, android.R.style.Theme_Translucent_NoTitleBar)
-    // A fresh dialog must report its measured geometry even if it matches the last one.
-    host.clearOverlayGeometry()
     val root =
       BottomSheetDialogRootView(reactContext).apply {
         id = this@BottomSheetView.id
         eventDispatcher = this@BottomSheetView.eventDispatcher ?: currentEventDispatcher()
-        onGeometryChangedListener = { w, h, topInset ->
-          host.onOverlayGeometryChanged(w, h, topInset)
-        }
         addView(
           host,
           ViewGroup.LayoutParams(
@@ -254,9 +244,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     overlayDialog = null
     overlayRoot = null
     overlayInteractive = null
-    // Back inline, geometry is JS/Fabric-owned again: drop the native cap and
-    // the wrapper's state-forced size.
-    host.clearOverlayGeometry()
     attachHostInline()
   }
 
@@ -394,46 +381,12 @@ private class BottomSheetDialogRootView(context: ThemedReactContext) :
 
   var eventDispatcher: EventDispatcher? = null
 
-  /**
-   * Notified with the root's new size and top (status bar / display cutout) inset whenever the
-   * dialog window (re)measures it or its insets change. The coordinator forwards this to the host,
-   * which pushes the geometry into the shadow tree and computes the native detent cap.
-   */
-  var onGeometryChangedListener: ((Int, Int, Int) -> Unit)? = null
-
   private val jSTouchDispatcher = JSTouchDispatcher(this)
   @Suppress("DEPRECATION")
   private val jSPointerDispatcher: JSPointerDispatcher? =
     if (ReactFeatureFlags.dispatchPointerEvents) JSPointerDispatcher(this) else null
   private val reactContext: ThemedReactContext
     get() = context as ThemedReactContext
-
-  override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-    super.onSizeChanged(w, h, oldw, oldh)
-    notifyGeometryChanged()
-  }
-
-  override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
-    // Insets can change without a resize (e.g. cutout mode); the cap depends on
-    // them, so re-report. Sizeless dispatches (before the first layout) are
-    // dropped by the guard and re-reported from onSizeChanged.
-    notifyGeometryChanged()
-    return super.onApplyWindowInsets(insets)
-  }
-
-  override fun onAttachedToWindow() {
-    super.onAttachedToWindow()
-    requestApplyInsets()
-  }
-
-  private fun notifyGeometryChanged() {
-    if (width <= 0 || height <= 0) return
-    val topInset =
-      ViewCompat.getRootWindowInsets(this)
-        ?.getInsets(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout())
-        ?.top ?: 0
-    onGeometryChangedListener?.invoke(width, height, topInset)
-  }
 
   override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
     super.onMeasure(widthMeasureSpec, heightMeasureSpec)

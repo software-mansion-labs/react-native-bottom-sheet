@@ -4,9 +4,9 @@
 NS_ASSUME_NONNULL_BEGIN
 
 // Wrapper around the sheet content. It carries no behavior of its own; the
-// bottom sheet host identifies it by this type and, in native-overlay mode,
-// owns its Yoga geometry by pushing the overlay's measured width and the
-// natively computed detent cap into its shadow state.
+// bottom sheet host identifies it by this type and owns its Yoga geometry in
+// every mode by pushing the sheet's measured width and the natively computed
+// detent cap into its shadow state.
 @interface BottomSheetContentWrapperComponentView : RCTViewComponentView
 
 // Pushes the wrapper's target size (points) into its shadow state; the

@@ -67,13 +67,7 @@ relative to the&nbsp;provider.
    npm i @swmansion/react-native-bottom-sheet
    ```
 
-2. Ensure the peer dependency is&nbsp;installed:
-
-   ```sh
-   npm i react-native-safe-area-context
-   ```
-
-3. Wrap your app with&nbsp;`BottomSheetProvider`:
+2. Wrap your app with&nbsp;`BottomSheetProvider`:
 
    ```tsx
    const App = () => <BottomSheetProvider>{/* ... */}</BottomSheetProvider>;
@@ -86,6 +80,9 @@ The library provides two components: `BottomSheet` (inline) and
 with a `surface` prop for the background behind it, and are controlled via
 `detents`, `index`, and&nbsp;`onIndexChange`. Use `onSettle` to observe when the
 sheet finishes&nbsp;moving.
+
+The examples below pad the sheet content with `react-native-safe-area-context` —
+an app-level choice; the library itself does not depend on&nbsp;it.
 
 ### Inline
 

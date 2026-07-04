@@ -20,29 +20,9 @@ using namespace facebook::react;
 /// and forwards hit-testing to its single subview—the sheet—so touches outside
 /// the sheet and its scrim fall through to the content underneath.
 @interface BottomSheetOverlayContainerView : UIView
-/// Invoked whenever the container's geometry inputs change (layout or safe-area
-/// insets), so the component view can re-report the overlay's measured bounds
-/// and detent cap into the shadow tree.
-@property (nonatomic, copy, nullable) void (^onGeometryChange)(void);
 @end
 
 @implementation BottomSheetOverlayContainerView
-
-- (void)layoutSubviews
-{
-  [super layoutSubviews];
-  if (self.onGeometryChange) {
-    self.onGeometryChange();
-  }
-}
-
-- (void)safeAreaInsetsDidChange
-{
-  [super safeAreaInsetsDidChange];
-  if (self.onGeometryChange) {
-    self.onGeometryChange();
-  }
-}
 
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event
 {
@@ -124,9 +104,6 @@ using namespace facebook::react;
     [_sheetView setDetents:detentsArray];
   }
 
-  if (newViewProps.maxDetentHeight != oldViewProps.maxDetentHeight) {
-    [_sheetView setMaxDetentHeight:newViewProps.maxDetentHeight];
-  }
 
   if (_needsIndexSyncAfterRecycle || newViewProps.index != oldViewProps.index) {
     [_sheetView setDetentIndex:newViewProps.index];
@@ -159,9 +136,9 @@ using namespace facebook::react;
 
   if (newViewProps.extendUnderStatusBar != _extendUnderStatusBar) {
     _extendUnderStatusBar = newViewProps.extendUnderStatusBar;
-    // The native detent cap depends on the flag; re-derive it if an overlay is
-    // currently presented.
-    [self pushOverlayGeometry];
+    // The hosting view recomputes its native detent cap and re-lays out, which
+    // fires the didLayout delegate that refreshes the pushed geometry.
+    [_sheetView setExtendUnderStatusBar:newViewProps.extendUnderStatusBar];
   }
 
   if (newViewProps.disableScrollableNegotiation != oldViewProps.disableScrollableNegotiation) {
@@ -216,10 +193,6 @@ using namespace facebook::react;
     if (_overlayContainer == nil) {
       _overlayContainer = [[BottomSheetOverlayContainerView alloc] initWithFrame:window.bounds];
       _overlayContainer.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-      __weak BottomSheetComponentView *weakSelf = self;
-      _overlayContainer.onGeometryChange = ^{
-        [weakSelf pushOverlayGeometry];
-      };
     }
     if (_overlayTouchHandler == nil) {
       // Touches inside the container sit outside the RN root view's touch
@@ -247,7 +220,7 @@ using namespace facebook::react;
       [window addSubview:_overlayContainer];
       [self attachOverlayTouchHandler];
     }
-    [self pushOverlayGeometry];
+    [self pushNativeGeometry];
     [self updateOverlayAccessibilityState];
   } else {
     if (_overlayContainer != nil) {
@@ -278,41 +251,31 @@ using namespace facebook::react;
   _overlayContainer.accessibilityViewIsModal = _nativeOverlay && _sheetView.isModalAccessibilityActive;
 }
 
-/// Reports the overlay's measured bounds and the natively computed detent cap
-/// into the shadow tree: the sheet node's state (frame size) and the content
-/// wrapper's state (width × cap), plus the hosting view's native cap override.
-/// Yoga then lays the sheet subtree out against measured window geometry
-/// instead of JS-estimated dimensions. No-op while no overlay is presented.
-- (void)pushOverlayGeometry
+/// Pushes the current natively measured geometry into the shadow tree: the
+/// content wrapper's target size (full width × the native detent cap) in every
+/// mode, and — in overlay mode — the sheet node's frame size. Yoga then lays
+/// the sheet subtree out against measured window geometry instead of
+/// JS-provided dimensions. Driven by the hosting view's didLayout delegate.
+- (void)pushNativeGeometry
 {
-  if (!_nativeOverlay || _overlayContainer == nil || _overlayContainer.window == nil) {
+  if (_sheetView.window == nil) {
     return;
   }
-  CGSize size = _overlayContainer.bounds.size;
+  CGSize size = _sheetView.bounds.size;
   if (size.width <= 0 || size.height <= 0) {
     return;
   }
 
-  CGFloat topInset = _overlayContainer.window.safeAreaInsets.top;
-  CGFloat cap = _extendUnderStatusBar ? size.height : MAX(0, size.height - topInset);
+  [_contentWrapper updateFrameSize:_sheetView.contentWrapperTargetSize];
 
-  if (_sheetState && !CGSizeEqualToSize(size, _lastOverlayFrameSize)) {
+  // The sheet node's own size is state-forced only in overlay mode (the
+  // descriptor gates on the nativeOverlay prop), where the sheet is hoisted
+  // out of its in-tree slot; inline it stays Fabric-owned.
+  if (_nativeOverlay && _sheetState && !CGSizeEqualToSize(size, _lastOverlayFrameSize)) {
     _lastOverlayFrameSize = size;
     updateBottomSheetFrameSize(
         _sheetState, {static_cast<Float>(size.width), static_cast<Float>(size.height)});
   }
-  [_contentWrapper updateFrameSize:CGSizeMake(size.width, cap)];
-  [_sheetView setOverlayMaxDetentHeight:cap];
-}
-
-/// Restores JS/Fabric-owned geometry: clears the wrapper's state-forced size
-/// and the hosting view's native cap override. Called when leaving overlay
-/// presentation.
-- (void)clearOverlayGeometry
-{
-  _lastOverlayFrameSize = CGSizeZero;
-  [_contentWrapper updateFrameSize:CGSizeZero];
-  [_sheetView setOverlayMaxDetentHeight:NAN];
 }
 
 /// Moves the sheet back under this component view and detaches the overlay
@@ -321,11 +284,10 @@ using namespace facebook::react;
 {
   if (_overlayContainer != nil) {
     _overlayContainer.accessibilityViewIsModal = NO;
-    _overlayContainer.onGeometryChange = nil;
     [self detachOverlayTouchHandler];
     [_overlayContainer removeFromSuperview];
   }
-  [self clearOverlayGeometry];
+  _lastOverlayFrameSize = CGSizeZero;
   self.contentView = nil;
   self.contentView = _sheetView;
   _overlayContainer = nil;
@@ -340,9 +302,9 @@ using namespace facebook::react;
   } else {
     if ([childComponentView isKindOfClass:BottomSheetContentWrapperComponentView.class]) {
       _contentWrapper = (BottomSheetContentWrapperComponentView *)childComponentView;
-      // A wrapper mounted after the overlay was measured (deferred content)
-      // must still receive its state-driven size.
-      [self pushOverlayGeometry];
+      // A wrapper mounted after the sheet was measured (deferred content) must
+      // still receive its state-driven size.
+      [self pushNativeGeometry];
     }
     [_sheetView mountChildComponentView:childComponentView atIndex:index];
   }
@@ -411,6 +373,11 @@ using namespace facebook::react;
 - (void)bottomSheetView:(BottomSheetContentView *)view didReportError:(NSString *)message
 {
   RCTFatal([NSError errorWithDomain:RCTErrorDomain code:0 userInfo:@{NSLocalizedDescriptionKey : message}]);
+}
+
+- (void)bottomSheetViewDidLayout:(BottomSheetContentView *)view
+{
+  [self pushNativeGeometry];
 }
 
 - (void)prepareForRecycle

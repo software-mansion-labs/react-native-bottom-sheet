@@ -75,14 +75,14 @@
   [_impl setDetents:raw];
 }
 
-- (void)setMaxDetentHeight:(CGFloat)maxDetentHeight
+- (void)setExtendUnderStatusBar:(BOOL)extendUnderStatusBar
 {
-  _impl.maxDetentHeight = maxDetentHeight;
+  _impl.extendUnderStatusBar = extendUnderStatusBar;
 }
 
-- (void)setOverlayMaxDetentHeight:(CGFloat)overlayMaxDetentHeight
+- (CGSize)contentWrapperTargetSize
 {
-  _impl.overlayMaxDetentHeight = overlayMaxDetentHeight;
+  return _impl.contentWrapperTargetSize;
 }
 
 - (void)setDetentIndex:(NSInteger)newIndex
@@ -155,6 +155,11 @@
 - (void)bottomSheetHostingView:(BottomSheetHostingView *)view didReportError:(NSString *)message
 {
   [self.delegate bottomSheetView:self didReportError:message];
+}
+
+- (void)bottomSheetHostingViewDidLayout:(BottomSheetHostingView *)view
+{
+  [self.delegate bottomSheetViewDidLayout:self];
 }
 
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event

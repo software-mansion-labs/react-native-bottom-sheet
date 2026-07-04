@@ -11,6 +11,10 @@ NS_ASSUME_NONNULL_BEGIN
       didChangePosition:(CGFloat)position
                   index:(CGFloat)index;
 - (void)bottomSheetView:(BottomSheetContentView *)view didReportError:(NSString *)message;
+// Fired after each layout pass with fresh native geometry, so the component
+// layer can push the content wrapper's target size (and, in overlay mode, the
+// sheet frame) into the shadow tree.
+- (void)bottomSheetViewDidLayout:(BottomSheetContentView *)view;
 @end
 
 @interface BottomSheetContentView : UIView
@@ -24,10 +28,12 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) BOOL isModalAccessibilityActive;
 
 - (void)setDetents:(NSArray<NSDictionary *> *)raw;
-- (void)setMaxDetentHeight:(CGFloat)maxDetentHeight;
-// Native detent cap computed from the overlay window's measured geometry; NAN
-// (the default) falls back to the JS-provided maxDetentHeight.
-- (void)setOverlayMaxDetentHeight:(CGFloat)overlayMaxDetentHeight;
+// Whether full-height detents may extend under the status bar; feeds the
+// natively computed detent cap.
+- (void)setExtendUnderStatusBar:(BOOL)extendUnderStatusBar;
+// Target size for the content wrapper's shadow state: full width by the native
+// detent cap.
+- (CGSize)contentWrapperTargetSize;
 - (void)setDetentIndex:(NSInteger)newIndex;
 - (void)setScrimColor:(UIColor *_Nullable)color;
 - (void)setScrimOpacities:(NSArray<NSNumber *> *)opacities;

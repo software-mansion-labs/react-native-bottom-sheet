@@ -1,10 +1,6 @@
 import { useState, type ComponentType, type ReactNode } from 'react';
 import type { NativeSyntheticEvent, StyleProp, ViewStyle } from 'react-native';
-import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
-import {
-  useSafeAreaFrame,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import BottomSheetNativeView, {
   type NativeProps,
@@ -168,22 +164,14 @@ export const BottomSheet = (props: BottomSheetProps) => {
     scrimOpacities,
   } = props as BottomSheetInternalProps;
   const usesNativeOverlay = modal && nativeOverlay;
-  const { height: safeAreaFrameHeight } = useSafeAreaFrame();
+  // All real geometry — the sheet's frame, the content wrapper's bounds, and
+  // the detent cap (host height minus the overlapping status-bar inset, unless
+  // extendUnderStatusBar) — is measured natively from the window the sheet
+  // actually lives in and flows into the shadow tree through state (see
+  // BottomSheetHostView / BottomSheetHostingView). The window dimensions here
+  // only size the native-overlay host for the first frame, before the overlay
+  // window reports its measured geometry.
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
-  // In native-overlay mode all real geometry — the sheet's frame, the content
-  // wrapper's bounds, and the detent cap — comes from the native side through
-  // the shadow tree, measured from the overlay's own window. The JS values
-  // here only provide the pre-state first-frame estimate. On Android the
-  // overlay is a full-screen edge-to-edge window, so the safe-area frame is
-  // the closer estimate: useWindowDimensions reports the layout window, which
-  // under edge-to-edge (the Expo / RN default) excludes the system bars
-  // (issue #48). iOS keeps useWindowDimensions (frame == window there).
-  const hostHeight =
-    usesNativeOverlay && Platform.OS !== 'android'
-      ? windowHeight
-      : safeAreaFrameHeight;
-  const maxHeight = extendUnderStatusBar ? hostHeight : hostHeight - insets.top;
   const nativeDetents = detents.map((detent) => {
     const programmatic = isDetentProgrammatic(detent);
     const value = resolveDetentValue(detent);
@@ -197,16 +185,10 @@ export const BottomSheet = (props: BottomSheetProps) => {
     }
 
     return {
-      // In native-overlay mode the detent cap is computed natively from the
-      // overlay's real bounds and insets (see the native cap in
-      // BottomSheetHostView / BottomSheetHostingView), and each detent is
-      // clamped to it there — pre-clamping against the JS-estimated maxHeight
-      // here would reintroduce the estimate as a ceiling. Inline sheets keep
-      // the JS clamp: their geometry lives in this window, where maxHeight is
-      // exact.
-      value: usesNativeOverlay
-        ? Math.max(0, value)
-        : Math.max(0, Math.min(value, maxHeight)),
+      // Detents are clamped natively against the natively computed cap;
+      // pre-clamping here against a JS-estimated height would reintroduce the
+      // estimate as a ceiling.
+      value: Math.max(0, value),
       kind: 'points',
       programmatic,
     };
@@ -253,21 +235,25 @@ export const BottomSheet = (props: BottomSheetProps) => {
         <NativeView
           pointerEvents="box-none"
           style={[
-            {
-              position: 'absolute',
-              left: 0,
-              right: usesNativeOverlay ? undefined : 0,
-              bottom: 0,
-              // The native host always spans the full height of its container.
-              // Detents are still capped to `maxHeight`, so the sheet only
-              // extends under the status bar when explicitly requested.
-              height: hostHeight,
-              width: usesNativeOverlay ? windowWidth : undefined,
-            },
+            // Inline (and portal) sheets fill their container — the portal
+            // host spans the provider, so a modal sheet's canvas is the real
+            // provider extent, laid out by Fabric in this window. In
+            // native-overlay mode the host is reparented into a separate
+            // full-screen window whose measured size reaches the shadow tree
+            // via state; the window dimensions here are only the first-frame
+            // estimate until that arrives.
+            usesNativeOverlay
+              ? {
+                  position: 'absolute',
+                  left: 0,
+                  bottom: 0,
+                  width: windowWidth,
+                  height: windowHeight,
+                }
+              : StyleSheet.absoluteFill,
             style,
           ]}
           detents={nativeDetents}
-          maxDetentHeight={maxHeight}
           extendUnderStatusBar={extendUnderStatusBar}
           index={index}
           animateIn={animateIn}
@@ -291,14 +277,12 @@ export const BottomSheet = (props: BottomSheetProps) => {
             </BottomSheetSurfaceNativeComponent>
           )}
           <BottomSheetContentWrapperNativeComponent
-            // In native-overlay mode the wrapper's real geometry comes from the
-            // shadow tree: native pushes the overlay's measured size and the
-            // detent cap into the wrapper's state, and its component descriptor
-            // forces the Yoga size from it — so the content lays out against
-            // ground truth on every device. The explicit style below is only
-            // the pre-state estimate for the first frame; inline (in-window)
-            // sheets never push state, so the flex style stays in effect and
-            // maxHeight is exact there (same window).
+            // The wrapper's real geometry comes from the shadow tree in every
+            // mode: native pushes the sheet's measured width and the natively
+            // computed detent cap into the wrapper's state, and its component
+            // descriptor forces the Yoga size from it — so the content lays
+            // out against measured window geometry on every device. The style
+            // below is only the pre-state estimate for the first frame.
             style={
               usesNativeOverlay
                 ? {
@@ -306,9 +290,9 @@ export const BottomSheet = (props: BottomSheetProps) => {
                     top: 0,
                     left: 0,
                     width: windowWidth,
-                    height: maxHeight,
+                    height: windowHeight,
                   }
-                : { flex: 1, maxHeight }
+                : { flex: 1 }
             }
           >
             {children}

@@ -30,14 +30,14 @@ class BottomSheetViewComponentDescriptor final
     node.setIsOverlayRoot(props.nativeOverlay);
 
     // In native-overlay mode the sheet's real container is the full-screen
-    // dialog window, not the in-tree slot. Android reports the dialog's
-    // measured size through the state (BottomSheetHostView's
-    // updateOverlayFrameState); force the node's size from it — exactly as
-    // <Modal> does — so Yoga lays the subtree out against the dialog's true
-    // edge-to-edge bounds rather than JS-estimated window dimensions, which
-    // under edge-to-edge exclude the system bars. The size stays zero until
-    // the first native report (and always on iOS, where the sheet is sized by
-    // UIKit), leaving the JS-provided dimensions in effect.
+    // overlay window, not the in-tree slot. Both platforms report the sheet's
+    // measured size through the state; force the node's size from it — exactly
+    // as <Modal> does — so Yoga lays the subtree out against the overlay's
+    // true edge-to-edge bounds rather than JS-estimated window dimensions,
+    // which under edge-to-edge exclude the system bars. The size stays zero
+    // until the first native report, leaving the JS-provided first-frame
+    // estimate in effect; inline sheets are Fabric-owned (this branch is
+    // gated on the prop).
     if (props.nativeOverlay) {
       const auto& stateData =
           static_cast<const BottomSheetViewShadowNode::ConcreteState&>(
@@ -73,12 +73,11 @@ class BottomSheetContentWrapperViewComponentDescriptor final
         family);
   }
 
-  // In native-overlay mode the native side pushes the wrapper's target size
-  // (overlay width × natively computed detent cap) through the state; force
-  // the node's Yoga size from it so the content subtree lays out against
-  // measured geometry. Zero state — always for inline sheets, which never
-  // push, and until the overlay window is first measured — leaves the
-  // JS-provided styles in effect.
+  // The native side pushes the wrapper's target size (sheet width × natively
+  // computed detent cap) through the state in every mode; force the node's
+  // Yoga size from it so the content subtree lays out against measured window
+  // geometry. Zero state — before the sheet's first native measure — leaves
+  // the JS-provided styles in effect.
   void adopt(ShadowNode& shadowNode) const override {
     const auto& stateData =
         static_cast<

@@ -7,6 +7,10 @@ import UIKit
     _ view: BottomSheetHostingView, didChangePosition position: CGFloat, index: CGFloat
   )
   func bottomSheetHostingView(_ view: BottomSheetHostingView, didReportError message: String)
+  /// Fired after each layout pass with fresh native geometry, so the component
+  /// layer can push the content wrapper's target size (and, in overlay mode,
+  /// the sheet frame) into the shadow tree.
+  func bottomSheetHostingViewDidLayout(_ view: BottomSheetHostingView)
 }
 
 private struct DetentSpec: Equatable {
@@ -57,22 +61,12 @@ public final class BottomSheetHostingView: UIView {
     scrimOpacities = mapped.isEmpty ? [1] : mapped
   }
 
-  public var maxDetentHeight: CGFloat = .nan {
-    didSet { refreshDetentsFromLayout() }
-  }
-
-  /// Native detent cap computed from the overlay window's measured geometry
-  /// (bounds minus the status-bar inset unless extend-under-status-bar). When
-  /// set it takes precedence over the JS-estimated `maxDetentHeight`; `.nan`
-  /// (inline mode, and overlay before its first measure) falls back to it.
-  public var overlayMaxDetentHeight: CGFloat = .nan {
+  /// Whether full-height detents may extend under the status bar. Feeds the
+  /// natively computed detent cap; there is no JS-provided cap anymore.
+  public var extendUnderStatusBar: Bool = false {
     didSet {
-      guard overlayMaxDetentHeight != oldValue,
-        !(overlayMaxDetentHeight.isNaN && oldValue.isNaN)
-      else { return }
+      guard extendUnderStatusBar != oldValue else { return }
       refreshDetentsFromLayout()
-      // The container height derives from the cap even when the resolved
-      // detents happen not to change.
       setNeedsLayout()
     }
   }
@@ -151,10 +145,20 @@ public final class BottomSheetHostingView: UIView {
   /// NativeGestureUtil.notifyNativeGestureStarted.
   private weak var surfaceTouchHandler: UIGestureRecognizer?
 
+  override public func safeAreaInsetsDidChange() {
+    super.safeAreaInsetsDidChange()
+    // The native detent cap depends on the window's top inset.
+    refreshDetentsFromLayout()
+    setNeedsLayout()
+  }
+
   override public func didMoveToWindow() {
     super.didMoveToWindow()
     surfaceTouchHandler = nil
     guard window != nil else { return }
+    // The native detent cap becomes computable once a window exists.
+    refreshDetentsFromLayout()
+    setNeedsLayout()
     var current: UIView? = superview
     while let view = current {
       for gr in view.gestureRecognizers ?? [] {
@@ -184,6 +188,10 @@ public final class BottomSheetHostingView: UIView {
     // how short the content becomes. Sized from the top via frame — never via
     // anchorPoint.
     surfaceView?.frame = sheetContainer.bounds
+
+    // Report fresh native geometry so the component layer can push the content
+    // wrapper's target size (and the overlay frame) into the shadow tree.
+    eventDelegate?.bottomSheetHostingViewDidLayout(self)
 
     if !hasLaidOut && !detentSpecs.isEmpty {
       let indexToApply = pendingIndex ?? targetIndex
@@ -873,15 +881,23 @@ public final class BottomSheetHostingView: UIView {
   }
 
   private var resolvedMaxDetentHeight: CGFloat {
-    // In overlay mode the cap is computed natively from the overlay window's
-    // measured geometry and takes precedence over the JS-estimated
-    // maxDetentHeight prop, which remains the inline-mode source and the
-    // pre-measure fallback.
-    let cap = overlayMaxDetentHeight.isNaN ? maxDetentHeight : overlayMaxDetentHeight
-    if !cap.isFinite || cap <= 0 {
+    // The detent cap is computed natively: the sheet's own height minus the
+    // part of the window's top (status bar / notch) inset that actually
+    // overlaps this view. Measured from real window geometry in every mode —
+    // inline, portal, and overlay — so no JS-estimated dimensions are
+    // involved. Before the view is in a window, fall back to full height.
+    guard !extendUnderStatusBar, let window else {
       return bounds.height
     }
-    return min(max(0, cap), bounds.height)
+    let originYInWindow = convert(CGPoint.zero, to: window).y
+    let topOverlap = max(0, window.safeAreaInsets.top - originYInWindow)
+    return min(max(0, bounds.height - topOverlap), bounds.height)
+  }
+
+  /// Target size for the content wrapper's shadow state: full width by the
+  /// native detent cap, i.e. the region content may lay out in.
+  public var contentWrapperTargetSize: CGSize {
+    CGSize(width: bounds.width, height: resolvedMaxDetentHeight)
   }
 
   /// Stable coordinate base for the sheet container. The container is sized to

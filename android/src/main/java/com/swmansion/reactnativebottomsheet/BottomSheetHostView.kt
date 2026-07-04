@@ -10,7 +10,10 @@ import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
+import android.view.WindowInsets
 import android.widget.FrameLayout
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.dynamicanimation.animation.DynamicAnimation
 import androidx.dynamicanimation.animation.SpringAnimation
 import androidx.dynamicanimation.animation.SpringForce
@@ -99,7 +102,6 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   private var scrimProgress = 0f
   private var suppressScrimForClosingTarget = false
   private var scrimPinnedFull = false
-  private var maxDetentHeight = Float.NaN
   private var contentHeightMarker: View? = null
   private var surfaceView: View? = null
   private var pendingInitialContentDetentSnap = false
@@ -203,11 +205,27 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
 
   override fun onAttachedToWindow() {
     super.onAttachedToWindow()
+    // Native geometry (cap, frame) is derived from the window; recompute on
+    // (re)attach — including the inline<->overlay reparent — and ask for a
+    // fresh insets pass.
+    requestApplyInsets()
+    recomputeNativeGeometry()
     // A re-attach gives us a fresh, live ViewTreeObserver; the previous one was
     // dropped on detach. Resume observing if the initial snap is still pending.
     if (pendingInitialContentDetentSnap) {
       observePendingInitialContentDetent()
     }
+  }
+
+  override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+    super.onSizeChanged(w, h, oldw, oldh)
+    recomputeNativeGeometry()
+  }
+
+  override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
+    // The cap depends on the top inset, which can change without a resize.
+    recomputeNativeGeometry()
+    return super.onApplyWindowInsets(insets)
   }
 
   override fun onDetachedFromWindow() {
@@ -223,6 +241,9 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
     val h = bottom - top
     if (w <= 0 || h <= 0) return
 
+    // The cap depends on this view's window position (top-inset overlap),
+    // which can change without a resize.
+    recomputeNativeGeometry()
     refreshContentHeightMarker()
     refreshDetentsFromLayout()
     layoutSheetContainer(w, h)
@@ -342,11 +363,6 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
     updateScrim()
   }
 
-  fun setMaxDetentHeight(maxDetentHeight: Double) {
-    this.maxDetentHeight = (maxDetentHeight * density).toFloat()
-    refreshDetentsFromLayout()
-  }
-
   // Stable coordinate base for the sheet container. The container is sized to
   // the full available height rather than the tallest detent, so it stays a
   // fixed-size canvas: when content — and thus the `content` detent — shrinks,
@@ -355,15 +371,13 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   // the area below the shrunken content stays covered throughout.
   private fun resolvedMaxDetentHeight(viewHeight: Int = height): Float {
     val viewHeightPx = viewHeight.toFloat()
-    // In overlay mode the cap is computed natively from the dialog's measured
-    // geometry (see recomputeOverlayCap) and takes precedence over the
-    // JS-estimated maxDetentHeight prop, which remains the inline-mode source
-    // and the pre-measure fallback.
-    val cap = if (!overlayCapPx.isNaN()) overlayCapPx else maxDetentHeight
-    if (!cap.isFinite() || cap <= 0f) {
+    // The cap is computed natively from this view's measured window geometry
+    // (see recomputeNativeGeometry); before the first measure the full height
+    // applies.
+    if (!nativeCapPx.isFinite() || nativeCapPx <= 0f) {
       return viewHeightPx
     }
-    return cap.coerceIn(0f, viewHeightPx)
+    return nativeCapPx.coerceIn(0f, viewHeightPx)
   }
 
   private fun resolveDetentSpecs(): List<DetentSpec> {
@@ -696,80 +710,50 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   }
 
   private var lastShadowOffsetY = Float.NaN
-  private var lastOverlayFrameWidth = 0
-  private var lastOverlayFrameHeight = 0
-  private var overlayFrameWidthPx = 0
-  private var overlayFrameHeightPx = 0
-  private var overlayTopInsetPx = 0
-  // The natively computed detent cap in overlay mode: the overlay's measured
-  // height minus the status-bar inset (unless extendUnderStatusBar). NaN while
-  // no overlay geometry is known, in which case the JS-provided maxDetentHeight
-  // prop applies (inline mode, and overlay before its first measure).
-  private var overlayCapPx = Float.NaN
+  private var lastFrameStateWidth = 0
+  private var lastFrameStateHeight = 0
+  // The natively computed detent cap: this view's height minus the part of the
+  // window's top (status bar / display cutout) inset that actually overlaps it.
+  // Measured from real window geometry in every mode — inline, portal, and
+  // overlay — so no JS-estimated dimensions are involved. NaN until the view is
+  // attached and sized, in which case the full height applies.
+  private var nativeCapPx = Float.NaN
 
   var extendUnderStatusBar: Boolean = false
     set(value) {
       if (field == value) return
       field = value
-      recomputeOverlayCap()
+      recomputeNativeGeometry()
     }
 
   /**
-   * Reports the native-overlay dialog's real measured geometry. The dialog's size goes into the
-   * shadow tree's state — the component descriptor forces the shadow node's size from it in overlay
-   * mode, exactly as <Modal> does — and, together with the status-bar inset, determines the native
-   * detent cap that overrides the JS-estimated maxDetentHeight prop and sizes the content wrapper.
-   * Yoga thus lays the whole sheet subtree out against the dialog's true edge-to-edge bounds
-   * instead of JS-estimated window dimensions, which under edge-to-edge exclude the system bars
-   * (issue #48). Called from the overlay dialog root whenever it is measured or its insets change.
+   * Re-derives all natively measured geometry from this view's own size, window position, and the
+   * window's top inset, then pushes it into the shadow tree: the sheet frame (consumed by the
+   * component descriptor only in overlay mode, exactly as <Modal> does) and the content wrapper's
+   * target size (full width × the detent cap, in every mode). Yoga thus lays the sheet subtree out
+   * against real window geometry instead of JS-provided dimensions (issue #48). In overlay mode
+   * this view fills the dialog, so its own metrics are the dialog's.
    */
-  fun onOverlayGeometryChanged(widthPx: Int, heightPx: Int, topInsetPx: Int) {
-    if (widthPx <= 0 || heightPx <= 0) return
-    overlayFrameWidthPx = widthPx
-    overlayFrameHeightPx = heightPx
-    overlayTopInsetPx = topInsetPx
-    pushOverlayFrameState(widthPx, heightPx)
-    recomputeOverlayCap()
-  }
+  private fun recomputeNativeGeometry() {
+    if (width <= 0 || height <= 0 || !isAttachedToWindow) return
 
-  /**
-   * Forgets the overlay geometry and restores JS-provided sizing: the maxDetentHeight prop for the
-   * detent cap and the wrapper's JS styles for the content. Called when the overlay is dismissed
-   * (the next dialog reports fresh geometry even if it happens to match).
-   */
-  fun clearOverlayGeometry() {
-    overlayFrameWidthPx = 0
-    overlayFrameHeightPx = 0
-    overlayTopInsetPx = 0
-    lastOverlayFrameWidth = 0
-    lastOverlayFrameHeight = 0
-    if (!overlayCapPx.isNaN()) {
-      overlayCapPx = Float.NaN
-      findContentWrapper()?.clearFrameState()
-      refreshDetentsFromLayout()
-      requestLayout()
-    }
-  }
+    pushFrameState(width, height)
 
-  private fun pushOverlayFrameState(widthPx: Int, heightPx: Int) {
-    if (widthPx == lastOverlayFrameWidth && heightPx == lastOverlayFrameHeight) return
-    val sw = stateWrapper ?: return
-    lastOverlayFrameWidth = widthPx
-    lastOverlayFrameHeight = heightPx
-    val map = Arguments.createMap()
-    map.putDouble("frameWidth", (widthPx / density).toDouble())
-    map.putDouble("frameHeight", (heightPx / density).toDouble())
-    sw.updateState(map)
-  }
-
-  private fun recomputeOverlayCap() {
-    if (overlayFrameHeightPx <= 0) return
+    val topInset =
+      ViewCompat.getRootWindowInsets(this)
+        ?.getInsets(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout())
+        ?.top ?: 0
+    val location = IntArray(2)
+    getLocationInWindow(location)
+    // Only the part of the inset this view actually extends under matters: a
+    // sheet inside a container that starts below the status bar keeps its full
+    // height.
+    val topOverlap = (topInset - location[1]).coerceAtLeast(0)
     val cap =
-      (if (extendUnderStatusBar) overlayFrameHeightPx else overlayFrameHeightPx - overlayTopInsetPx)
-        .toFloat()
-        .coerceAtLeast(0f)
-    val capChanged = cap != overlayCapPx
-    overlayCapPx = cap
+      (if (extendUnderStatusBar) height else height - topOverlap).toFloat().coerceAtLeast(0f)
+
+    val capChanged = cap != nativeCapPx
+    nativeCapPx = cap
     // The wrapper push itself dedups, so this also covers a width-only change.
     pushContentWrapperFrameState()
     if (capChanged) {
@@ -778,9 +762,20 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
     }
   }
 
+  private fun pushFrameState(widthPx: Int, heightPx: Int) {
+    if (widthPx == lastFrameStateWidth && heightPx == lastFrameStateHeight) return
+    val sw = stateWrapper ?: return
+    lastFrameStateWidth = widthPx
+    lastFrameStateHeight = heightPx
+    val map = Arguments.createMap()
+    map.putDouble("frameWidth", (widthPx / density).toDouble())
+    map.putDouble("frameHeight", (heightPx / density).toDouble())
+    sw.updateState(map)
+  }
+
   private fun pushContentWrapperFrameState() {
-    if (overlayCapPx.isNaN() || overlayFrameWidthPx <= 0) return
-    findContentWrapper()?.updateFrameState(overlayFrameWidthPx, overlayCapPx)
+    if (nativeCapPx.isNaN() || width <= 0) return
+    findContentWrapper()?.updateFrameState(width, nativeCapPx)
   }
 
   private fun findContentWrapper(): BottomSheetContentWrapperView? {
@@ -1223,12 +1218,9 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
     velocityTracker = null
     removeCallbacks(sheetChildrenLayoutPass)
     sheetChildrenLayoutEnqueued = false
-    overlayFrameWidthPx = 0
-    overlayFrameHeightPx = 0
-    overlayTopInsetPx = 0
-    overlayCapPx = Float.NaN
-    lastOverlayFrameWidth = 0
-    lastOverlayFrameHeight = 0
+    nativeCapPx = Float.NaN
+    lastFrameStateWidth = 0
+    lastFrameStateHeight = 0
     clearPendingInitialContentDetentSnap()
     contentHeightMarker?.removeOnLayoutChangeListener(contentHeightMarkerLayoutListener)
     contentHeightMarker = null

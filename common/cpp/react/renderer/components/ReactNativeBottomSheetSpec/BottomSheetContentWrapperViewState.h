@@ -25,11 +25,10 @@ class BottomSheetContentWrapperViewState final {
                 : previousState.frameSize) {}
 #endif
 
-  // Target size (dp) of the content wrapper in native-overlay mode: the
-  // overlay's measured width by the natively computed detent cap. Pushed by
-  // the native side once the overlay window is measured; reset to zero when
-  // the overlay is dismissed. Zero — including always for inline sheets, which
-  // never push — means the JS-provided styles stay in effect.
+  // Target size (dp) of the content wrapper: the sheet's measured width by the
+  // natively computed detent cap. Pushed by the native side in every mode once
+  // the sheet is measured in a window. Zero (before the first native report)
+  // means the JS-provided styles stay in effect.
   Size frameSize{};
 
 #ifdef ANDROID
