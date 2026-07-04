@@ -167,6 +167,35 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
 
   // MARK: - Layout
 
+  // Fabric measures this view's direct children but never lays them out:
+  // needsCustomLayoutForChildren() opts the sheet into owning their placement,
+  // which only layoutSheetContainer performs. ReactViewGroup.requestLayout()
+  // is a deliberate no-op terminator, so without this override the request
+  // issued when a mounted child is added to sheetContainer dies here, no
+  // traversal is scheduled, and a child mounted after the host's last layout
+  // pass keeps 0x0 native bounds — Android hit-testing cannot descend into a
+  // zero-bounds view, leaving the sheet content untappable (issue #48). The
+  // placement pass is posted rather than run inline so it executes once, after
+  // the current Fabric mount batch has measured the new children.
+  private var sheetChildrenLayoutEnqueued = false
+  private val sheetChildrenLayoutPass = Runnable {
+    sheetChildrenLayoutEnqueued = false
+    if (width > 0 && height > 0) {
+      layoutSheetContainer(width, height)
+    }
+  }
+
+  override fun requestLayout() {
+    super.requestLayout()
+    // The null check guards calls made during superclass construction (adding
+    // sheetContainer in init), before this class's fields are initialized.
+    @Suppress("SENSELESS_COMPARISON")
+    if (sheetChildrenLayoutPass != null && !sheetChildrenLayoutEnqueued) {
+      sheetChildrenLayoutEnqueued = true
+      post(sheetChildrenLayoutPass)
+    }
+  }
+
   override fun onAttachedToWindow() {
     super.onAttachedToWindow()
     // A re-attach gives us a fresh, live ViewTreeObserver; the previous one was
@@ -1088,6 +1117,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
     activeAnimation = null
     velocityTracker?.recycle()
     velocityTracker = null
+    removeCallbacks(sheetChildrenLayoutPass)
+    sheetChildrenLayoutEnqueued = false
     clearPendingInitialContentDetentSnap()
     contentHeightMarker?.removeOnLayoutChangeListener(contentHeightMarkerLayoutListener)
     contentHeightMarker = null
