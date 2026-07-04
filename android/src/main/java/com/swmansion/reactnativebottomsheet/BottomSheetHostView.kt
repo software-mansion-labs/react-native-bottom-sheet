@@ -134,6 +134,11 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   fun addSheetChild(child: View, index: Int) {
     sheetContainer.addView(child, index)
     refreshContentHeightMarker()
+    // A wrapper mounted after the overlay was measured (deferred content)
+    // must still receive its state-driven size.
+    if (child is BottomSheetContentWrapperView) {
+      pushContentWrapperFrameState()
+    }
   }
 
   fun removeSheetChildAt(index: Int) {
@@ -350,10 +355,15 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   // the area below the shrunken content stays covered throughout.
   private fun resolvedMaxDetentHeight(viewHeight: Int = height): Float {
     val viewHeightPx = viewHeight.toFloat()
-    if (!maxDetentHeight.isFinite() || maxDetentHeight <= 0f) {
+    // In overlay mode the cap is computed natively from the dialog's measured
+    // geometry (see recomputeOverlayCap) and takes precedence over the
+    // JS-estimated maxDetentHeight prop, which remains the inline-mode source
+    // and the pre-measure fallback.
+    val cap = if (!overlayCapPx.isNaN()) overlayCapPx else maxDetentHeight
+    if (!cap.isFinite() || cap <= 0f) {
       return viewHeightPx
     }
-    return maxDetentHeight.coerceIn(0f, viewHeightPx)
+    return cap.coerceIn(0f, viewHeightPx)
   }
 
   private fun resolveDetentSpecs(): List<DetentSpec> {
@@ -688,16 +698,60 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   private var lastShadowOffsetY = Float.NaN
   private var lastOverlayFrameWidth = 0
   private var lastOverlayFrameHeight = 0
+  private var overlayFrameWidthPx = 0
+  private var overlayFrameHeightPx = 0
+  private var overlayTopInsetPx = 0
+  // The natively computed detent cap in overlay mode: the overlay's measured
+  // height minus the status-bar inset (unless extendUnderStatusBar). NaN while
+  // no overlay geometry is known, in which case the JS-provided maxDetentHeight
+  // prop applies (inline mode, and overlay before its first measure).
+  private var overlayCapPx = Float.NaN
+
+  var extendUnderStatusBar: Boolean = false
+    set(value) {
+      if (field == value) return
+      field = value
+      recomputeOverlayCap()
+    }
 
   /**
-   * Reports the native-overlay dialog's real measured size into the shadow tree's state. The
-   * component descriptor forces the shadow node's size from it in overlay mode — exactly as <Modal>
-   * does — so Yoga lays the sheet subtree out against the dialog's true edge-to-edge bounds instead
-   * of JS-estimated window dimensions, which under edge-to-edge exclude the system bars
-   * (issue #48). Called from the overlay dialog root's onSizeChanged.
+   * Reports the native-overlay dialog's real measured geometry. The dialog's size goes into the
+   * shadow tree's state — the component descriptor forces the shadow node's size from it in overlay
+   * mode, exactly as <Modal> does — and, together with the status-bar inset, determines the native
+   * detent cap that overrides the JS-estimated maxDetentHeight prop and sizes the content wrapper.
+   * Yoga thus lays the whole sheet subtree out against the dialog's true edge-to-edge bounds
+   * instead of JS-estimated window dimensions, which under edge-to-edge exclude the system bars
+   * (issue #48). Called from the overlay dialog root whenever it is measured or its insets change.
    */
-  fun updateOverlayFrameState(widthPx: Int, heightPx: Int) {
+  fun onOverlayGeometryChanged(widthPx: Int, heightPx: Int, topInsetPx: Int) {
     if (widthPx <= 0 || heightPx <= 0) return
+    overlayFrameWidthPx = widthPx
+    overlayFrameHeightPx = heightPx
+    overlayTopInsetPx = topInsetPx
+    pushOverlayFrameState(widthPx, heightPx)
+    recomputeOverlayCap()
+  }
+
+  /**
+   * Forgets the overlay geometry and restores JS-provided sizing: the maxDetentHeight prop for the
+   * detent cap and the wrapper's JS styles for the content. Called when the overlay is dismissed
+   * (the next dialog reports fresh geometry even if it happens to match).
+   */
+  fun clearOverlayGeometry() {
+    overlayFrameWidthPx = 0
+    overlayFrameHeightPx = 0
+    overlayTopInsetPx = 0
+    lastOverlayFrameWidth = 0
+    lastOverlayFrameHeight = 0
+    if (!overlayCapPx.isNaN()) {
+      overlayCapPx = Float.NaN
+      findContentWrapper()?.clearFrameState()
+      refreshDetentsFromLayout()
+      requestLayout()
+    }
+  }
+
+  private fun pushOverlayFrameState(widthPx: Int, heightPx: Int) {
     if (widthPx == lastOverlayFrameWidth && heightPx == lastOverlayFrameHeight) return
     val sw = stateWrapper ?: return
     lastOverlayFrameWidth = widthPx
@@ -708,13 +762,33 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
     sw.updateState(map)
   }
 
-  /**
-   * Forgets the last reported overlay frame so the next dialog (or a re-presented one) pushes its
-   * size again even if it happens to match.
-   */
-  fun resetOverlayFrameState() {
-    lastOverlayFrameWidth = 0
-    lastOverlayFrameHeight = 0
+  private fun recomputeOverlayCap() {
+    if (overlayFrameHeightPx <= 0) return
+    val cap =
+      (if (extendUnderStatusBar) overlayFrameHeightPx else overlayFrameHeightPx - overlayTopInsetPx)
+        .toFloat()
+        .coerceAtLeast(0f)
+    val capChanged = cap != overlayCapPx
+    overlayCapPx = cap
+    // The wrapper push itself dedups, so this also covers a width-only change.
+    pushContentWrapperFrameState()
+    if (capChanged) {
+      refreshDetentsFromLayout()
+      requestLayout()
+    }
+  }
+
+  private fun pushContentWrapperFrameState() {
+    if (overlayCapPx.isNaN() || overlayFrameWidthPx <= 0) return
+    findContentWrapper()?.updateFrameState(overlayFrameWidthPx, overlayCapPx)
+  }
+
+  private fun findContentWrapper(): BottomSheetContentWrapperView? {
+    for (i in 0 until sheetContainer.childCount) {
+      val child = sheetContainer.getChildAt(i)
+      if (child is BottomSheetContentWrapperView) return child
+    }
+    return null
   }
 
   private fun updateShadowState(translationY: Float) {
@@ -1149,7 +1223,12 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
     velocityTracker = null
     removeCallbacks(sheetChildrenLayoutPass)
     sheetChildrenLayoutEnqueued = false
-    resetOverlayFrameState()
+    overlayFrameWidthPx = 0
+    overlayFrameHeightPx = 0
+    overlayTopInsetPx = 0
+    overlayCapPx = Float.NaN
+    lastOverlayFrameWidth = 0
+    lastOverlayFrameHeight = 0
     clearPendingInitialContentDetentSnap()
     contentHeightMarker?.removeOnLayoutChangeListener(contentHeightMarkerLayoutListener)
     contentHeightMarker = null

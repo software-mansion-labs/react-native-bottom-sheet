@@ -19,6 +19,10 @@ export interface NativeProps extends ViewProps {
   animateContentHeight?: CodegenTypes.WithDefault<boolean, true>;
   modal: boolean;
   nativeOverlay?: boolean;
+  // Consulted natively only in native-overlay mode, where the detent cap is
+  // computed from the overlay's real bounds and insets; inline sheets bake the
+  // flag into the JS-computed maxDetentHeight as before.
+  extendUnderStatusBar?: boolean;
   disableScrollableNegotiation?: boolean;
   scrimColor?: ColorValue;
   scrimOpacities?: ReadonlyArray<CodegenTypes.Double>;

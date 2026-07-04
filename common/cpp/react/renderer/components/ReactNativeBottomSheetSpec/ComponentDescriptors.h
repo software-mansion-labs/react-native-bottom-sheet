@@ -59,4 +59,41 @@ class BottomSheetViewComponentDescriptor final
 using BottomSheetSurfaceViewComponentDescriptor =
     ConcreteComponentDescriptor<BottomSheetSurfaceViewShadowNode>;
 
+class BottomSheetContentWrapperViewComponentDescriptor final
+    : public ConcreteComponentDescriptor<BottomSheetContentWrapperViewShadowNode> {
+ public:
+  using ConcreteComponentDescriptor::ConcreteComponentDescriptor;
+
+  State::Shared createInitialState(
+      const Props::Shared& /*props*/,
+      const ShadowNodeFamily::Shared& family) const override {
+    return std::make_shared<
+        BottomSheetContentWrapperViewShadowNode::ConcreteState>(
+        std::make_shared<const BottomSheetContentWrapperViewState>(),
+        family);
+  }
+
+  // In native-overlay mode the native side pushes the wrapper's target size
+  // (overlay width × natively computed detent cap) through the state; force
+  // the node's Yoga size from it so the content subtree lays out against
+  // measured geometry. Zero state — always for inline sheets, which never
+  // push, and until the overlay window is first measured — leaves the
+  // JS-provided styles in effect.
+  void adopt(ShadowNode& shadowNode) const override {
+    const auto& stateData =
+        static_cast<
+            const BottomSheetContentWrapperViewShadowNode::ConcreteState&>(
+            *shadowNode.getState())
+            .getData();
+    if (stateData.frameSize.width != 0 && stateData.frameSize.height != 0) {
+      auto& layoutableShadowNode =
+          static_cast<YogaLayoutableShadowNode&>(shadowNode);
+      layoutableShadowNode.setSize(stateData.frameSize);
+      layoutableShadowNode.setPositionType(YGPositionTypeAbsolute);
+    }
+
+    ConcreteComponentDescriptor::adopt(shadowNode);
+  }
+};
+
 } // namespace facebook::react

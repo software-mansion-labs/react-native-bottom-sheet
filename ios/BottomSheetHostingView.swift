@@ -61,6 +61,22 @@ public final class BottomSheetHostingView: UIView {
     didSet { refreshDetentsFromLayout() }
   }
 
+  /// Native detent cap computed from the overlay window's measured geometry
+  /// (bounds minus the status-bar inset unless extend-under-status-bar). When
+  /// set it takes precedence over the JS-estimated `maxDetentHeight`; `.nan`
+  /// (inline mode, and overlay before its first measure) falls back to it.
+  public var overlayMaxDetentHeight: CGFloat = .nan {
+    didSet {
+      guard overlayMaxDetentHeight != oldValue,
+        !(overlayMaxDetentHeight.isNaN && oldValue.isNaN)
+      else { return }
+      refreshDetentsFromLayout()
+      // The container height derives from the cap even when the resolved
+      // detents happen not to change.
+      setNeedsLayout()
+    }
+  }
+
   public var disableScrollableNegotiation: Bool = false
 
   private var rawDetentSpecs: [RawDetentSpec] = []
@@ -857,10 +873,15 @@ public final class BottomSheetHostingView: UIView {
   }
 
   private var resolvedMaxDetentHeight: CGFloat {
-    if !maxDetentHeight.isFinite || maxDetentHeight <= 0 {
+    // In overlay mode the cap is computed natively from the overlay window's
+    // measured geometry and takes precedence over the JS-estimated
+    // maxDetentHeight prop, which remains the inline-mode source and the
+    // pre-measure fallback.
+    let cap = overlayMaxDetentHeight.isNaN ? maxDetentHeight : overlayMaxDetentHeight
+    if !cap.isFinite || cap <= 0 {
       return bounds.height
     }
-    return min(max(0, maxDetentHeight), bounds.height)
+    return min(max(0, cap), bounds.height)
   }
 
   /// Stable coordinate base for the sheet container. The container is sized to

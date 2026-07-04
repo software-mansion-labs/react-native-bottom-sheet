@@ -144,6 +144,11 @@ class BottomSheetViewManager :
     view.setNativeOverlay(value)
   }
 
+  @ReactProp(name = "extendUnderStatusBar")
+  override fun setExtendUnderStatusBar(view: BottomSheetView, value: Boolean) {
+    view.extendUnderStatusBar = value
+  }
+
   @ReactProp(name = "disableScrollableNegotiation")
   override fun setDisableScrollableNegotiation(view: BottomSheetView, value: Boolean) {
     view.disableScrollableNegotiation = value

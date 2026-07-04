@@ -80,6 +80,11 @@
   _impl.maxDetentHeight = maxDetentHeight;
 }
 
+- (void)setOverlayMaxDetentHeight:(CGFloat)overlayMaxDetentHeight
+{
+  _impl.overlayMaxDetentHeight = overlayMaxDetentHeight;
+}
+
 - (void)setDetentIndex:(NSInteger)newIndex
 {
   [_impl setDetentIndex:newIndex];

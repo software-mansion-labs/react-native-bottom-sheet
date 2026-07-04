@@ -1,6 +1,7 @@
 #pragma once
 
 #include <jsi/jsi.h>
+#include <react/renderer/components/ReactNativeBottomSheetSpec/BottomSheetContentWrapperViewState.h>
 #include <react/renderer/components/ReactNativeBottomSheetSpec/BottomSheetViewState.h>
 #include <react/renderer/components/ReactNativeBottomSheetSpec/EventEmitters.h>
 #include <react/renderer/components/ReactNativeBottomSheetSpec/Props.h>
@@ -38,5 +39,17 @@ using BottomSheetSurfaceViewShadowNode = ConcreteViewShadowNode<
     BottomSheetSurfaceViewProps,
     BottomSheetSurfaceViewEventEmitter,
     StateData>;
+
+JSI_EXPORT extern const char BottomSheetContentWrapperViewComponentName[];
+
+// Content wrapper whose size, in native-overlay mode, is forced from native-
+// pushed state (overlay width × detent cap) by its component descriptor, so
+// the content subtree lays out against measured geometry instead of
+// JS-estimated dimensions.
+using BottomSheetContentWrapperViewShadowNode = ConcreteViewShadowNode<
+    BottomSheetContentWrapperViewComponentName,
+    BottomSheetContentWrapperViewProps,
+    BottomSheetContentWrapperViewEventEmitter,
+    BottomSheetContentWrapperViewState>;
 
 } // namespace facebook::react

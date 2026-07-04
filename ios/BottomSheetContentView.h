@@ -25,6 +25,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (void)setDetents:(NSArray<NSDictionary *> *)raw;
 - (void)setMaxDetentHeight:(CGFloat)maxDetentHeight;
+// Native detent cap computed from the overlay window's measured geometry; NAN
+// (the default) falls back to the JS-provided maxDetentHeight.
+- (void)setOverlayMaxDetentHeight:(CGFloat)overlayMaxDetentHeight;
 - (void)setDetentIndex:(NSInteger)newIndex;
 - (void)setScrimColor:(UIColor *_Nullable)color;
 - (void)setScrimOpacities:(NSArray<NSNumber *> *)opacities;

@@ -9,6 +9,7 @@ import {
 import BottomSheetNativeView, {
   type NativeProps,
 } from './BottomSheetNativeComponent';
+import BottomSheetContentWrapperNativeComponent from './BottomSheetContentWrapperNativeComponent';
 import BottomSheetSurfaceNativeComponent from './BottomSheetSurfaceNativeComponent';
 import { Portal } from './BottomSheetProvider';
 import { type Detent } from './bottomSheetUtils';
@@ -170,15 +171,14 @@ export const BottomSheet = (props: BottomSheetProps) => {
   const { height: safeAreaFrameHeight } = useSafeAreaFrame();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  // On Android the native-overlay dialog is a full-screen edge-to-edge window,
-  // so its height matches the safe-area frame. useWindowDimensions reports the
-  // layout window, which under edge-to-edge (the Expo / RN default) excludes
-  // the system bars — sizing the overlay from it leaves full-height sheets
-  // short by (top + bottom) insets (issue #48). The native side additionally
-  // reports the dialog's real measured size into the shadow tree (see
-  // BottomSheetHostView.updateOverlayFrameState), so this value only feeds the
-  // detent caps and the content wrapper's bounds. iOS keeps useWindowDimensions
-  // (frame == window there).
+  // In native-overlay mode all real geometry — the sheet's frame, the content
+  // wrapper's bounds, and the detent cap — comes from the native side through
+  // the shadow tree, measured from the overlay's own window. The JS values
+  // here only provide the pre-state first-frame estimate. On Android the
+  // overlay is a full-screen edge-to-edge window, so the safe-area frame is
+  // the closer estimate: useWindowDimensions reports the layout window, which
+  // under edge-to-edge (the Expo / RN default) excludes the system bars
+  // (issue #48). iOS keeps useWindowDimensions (frame == window there).
   const hostHeight =
     usesNativeOverlay && Platform.OS !== 'android'
       ? windowHeight
@@ -197,7 +197,16 @@ export const BottomSheet = (props: BottomSheetProps) => {
     }
 
     return {
-      value: Math.max(0, Math.min(value, maxHeight)),
+      // In native-overlay mode the detent cap is computed natively from the
+      // overlay's real bounds and insets (see the native cap in
+      // BottomSheetHostView / BottomSheetHostingView), and each detent is
+      // clamped to it there — pre-clamping against the JS-estimated maxHeight
+      // here would reintroduce the estimate as a ceiling. Inline sheets keep
+      // the JS clamp: their geometry lives in this window, where maxHeight is
+      // exact.
+      value: usesNativeOverlay
+        ? Math.max(0, value)
+        : Math.max(0, Math.min(value, maxHeight)),
       kind: 'points',
       programmatic,
     };
@@ -259,6 +268,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
           ]}
           detents={nativeDetents}
           maxDetentHeight={maxHeight}
+          extendUnderStatusBar={extendUnderStatusBar}
           index={index}
           animateIn={animateIn}
           animateContentHeight={animateContentHeight}
@@ -280,18 +290,15 @@ export const BottomSheet = (props: BottomSheetProps) => {
               {surface}
             </BottomSheetSurfaceNativeComponent>
           )}
-          <View
-            collapsable={false}
-            // In native-overlay mode the content is reparented into a separate
-            // window. A `flex: 1` wrapper can then collapse to 0×0 *native* bounds
-            // (its explicit width isn't even applied) — the children still draw via
-            // overflow and measure() stays correct, but Android hit-testing can't
-            // descend into a zero-bounds view, so the whole sheet is untappable.
-            // This reproduced on a physical OnePlus (Android 16) but not the
-            // emulator. Sizing the wrapper explicitly (independent of the parent's
-            // flex layout) keeps real bounds; the height matches what `flex: 1`
-            // resolved to before (the max detent height), so content-detent
-            // measurement is unaffected. Inline mode keeps the original flex sizing.
+          <BottomSheetContentWrapperNativeComponent
+            // In native-overlay mode the wrapper's real geometry comes from the
+            // shadow tree: native pushes the overlay's measured size and the
+            // detent cap into the wrapper's state, and its component descriptor
+            // forces the Yoga size from it — so the content lays out against
+            // ground truth on every device. The explicit style below is only
+            // the pre-state estimate for the first frame; inline (in-window)
+            // sheets never push state, so the flex style stays in effect and
+            // maxHeight is exact there (same window).
             style={
               usesNativeOverlay
                 ? {
@@ -306,7 +313,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
           >
             {children}
             <View collapsable={false} pointerEvents="none" />
-          </View>
+          </BottomSheetContentWrapperNativeComponent>
         </NativeView>
       </View>
     </View>
