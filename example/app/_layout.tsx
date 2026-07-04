@@ -37,6 +37,13 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
+              name="native-overlay-full-height-list"
+              options={{
+                title: 'Native overlay full-height list',
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
               name="modal-scroll-view"
               options={{ title: 'Modal with ScrollView', headerShown: false }}
             />

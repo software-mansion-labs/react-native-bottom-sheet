@@ -2,6 +2,7 @@ export type CaseKey =
   | 'basic-modal'
   | 'native-overlay-modal'
   | 'native-overlay-nested'
+  | 'native-overlay-full-height-list'
   | 'modal-scroll-view'
   | 'modal-flat-list'
   | 'keyboard-content-detent'
@@ -44,6 +45,11 @@ export const DEMO_CASES: DemoCase[] = [
     key: 'native-overlay-nested',
     title: 'Native overlay nested mount',
     href: '/native-overlay-nested',
+  },
+  {
+    key: 'native-overlay-full-height-list',
+    title: 'Native overlay full-height list',
+    href: '/native-overlay-full-height-list',
   },
   {
     key: 'modal-scroll-view',
