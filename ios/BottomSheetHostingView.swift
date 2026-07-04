@@ -440,6 +440,12 @@ public final class BottomSheetHostingView: UIView {
   private func startDisplayLink() {
     guard displayLink == nil else { return }
     let link = CADisplayLink(target: self, selector: #selector(displayLinkFired(_:)))
+    // Emit follower positions at the display's high refresh rate. Without an
+    // explicit range a CADisplayLink runs at 60fps on ProMotion (even with
+    // CADisableMinimumFrameDurationOnPhone set), so followers driven by
+    // `onPositionChange` would update at half the rate of the sheet's
+    // render-server animation.
+    link.preferredFrameRateRange = CAFrameRateRange(minimum: 80, maximum: 120, preferred: 120)
     link.add(to: .main, forMode: .common)
     displayLink = link
   }
