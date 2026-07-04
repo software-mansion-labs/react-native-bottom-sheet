@@ -281,19 +281,10 @@ export const BottomSheet = (props: BottomSheetProps) => {
             // mode: native pushes the sheet's measured width and the natively
             // computed detent cap into the wrapper's state, and its component
             // descriptor forces the Yoga size from it — so the content lays
-            // out against measured window geometry on every device. The style
-            // below is only the pre-state estimate for the first frame.
-            style={
-              usesNativeOverlay
-                ? {
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: windowWidth,
-                    height: windowHeight,
-                  }
-                : { flex: 1 }
-            }
+            // out against measured window geometry on every device. flex: 1
+            // only fills the host for the first frame, before that state
+            // arrives.
+            style={styles.contentWrapper}
           >
             {children}
             <View collapsable={false} pointerEvents="none" />
@@ -329,3 +320,7 @@ function resolveDetentValue(detent: Detent) {
   }
   return detent;
 }
+
+const styles = StyleSheet.create({
+  contentWrapper: { flex: 1 },
+});
