@@ -9,10 +9,12 @@ import {
   MODAL_SCRIM_COLOR,
   SheetBackground,
   SheetHeader,
+  useSheetBottomPadding,
 } from '../demoShared';
 
 export const ModalScrollViewScreen = () => {
   const [index, setIndex] = useState(0);
+  const sheetBottomPadding = useSheetBottomPadding();
 
   return (
     <DemoScreen
@@ -28,7 +30,9 @@ export const ModalScrollViewScreen = () => {
             title="Modal with ScrollView"
             onClose={() => setIndex(0)}
           />
-          <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
+          <ScrollView
+            contentContainerStyle={{ paddingBottom: sheetBottomPadding }}
+          >
             {DATA.map((item, itemIndex) => (
               <ListRow key={item.id} item={item} index={itemIndex} />
             ))}

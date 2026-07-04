@@ -8,6 +8,7 @@ import {
   SHEET_HEADER_HEIGHT,
   SheetBackground,
   SheetHeader,
+  useSheetBottomPadding,
 } from '../demoShared';
 
 type SnapEventSource = 'press' | 'indexChange' | 'settle';
@@ -29,6 +30,7 @@ export const SnapCallbacksScreen = () => {
   const [index, setIndex] = useState(0);
   const [events, setEvents] = useState<SnapEvent[]>([]);
   const nextEventId = useRef(0);
+  const sheetBottomPadding = useSheetBottomPadding(0);
 
   const logEvent = (source: SnapEventSource, eventIndex: number) => {
     setEvents((prev) =>
@@ -68,8 +70,9 @@ export const SnapCallbacksScreen = () => {
           />
           <View
             style={{
-              height: SECTION_HEIGHT,
+              height: SECTION_HEIGHT + sheetBottomPadding,
               paddingHorizontal: 20,
+              paddingBottom: sheetBottomPadding,
               justifyContent: 'center',
               gap: 12,
             }}

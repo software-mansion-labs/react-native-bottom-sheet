@@ -4,7 +4,8 @@ import UIKit
   func bottomSheetHostingView(_ view: BottomSheetHostingView, didChangeIndex index: Int)
   func bottomSheetHostingView(_ view: BottomSheetHostingView, didSettle index: Int)
   func bottomSheetHostingView(
-    _ view: BottomSheetHostingView, didChangePosition position: CGFloat, index: CGFloat)
+    _ view: BottomSheetHostingView, didChangePosition position: CGFloat, index: CGFloat
+  )
   func bottomSheetHostingView(_ view: BottomSheetHostingView, didReportError message: String)
 }
 
@@ -22,6 +23,14 @@ private struct RawDetentSpec {
   let value: CGFloat
   let kind: DetentKind
   let programmatic: Bool
+}
+
+private struct PendingSnapRequest {
+  let index: Int
+  let velocity: CGFloat
+  let emitIndexChange: Bool
+  let emitSettle: Bool
+  let preserveScrimPin: Bool
 }
 
 @objcMembers
@@ -64,23 +73,29 @@ public final class BottomSheetHostingView: UIView {
 
   private var targetIndex: Int = 0
   public var animateIn: Bool = true
+  public var animateContentHeight: Bool = true
 
   public let sheetContainer = UIView()
   private let scrimView = UIControl()
   private var panGesture: UIPanGestureRecognizer!
-  private var activeAnimator: UIViewPropertyAnimator?
-  private var activeAnimatorEmitsSettle = false
+  private var activeSpring: CriticalSpring?
+  private var activeSpringTargetIndex: Int = 0
+  private var activeSpringEmitsSettle = false
   private var scrimPinnedFull = false
   private var displayLink: CADisplayLink?
   private var pendingIndex: Int?
+  private var pendingSnapRequest: PendingSnapRequest?
   private var hasLaidOut = false
   private var isPanning = false
   private var lastReportedInvalidDetentMessage: String?
   private var panStartingIndex: Int?
+  private var activeDragRange: (minTy: CGFloat, maxTy: CGFloat)?
+  private var activeDragDetentSpecs: [DetentSpec]?
   private var isContentInteractionDisabled = false
   private var contentHeightMarker: UIView?
   private weak var surfaceView: UIView?
   private static var markerObservationContext = 0
+  private static let springAnimationKey = "bottomSheetSettle"
 
   override public init(frame: CGRect) {
     super.init(frame: frame)
@@ -129,11 +144,13 @@ public final class BottomSheetHostingView: UIView {
       for gr in view.gestureRecognizers ?? [] {
         if NSStringFromClass(type(of: gr)).contains("TouchHandler") {
           surfaceTouchHandler = gr
-          return
+          break
         }
       }
+      if surfaceTouchHandler != nil { break }
       current = view.superview
     }
+    flushPendingSnapIfNeeded()
   }
 
   override public func layoutSubviews() {
@@ -181,16 +198,24 @@ public final class BottomSheetHostingView: UIView {
       return
     }
 
-    if activeAnimator != nil || isPanning { return }
+    if activeSpring != nil || isPanning { return }
     sheetContainer.transform = CGAffineTransform(translationX: 0, y: translationY(for: targetIndex))
     updateScrim()
   }
 
   private var presentedSheetFrame: CGRect {
-    if activeAnimator != nil, let presentation = sheetContainer.layer.presentation() {
-      return presentation.frame
-    }
-    return sheetContainer.frame
+    guard activeSpring != nil else { return sheetContainer.frame }
+    // Mid-settle, derive the on-screen frame from the spring instead of the
+    // presentation layer (which lags one commit behind right after a snap
+    // starts). The container's transform is translation-only.
+    let size = sheetContainer.bounds.size
+    let center = sheetContainer.center
+    return CGRect(
+      x: center.x - size.width / 2,
+      y: center.y - size.height / 2 + currentTranslationY,
+      width: size.width,
+      height: size.height
+    )
   }
 
   override public func point(inside point: CGPoint, with _: UIEvent?) -> Bool {
@@ -269,16 +294,20 @@ public final class BottomSheetHostingView: UIView {
   }
 
   public func resetSheetState() {
-    activeAnimator?.stopAnimation(true)
-    activeAnimator = nil
+    activeSpring = nil
+    activeSpringEmitsSettle = false
     stopDisplayLink()
+    sheetContainer.layer.removeAnimation(forKey: Self.springAnimationKey)
     rawDetentSpecs = []
     detentSpecs = []
     targetIndex = 0
     pendingIndex = nil
+    pendingSnapRequest = nil
     hasLaidOut = false
     isPanning = false
     panStartingIndex = nil
+    activeDragRange = nil
+    activeDragDetentSpecs = nil
     setContentInteractionEnabled(true)
     stopObservingContentHeightMarker()
     surfaceView = nil
@@ -326,8 +355,47 @@ public final class BottomSheetHostingView: UIView {
     )
   }
 
+  private func snapshotTranslationY(for index: Int, in specs: [DetentSpec]) -> CGFloat {
+    let maxHeight = sheetContainerHeight
+    let snapHeight = specs.indices.contains(index) ? specs[index].height : 0
+    return maxHeight - snapHeight
+  }
+
+  private func snapshotCandidateIndices(including index: Int?, in specs: [DetentSpec]) -> [Int] {
+    var indices = specs.indices.filter { !specs[$0].programmatic }
+    if
+      let index,
+      specs.indices.contains(index),
+      specs[index].programmatic
+    {
+      indices.append(index)
+    }
+    return Array(Set(indices)).sorted {
+      specs[$0].height < specs[$1].height
+    }
+  }
+
+  private func snapshotDraggableRange(
+    including index: Int?,
+    in specs: [DetentSpec]
+  ) -> (minTy: CGFloat, maxTy: CGFloat) {
+    let candidates = snapshotCandidateIndices(including: index, in: specs)
+    guard !candidates.isEmpty else { return (minTy: 0, maxTy: 0) }
+    return (
+      minTy: candidates.map { snapshotTranslationY(for: $0, in: specs) }.min() ?? 0,
+      maxTy: candidates.map { snapshotTranslationY(for: $0, in: specs) }.max() ?? 0
+    )
+  }
+
   private var closedIndex: Int? {
     detentSpecs.firstIndex(where: { $0.height == 0 })
+  }
+
+  private var scrimDismissIndex: Int? {
+    guard let closedIndex, !detentSpecs[closedIndex].programmatic else {
+      return nil
+    }
+    return closedIndex
   }
 
   private var firstNonZeroDetentHeight: CGFloat {
@@ -347,27 +415,36 @@ public final class BottomSheetHostingView: UIView {
     return containerTop + ty
   }
 
+  public var isModalAccessibilityActive: Bool {
+    isScrimVisible
+  }
+
   private var isScrimVisible: Bool {
     modal && !scrimView.isHidden
   }
 
-  private func emitPosition() {
+  /// `overrideTy` is the spring's predicted translationY for the upcoming frame
+  /// (passed during a settle). Without it we read the current on-screen value.
+  private func emitPosition(overrideTy: CGFloat? = nil) {
     let maxHeight = sheetContainerHeight
-    let ty = currentTranslationY
+    let ty = overrideTy ?? currentTranslationY
     let position = maxHeight - ty
     updateScrim(forPosition: position)
     updateSheetVisibility(forPosition: position)
     updateInteractionState()
     eventDelegate?.bottomSheetHostingView(
-      self, didChangePosition: position, index: detentIndex(forPosition: position))
+      self, didChangePosition: position, index: detentIndex(forPosition: position)
+    )
   }
 
   private func startDisplayLink() {
     guard displayLink == nil else { return }
-    let link = CADisplayLink(target: self, selector: #selector(displayLinkFired))
-    // Drive the spring at the display's high refresh rate. Without an explicit
-    // range a CADisplayLink runs at 60fps on ProMotion (even with
-    // CADisableMinimumFrameDurationOnPhone set), so the sheet animates at 60fps.
+    let link = CADisplayLink(target: self, selector: #selector(displayLinkFired(_:)))
+    // Emit follower positions at the display's high refresh rate. Without an
+    // explicit range a CADisplayLink runs at 60fps on ProMotion (even with
+    // CADisableMinimumFrameDurationOnPhone set), so followers driven by
+    // `onPositionChange` would update at half the rate of the sheet's
+    // render-server animation.
     link.preferredFrameRateRange = CAFrameRateRange(minimum: 80, maximum: 120, preferred: 120)
     link.add(to: .main, forMode: .common)
     displayLink = link
@@ -389,16 +466,21 @@ public final class BottomSheetHostingView: UIView {
     isContentInteractionDisabled = !isEnabled
   }
 
-  @objc private func displayLinkFired() {
-    emitPosition()
+  @objc private func displayLinkFired(_ link: CADisplayLink) {
+    // `targetTimestamp` is the predicted display time of the next frame
+    // Ideal synchronization with animations running on the render server
+    // hasn't been achieved. Render server is a black box and it's hard to
+    // find out why exactly. This approach however gives better results
+    // than lagging one frame behind.
+    stepSpring(targetTime: link.targetTimestamp)
   }
 
   @objc private func handleScrimPress() {
     guard
       modal,
-      let closedIndex,
+      let closedIndex = scrimDismissIndex,
       targetIndex != closedIndex,
-      activeAnimator == nil || currentSheetHeight > 0.5
+      activeSpring == nil || currentSheetHeight > 0.5
     else {
       return
     }
@@ -414,49 +496,132 @@ public final class BottomSheetHostingView: UIView {
     preserveScrimPin: Bool = false
   ) {
     guard index >= 0, index < detentSpecs.count else { return }
+    if window == nil, activeSpring == nil {
+      // Avoid starting a render-server animation before the layer is attached:
+      // UIKit may briefly display the model transform before keyframes begin.
+      pendingSnapRequest = PendingSnapRequest(
+        index: index,
+        velocity: velocity,
+        emitIndexChange: emitIndexChange,
+        emitSettle: emitSettle,
+        preserveScrimPin: preserveScrimPin
+      )
+      return
+    }
+
     targetIndex = index
     if !preserveScrimPin {
       scrimPinnedFull = false
     }
 
-    let currentTy = sheetContainer.transform.ty
+    let currentTy: CGFloat
+    if activeSpring != nil {
+      currentTy = cancelActiveSpring()
+    } else {
+      currentTy = sheetContainer.transform.ty
+    }
     let targetTy = translationY(for: index)
     let distance = targetTy - currentTy
+
     let velocityRatio = distance != 0 ? velocity / distance : 0
     let clampedRatio = min(max(velocityRatio, -5), 5)
-    let initialVelocity = CGVector(dx: 0, dy: clampedRatio)
+    let v0 = clampedRatio * distance
 
-    activeAnimatorEmitsSettle = emitSettle
-    activeAnimator?.stopAnimation(true)
+    let duration: CFTimeInterval = 0.45
+    // Pick the stiffness so the sheet looks settled (within ~0.5% of target)
+    // right at `duration`. For a critically-damped spring that point is
+    // ω·t ≈ 8, so ω = 8 / duration.
+    let omega = 8.0 / CGFloat(duration)
+    activeSpringEmitsSettle = emitSettle
+    activeSpringTargetIndex = index
 
-    let spring = UISpringTimingParameters(dampingRatio: 1.0, initialVelocity: initialVelocity)
-    let animator = UIViewPropertyAnimator(duration: 0.45, timingParameters: spring)
+    // The single instant both the modal animation and the follower curve are anchored to.
+    let startTime = CACurrentMediaTime()
+    let spring = CriticalSpring(
+      from: currentTy,
+      target: targetTy,
+      v0: v0,
+      omega: omega,
+      startTime: startTime,
+      duration: duration
+    )
 
-    animator.addAnimations {
-      self.sheetContainer.transform = CGAffineTransform(translationX: 0, y: targetTy)
+    // The sheet is animated on the render server from samples of the same spring
+    // that feeds the follower position events.
+    let animation = CAKeyframeAnimation(keyPath: "transform.translation.y")
+    let sampleCount = max(Int((duration * 120).rounded()), 1)
+    animation.values = spring.keyframeValues(count: sampleCount)
+    animation.keyTimes = (0 ... sampleCount).map {
+      NSNumber(value: Double($0) / Double(sampleCount))
     }
-    animator.addCompletion { [weak self] position in
-      guard let self, position == .end else { return }
-      self.stopDisplayLink()
-      self.emitPosition()
-      self.activeAnimator = nil
-      self.activeAnimatorEmitsSettle = false
-      self.scrimPinnedFull = false
-      self.setContentInteractionEnabled(true)
-      self.updateInteractionState()
-      if emitSettle {
-        self.eventDelegate?.bottomSheetHostingView(self, didSettle: index)
-      }
-    }
+    animation.duration = duration
+    animation.calculationMode = .linear
+    animation.beginTime = sheetContainer.layer.convertTime(startTime, from: nil)
+    animation.isRemovedOnCompletion = false
+    animation.fillMode = .forwards
+    animation.delegate = self
+
+    sheetContainer.transform = CGAffineTransform(translationX: 0, y: targetTy)
+    sheetContainer.layer.add(animation, forKey: Self.springAnimationKey)
+    activeSpring = spring
+
+    startDisplayLink()
+
     // Report the index change as soon as the snap is committed, not when it
     // finishes: `targetIndex` is already set, and a programmatic snap's start is
     // known to the caller. `onSettle` remains the signal for movement end.
     if emitIndexChange {
       eventDelegate?.bottomSheetHostingView(self, didChangeIndex: index)
     }
-    animator.startAnimation()
-    activeAnimator = animator
-    startDisplayLink()
+  }
+
+  private func flushPendingSnapIfNeeded() {
+    guard window != nil, let request = pendingSnapRequest else { return }
+    pendingSnapRequest = nil
+    snapToIndex(
+      request.index,
+      velocity: request.velocity,
+      emitIndexChange: request.emitIndexChange,
+      emitSettle: request.emitSettle,
+      preserveScrimPin: request.preserveScrimPin
+    )
+  }
+
+  private func stepSpring(targetTime: CFTimeInterval) {
+    guard let spring = activeSpring else { return }
+    emitPosition(overrideTy: spring.value(at: targetTime))
+  }
+
+  private func finishSpring() {
+    guard activeSpring != nil else { return }
+    let index = activeSpringTargetIndex
+    let emitSettle = activeSpringEmitsSettle
+    let targetTy = translationY(for: index)
+
+    activeSpring = nil
+    activeSpringEmitsSettle = false
+    stopDisplayLink()
+    sheetContainer.layer.removeAnimation(forKey: Self.springAnimationKey)
+
+    sheetContainer.transform = CGAffineTransform(translationX: 0, y: targetTy)
+    emitPosition()
+    scrimPinnedFull = false
+    setContentInteractionEnabled(true)
+    updateInteractionState()
+    if emitSettle {
+      eventDelegate?.bottomSheetHostingView(self, didSettle: index)
+    }
+  }
+
+  @discardableResult
+  private func cancelActiveSpring() -> CGFloat {
+    let visualTy = currentTranslationY
+    activeSpring = nil
+    activeSpringEmitsSettle = false
+    stopDisplayLink()
+    sheetContainer.layer.removeAnimation(forKey: Self.springAnimationKey)
+    sheetContainer.transform = CGAffineTransform(translationX: 0, y: visualTy)
+    return visualTy
   }
 
   @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
@@ -467,6 +632,8 @@ public final class BottomSheetHostingView: UIView {
       isPanning = true
       scrimPinnedFull = false
       panStartingIndex = targetIndex
+      activeDragDetentSpecs = detentSpecs
+      activeDragRange = snapshotDraggableRange(including: targetIndex, in: detentSpecs)
       sheetContainer.endEditing(true)
       setContentInteractionEnabled(false)
       if let handler = surfaceTouchHandler {
@@ -474,18 +641,14 @@ public final class BottomSheetHostingView: UIView {
         handler.isEnabled = true
       }
       gesture.setTranslation(.zero, in: self)
-      if let animator = activeAnimator {
-        stopDisplayLink()
-        let visual = sheetContainer.layer.presentation()?.affineTransform() ?? sheetContainer.transform
-        animator.stopAnimation(true)
-        sheetContainer.transform = visual
-        activeAnimator = nil
+      if activeSpring != nil {
+        cancelActiveSpring()
       }
 
     case .changed:
       let delta = gesture.translation(in: self).y
       gesture.setTranslation(.zero, in: self)
-      let range = draggableRange(including: panStartingIndex)
+      let range = activeDragRange ?? draggableRange(including: panStartingIndex)
       let minTy = range.minTy
       let maxTy = range.maxTy
       let newTy = max(minTy, min(maxTy, sheetContainer.transform.ty + delta))
@@ -494,10 +657,27 @@ public final class BottomSheetHostingView: UIView {
 
     case .ended:
       isPanning = false
+      setContentInteractionEnabled(true)
       let velocity = gesture.velocity(in: self).y
       let currentHeight = maxHeight - sheetContainer.transform.ty
-      let index = bestSnapIndex(for: currentHeight, velocity: velocity, including: panStartingIndex)
+      let index =
+        activeDragDetentSpecs.flatMap {
+          $0.count == detentSpecs.count ? $0 : nil
+        }.map {
+          snapshotBestSnapIndex(
+            for: currentHeight,
+            velocity: velocity,
+            including: panStartingIndex,
+            in: $0
+          )
+        } ?? bestSnapIndex(
+          for: currentHeight,
+          velocity: velocity,
+          including: panStartingIndex
+        )
       panStartingIndex = nil
+      activeDragRange = nil
+      activeDragDetentSpecs = nil
       snapToIndex(index, velocity: velocity)
 
     case .cancelled:
@@ -505,17 +685,31 @@ public final class BottomSheetHostingView: UIView {
       setContentInteractionEnabled(true)
       let cancelVelocity = gesture.velocity(in: self).y
       let cancelHeight = maxHeight - sheetContainer.transform.ty
-      let cancelIndex = bestSnapIndex(
-        for: cancelHeight,
-        velocity: cancelVelocity,
-        including: panStartingIndex
-      )
+      let cancelIndex =
+        activeDragDetentSpecs.flatMap {
+          $0.count == detentSpecs.count ? $0 : nil
+        }.map {
+          snapshotBestSnapIndex(
+            for: cancelHeight,
+            velocity: cancelVelocity,
+            including: panStartingIndex,
+            in: $0
+          )
+        } ?? bestSnapIndex(
+          for: cancelHeight,
+          velocity: cancelVelocity,
+          including: panStartingIndex
+        )
       panStartingIndex = nil
+      activeDragRange = nil
+      activeDragDetentSpecs = nil
       snapToIndex(cancelIndex, velocity: cancelVelocity)
 
     case .failed:
       isPanning = false
       panStartingIndex = nil
+      activeDragRange = nil
+      activeDragDetentSpecs = nil
       setContentInteractionEnabled(true)
 
     default:
@@ -547,19 +741,36 @@ public final class BottomSheetHostingView: UIView {
     }) ?? targetIndex
   }
 
+  private func snapshotBestSnapIndex(
+    for height: CGFloat,
+    velocity: CGFloat,
+    including index: Int?,
+    in specs: [DetentSpec]
+  ) -> Int {
+    let candidates = snapshotCandidateIndices(including: index, in: specs)
+    guard !candidates.isEmpty else { return targetIndex }
+
+    let flickThreshold: CGFloat = 600
+
+    if velocity < -flickThreshold {
+      return candidates.first(where: { specs[$0].height > height })
+        ?? candidates.last ?? targetIndex
+    }
+    if velocity > flickThreshold {
+      return candidates.last(where: { specs[$0].height < height })
+        ?? candidates.first ?? targetIndex
+    }
+
+    return candidates.min(by: {
+      abs(specs[$0].height - height) < abs(specs[$1].height - height)
+    }) ?? targetIndex
+  }
+
   private func isVerticallyScrollable(_ scrollView: UIScrollView) -> Bool {
+    guard scrollView.isScrollEnabled else { return false }
     let verticalInset = scrollView.adjustedContentInset.top + scrollView.adjustedContentInset.bottom
     let visibleHeight = max(0, scrollView.bounds.height - verticalInset)
     return scrollView.alwaysBounceVertical || scrollView.contentSize.height > visibleHeight
-  }
-
-  private func isViewInverted(_ view: UIView) -> Bool {
-    var current: UIView? = view
-    while let v = current, v !== sheetContainer {
-      if v.transform.d < 0 { return true }
-      current = v.superview
-    }
-    return false
   }
 
   private func scrollView(containing location: CGPoint, in view: UIView) -> UIScrollView? {
@@ -597,22 +808,52 @@ public final class BottomSheetHostingView: UIView {
     let maxCandidateHeight = candidates.map { detentSpecs[$0].height }.max() ?? 0
     // Below max: allow drag in either direction to reach other detents.
     guard currentSheetHeight >= maxCandidateHeight - 0.5 else { return true }
-    // At max: only allow downward drag, and only when the scroll view (if any)
-    // is at its top edge — otherwise the scroll view should handle the gesture.
+    // At max: only allow a downward drag, and only when no scroller under the touch can
+    // still absorb it (see the ancestor walk below) — otherwise a scroller handles it.
     if velocity.y < 0 {
       return false
     }
 
     let locationInContainer = panGesture.location(in: sheetContainer)
-    guard let scrollView = scrollView(containing: locationInContainer, in: sheetContainer) else {
+    guard let touchedScrollView = scrollView(containing: locationInContainer, in: sheetContainer) else {
       return true
     }
-    let inverted = isViewInverted(scrollView)
-    if inverted {
-      let maxOffsetY = scrollView.contentSize.height - scrollView.bounds.height + scrollView.adjustedContentInset.bottom
-      return scrollView.contentOffset.y >= maxOffsetY
+
+    // Collapse the sheet only when EVERY vertically-scrollable scroller under the touch is
+    // already at its relevant edge; if any of them can still scroll, the gesture belongs to
+    // that scroller. Inspecting only the innermost scroller breaks on a nested *horizontal*
+    // carousel: it can pass isVerticallyScrollable(_:) via vertical bounce or a slightly
+    // taller contentSize, yet its contentOffset.y is always 0 ("at top"), so the sheet
+    // collapsed while the enclosing vertical list was still mid-scroll.
+    //
+    // Walk the touched scroller and its ancestors up to the sheet container, resolving
+    // inversion top-down as we go: a view is inverted when it — or any ancestor up to the
+    // container — has a flipped vertical axis. edgeTolerance absorbs a sub-pixel residual so
+    // the sheet can still collapse when a list is effectively, if not exactly, at its edge.
+    let edgeTolerance: CGFloat = 0.5
+
+    var chain: [UIView] = []
+    var node: UIView? = touchedScrollView
+    while let view = node, view !== sheetContainer {
+      chain.append(view)
+      node = view.superview
     }
-    return scrollView.contentOffset.y <= 0
+
+    var inverted = false
+    for view in chain.reversed() {
+      inverted = inverted || view.transform.d < 0
+      guard let candidate = view as? UIScrollView, isVerticallyScrollable(candidate) else {
+        continue
+      }
+      if inverted {
+        let maxOffsetY =
+          candidate.contentSize.height - candidate.bounds.height + candidate.adjustedContentInset.bottom
+        if candidate.contentOffset.y < maxOffsetY - edgeTolerance { return false }
+      } else if candidate.contentOffset.y > edgeTolerance {
+        return false
+      }
+    }
+    return true
   }
 
   private var resolvedMaxDetentHeight: CGFloat {
@@ -635,7 +876,6 @@ public final class BottomSheetHostingView: UIView {
   private func resolveDetentSpecs() -> [DetentSpec]? {
     let maxHeight = resolvedMaxDetentHeight
     let measuredContentHeight = maxHeight > 0 ? validContentHeight.map { min($0, maxHeight) } : nil
-    let contentHeight = measuredContentHeight ?? maxHeight
     var resolvedDetents: [DetentSpec] = []
     resolvedDetents.reserveCapacity(rawDetentSpecs.count)
 
@@ -643,28 +883,44 @@ public final class BottomSheetHostingView: UIView {
       let height: CGFloat
       switch spec.kind {
       case .points:
-        if measuredContentHeight != nil, spec.value > contentHeight {
-          let message =
-            "Invalid bottom sheet detent at index \(index): fixed detent \(spec.value) exceeds measured content height \(contentHeight)."
-          if lastReportedInvalidDetentMessage != message {
-            lastReportedInvalidDetentMessage = message
-            eventDelegate?.bottomSheetHostingView(self, didReportError: message)
-          }
-          return nil
-        }
         height = spec.value
       case .content:
-        height = contentHeight
+        height =
+          measuredContentHeight ?? unresolvedContentDetentHeight(after: index, maxHeight: maxHeight)
       }
-      resolvedDetents.append(DetentSpec(height: min(max(0, height), maxHeight), programmatic: spec.programmatic))
+      let resolvedHeight = min(max(0, height), maxHeight)
+      if let previous = resolvedDetents.last, resolvedHeight < previous.height {
+        let message =
+          "Invalid bottom sheet detent at index \(index): resolved height \(resolvedHeight) is lower than previous detent height \(previous.height). Detents must be passed in ascending order."
+        if lastReportedInvalidDetentMessage != message {
+          lastReportedInvalidDetentMessage = message
+          eventDelegate?.bottomSheetHostingView(self, didReportError: message)
+        }
+        return nil
+      }
+      resolvedDetents.append(DetentSpec(height: resolvedHeight, programmatic: spec.programmatic))
     }
 
     lastReportedInvalidDetentMessage = nil
     return resolvedDetents
   }
 
+  private func unresolvedContentDetentHeight(after index: Int, maxHeight: CGFloat) -> CGFloat {
+    guard index + 1 < rawDetentSpecs.count else {
+      return maxHeight
+    }
+    let nextPointHeight = rawDetentSpecs[(index + 1)...]
+      .first { $0.kind == .points }
+      .map(\.value)
+    return min(max(0, nextPointHeight ?? maxHeight), maxHeight)
+  }
+
   private func refreshDetentsFromLayout() {
     refreshContentHeightMarker()
+    if !isPanning {
+      activeDragRange = nil
+      activeDragDetentSpecs = nil
+    }
     if hasLaidOut, isInvalidContentDetentTarget(targetIndex) {
       updateScrim()
       return
@@ -683,9 +939,12 @@ public final class BottomSheetHostingView: UIView {
     // Whether the scrim is currently fully opaque, i.e. the sheet is settled at
     // or above the first non-zero detent. If so, a detent resize must not dip
     // the scrim while the sheet re-anchors to the new geometry.
-    let wasScrimFull = modal
+    let wasScrimFull = hasLaidOut
+      && !isPanning
+      && modal
       && firstNonZeroDetentHeight > 0
       && currentSheetHeight + 0.5 >= firstNonZeroDetentHeight
+    scrimPinnedFull = scrimPinnedFull || wasScrimFull
     detentSpecs = resolvedDetents
 
     guard bounds.width > 0, bounds.height > 0, !detentSpecs.isEmpty else {
@@ -697,19 +956,14 @@ public final class BottomSheetHostingView: UIView {
       let newMaxHeight = sheetContainerHeight
       let targetTy = translationY(for: targetIndex)
 
-      if let animator = activeAnimator {
-        stopDisplayLink()
-        let visualTy = sheetContainer.layer.presentation()?.affineTransform().ty ?? sheetContainer.transform.ty
-        let shouldEmitSettle = activeAnimatorEmitsSettle
-        animator.stopAnimation(true)
-        activeAnimator = nil
-        activeAnimatorEmitsSettle = false
+      if activeSpring != nil {
+        let shouldEmitSettle = activeSpringEmitsSettle
+        let visualTy = cancelActiveSpring()
         // Re-anchor the in-flight position to the new container height so the
         // sheet surface keeps the same on-screen height across the resize.
         let visibleHeight = previousMaxHeight - visualTy
         let reanchoredTy = min(max(newMaxHeight - visibleHeight, 0), newMaxHeight)
         sheetContainer.transform = CGAffineTransform(translationX: 0, y: reanchoredTy)
-        scrimPinnedFull = scrimPinnedFull || wasScrimFull
         emitPosition()
         snapToIndex(
           targetIndex,
@@ -721,17 +975,22 @@ public final class BottomSheetHostingView: UIView {
       } else {
         let currentVisibleHeight = previousMaxHeight - currentTranslationY
         let targetHeight = detent(at: targetIndex).height
+        let shouldAnimateHeight = shouldAnimateContentHeight(at: targetIndex)
         if abs(targetHeight - currentVisibleHeight) <= 0.5 {
           // No meaningful change.
           sheetContainer.transform = CGAffineTransform(translationX: 0, y: targetTy)
           emitPosition()
+          scrimPinnedFull = false
+        } else if !shouldAnimateHeight {
+          sheetContainer.transform = CGAffineTransform(translationX: 0, y: targetTy)
+          emitPosition()
+          scrimPinnedFull = false
         } else {
           // The content detent changed (grew or shrank): re-anchor at the
           // current visible height, then animate to the new target. The surface
           // covers the full sheet, so a shrink no longer exposes blank space.
           let startTy = min(max(newMaxHeight - currentVisibleHeight, 0), newMaxHeight)
           sheetContainer.transform = CGAffineTransform(translationX: 0, y: startTy)
-          scrimPinnedFull = scrimPinnedFull || wasScrimFull
           emitPosition()
           snapToIndex(
             targetIndex,
@@ -743,6 +1002,13 @@ public final class BottomSheetHostingView: UIView {
         }
       }
     }
+  }
+
+  private func shouldAnimateContentHeight(at index: Int) -> Bool {
+    guard rawDetentSpecs.indices.contains(index) else {
+      return animateContentHeight
+    }
+    return animateContentHeight || rawDetentSpecs[index].kind != .content
   }
 
   private func refreshContentHeightMarker() {
@@ -790,6 +1056,8 @@ public final class BottomSheetHostingView: UIView {
 
   deinit {
     stopObservingContentHeightMarker()
+    displayLink?.invalidate()
+    sheetContainer.layer.removeAnimation(forKey: Self.springAnimationKey)
   }
 
   private func findContentHeightMarker() -> UIView? {
@@ -825,6 +1093,13 @@ public final class BottomSheetHostingView: UIView {
   }
 }
 
+extension BottomSheetHostingView: CAAnimationDelegate {
+  public func animationDidStop(_: CAAnimation, finished: Bool) {
+    guard finished, activeSpring != nil else { return }
+    finishSpring()
+  }
+}
+
 extension BottomSheetHostingView: UIGestureRecognizerDelegate {
   public func gestureRecognizer(
     _ gestureRecognizer: UIGestureRecognizer,
@@ -844,8 +1119,16 @@ extension BottomSheetHostingView: UIGestureRecognizerDelegate {
 
 private extension BottomSheetHostingView {
   var currentTranslationY: CGFloat {
-    if activeAnimator != nil, let presentation = sheetContainer.layer.presentation() {
-      return presentation.affineTransform().ty
+    // During a settle the modal is driven by a keyframe animation on the render
+    // server (the model `transform` already holds the final target), so read the
+    // analytical spring the keyframes were sampled from. The presentation layer
+    // is deliberately not used: right after a snap starts it still holds the
+    // previously committed transform, and that stale value (e.g. the identity
+    // transform from before the first layout) reads as a wide-open sheet — which
+    // briefly flashed the scrim on mount. A drag assigns `transform` directly,
+    // so outside a settle the model value is correct.
+    if let spring = activeSpring {
+      return spring.value(at: CACurrentMediaTime())
     }
     return sheetContainer.transform.ty
   }
@@ -867,12 +1150,20 @@ private extension BottomSheetHostingView {
       return
     }
 
+    // Until the first layout places the sheet, the identity transform reads as
+    // a fully-open sheet; keep the scrim hidden until the sheet is positioned.
+    if !hasLaidOut {
+      scrimView.alpha = 0
+      scrimView.isHidden = true
+      return
+    }
+
     // If we're settled on the closed detent, dynamic detent/content updates can
     // momentarily report a stale non-zero position. Keep scrim fully hidden.
     if
       let closedIndex,
       targetIndex == closedIndex,
-      activeAnimator == nil,
+      activeSpring == nil,
       !isPanning
     {
       scrimView.alpha = 0
@@ -909,19 +1200,20 @@ private extension BottomSheetHostingView {
       forPosition: position,
       values: detentSpecs.indices.map {
         clampOpacity(scrimOpacities[min($0, scrimOpacities.count - 1)])
-      })
+      }
+    )
   }
 
-  // Fractional detent index in 0...(detentSpecs.count - 1): 0 at the shortest
-  // detent, 1 at the next, and so on, interpolated by position in between. The
-  // continuous counterpart of `onIndexChange`, so consumers can drive a backdrop
-  // or animate per detent without knowing the sheet's height.
+  /// Fractional detent index in 0...(detentSpecs.count - 1): 0 at the shortest
+  /// detent, 1 at the next, and so on, interpolated by position in between. The
+  /// continuous counterpart of `onIndexChange`, so consumers can drive a backdrop
+  /// or animate per detent without knowing the sheet's height.
   private func detentIndex(forPosition position: CGFloat) -> CGFloat {
     interpolate(forPosition: position, values: detentSpecs.indices.map { CGFloat($0) })
   }
 
-  // Interpolates a per-detent value (one per detent, by index) by the sheet
-  // position, using each detent's resolved height as the breakpoint.
+  /// Interpolates a per-detent value (one per detent, by index) by the sheet
+  /// position, using each detent's resolved height as the breakpoint.
   private func interpolate(forPosition position: CGFloat, values: [CGFloat]) -> CGFloat {
     let pairs = zip(detentSpecs.map(\.height), values)
       .map { (height: $0, value: $1) }

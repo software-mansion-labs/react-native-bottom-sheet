@@ -16,7 +16,9 @@ export interface NativeProps extends ViewProps {
   maxDetentHeight: CodegenTypes.Double;
   index: CodegenTypes.Int32;
   animateIn?: CodegenTypes.WithDefault<boolean, true>;
+  animateContentHeight?: CodegenTypes.WithDefault<boolean, true>;
   modal: boolean;
+  nativeOverlay?: boolean;
   disableScrollableNegotiation?: boolean;
   scrimColor?: ColorValue;
   scrimOpacities?: ReadonlyArray<CodegenTypes.Double>;

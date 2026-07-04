@@ -1,10 +1,17 @@
 export type CaseKey =
   | 'basic-modal'
+  | 'native-overlay-modal'
+  | 'native-overlay-nested'
   | 'modal-scroll-view'
   | 'modal-flat-list'
+  | 'keyboard-content-detent'
+  | 'keyboard-aware-list'
   | 'scrim-opacity'
   | 'inline-detents'
+  | 'under-status-bar'
+  | 'content-larger-detent'
   | 'inline-flat-list'
+  | 'inline-nested-flat-list'
   | 'invalid-detents'
   | 'disable-scrollable-negotiation'
   | 'programmatic-detent-drag'
@@ -18,7 +25,6 @@ export type CaseKey =
 export type DemoCase = {
   key: CaseKey;
   title: string;
-  description: string;
   href: `/${CaseKey}`;
   throws?: boolean;
 };
@@ -27,101 +33,112 @@ export const DEMO_CASES: DemoCase[] = [
   {
     key: 'basic-modal',
     title: 'Basic modal',
-    description: 'Simple modal bottom sheet with a fixed-height body.',
     href: '/basic-modal',
+  },
+  {
+    key: 'native-overlay-modal',
+    title: 'Native overlay modal',
+    href: '/native-overlay-modal',
+  },
+  {
+    key: 'native-overlay-nested',
+    title: 'Native overlay nested mount',
+    href: '/native-overlay-nested',
   },
   {
     key: 'modal-scroll-view',
     title: 'Modal with ScrollView',
-    description: 'Modal bottom sheet containing a vertical ScrollView.',
     href: '/modal-scroll-view',
   },
   {
     key: 'modal-flat-list',
     title: 'Modal with FlatList',
-    description: 'Modal bottom sheet containing a FlatList.',
     href: '/modal-flat-list',
+  },
+  {
+    key: 'keyboard-content-detent',
+    title: 'Keyboard content detent',
+    href: '/keyboard-content-detent',
+  },
+  {
+    key: 'keyboard-aware-list',
+    title: 'Keyboard-aware list',
+    href: '/keyboard-aware-list',
   },
   {
     key: 'scrim-opacity',
     title: 'Per-detent scrim opacity',
-    description:
-      'Three-detent modal with scrimOpacities={[0, 0.5, 1]} so the scrim deepens at every detent.',
     href: '/scrim-opacity',
   },
   {
     key: 'inline-detents',
     title: 'Inline with detents',
-    description: 'Inline sheet with fixed and content detents.',
     href: '/inline-detents',
+  },
+  {
+    key: 'under-status-bar',
+    title: 'Under status bar',
+    href: '/under-status-bar',
+  },
+  {
+    key: 'content-larger-detent',
+    title: 'Content plus larger detent',
+    href: '/content-larger-detent',
   },
   {
     key: 'inline-flat-list',
     title: 'Inline with FlatList',
-    description: 'Inline sheet with FlatList content and preview detent.',
     href: '/inline-flat-list',
+  },
+  {
+    key: 'inline-nested-flat-list',
+    title: 'Inline with nested FlatLists',
+    href: '/inline-nested-flat-list',
   },
   {
     key: 'invalid-detents',
     title: 'Invalid detents',
-    description: 'Inline sheet with a fixed detent taller than its content.',
     href: '/invalid-detents',
     throws: true,
   },
   {
     key: 'disable-scrollable-negotiation',
     title: 'Disable scrollable negotiation',
-    description:
-      'Inline sheet showing that list gestures stay with the touched scrollable.',
     href: '/disable-scrollable-negotiation',
   },
   {
     key: 'programmatic-detent-drag',
     title: 'Programmatic detent drag',
-    description:
-      'Drag from a programmatic detent without exposing it as a normal target.',
     href: '/programmatic-detent-drag',
   },
   {
     key: 'dynamic-detents',
     title: 'Dynamic detent updates',
-    description:
-      'Toggle the middle detent while index 1 is active to verify animated updates.',
     href: '/dynamic-detents',
   },
   {
     key: 'dynamic-content-height',
     title: 'Dynamic content height',
-    description:
-      'Resize the content of a modal sheet: grow animates, shrink snaps, scrim stays opaque.',
     href: '/dynamic-content-height',
   },
   {
     key: 'snap-callbacks',
     title: 'Snap lifecycle callbacks',
-    description:
-      'Logs onIndexChange (snap committed) and onSettle (movement ended) for drags and programmatic snaps.',
     href: '/snap-callbacks',
   },
   {
     key: 'no-animate-in',
     title: 'No animate in',
-    description:
-      'Inline sheet with animateIn={false}: it should appear at its detent without sliding up.',
     href: '/no-animate-in',
   },
   {
     key: 'ui-thread-position',
     title: 'UI-thread onPositionChange',
-    description:
-      'createAnimatedComponent(BottomSheet) with a Reanimated worklet handling onPositionChange synchronously on the UI thread.',
     href: '/ui-thread-position',
   },
   {
     key: 'ui-thread-modal-position',
     title: 'UI-thread modal onPositionChange',
-    description:
-      'createAnimatedComponent(ModalBottomSheet): a worklet onPositionChange on a portal-rendered modal, via the in-place host anchor.',
     href: '/ui-thread-modal-position',
   },
 ];

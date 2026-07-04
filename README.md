@@ -136,8 +136,8 @@ const insets = useSafeAreaInsets();
 
 #### Scrim
 
-Tapping the scrim collapses the sheet. Use `scrimColor` to customize
-its&nbsp;color:
+Tapping the scrim collapses the sheet to the closed detent. Use `scrimColor` to
+customize the scrim&nbsp;color:
 
 ```tsx
 <ModalBottomSheet
@@ -154,13 +154,14 @@ By default, the scrim fades in as the sheet opens and then holds at full
 opacity, so detents above the first share the same scrim. Use `scrimOpacities`
 to control the opacity at each detent: It takes one value in 0–1 per detent,
 indexed to match `detents`, and interpolates linearly as the sheet is dragged
-between them. A shorter array reuses its last value for any remaining detents.
+between them. A shorter array reuses its last value for any
+remaining&nbsp;detents.
 
 The default maps each detent to 0 when it is closed and 1 otherwise, so the
-scrim is transparent at any closed detent and fully opaque at every open one,
-whatever order the detents are passed in.
+scrim is transparent at any closed detent and fully opaque at every
+open&nbsp;one.
 
-To keep the scrim deepening across every detent, pass one value per detent:
+To keep the scrim deepening across every detent, pass one value per&nbsp;detent:
 
 ```tsx
 <ModalBottomSheet
@@ -169,6 +170,29 @@ To keep the scrim deepening across every detent, pass one value per detent:
   detents={[0, 300, 'content']}
   scrimColor="rgba(0, 0, 0, 0.3)"
   scrimOpacities={[0, 0.5, 1]}
+  surface={/* ... */}
+>
+  {/* ... */}
+</ModalBottomSheet>
+```
+
+#### Native overlay
+
+By default `ModalBottomSheet` renders through `BottomSheetProvider`’s portal.
+That portal lives in your React tree, so a sheet opened from a screen presented
+as a native modal (for example, a React Navigation native-stack screen with
+`presentation: 'modal'`) is confined to that screen and cannot cover&nbsp;it.
+
+Set `nativeOverlay` to present the sheet in a native overlay above
+everything—including native modal screens—so it always covers the full window.
+On iOS, a `UIWindow`-attached container is used; on Android, a full-screen,
+edge-to-edge, transparent&nbsp;dialog.
+
+```tsx
+<ModalBottomSheet
+  nativeOverlay
+  index={index}
+  onIndexChange={setIndex}
   surface={/* ... */}
 >
   {/* ... */}
@@ -185,6 +209,10 @@ Decoupling the surface this way keeps the sheet covered as the content height
 changes. When content shrinks, the sheet animates to its new height without the
 background briefly exposing blank space behind the&nbsp;content.
 
+If your sheet content animates its own height, pass
+`animateContentHeight={false}` to update the sheet position immediately when the
+active `'content'` detent changes&nbsp;height.
+
 Give the surface a filling style such as `StyleSheet.absoluteFill`. It is
 mounted in a full&zwj;-&zwj;size host, so a surface sized only by its own
 content would collapse and not&nbsp;show.
@@ -199,6 +227,30 @@ content would collapse and not&nbsp;show.
 >
   <Text>Sheet content</Text>
 </BottomSheet>
+```
+
+### Keyboard handling
+
+The sheet does not apply keyboard avoidance automatically. This keeps the
+component unopinionated and lets your app choose the keyboard strategy that
+matches its layout: resize content, add bottom padding, use a keyboard-aware
+scroll view, or rely on platform&nbsp;behavior.
+
+For a `'content'` detent, keyboard-driven padding changes the measured content
+height. If you animate that padding yourself, pass
+`animateContentHeight={false}` so the sheet follows the animated content height
+instead of adding its own resize&nbsp;animation.
+
+```tsx
+<ModalBottomSheet
+  detents={[0, 'content']}
+  index={index}
+  onIndexChange={setIndex}
+  surface={/* ... */}
+  animateContentHeight={false}
+>
+  {/* Content with keyboard-driven bottom padding. */}
+</ModalBottomSheet>
 ```
 
 ### Scrollable negotiation
@@ -225,7 +277,10 @@ set&nbsp;`disableScrollableNegotiation`:
 
 Detents are the points to which the sheet snaps. Each detent is either a number
 (a fixed height in pixels) or `'content'` (the sheet’s content height, capped by
-the available screen height). The default detents are `[0, 'content']`.
+the available screen height). The default detents are `[0, 'content']`. Pass
+detents in ascending order, from shortest to&nbsp;tallest. Fixed detents can be
+taller than the measured content height, so `[0, 'content', 600]` lets a compact
+content-sized sheet expand to a larger&nbsp;surface.
 
 Sheet children are laid out in a flex container. For a full&zwj;-&zwj;height
 sheet, apply `flex: 1` to your content and use the `'content'`&nbsp;detent.
@@ -242,6 +297,21 @@ content, never on the&nbsp;surface:
   }
 >
   <View style={{ flex: 1 }}>{/* Full-height sheet content. */}</View>
+</BottomSheet>
+```
+
+By default, full-height detents are capped below the status bar. Set
+`extendUnderStatusBar` when the sheet should be allowed to occupy the full
+screen&nbsp;height:
+
+```tsx
+<BottomSheet // Or `ModalBottomSheet`.
+  extendUnderStatusBar
+  index={index}
+  onIndexChange={setIndex}
+  surface={/* ... */}
+>
+  <View style={{ flex: 1 }}>{/* Full-screen sheet content. */}</View>
 </BottomSheet>
 ```
 
@@ -283,7 +353,8 @@ the current index and animates to the updated detent height when needed.
 
 If you want a detent to be reachable only via code (not by dragging), use the
 object form or the `programmatic` helper. Programmatic detents are excluded from
-drag snapping but can still be targeted via `index`&nbsp;updates.
+drag snapping but can still be targeted via `index` updates. If the closed
+detent is programmatic-only, tapping the scrim does not dismiss the&nbsp;sheet.
 
 ```tsx
 <BottomSheet
@@ -307,8 +378,8 @@ top of the sheet from&nbsp;`event.nativeEvent.position`. The same event also
 carries `event.nativeEvent.index`—the fractional detent index in
 `0..(detents.length - 1)` (`0` at the shortest detent, `1` at the next, and so
 on, interpolated in between)—the continuous counterpart of `onIndexChange`,
-handy for driving a backdrop or per-detent animation without knowing the
-sheet’s height.
+handy for driving a backdrop or per-detent animation without knowing the sheet’s
+height.
 
 ```tsx
 <BottomSheet // Or `ModalBottomSheet`.

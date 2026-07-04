@@ -3,7 +3,7 @@ import { BottomSheet } from '@swmansion/react-native-bottom-sheet';
 
 import { DemoScreen, SheetBackground } from '../demoShared';
 
-const INVALID_DETENTS_CONTENT_HEIGHT = 120;
+const INVALID_DETENTS_CONTENT_HEIGHT = 160;
 
 export const InvalidDetentsScreen = () => {
   return (
@@ -11,7 +11,7 @@ export const InvalidDetentsScreen = () => {
       title="Invalid detents"
       sheet={
         <BottomSheet
-          detents={[120, 360, 'content']}
+          detents={[360, 120, 'content']}
           index={1}
           surface={<SheetBackground style={StyleSheet.absoluteFill} />}
         >
@@ -58,14 +58,14 @@ export const InvalidDetentsScreen = () => {
               This sheet should not be allowed.
             </Text>
             <Text style={{ fontSize: 15, lineHeight: 22, color: '#555' }}>
-              The 360pt detent is taller than the measured sheet content, so the
-              native view should report an invalid detent error.
+              The 120pt detent comes after a 360pt detent, so the native view
+              should report an ascending-order detent error.
             </Text>
           </View>
         </BottomSheet>
       }
     >
-      <Text>detents: [{`120, 360, 'content'`}]</Text>
+      <Text>detents: [{`360, 120, 'content'`}]</Text>
     </DemoScreen>
   );
 };

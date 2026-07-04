@@ -82,6 +82,8 @@ class BottomSheetViewManager :
     stateWrapper: StateWrapper?,
   ): Any? {
     view.stateWrapper = stateWrapper
+    view.eventDispatcher =
+      UIManagerHelper.getEventDispatcherForReactTag(UIManagerHelper.getReactContext(view), view.id)
     return null
   }
 
@@ -127,9 +129,19 @@ class BottomSheetViewManager :
     view.animateIn = animateIn
   }
 
+  @ReactProp(name = "animateContentHeight")
+  override fun setAnimateContentHeight(view: BottomSheetView, animateContentHeight: Boolean) {
+    view.animateContentHeight = animateContentHeight
+  }
+
   @ReactProp(name = "modal")
   override fun setModal(view: BottomSheetView, modal: Boolean) {
     view.modal = modal
+  }
+
+  @ReactProp(name = "nativeOverlay")
+  override fun setNativeOverlay(view: BottomSheetView, value: Boolean) {
+    view.setNativeOverlay(value)
   }
 
   @ReactProp(name = "disableScrollableNegotiation")

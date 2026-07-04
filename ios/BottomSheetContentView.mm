@@ -35,6 +35,16 @@
   _impl.animateIn = animateIn;
 }
 
+- (BOOL)animateContentHeight
+{
+  return _impl.animateContentHeight;
+}
+
+- (void)setAnimateContentHeight:(BOOL)animateContentHeight
+{
+  _impl.animateContentHeight = animateContentHeight;
+}
+
 - (UIView *)sheetContainer
 {
   return _impl.sheetContainer;
@@ -88,6 +98,11 @@
 - (CGFloat)currentContentOffsetY
 {
   return _impl.currentContentOffsetY;
+}
+
+- (BOOL)isModalAccessibilityActive
+{
+  return _impl.isModalAccessibilityActive;
 }
 
 - (void)mountChildComponentView:(UIView *)childView atIndex:(NSInteger)index

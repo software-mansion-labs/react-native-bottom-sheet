@@ -1,6 +1,6 @@
 import { useState, type ComponentType, type ReactNode } from 'react';
 import type { NativeSyntheticEvent, StyleProp, ViewStyle } from 'react-native';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import {
   useSafeAreaFrame,
   useSafeAreaInsets,
@@ -25,8 +25,9 @@ export type PositionChangeEventData = Readonly<{
   /**
    * Fractional detent index in `0..(detents.length - 1)`: `0` at the shortest
    * detent, `1` at the next, and so on, interpolated as the sheet moves between
-   * them. The continuous counterpart of `onIndexChange`, so a backdrop or
-   * per-detent animation can be driven without knowing the sheet's height.
+   * them. Detents are required to be in ascending order by height. The
+   * continuous counterpart of `onIndexChange`, so a backdrop or per-detent
+   * animation can be driven without knowing the sheet's height.
    */
   index: number;
 }>;
@@ -51,12 +52,29 @@ export interface BottomSheetProps {
   surface?: ReactNode;
   /** Additional style applied to the native sheet host view. */
   style?: StyleProp<ViewStyle>;
-  /** Snap points for the sheet. Defaults to `[0, 'content']`. */
+  /**
+   * Snap points for the sheet, in ascending order by height. Defaults to
+   * `[0, 'content']`. Fixed detents may be taller than the measured content
+   * height, so `[0, 'content', 600]` is valid when the content is shorter than
+   * 600pt.
+   */
   detents?: Detent[];
   /** Zero-based index into `detents`. */
   index: number;
   /** Whether the sheet should animate in on first layout. */
   animateIn?: boolean;
+  /**
+   * Whether the sheet should animate when the active `'content'` detent changes
+   * height. Disable this when your content animates its own height.
+   *
+   * @default true
+   */
+  animateContentHeight?: boolean;
+  /**
+   * Whether the sheet may extend under the status bar when using full-height
+   * detents. Defaults to `false`, so detents remain capped below the status bar.
+   */
+  extendUnderStatusBar?: boolean;
   /**
    * Called when a user-driven snap is initiated: the moment a drag commits to a
    * detent, before the animation settles. Does not fire for programmatic `index`
@@ -89,19 +107,28 @@ export interface BottomSheetProps {
   wrapNativeView?: (
     component: ComponentType<NativeProps>
   ) => ComponentType<NativeProps>;
-  /** Internal flag used by `ModalBottomSheet`. */
-  modal?: boolean;
   /**
    * Escape hatch that disables sheet/list gesture negotiation.
    * If a gesture starts inside a nested scrollable, that scrollable keeps it
    * even when it cannot scroll any further.
    */
   disableScrollableNegotiation?: boolean;
+}
+
+type ModalOnlyBottomSheetProps = {
+  /** Internal flag used by `ModalBottomSheet`. */
+  modal?: boolean;
+  /**
+   * Internal flag used by `ModalBottomSheet`. When set, the sheet is presented
+   * in a native overlay above everything (including native modal screens)
+   * instead of the `BottomSheetProvider` portal.
+   */
+  nativeOverlay?: boolean;
   /** Scrim color used by `ModalBottomSheet`. */
   scrimColor?: string;
   /**
-   * Scrim opacities per detent, indexed to match `detents`. Each value in 0–1
-   * scales the scrim color’s alpha at the detent of the same index, and the
+   * Scrim opacities per detent, indexed to match `detents`. Each value in 0-1
+   * scales the scrim color's alpha at the detent of the same index, and the
    * opacity is linearly interpolated as the sheet is dragged between detents.
    * A shorter array than `detents` reuses its last value for any remaining
    * detents.
@@ -109,32 +136,42 @@ export interface BottomSheetProps {
    * The default maps each detent to 0 when it is closed and 1 otherwise,
    * so the scrim is transparent at any closed detent and fully opaque at every
    * open one; e.g., `[0, 'content']` defaults to `[0, 1]`, and all-open detents
-   * default to a constant opaque scrim. Pass one value per detent—e.g.,
-   * `[0, 0.5, 1]`—to keep the scrim deepening across every detent.
+   * default to a constant opaque scrim. Pass one value per detent, e.g.
+   * `[0, 0.5, 1]`, to keep the scrim deepening across every detent.
    */
   scrimOpacities?: number[];
-}
+};
+
+export type BottomSheetInternalProps = BottomSheetProps &
+  ModalOnlyBottomSheetProps;
 
 /** Native bottom sheet that renders inline within the current screen layout. */
-export const BottomSheet = ({
-  children,
-  surface,
-  style,
-  detents = [0, 'content'],
-  index,
-  animateIn = true,
-  onIndexChange,
-  onSettle,
-  onPositionChange,
-  wrapNativeView,
-  modal = false,
-  disableScrollableNegotiation = false,
-  scrimColor,
-  scrimOpacities,
-}: BottomSheetProps) => {
-  const { height: windowHeight } = useSafeAreaFrame();
+export const BottomSheet = (props: BottomSheetProps) => {
+  const {
+    children,
+    surface,
+    style,
+    detents = [0, 'content'],
+    index,
+    animateIn = true,
+    animateContentHeight = true,
+    extendUnderStatusBar = false,
+    onIndexChange,
+    onSettle,
+    onPositionChange,
+    wrapNativeView,
+    modal = false,
+    nativeOverlay = false,
+    disableScrollableNegotiation = false,
+    scrimColor,
+    scrimOpacities,
+  } = props as BottomSheetInternalProps;
+  const usesNativeOverlay = modal && nativeOverlay;
+  const { height: safeAreaFrameHeight } = useSafeAreaFrame();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const maxHeight = windowHeight - insets.top;
+  const hostHeight = usesNativeOverlay ? windowHeight : safeAreaFrameHeight;
+  const maxHeight = extendUnderStatusBar ? hostHeight : hostHeight - insets.top;
   const nativeDetents = detents.map((detent) => {
     const programmatic = isDetentProgrammatic(detent);
     const value = resolveDetentValue(detent);
@@ -160,8 +197,7 @@ export const BottomSheet = ({
     : 0;
   const isCollapsed = selectedDetentValue === 0;
   // Default the scrim opacity per detent: transparent at any closed detent,
-  // fully opaque at every open one. Mapping each detent independently keeps
-  // this correct regardless of the order detents are passed in.
+  // fully opaque at every open one.
   const resolvedScrimOpacity =
     scrimOpacities ??
     detents.map((detent) => (resolveDetentValue(detent) === 0 ? 0 : 1));
@@ -199,12 +235,13 @@ export const BottomSheet = ({
             {
               position: 'absolute',
               left: 0,
-              right: 0,
+              right: usesNativeOverlay ? undefined : 0,
               bottom: 0,
               // The native host always spans the full height of its container.
-              // Detents are still capped to `maxHeight`, so the sheet itself
-              // never extends under the status bar.
-              height: windowHeight,
+              // Detents are still capped to `maxHeight`, so the sheet only
+              // extends under the status bar when explicitly requested.
+              height: hostHeight,
+              width: usesNativeOverlay ? windowWidth : undefined,
             },
             style,
           ]}
@@ -212,7 +249,9 @@ export const BottomSheet = ({
           maxDetentHeight={maxHeight}
           index={index}
           animateIn={animateIn}
+          animateContentHeight={animateContentHeight}
           modal={modal}
+          nativeOverlay={usesNativeOverlay}
           disableScrollableNegotiation={disableScrollableNegotiation}
           scrimColor={scrimColor}
           scrimOpacities={resolvedScrimOpacity}
@@ -229,7 +268,30 @@ export const BottomSheet = ({
               {surface}
             </BottomSheetSurfaceNativeComponent>
           )}
-          <View collapsable={false} style={{ flex: 1, maxHeight }}>
+          <View
+            collapsable={false}
+            // In native-overlay mode the content is reparented into a separate
+            // window. A `flex: 1` wrapper can then collapse to 0×0 *native* bounds
+            // (its explicit width isn't even applied) — the children still draw via
+            // overflow and measure() stays correct, but Android hit-testing can't
+            // descend into a zero-bounds view, so the whole sheet is untappable.
+            // This reproduced on a physical OnePlus (Android 16) but not the
+            // emulator. Sizing the wrapper explicitly (independent of the parent's
+            // flex layout) keeps real bounds; the height matches what `flex: 1`
+            // resolved to before (the max detent height), so content-detent
+            // measurement is unaffected. Inline mode keeps the original flex sizing.
+            style={
+              usesNativeOverlay
+                ? {
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: windowWidth,
+                    height: maxHeight,
+                  }
+                : { flex: 1, maxHeight }
+            }
+          >
             {children}
             <View collapsable={false} pointerEvents="none" />
           </View>
@@ -239,6 +301,12 @@ export const BottomSheet = ({
   );
 
   if (modal) {
+    // In native-overlay mode the sheet is rendered inline; the native layer
+    // reparents it into a full-screen overlay above everything (including
+    // native modal screens), so it bypasses the provider portal entirely.
+    if (usesNativeOverlay) {
+      return sheet;
+    }
     return <Portal>{sheet}</Portal>;
   }
 

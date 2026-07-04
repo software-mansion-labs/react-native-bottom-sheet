@@ -8,11 +8,13 @@ import {
   SHEET_HEADER_HEIGHT,
   SheetBackground,
   SheetHeader,
+  useSheetBottomPadding,
 } from '../demoShared';
 
 export const NoAnimateInScreen = () => {
   const [mountKey, setMountKey] = useState(0);
   const [index, setIndex] = useState(1);
+  const sheetBottomPadding = useSheetBottomPadding(0);
 
   return (
     <DemoScreen
@@ -29,8 +31,9 @@ export const NoAnimateInScreen = () => {
           <SheetHeader title="No animate in" onClose={() => setIndex(0)} />
           <View
             style={{
-              height: SECTION_HEIGHT,
+              height: SECTION_HEIGHT + sheetBottomPadding,
               paddingHorizontal: 20,
+              paddingBottom: sheetBottomPadding,
               justifyContent: 'center',
               gap: 12,
             }}

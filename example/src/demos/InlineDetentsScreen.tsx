@@ -8,10 +8,12 @@ import {
   SHEET_HEADER_HEIGHT,
   SheetBackground,
   SheetHeader,
+  useSheetBottomPadding,
 } from '../demoShared';
 
 export const InlineDetentsScreen = () => {
   const [index, setIndex] = useState(0);
+  const sheetBottomPadding = useSheetBottomPadding(0);
 
   return (
     <DemoScreen
@@ -38,7 +40,8 @@ export const InlineDetentsScreen = () => {
           </View>
           <View
             style={{
-              height: SECTION_HEIGHT,
+              height: SECTION_HEIGHT + sheetBottomPadding,
+              paddingBottom: sheetBottomPadding,
               alignItems: 'center',
               justifyContent: 'center',
               borderTopWidth: 1,

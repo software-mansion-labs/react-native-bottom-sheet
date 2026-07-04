@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Button, StyleSheet, Text, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Animated, Button, StyleSheet, Switch, Text, View } from 'react-native';
 import { ModalBottomSheet } from '@swmansion/react-native-bottom-sheet';
 
 import {
@@ -7,21 +7,53 @@ import {
   MODAL_SCRIM_COLOR,
   SheetBackground,
   SheetHeader,
+  useSheetBottomPadding,
 } from '../demoShared';
 
 const SHORT_CONTENT_HEIGHT = 160;
 const TALL_CONTENT_HEIGHT = 440;
+const CONTENT_ANIMATION_MS = 450;
 
 export const DynamicContentHeightScreen = () => {
   const [index, setIndex] = useState(0);
   const [contentHeight, setContentHeight] = useState(SHORT_CONTENT_HEIGHT);
   const [position, setPosition] = useState(0);
+  const [animateContentHeight, setAnimateContentHeight] = useState(true);
+  const sheetBottomPadding = useSheetBottomPadding(20);
+  const animatedHeight = useRef(
+    new Animated.Value(SHORT_CONTENT_HEIGHT)
+  ).current;
+
+  const resizeContent = (nextHeight: number) => {
+    setContentHeight(nextHeight);
+    animatedHeight.stopAnimation();
+
+    if (animateContentHeight) {
+      animatedHeight.setValue(nextHeight);
+      return;
+    }
+
+    Animated.timing(animatedHeight, {
+      toValue: nextHeight,
+      duration: CONTENT_ANIMATION_MS,
+      useNativeDriver: false,
+    }).start();
+  };
+
+  const updateAnimateContentHeight = (nextValue: boolean) => {
+    setAnimateContentHeight(nextValue);
+    if (nextValue) {
+      animatedHeight.stopAnimation();
+      animatedHeight.setValue(contentHeight);
+    }
+  };
 
   return (
     <DemoScreen
       title="Dynamic content height"
       sheet={
         <ModalBottomSheet
+          animateContentHeight={animateContentHeight}
           detents={[0, 'content']}
           index={index}
           onIndexChange={setIndex}
@@ -33,52 +65,52 @@ export const DynamicContentHeightScreen = () => {
             title="Dynamic content height"
             onClose={() => setIndex(0)}
           />
-          <View style={{ padding: 20, gap: 12 }}>
-            <Text style={{ fontSize: 18, fontWeight: '600' }}>
+          <View
+            style={[styles.sheetBody, { paddingBottom: sheetBottomPadding }]}
+          >
+            <Text style={styles.title}>
               Resize the content while the sheet is open
             </Text>
-            <Text style={{ fontSize: 15, lineHeight: 22, color: '#555' }}>
-              Tap the buttons below to change the content height. Both growing
-              and shrinking should animate smoothly, with the surface keeping
-              the sheet covered so no blank space appears. The scrim should stay
-              fully opaque throughout — it must not dip while the sheet
-              re-anchors.
+            <Text style={styles.description}>
+              When animateContentHeight is on, the content snaps to its new
+              height and the sheet animates. Turn it off when the content
+              animates its own height and the sheet should follow immediately.
             </Text>
+            <View style={styles.row}>
+              <Text style={styles.label}>animateContentHeight</Text>
+              <Switch
+                value={animateContentHeight}
+                onValueChange={updateAnimateContentHeight}
+              />
+            </View>
             <Button
               title="Short content"
-              onPress={() => setContentHeight(SHORT_CONTENT_HEIGHT)}
+              onPress={() => resizeContent(SHORT_CONTENT_HEIGHT)}
             />
             <Button
               title="Tall content"
-              onPress={() => setContentHeight(TALL_CONTENT_HEIGHT)}
+              onPress={() => resizeContent(TALL_CONTENT_HEIGHT)}
             />
-            <View
-              style={{
-                height: contentHeight,
-                borderRadius: 16,
-                backgroundColor: '#dbe7ff',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
+            <Animated.View
+              style={[
+                styles.resizable,
+                {
+                  height: animateContentHeight ? contentHeight : animatedHeight,
+                },
+              ]}
             >
-              <Text style={{ fontWeight: '600', color: '#345' }}>
+              <Text style={styles.resizableText}>
                 Resizable content · {contentHeight}pt
               </Text>
-            </View>
+            </Animated.View>
           </View>
         </ModalBottomSheet>
       }
     >
       <Button title="Open sheet" onPress={() => setIndex(1)} />
-      <View
-        style={{
-          padding: 16,
-          borderRadius: 16,
-          backgroundColor: '#f3f3f3',
-          gap: 6,
-        }}
-      >
-        <Text style={{ fontWeight: '600' }}>Current state</Text>
+      <View style={styles.statePanel}>
+        <Text style={styles.stateTitle}>Current state</Text>
+        <Text>animateContentHeight: {String(animateContentHeight)}</Text>
         <Text>content height: {contentHeight}pt</Text>
         <Text>index: {index}</Text>
         <Text>position: {position.toFixed(0)}pt</Text>
@@ -86,3 +118,51 @@ export const DynamicContentHeightScreen = () => {
     </DemoScreen>
   );
 };
+
+const styles = StyleSheet.create({
+  sheetBody: {
+    paddingTop: 20,
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  description: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: '#555',
+  },
+  row: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  label: {
+    flexShrink: 1,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  resizable: {
+    borderRadius: 16,
+    backgroundColor: '#dbe7ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resizableText: {
+    fontWeight: '600',
+    color: '#345',
+  },
+  statePanel: {
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: '#f3f3f3',
+    gap: 6,
+  },
+  stateTitle: {
+    fontWeight: '600',
+  },
+});

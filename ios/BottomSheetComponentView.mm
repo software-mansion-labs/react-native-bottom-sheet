@@ -7,11 +7,46 @@
 #import <React/RCTAssert.h>
 #import <React/RCTConversions.h>
 #import <React/RCTFabricComponentsPlugins.h>
+#import <React/RCTSurfaceTouchHandler.h>
 #import <react/renderer/components/ReactNativeBottomSheetSpec/EventEmitters.h>
 #import <react/renderer/components/ReactNativeBottomSheetSpec/Props.h>
 #import <react/renderer/components/ReactNativeBottomSheetSpec/RCTComponentViewHelpers.h>
 
 using namespace facebook::react;
+
+/// Full-window container hosting the sheet in native-overlay mode. It is added
+/// directly to the host `UIWindow` (above any modal presented in that window)
+/// and forwards hit-testing to its single subview—the sheet—so touches outside
+/// the sheet and its scrim fall through to the content underneath.
+@interface BottomSheetOverlayContainerView : UIView
+@end
+
+@implementation BottomSheetOverlayContainerView
+
+- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event
+{
+  if (!self.isUserInteractionEnabled || self.isHidden || self.alpha < 0.01) {
+    return nil;
+  }
+  // Bypass UIKit's strict containment policy and hit-test subviews directly: the
+  // sheet's own hitTest returns nil outside the sheet/scrim, which is how a tap
+  // on empty space passes through to whatever sits below the overlay.
+  for (UIView *subview in [self.subviews reverseObjectEnumerator]) {
+    CGPoint convertedPoint = [subview convertPoint:point fromView:self];
+    UIView *hit = [subview hitTest:convertedPoint withEvent:event];
+    if (hit != nil) {
+      return hit;
+    }
+  }
+  return nil;
+}
+
+- (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent *)event
+{
+  return [self hitTest:point withEvent:event] != nil;
+}
+
+@end
 
 @interface BottomSheetComponentView () <BottomSheetContentViewDelegate>
 @end
@@ -21,6 +56,9 @@ using namespace facebook::react;
   State::Shared _sheetState;
   float _lastContentOffsetY;
   BOOL _needsIndexSyncAfterRecycle;
+  BOOL _nativeOverlay;
+  BottomSheetOverlayContainerView *_overlayContainer;
+  RCTSurfaceTouchHandler *_overlayTouchHandler;
 }
 
 + (ComponentDescriptorProvider)componentDescriptorProvider
@@ -34,6 +72,7 @@ using namespace facebook::react;
     static const auto defaultProps = std::make_shared<const BottomSheetViewProps>();
     _props = defaultProps;
     _needsIndexSyncAfterRecycle = NO;
+    _nativeOverlay = NO;
 
     _sheetView = [[BottomSheetContentView alloc] initWithFrame:CGRectZero];
     _sheetView.delegate = self;
@@ -74,8 +113,24 @@ using namespace facebook::react;
     _sheetView.animateIn = newViewProps.animateIn;
   }
 
+  if (newViewProps.animateContentHeight != oldViewProps.animateContentHeight) {
+    _sheetView.animateContentHeight = newViewProps.animateContentHeight;
+  }
+
   if (newViewProps.modal != oldViewProps.modal) {
     _sheetView.modal = newViewProps.modal;
+  }
+
+  // Diff against the `_nativeOverlay` ivar, not `oldViewProps` (which reads the
+  // retained `_props`). On a recycled instance `_props` still holds the previous
+  // sheet's props, so an `oldProps`-based diff misses true→true and never
+  // re-hoists—leaving `prepareForRecycle`'s reset to inline presentation in
+  // place, so the sheet renders inline with no overlay or scrim. The ivar is the
+  // genuine current presentation state, reset in both `init` and
+  // `prepareForRecycle`, so it diffs correctly across recycling.
+  if (newViewProps.nativeOverlay != _nativeOverlay) {
+    _nativeOverlay = newViewProps.nativeOverlay;
+    [self updateOverlayPresentation];
   }
 
   if (newViewProps.disableScrollableNegotiation != oldViewProps.disableScrollableNegotiation) {
@@ -100,6 +155,105 @@ using namespace facebook::react;
 - (void)updateState:(const State::Shared &)state oldState:(const State::Shared &)oldState
 {
   _sheetState = state;
+}
+
+- (void)didMoveToWindow
+{
+  [super didMoveToWindow];
+  // Attach once a window is available, detach when leaving it. The window is the
+  // anchor for the overlay container, so its lifecycle gates presentation.
+  if (_nativeOverlay || _overlayContainer != nil) {
+    [self updateOverlayPresentation];
+  }
+}
+
+/// Reconciles where the sheet view is parented with the current `nativeOverlay`
+/// flag and window availability: hoisted into a full-window container attached to
+/// the host window when on, restored as our own `contentView` when off.
+- (void)updateOverlayPresentation
+{
+  UIWindow *window = self.window;
+
+  if (!_nativeOverlay) {
+    if (_overlayContainer != nil) {
+      [self restoreInlinePresentation];
+    }
+    return;
+  }
+
+  if (window != nil) {
+    if (_overlayContainer == nil) {
+      _overlayContainer = [[BottomSheetOverlayContainerView alloc] initWithFrame:window.bounds];
+      _overlayContainer.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    }
+    if (_overlayTouchHandler == nil) {
+      // Touches inside the container sit outside the RN root view's touch
+      // handler, so attach a dedicated surface touch handler to dispatch them to
+      // JS (e.g. Pressables in the sheet). It also satisfies the sheet's
+      // ancestor "TouchHandler" lookup used to cancel touches on a drag.
+      _overlayTouchHandler = [RCTSurfaceTouchHandler new];
+    }
+
+    if (_sheetView.superview != _overlayContainer) {
+      if (self.contentView == _sheetView) {
+        self.contentView = nil;
+      }
+      _overlayContainer.frame = window.bounds;
+      [_overlayContainer addSubview:_sheetView];
+      _sheetView.frame = _overlayContainer.bounds;
+    }
+    if (_overlayContainer.window != window) {
+      [self detachOverlayTouchHandler];
+      [_overlayContainer removeFromSuperview];
+      // Added as the topmost window subview so it floats above modal content in
+      // the same window. With multiple native-overlay sheets active at once, the
+      // last one presented wins the z-order; the feature assumes a single overlay
+      // sheet visible at a time.
+      [window addSubview:_overlayContainer];
+      [self attachOverlayTouchHandler];
+    }
+    [self updateOverlayAccessibilityState];
+  } else {
+    if (_overlayContainer != nil) {
+      [self restoreInlinePresentation];
+    }
+  }
+}
+
+- (void)attachOverlayTouchHandler
+{
+  if (_overlayTouchHandler.view == _overlayContainer) {
+    return;
+  }
+  [self detachOverlayTouchHandler];
+  [_overlayTouchHandler attachToView:_overlayContainer];
+}
+
+- (void)detachOverlayTouchHandler
+{
+  UIView *attachedView = _overlayTouchHandler.view;
+  if (attachedView != nil) {
+    [_overlayTouchHandler detachFromView:attachedView];
+  }
+}
+
+- (void)updateOverlayAccessibilityState
+{
+  _overlayContainer.accessibilityViewIsModal = _nativeOverlay && _sheetView.isModalAccessibilityActive;
+}
+
+/// Moves the sheet back under this component view and detaches the overlay
+/// container. Safe to call when no overlay is active.
+- (void)restoreInlinePresentation
+{
+  if (_overlayContainer != nil) {
+    _overlayContainer.accessibilityViewIsModal = NO;
+    [self detachOverlayTouchHandler];
+    [_overlayContainer removeFromSuperview];
+  }
+  self.contentView = nil;
+  self.contentView = _sheetView;
+  _overlayContainer = nil;
 }
 
 - (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
@@ -150,8 +304,16 @@ using namespace facebook::react;
         {.position = static_cast<double>(position), .index = static_cast<double>(index)});
   }
 
+  // The shadow node applies this as a content-origin offset so descendant
+  // coordinates (measure, hit-testing) follow the sheet content to where it is
+  // physically drawn within the host. In native-overlay mode the content is
+  // re-rooted to a window-level full-screen overlay; the shadow node is marked as
+  // a layout root in that mode (see BottomSheetViewComponentDescriptor), so the
+  // outer-tree origin is dropped structurally and only this in-host displacement
+  // remains to be applied here.
   float contentOffsetY = static_cast<float>(view.currentContentOffsetY);
   if (contentOffsetY == _lastContentOffsetY) {
+    [self updateOverlayAccessibilityState];
     return;
   }
   _lastContentOffsetY = contentOffsetY;
@@ -159,6 +321,7 @@ using namespace facebook::react;
   if (_sheetState) {
     updateBottomSheetContentOffsetY(_sheetState, contentOffsetY);
   }
+  [self updateOverlayAccessibilityState];
 }
 
 - (void)bottomSheetView:(BottomSheetContentView *)view didReportError:(NSString *)message
@@ -169,6 +332,10 @@ using namespace facebook::react;
 - (void)prepareForRecycle
 {
   [super prepareForRecycle];
+  // Restore inline parenting after the base class resets Fabric view state so a
+  // reused instance starts from the default presentation.
+  _nativeOverlay = NO;
+  [self restoreInlinePresentation];
   _needsIndexSyncAfterRecycle = YES;
   [_sheetView resetSheetState];
   _sheetState.reset();

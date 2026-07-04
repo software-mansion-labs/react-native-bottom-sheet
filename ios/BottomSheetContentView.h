@@ -17,9 +17,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, weak, nullable) id<BottomSheetContentViewDelegate> delegate;
 @property (nonatomic) BOOL animateIn;
+@property (nonatomic) BOOL animateContentHeight;
 @property (nonatomic) BOOL modal;
 @property (nonatomic) BOOL disableScrollableNegotiation;
 @property (nonatomic, readonly) UIView *sheetContainer;
+@property (nonatomic, readonly) BOOL isModalAccessibilityActive;
 
 - (void)setDetents:(NSArray<NSDictionary *> *)raw;
 - (void)setMaxDetentHeight:(CGFloat)maxDetentHeight;
