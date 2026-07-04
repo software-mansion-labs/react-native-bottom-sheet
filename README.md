@@ -81,9 +81,6 @@ with a `surface` prop for the background behind it, and are controlled via
 `detents`, `index`, and&nbsp;`onIndexChange`. Use `onSettle` to observe when the
 sheet finishes&nbsp;moving.
 
-The examples below pad the sheet content with `react-native-safe-area-context` —
-an app-level choice; the library itself does not depend on&nbsp;it.
-
 ### Inline
 
 `BottomSheet` renders within your screen&nbsp;layout.
