@@ -26,38 +26,25 @@ void BottomSheetViewShadowNode::setIsOverlayRoot(bool isOverlayRoot) {
   }
 }
 
-void updateBottomSheetContentOffsetY(
+void updateBottomSheetState(
     const State::Shared& state,
-    float contentOffsetY) {
-  auto concreteState =
-      std::static_pointer_cast<const BottomSheetViewShadowNode::ConcreteState>(
-          state);
-  concreteState->updateState(
-      [contentOffsetY](const BottomSheetViewState& oldState)
-          -> BottomSheetViewShadowNode::ConcreteState::SharedData {
-        // Copy the previous state so unrelated fields (e.g. frameSize) survive
-        // this partial update.
-        auto newState = std::make_shared<BottomSheetViewState>(oldState);
-        const_cast<BottomSheetViewState&>(*newState).contentOffsetY =
-            contentOffsetY;
-        return newState;
-      });
-}
-
-void updateBottomSheetGeometry(
-    const State::Shared& state,
+    float contentOffsetY,
     Size frameSize,
-    Float contentRegionInsetTop) {
+    Float contentRegionInset) {
   auto concreteState =
       std::static_pointer_cast<const BottomSheetViewShadowNode::ConcreteState>(
           state);
   concreteState->updateState(
-      [frameSize, contentRegionInsetTop](const BottomSheetViewState& oldState)
+      [contentOffsetY, frameSize, contentRegionInset](
+          const BottomSheetViewState& /*oldState*/)
           -> BottomSheetViewShadowNode::ConcreteState::SharedData {
-        auto newState = std::make_shared<BottomSheetViewState>(oldState);
+        // Every field is set: updates coalesce by wholesale replacement (see
+        // BottomSheetStateHelper.h), so nothing may rely on the old state.
+        auto newState = std::make_shared<BottomSheetViewState>();
         auto& mutableState = const_cast<BottomSheetViewState&>(*newState);
+        mutableState.contentOffsetY = contentOffsetY;
         mutableState.frameSize = frameSize;
-        mutableState.contentRegionInsetTop = contentRegionInsetTop;
+        mutableState.contentRegionInset = contentRegionInset;
         return newState;
       });
 }

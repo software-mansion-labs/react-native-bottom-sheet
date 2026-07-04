@@ -181,6 +181,9 @@ public final class BottomSheetHostingView: UIView {
   override public func layoutSubviews() {
     super.layoutSubviews()
     guard bounds.width > 0, bounds.height > 0 else { return }
+    // See refreshDetentsFromLayout: without a window the detent cap falls back
+    // to the full height, which must not be applied to the container geometry.
+    if hasLaidOut, window == nil { return }
 
     scrimView.frame = bounds
     refreshDetentsFromLayout()
@@ -440,11 +443,13 @@ public final class BottomSheetHostingView: UIView {
   }
 
   public var currentContentOffsetY: CGFloat {
-    // The content's displacement from its Yoga position. The container's top
-    // offset (the content-region inset) is part of the Yoga layout — the
-    // sheet node carries it as state-driven top padding — so only the sheet's
-    // translation remains to be applied as the content origin offset.
-    currentTranslationY
+    // The content's in-host displacement from its Yoga position: the container
+    // offset plus the sheet's translation. The content-region inset shrinks
+    // the content via Yoga BOTTOM padding, keeping the Yoga origin at zero, so
+    // the full displacement is carried here.
+    let maxHeight = sheetContainerHeight
+    let containerTop = bounds.height - maxHeight
+    return containerTop + currentTranslationY
   }
 
   public var isModalAccessibilityActive: Bool {
@@ -902,10 +907,10 @@ public final class BottomSheetHostingView: UIView {
     return min(max(0, bounds.height - topOverlap), bounds.height)
   }
 
-  /// The natively measured top inset of the content region: the gap between
-  /// the sheet's top and the detent cap. Reported into the shadow tree, where
-  /// it becomes Yoga top padding on the sheet node.
-  public var contentRegionInsetTop: CGFloat {
+  /// The natively measured inset of the content region: the gap between the
+  /// sheet's height and the detent cap. Reported into the shadow tree, where
+  /// it becomes Yoga bottom padding on the sheet node.
+  public var contentRegionInset: CGFloat {
     max(0, bounds.height - resolvedMaxDetentHeight)
   }
 
@@ -962,6 +967,14 @@ public final class BottomSheetHostingView: UIView {
   }
 
   private func refreshDetentsFromLayout() {
+    // While detached from a window (e.g. mid-commit, when Fabric reparents the
+    // host as ancestor view flattening changes), the native detent cap is not
+    // computable — its full-height fallback would register as a cap change and
+    // trigger a spurious re-anchor snap that clobbers any queued snap request.
+    // Stay inert; didMoveToWindow refreshes geometry on reattach.
+    if hasLaidOut, window == nil {
+      return
+    }
     refreshContentHeightMarker()
     if !isPanning {
       activeDragRange = nil

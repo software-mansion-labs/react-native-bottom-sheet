@@ -812,7 +812,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
     map.putDouble("frameWidth", (lastGeometryStateWidth / density).toDouble())
     map.putDouble("frameHeight", (lastGeometryStateHeight / density).toDouble())
     map.putDouble(
-      "contentRegionInsetTop",
+      "contentRegionInset",
       ((if (lastGeometryStateInsetTop.isNaN()) 0f else lastGeometryStateInsetTop) / density)
         .toDouble(),
     )
@@ -820,11 +820,13 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   }
 
   private fun updateShadowState(translationY: Float) {
-    // The content's displacement from its Yoga position. The container's top
-    // offset (the content-region inset) is part of the Yoga layout — the sheet
-    // node carries it as state-driven top padding — so only the sheet's
-    // translation remains to be applied as the content origin offset.
-    val offsetY = (translationY / density).toDouble()
+    val maxDetentHeight = resolvedMaxDetentHeight()
+    val containerTop = height.toFloat() - maxDetentHeight
+    // The content's in-host displacement from its Yoga position: the container
+    // offset plus the sheet's translation. The content-region inset shrinks
+    // the content via Yoga BOTTOM padding, keeping the Yoga origin at zero, so
+    // the full displacement is carried here.
+    val offsetY = ((containerTop + translationY) / density).toDouble()
     if (offsetY.toFloat() == lastShadowOffsetY) return
     lastShadowOffsetY = offsetY.toFloat()
     pushStateSnapshot()

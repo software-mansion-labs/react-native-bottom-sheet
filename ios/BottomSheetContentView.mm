@@ -80,9 +80,9 @@
   _impl.extendUnderStatusBar = extendUnderStatusBar;
 }
 
-- (CGFloat)contentRegionInsetTop
+- (CGFloat)contentRegionInset
 {
-  return _impl.contentRegionInsetTop;
+  return _impl.contentRegionInset;
 }
 
 - (void)setDetentIndex:(NSInteger)newIndex

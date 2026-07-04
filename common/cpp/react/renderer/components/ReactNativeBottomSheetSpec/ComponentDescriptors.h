@@ -36,12 +36,15 @@ class BottomSheetViewComponentDescriptor final
     auto& layoutableShadowNode =
         static_cast<YogaLayoutableShadowNode&>(shadowNode);
 
-    // The natively measured top inset of the content region — the gap between
-    // the sheet's top and the detent cap — applied as Yoga top padding in
-    // every mode. In-flow content (the flex: 1 wrapper) then lays out exactly
-    // within the region the sheet can actually show; absolutely positioned
-    // children (the surface) ignore padding and keep filling the node.
-    layoutableShadowNode.setPadding({0, stateData.contentRegionInsetTop, 0, 0});
+    // The natively measured inset of the content region — the gap between the
+    // sheet's height and the detent cap — applied as Yoga BOTTOM padding in
+    // every mode. In-flow content (the flex: 1 wrapper) then resolves to
+    // exactly the detent cap; absolutely positioned children (the surface)
+    // ignore padding and keep filling the node. Bottom rather than top keeps
+    // the content's Yoga origin at zero, matching its native placement at the
+    // top of the (already offset) sheet container on both platforms — the
+    // container's top offset is carried by the contentOffsetY state instead.
+    layoutableShadowNode.setPadding({0, 0, 0, stateData.contentRegionInset});
 
     // In native-overlay mode the sheet's real container is the full-screen
     // overlay window, not the in-tree slot. Both platforms report the sheet's

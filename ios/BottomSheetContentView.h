@@ -31,9 +31,9 @@ NS_ASSUME_NONNULL_BEGIN
 // Whether full-height detents may extend under the status bar; feeds the
 // natively computed detent cap.
 - (void)setExtendUnderStatusBar:(BOOL)extendUnderStatusBar;
-// The natively measured top inset of the content region: the gap between the
-// sheet's top and the detent cap.
-- (CGFloat)contentRegionInsetTop;
+// The natively measured inset of the content region: the gap between the
+// sheet's height and the detent cap.
+- (CGFloat)contentRegionInset;
 - (void)setDetentIndex:(NSInteger)newIndex;
 - (void)setScrimColor:(UIColor *_Nullable)color;
 - (void)setScrimOpacities:(NSArray<NSNumber *> *)opacities;

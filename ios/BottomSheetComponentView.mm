@@ -61,7 +61,7 @@ using namespace facebook::react;
   BottomSheetOverlayContainerView *_overlayContainer;
   RCTSurfaceTouchHandler *_overlayTouchHandler;
   CGSize _lastGeometryFrameSize;
-  CGFloat _lastGeometryInsetTop;
+  CGFloat _lastGeometryInset;
 }
 
 + (ComponentDescriptorProvider)componentDescriptorProvider
@@ -164,6 +164,20 @@ using namespace facebook::react;
   _sheetState = state;
 }
 
+- (void)updateLayoutMetrics:(const LayoutMetrics &)layoutMetrics
+           oldLayoutMetrics:(const LayoutMetrics &)oldLayoutMetrics
+{
+  [super updateLayoutMetrics:layoutMetrics oldLayoutMetrics:oldLayoutMetrics];
+  // The sheet node's Yoga padding carries the content-region inset for the
+  // in-flow content; the base class would shrink the contentView to the
+  // padding-inset content frame, feeding the inset back into the natively
+  // measured geometry (host height → cap → inset) in a loop. The native sheet
+  // host must keep filling the node — padding is for Yoga children only.
+  if (_sheetView.superview == self) {
+    _sheetView.frame = self.bounds;
+  }
+}
+
 - (void)didMoveToWindow
 {
   [super didMoveToWindow];
@@ -253,8 +267,8 @@ using namespace facebook::react;
 /// Pushes the current natively measured geometry into the shadow tree: the
 /// sheet's frame size (consumed by the component descriptor only in overlay
 /// mode, where the sheet is hoisted out of its in-tree slot) and the content
-/// region's top inset (applied as Yoga top padding in every mode, so in-flow
-/// content lays out exactly within the detent cap). Yoga then lays the sheet
+/// region's inset (applied as Yoga bottom padding in every mode, so in-flow
+/// content resolves exactly to the detent cap). Yoga then lays the sheet
 /// subtree out against measured window geometry instead of JS-provided
 /// dimensions. Driven by the hosting view's didLayout delegate.
 - (void)pushNativeGeometry
@@ -267,16 +281,31 @@ using namespace facebook::react;
     return;
   }
 
-  CGFloat insetTop = _sheetView.contentRegionInsetTop;
-  if (CGSizeEqualToSize(size, _lastGeometryFrameSize) && insetTop == _lastGeometryInsetTop) {
+  CGFloat inset = _sheetView.contentRegionInset;
+  if (CGSizeEqualToSize(size, _lastGeometryFrameSize) && inset == _lastGeometryInset) {
     return;
   }
   _lastGeometryFrameSize = size;
-  _lastGeometryInsetTop = insetTop;
-  updateBottomSheetGeometry(
+  _lastGeometryInset = inset;
+  [self pushStateSnapshot];
+}
+
+/// Commits the full native state snapshot — content offset, frame size, and
+/// content-region inset — in one update. Always the complete set: the
+/// EventQueue coalesces back-to-back state updates for the same node by
+/// dropping the older one wholesale, so split partial updates (per-frame
+/// offset vs. geometry) would erase each other. See BottomSheetStateHelper.h.
+- (void)pushStateSnapshot
+{
+  if (!_sheetState) {
+    return;
+  }
+  updateBottomSheetState(
       _sheetState,
-      {static_cast<Float>(size.width), static_cast<Float>(size.height)},
-      static_cast<Float>(insetTop));
+      _lastContentOffsetY,
+      {static_cast<Float>(_lastGeometryFrameSize.width),
+       static_cast<Float>(_lastGeometryFrameSize.height)},
+      static_cast<Float>(MAX(_lastGeometryInset, 0)));
 }
 
 /// Moves the sheet back under this component view and detaches the overlay
@@ -355,9 +384,7 @@ using namespace facebook::react;
   }
   _lastContentOffsetY = contentOffsetY;
 
-  if (_sheetState) {
-    updateBottomSheetContentOffsetY(_sheetState, contentOffsetY);
-  }
+  [self pushStateSnapshot];
   [self updateOverlayAccessibilityState];
 }
 
@@ -384,7 +411,7 @@ using namespace facebook::react;
   _sheetState.reset();
   _lastContentOffsetY = 0;
   _lastGeometryFrameSize = CGSizeZero;
-  _lastGeometryInsetTop = -1;
+  _lastGeometryInset = -1;
 }
 
 @end
