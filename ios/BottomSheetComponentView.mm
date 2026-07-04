@@ -184,7 +184,24 @@ using namespace facebook::react;
   // Attach once a window is available, detach when leaving it. The window is the
   // anchor for the overlay container, so its lifecycle gates presentation.
   if (_nativeOverlay || _overlayContainer != nil) {
-    [self updateOverlayPresentation];
+    if (self.window == nil) {
+      // Fabric reparents this view mid-commit (remove → update → insert) when
+      // ancestor view flattening changes — e.g. a pointerEvents flip on open —
+      // so the window is often only transiently nil. Tearing the overlay down
+      // here would bounce the sheet through the inline slot and re-anchor any
+      // running snap against the slot's geometry. Defer one runloop turn: if
+      // the window is back by then (the mid-commit case), presentation is left
+      // untouched; if the view genuinely left the window, tear down as before.
+      __weak __typeof(self) weakSelf = self;
+      dispatch_async(dispatch_get_main_queue(), ^{
+        __typeof(self) strongSelf = weakSelf;
+        if (strongSelf != nil && strongSelf.window == nil) {
+          [strongSelf updateOverlayPresentation];
+        }
+      });
+    } else {
+      [self updateOverlayPresentation];
+    }
   }
 }
 
