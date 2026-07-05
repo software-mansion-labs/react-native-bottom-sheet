@@ -439,14 +439,6 @@ invalidates a UIKit/Android lifecycle assumption.
   `uiautomator dump` reports real native view bounds. iOS — `NSLog` in Swift,
   `os_log` in C++ (works from `common/cpp` too), read with
   `xcrun simctl spawn booted log show --last 60s --predicate 'eventMessage CONTAINS "TAG"'`.
-- Incremental `xcodebuild` gotcha: after editing pod sources, the app's
-  `.debug.dylib` often fails to relink even though the build "succeeds" (the
-  build database doesn't re-stat deleted outputs, and Swift content-hashing
-  defeats plain `touch`). Verify with `strings` against
-  **`ReactNativeBottomSheet.debug.dylib`** (the real code in the debug-dylib app
-  layout — the `ReactNativeBottomSheet` stub is just a launcher), and force the
-  relink by deleting both binaries _and_ making a content change in an
-  app-target source, building until the dylib timestamp moves.
 
 ---
 
