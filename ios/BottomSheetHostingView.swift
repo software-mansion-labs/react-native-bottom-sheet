@@ -503,13 +503,24 @@ public final class BottomSheetHostingView: UIView {
     isContentInteractionDisabled = !isEnabled
   }
 
+  /// Extra lead applied to the spring prediction when emitting follower
+  /// positions, in frames (scaled by the display link's actual frame duration,
+  /// so it means the same thing at 60Hz and 120Hz). `targetTimestamp` alone
+  /// still trails the sheet slightly: the render server's sampling phase for
+  /// the keyframe animation is undocumented, and the follower's transform
+  /// commits one runloop turn after this callback. Tune by bisecting on a
+  /// physical device: 0 = no bias, 1 = predict one extra frame ahead. Too high
+  /// and followers visibly lead the sheet at the start of a settle.
+  private static let followerPredictionBiasFrames: CFTimeInterval = 1.0
+
   @objc private func displayLinkFired(_ link: CADisplayLink) {
-    // `targetTimestamp` is the predicted display time of the next frame
+    // `targetTimestamp` is the predicted display time of the next frame.
     // Ideal synchronization with animations running on the render server
     // hasn't been achieved. Render server is a black box and it's hard to
     // find out why exactly. This approach however gives better results
     // than lagging one frame behind.
-    stepSpring(targetTime: link.targetTimestamp)
+    let frameDuration = link.targetTimestamp - link.timestamp
+    stepSpring(targetTime: link.targetTimestamp + Self.followerPredictionBiasFrames * frameDuration)
   }
 
   @objc private func handleScrimPress() {
