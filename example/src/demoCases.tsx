@@ -1,5 +1,6 @@
 export type CaseKey =
   | 'basic-modal'
+  | 'lazy-mounted-modal'
   | 'native-overlay-modal'
   | 'native-overlay-nested'
   | 'native-overlay-full-height-list'
@@ -35,6 +36,11 @@ export const DEMO_CASES: DemoCase[] = [
     key: 'basic-modal',
     title: 'Basic modal',
     href: '/basic-modal',
+  },
+  {
+    key: 'lazy-mounted-modal',
+    title: 'Lazy mounted modal',
+    href: '/lazy-mounted-modal',
   },
   {
     key: 'native-overlay-modal',

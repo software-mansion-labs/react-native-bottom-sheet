@@ -22,6 +22,10 @@ export default function RootLayout() {
               options={{ title: 'Basic modal', headerShown: false }}
             />
             <Stack.Screen
+              name="lazy-mounted-modal"
+              options={{ title: 'Lazy mounted modal', headerShown: false }}
+            />
+            <Stack.Screen
               name="native-overlay-modal"
               options={{
                 title: 'Native overlay modal',
