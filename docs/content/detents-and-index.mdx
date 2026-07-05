@@ -7,14 +7,14 @@ title: Detents and index
 Detents are the points to which the sheet snaps. Each detent is either a number
 (a fixed height in pixels) or `'content'` (the sheet’s content height, capped by
 the available screen height). The default detents are `[0, 'content']`. Pass
-detents in ascending order, from shortest to&nbsp;tallest. Fixed detents can be
+detents in ascending order, from shortest to tallest. Fixed detents can be
 taller than the measured content height, so `[0, 'content', 600]` lets a compact
-content-sized sheet expand to a larger&nbsp;surface.
+content-sized sheet expand to a larger surface.
 
-Sheet children are laid out in a flex container. For a full&zwj;-&zwj;height
-sheet, apply `flex: 1` to your content and use the `'content'`&nbsp;detent.
+Sheet children are laid out in a flex container. For a full-height
+sheet, apply `flex: 1` to your content and use the `'content'` detent.
 `surface` is sized by the library, so `flex: 1` only ever belongs on your
-content, never on the&nbsp;surface:
+content, never on the surface:
 
 ```tsx
 <BottomSheet
@@ -31,7 +31,7 @@ content, never on the&nbsp;surface:
 
 By default, full-height detents are capped below the status bar. Set
 `extendUnderStatusBar` when the sheet should be allowed to occupy the full
-screen&nbsp;height:
+screen height:
 
 ```tsx
 <BottomSheet // Or `ModalBottomSheet`.
@@ -46,18 +46,18 @@ screen&nbsp;height:
 
 ## Index events
 
-The `index` prop is a zero&zwj;-&zwj;based index into the `detents` array.
-`onIndexChange` and `onSettle` have different&nbsp;responsibilities:
+The `index` prop is a zero-based index into the `detents` array.
+`onIndexChange` and `onSettle` have different responsibilities:
 
-- `onIndexChange` fires when a user&zwj;-&zwj;triggered snap is _initiated_: the
+- `onIndexChange` fires when a user-triggered snap is _initiated_: the
   moment a drag commits to a detent, before the animation settles. It does not
   fire for programmatic `index` changes; you already know when you make those.
-  Treat it as the signal to update your controlled `index`&nbsp;state.
+  Treat it as the signal to update your controlled `index` state.
 - `onSettle` fires when the sheet finishes snapping to a detent, regardless of
-  whether that snap was user&zwj;-&zwj;triggered or programmatic. It is the
+  whether that snap was user-triggered or programmatic. It is the
   signal for the _end_ of any movement. Use it for observability or side effects
   (analytics, reacting to collapse, etc.), not for updating the controlled
-  `index`&nbsp;state.
+  `index` state.
 
 ```tsx
 const [index, setIndex] = useState(0);
@@ -85,7 +85,7 @@ the current index and animates to the updated detent height when needed.
 If you want a detent to be reachable only via code (not by dragging), use the
 object form or the `programmatic` helper. Programmatic detents are excluded from
 drag snapping but can still be targeted via `index` updates. If the closed
-detent is programmatic-only, tapping the scrim does not dismiss the&nbsp;sheet.
+detent is programmatic-only, tapping the scrim does not dismiss the sheet.
 
 ```tsx
 <BottomSheet

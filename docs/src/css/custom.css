@@ -236,3 +236,7 @@
   --ifm-footer-background-color: var(--ifm-background-color);
   border-top: 1px solid var(--ifm-toc-border-color);
 }
+
+.markdown :where(p, li, dd, blockquote) {
+  text-wrap: pretty;
+}

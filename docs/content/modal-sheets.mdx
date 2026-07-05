@@ -5,7 +5,7 @@ title: Modal sheets
 # Modal sheets
 
 `ModalBottomSheet` renders above other content with an optional scrim
-(transparent by&nbsp;default).
+(transparent by default).
 
 ```tsx
 const [index, setIndex] = useState(0);
@@ -29,7 +29,7 @@ const insets = useSafeAreaInsets();
 ## Scrim
 
 Tapping the scrim collapses the sheet to the closed detent. Use `scrimColor` to
-customize the scrim&nbsp;color:
+customize the scrim color:
 
 ```tsx
 <ModalBottomSheet
@@ -47,13 +47,13 @@ opacity, so detents above the first share the same scrim. Use `scrimOpacities`
 to control the opacity at each detent: It takes one value in 0–1 per detent,
 indexed to match `detents`, and interpolates linearly as the sheet is dragged
 between them. A shorter array reuses its last value for any
-remaining&nbsp;detents.
+remaining detents.
 
 The default maps each detent to 0 when it is closed and 1 otherwise, so the
 scrim is transparent at any closed detent and fully opaque at every
-open&nbsp;one.
+open one.
 
-To keep the scrim deepening across every detent, pass one value per&nbsp;detent:
+To keep the scrim deepening across every detent, pass one value per detent:
 
 ```tsx
 <ModalBottomSheet
@@ -73,12 +73,12 @@ To keep the scrim deepening across every detent, pass one value per&nbsp;detent:
 By default `ModalBottomSheet` renders through `BottomSheetProvider`’s portal.
 That portal lives in your React tree, so a sheet opened from a screen presented
 as a native modal (for example, a React Navigation native-stack screen with
-`presentation: 'modal'`) is confined to that screen and cannot cover&nbsp;it.
+`presentation: 'modal'`) is confined to that screen and cannot cover it.
 
 Set `nativeOverlay` to present the sheet in a native overlay above
 everything—including native modal screens—so it always covers the full window.
 On iOS, a `UIWindow`-attached container is used; on Android, a full-screen,
-edge-to-edge, transparent&nbsp;dialog.
+edge-to-edge, transparent dialog.
 
 ```tsx
 <ModalBottomSheet
