@@ -265,8 +265,11 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     window.enableTransparentEdgeToEdge(activity)
 
     // Start non-interactive (closed): pass touches and focus to the screen behind
-    // until the sheet animates open.
+    // until the sheet animates open. Keep the dialog window alpha at 0 while it
+    // is non-interactive so Android's untrusted-touch occlusion check does not
+    // treat the full-screen dialog as covering the IME.
     window.addFlags(NON_INTERACTIVE_FLAGS)
+    window.setOverlayWindowAlpha(interactive = false)
     window.setLayout(
       WindowManager.LayoutParams.MATCH_PARENT,
       WindowManager.LayoutParams.MATCH_PARENT,
@@ -335,6 +338,11 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     } else {
       window.addFlags(NON_INTERACTIVE_FLAGS)
     }
+    window.setOverlayWindowAlpha(interactive)
+  }
+
+  private fun Window.setOverlayWindowAlpha(interactive: Boolean) {
+    attributes = attributes.apply { alpha = if (interactive) 1f else 0f }
   }
 
   // MARK: - Activity lifecycle
