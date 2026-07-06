@@ -4,6 +4,7 @@ export type CaseKey =
   | 'native-overlay-modal'
   | 'native-overlay-nested'
   | 'native-overlay-full-height-list'
+  | 'native-overlay-keyboard-input'
   | 'modal-scroll-view'
   | 'modal-flat-list'
   | 'keyboard-content-detent'
@@ -56,6 +57,11 @@ export const DEMO_CASES: DemoCase[] = [
     key: 'native-overlay-full-height-list',
     title: 'Native overlay full-height list',
     href: '/native-overlay-full-height-list',
+  },
+  {
+    key: 'native-overlay-keyboard-input',
+    title: 'Native overlay keyboard input',
+    href: '/native-overlay-keyboard-input',
   },
   {
     key: 'modal-scroll-view',

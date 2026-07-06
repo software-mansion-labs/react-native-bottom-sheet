@@ -48,6 +48,13 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
+              name="native-overlay-keyboard-input"
+              options={{
+                title: 'Native overlay keyboard input',
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
               name="modal-scroll-view"
               options={{ title: 'Modal with ScrollView', headerShown: false }}
             />
