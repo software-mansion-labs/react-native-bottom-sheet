@@ -4,7 +4,7 @@ on:
     tags: [v*]
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
   id-token: write
 jobs:
   publish:
@@ -27,3 +27,16 @@ jobs:
           tag=$(node -p "const version = require('./package.json').version; const match = version.match(/^[^-]+-([0-9A-Za-z]+)(?:[.-].*)?$/); match ? match[1] : 'latest'")
           echo "NPM_PUBLISH_TAG=$tag" >> "$GITHUB_ENV"
       - run: npm publish --access public --ignore-scripts --tag "$NPM_PUBLISH_TAG"
+      - name: Create draft GitHub release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          args=("$TAG_NAME" --draft --title "$TAG_NAME" --notes "")
+
+          if [[ "$TAG_NAME" == *next* ]]; then
+            args+=(--prerelease)
+          fi
+
+          gh release create "${args[@]}"
