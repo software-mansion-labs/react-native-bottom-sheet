@@ -142,16 +142,13 @@ internal class Gestures(
           return true
         }
         MotionEvent.ACTION_UP -> {
-          val closeIndex = state.scrimDismissIndex
-          val shouldDismiss = scrimPressed && scrim.isScrimVisible()
+          val shouldDismiss = scrimPressed
           scrimPressed = false
           scrimTouchActive = false
           activePointerId = MotionEvent.INVALID_POINTER_ID
           // A close already targeting this detent owns the dismissal: restarting it
           // would emit a second index change and drop the running spring's velocity.
-          if (shouldDismiss && closeIndex != null && closeIndex != state.targetIndex) {
-            snapping.snapToIndex(closeIndex, 0f)
-          }
+          if (shouldDismiss) snapping.attemptScrimDismissal()
           return true
         }
         MotionEvent.ACTION_CANCEL -> {

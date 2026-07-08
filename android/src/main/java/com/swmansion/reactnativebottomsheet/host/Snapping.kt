@@ -16,6 +16,22 @@ internal class Snapping(
   private val host: SheetHost,
 ) {
 
+  private val scrimDismissTargetIndex: Int?
+    get() = state.scrimDismissIndex?.takeIf { scrim.isScrimVisible() && it != state.targetIndex }
+
+  val isScrimDismissalAvailable: Boolean
+    get() = scrimDismissTargetIndex != null
+
+  /**
+   * Dismisses a modal sheet to its closed detent through the exact path a scrim tap takes,
+   * returning whether a dismissal was actually performed.
+   */
+  fun attemptScrimDismissal(): Boolean {
+    val closeIndex = scrimDismissTargetIndex ?: return false
+    snapToIndex(closeIndex, 0f)
+    return true
+  }
+
   fun translationY(index: Int): Float {
     return state.height.toFloat() - (state.detentSpecs.getOrNull(index)?.position ?: 0f)
   }

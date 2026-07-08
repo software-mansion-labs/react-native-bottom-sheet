@@ -13,6 +13,17 @@ import UIKit
   func bottomSheetHostingViewDidLayout(_ view: BottomSheetHostingView)
 }
 
+/// The scrim control, exposed to VoiceOver as a dismiss button while a
+/// dismissible modal sheet is open. VoiceOver's default activation simulates
+/// a tap at the activation point; sending the control action directly keeps
+/// activation reliable even when the sheet overlaps that point mid-settle.
+final class BottomSheetScrimControl: UIControl {
+  override func accessibilityActivate() -> Bool {
+    sendActions(for: .touchUpInside)
+    return true
+  }
+}
+
 @objcMembers
 public final class BottomSheetHostingView: UIView {
   public weak var eventDelegate: BottomSheetHostingViewDelegate?
@@ -82,7 +93,7 @@ public final class BottomSheetHostingView: UIView {
   /// Masks the card when its corners differ in radius, which the layer's own
   /// corner radius cannot express. Nil while the layer's corners suffice.
   var cardMask: CAShapeLayer?
-  let scrimView = UIControl()
+  let scrimView = BottomSheetScrimControl()
   var panGesture: SheetPanGestureRecognizer!
   var activeSpring: CriticalSpring?
   var activeSpringTargetIndex: Int = 0
@@ -167,6 +178,9 @@ public final class BottomSheetHostingView: UIView {
     scrimView.alpha = 0
     scrimView.isHidden = true
     scrimView.addTarget(self, action: #selector(handleScrimPress), for: .touchUpInside)
+    scrimView.isAccessibilityElement = false
+    scrimView.accessibilityTraits = .button
+    scrimView.accessibilityLabel = "Dismiss"
     addSubview(scrimView)
 
     sheetContainer.backgroundColor = .clear

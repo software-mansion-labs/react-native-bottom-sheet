@@ -2,6 +2,8 @@ package com.swmansion.reactnativebottomsheet
 
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Rect
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -133,6 +135,13 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     )
   private val scrollCoordination = ScrollCoordination(state, snapping)
   private val gestures = Gestures(state, card, scrim, snapping, scrollCoordination)
+  private val scrimAccessibilityHelper =
+    ScrimAccessibilityHelper(
+      host = this,
+      isDismissAvailable = { snapping.isScrimDismissalAvailable },
+      scrimBottom = { sheetContainer.top + sheetContainer.translationY },
+      performDismiss = snapping::attemptScrimDismissal,
+    )
 
   init {
     clipChildren = false
@@ -163,6 +172,15 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     super.addView(
       cardTouchSensor,
       LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
+    )
+    // The canvas-drawn scrim needs a virtual node to be discoverable by TalkBack.
+    ViewCompat.setAccessibilityDelegate(this, scrimAccessibilityHelper)
+    ViewCompat.setAccessibilityDelegate(
+      sheetContainer,
+      SheetDismissAccessibilityDelegate(
+        isDismissAvailable = { snapping.isScrimDismissalAvailable },
+        performDismiss = snapping::attemptScrimDismissal,
+      ),
     )
   }
 
@@ -348,6 +366,22 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     card.updateCardGeometry()
     contentRegion.updateShadowState(sheetContainer.translationY)
     notifyCloseRequestStateChanged()
+  }
+
+  // MARK: - Accessibility
+  //
+  // ExploreByTouchHelper drives the scrim's virtual node from hover (touch
+  // exploration), key, and focus events, so all three streams are forwarded.
+
+  override fun dispatchHoverEvent(event: MotionEvent): Boolean =
+    scrimAccessibilityHelper.dispatchHoverEvent(event) || super.dispatchHoverEvent(event)
+
+  override fun dispatchKeyEvent(event: KeyEvent): Boolean =
+    scrimAccessibilityHelper.dispatchKeyEvent(event) || super.dispatchKeyEvent(event)
+
+  override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: Rect?) {
+    super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
+    scrimAccessibilityHelper.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
   }
 
   override fun dispatchDraw(canvas: Canvas) {
@@ -578,6 +612,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     val interactive = isInteractive
     pointerEvents = if (interactive) PointerEvents.AUTO else PointerEvents.BOX_NONE
     interactionListener?.invoke(interactive)
+    scrimAccessibilityHelper.updateVisibility()
   }
 
   companion object {

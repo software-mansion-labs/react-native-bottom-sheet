@@ -88,6 +88,9 @@ dependencies {
   implementation "androidx.activity:activity:1.9.0"
   // Used directly for ViewCompat Escape routing; matches Activity 1.9.0's Core dependency.
   implementation "androidx.core:core:1.13.0"
+  // ExploreByTouchHelper, used to expose the canvas-drawn scrim as a virtual
+  // accessibility node.
+  implementation "androidx.customview:customview:1.2.0"
   implementation "androidx.dynamicanimation:dynamicanimation:1.0.0"
 
   androidTestImplementation "androidx.test:runner:1.7.0"
