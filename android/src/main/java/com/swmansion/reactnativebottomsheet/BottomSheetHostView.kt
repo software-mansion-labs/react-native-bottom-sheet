@@ -4,6 +4,9 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Rect
+import android.os.Bundle
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.VelocityTracker
 import android.view.View
@@ -12,8 +15,11 @@ import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.view.WindowInsets
 import android.widget.FrameLayout
+import androidx.core.view.AccessibilityDelegateCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
+import androidx.customview.widget.ExploreByTouchHelper
 import androidx.dynamicanimation.animation.DynamicAnimation
 import androidx.dynamicanimation.animation.SpringAnimation
 import androidx.dynamicanimation.animation.SpringForce
@@ -94,6 +100,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
 
   private val sheetContainer = FrameLayout(context)
   private val scrimPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+  private val scrimAccessibilityHelper = ScrimAccessibilityHelper()
+  private var lastAccessibleScrimState = false
   private var activeAnimation: SpringAnimation? = null
   private var activeAnimationEmitsSettle = false
   private var velocityTracker: VelocityTracker? = null
@@ -137,6 +145,34 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
     super.addView(
       sheetContainer,
       LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
+    )
+    // The scrim is drawn on this view's canvas, so TalkBack cannot discover it
+    // as a view; the helper exposes it as a virtual dismiss button instead.
+    ViewCompat.setAccessibilityDelegate(this, scrimAccessibilityHelper)
+    // TalkBack's dismiss gesture resolves ACTION_DISMISS against the focused
+    // node's ancestors, so the action lives on the container that hosts the
+    // sheet content — the equivalent of iOS's accessibilityPerformEscape.
+    ViewCompat.setAccessibilityDelegate(
+      sheetContainer,
+      object : AccessibilityDelegateCompat() {
+        override fun onInitializeAccessibilityNodeInfo(
+          host: View,
+          info: AccessibilityNodeInfoCompat,
+        ) {
+          super.onInitializeAccessibilityNodeInfo(host, info)
+          if (isScrimAccessible()) {
+            info.isDismissable = true
+            info.addAction(AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_DISMISS)
+          }
+        }
+
+        override fun performAccessibilityAction(host: View, action: Int, args: Bundle?): Boolean {
+          if (action == AccessibilityNodeInfoCompat.ACTION_DISMISS && attemptScrimDismissal()) {
+            return true
+          }
+          return super.performAccessibilityAction(host, action, args)
+        }
+      },
     )
   }
 
@@ -295,6 +331,78 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   override fun dispatchDraw(canvas: Canvas) {
     drawScrim(canvas)
     super.dispatchDraw(canvas)
+  }
+
+  // MARK: - Accessibility
+  //
+  // ExploreByTouchHelper drives the scrim's virtual node from hover (touch
+  // exploration), key, and focus events, so all three streams are forwarded.
+
+  override fun dispatchHoverEvent(event: MotionEvent): Boolean =
+    scrimAccessibilityHelper.dispatchHoverEvent(event) || super.dispatchHoverEvent(event)
+
+  override fun dispatchKeyEvent(event: KeyEvent): Boolean =
+    scrimAccessibilityHelper.dispatchKeyEvent(event) || super.dispatchKeyEvent(event)
+
+  override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: Rect?) {
+    super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
+    scrimAccessibilityHelper.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
+  }
+
+  private fun sheetTopEdge(): Float = sheetContainer.top + sheetContainer.translationY
+
+  // The scrim participates in accessibility only while activating it would
+  // dismiss the sheet; a scrim over a programmatic-only close detent is
+  // decorative, not actionable.
+  private fun isScrimAccessible(): Boolean =
+    isScrimVisible() && scrimDismissIndex != null && !isTargetingClosedDetent
+
+  /**
+   * Dismisses a modal sheet to its closed detent through the exact path a scrim tap takes,
+   * returning whether a dismissal was actually performed.
+   */
+  private fun attemptScrimDismissal(): Boolean {
+    val closeIndex = scrimDismissIndex ?: return false
+    if (!isScrimVisible() || targetIndex == closeIndex) return false
+    snapToIndex(closeIndex, 0f)
+    return true
+  }
+
+  private inner class ScrimAccessibilityHelper : ExploreByTouchHelper(this@BottomSheetHostView) {
+
+    override fun getVirtualViewAt(x: Float, y: Float): Int =
+      if (isScrimAccessible() && y < sheetTopEdge()) SCRIM_VIRTUAL_VIEW_ID else INVALID_ID
+
+    override fun getVisibleVirtualViews(virtualViewIds: MutableList<Int>) {
+      if (isScrimAccessible()) virtualViewIds.add(SCRIM_VIRTUAL_VIEW_ID)
+    }
+
+    override fun onPopulateNodeForVirtualView(
+      virtualViewId: Int,
+      node: AccessibilityNodeInfoCompat,
+    ) {
+      node.className = "android.widget.Button"
+      node.contentDescription = context.getString(R.string.bottom_sheet_dismiss)
+      node.isClickable = true
+      node.isDismissable = true
+      node.addAction(AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_CLICK)
+      node.addAction(AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_DISMISS)
+      // The helper requires non-empty bounds; the scrim's actionable region
+      // spans from the host's top edge down to the sheet's current top.
+      val bottom = sheetTopEdge().toInt().coerceIn(1, height.coerceAtLeast(1))
+      node.setBoundsInParent(Rect(0, 0, width.coerceAtLeast(1), bottom))
+    }
+
+    override fun onPerformActionForVirtualView(
+      virtualViewId: Int,
+      action: Int,
+      arguments: Bundle?,
+    ): Boolean =
+      when (action) {
+        AccessibilityNodeInfoCompat.ACTION_CLICK,
+        AccessibilityNodeInfoCompat.ACTION_DISMISS -> attemptScrimDismissal()
+        else -> false
+      }
   }
 
   private fun layoutSheetChildren(containerWidth: Int, containerHeight: Int) {
@@ -1273,6 +1381,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
     scrimTouchActive = false
     scrimProgress = 0f
     suppressScrimForClosingTarget = false
+    lastAccessibleScrimState = false
     sheetContainer.removeAllViews()
     stateWrapper = null
     lastShadowOffsetY = Float.NaN
@@ -1360,6 +1469,13 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
     val interactive = modal && (activeAnimation != null || isPanning || isScrimVisible())
     pointerEvents = if (interactive) PointerEvents.AUTO else PointerEvents.BOX_NONE
     interactionListener?.invoke(interactive)
+    val accessibleScrim = isScrimAccessible()
+    if (accessibleScrim != lastAccessibleScrimState) {
+      lastAccessibleScrimState = accessibleScrim
+      // The scrim's virtual node appeared or disappeared; only transitions are
+      // reported — this method runs on every frame of a settle.
+      scrimAccessibilityHelper.invalidateRoot()
+    }
   }
 
   private fun currentSheetHeight(): Float {
@@ -1392,5 +1508,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
     // observing to end the redraw loop, while the marker layout listener can
     // still complete the snap if the content becomes measurable later.
     private const val MAX_PENDING_INITIAL_CONTENT_DETENT_FRAMES = 240
+
+    private const val SCRIM_VIRTUAL_VIEW_ID = 1
   }
 }

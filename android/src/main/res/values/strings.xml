@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!-- Announced by TalkBack for the scrim's virtual accessibility node while a
+       dismissible modal sheet is open. -->
+  <string name="bottom_sheet_dismiss">Dismiss</string>
+</resources>

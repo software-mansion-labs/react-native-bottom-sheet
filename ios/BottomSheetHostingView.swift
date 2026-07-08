@@ -37,6 +37,17 @@ private struct PendingSnapRequest {
   let preserveScrimPin: Bool
 }
 
+/// The scrim control, exposed to VoiceOver as a dismiss button while a
+/// dismissible modal sheet is open. VoiceOver's default activation simulates
+/// a tap at the activation point; sending the control action directly keeps
+/// activation reliable even when the sheet overlaps that point mid-settle.
+private final class BottomSheetScrimControl: UIControl {
+  override func accessibilityActivate() -> Bool {
+    sendActions(for: .touchUpInside)
+    return true
+  }
+}
+
 @objcMembers
 public final class BottomSheetHostingView: UIView {
   public weak var eventDelegate: BottomSheetHostingViewDelegate?
@@ -91,7 +102,7 @@ public final class BottomSheetHostingView: UIView {
   public var animateContentHeight: Bool = true
 
   public let sheetContainer = UIView()
-  private let scrimView = UIControl()
+  private let scrimView = BottomSheetScrimControl()
   private var panGesture: UIPanGestureRecognizer!
   private var activeSpring: CriticalSpring?
   private var activeSpringTargetIndex: Int = 0
@@ -121,6 +132,9 @@ public final class BottomSheetHostingView: UIView {
     scrimView.alpha = 0
     scrimView.isHidden = true
     scrimView.addTarget(self, action: #selector(handleScrimPress), for: .touchUpInside)
+    scrimView.isAccessibilityElement = false
+    scrimView.accessibilityTraits = .button
+    scrimView.accessibilityLabel = "Dismiss"
     addSubview(scrimView)
 
     sheetContainer.backgroundColor = .clear
@@ -524,16 +538,31 @@ public final class BottomSheetHostingView: UIView {
   }
 
   @objc private func handleScrimPress() {
+    attemptScrimDismissal()
+  }
+
+  /// Dismisses a modal sheet to its closed detent through the exact path a
+  /// scrim tap takes, returning whether a dismissal was actually performed.
+  @discardableResult
+  private func attemptScrimDismissal() -> Bool {
     guard
       modal,
       let closedIndex = scrimDismissIndex,
       targetIndex != closedIndex,
       activeSpring == nil || currentSheetHeight > 0.5
     else {
-      return
+      return false
     }
 
     snapToIndex(closedIndex, velocity: 0)
+    return true
+  }
+
+  /// VoiceOver's escape gesture (two-finger Z scrub) dismisses a modal sheet,
+  /// mirroring a scrim tap. Returning false when there is nothing to dismiss
+  /// lets the gesture keep bubbling to enclosing containers.
+  override public func accessibilityPerformEscape() -> Bool {
+    attemptScrimDismissal()
   }
 
   private func snapToIndex(
@@ -1317,5 +1346,10 @@ private extension BottomSheetHostingView {
 
   func updateInteractionState() {
     scrimView.isUserInteractionEnabled = modal && (closedIndex != nil) && !scrimView.isHidden
+    // Expose the scrim to VoiceOver only while tapping it would dismiss the
+    // sheet; otherwise it would be an inert, unlabeled stop in the
+    // accessibility tree (a scrim over a programmatic-only close detent is
+    // decorative, not actionable).
+    scrimView.isAccessibilityElement = modal && scrimDismissIndex != nil && !scrimView.isHidden
   }
 }
