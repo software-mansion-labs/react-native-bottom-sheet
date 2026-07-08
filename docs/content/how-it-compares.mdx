@@ -34,12 +34,20 @@ modal sheets, you provide the complete sheet surface in React, and detents can
 include app-level behavior such as programmatic-only
 snap points.
 
-That difference also matters for layering. A platform-presented sheet
-can disable dimming and allow background interaction, but it is still drawn as a
-presented native sheet over the React Native view hierarchy. `BottomSheet` is
-actually inline: It renders in your screen’s React Native hierarchy and can be
-layered alongside nearby content. When you do need a modal, `ModalBottomSheet`
-is rendered through `BottomSheetProvider`’s portal rather than through a
-separate native window, so global UI such as toasts, menus, floating controls,
-or debug overlays can be arranged above or below it by where you place them
-relative to the provider.
+That difference also matters for layering. A platform-presented sheet can
+disable dimming and allow background interaction, but it is still drawn as a
+presented native sheet over the React Native view hierarchy. React Native Bottom
+Sheet gives you three placement modes instead:
+
+- `BottomSheet` is inline. It renders in your screen’s React Native hierarchy,
+  so it can be layered alongside nearby content and constrained by the layout
+  around it.
+- `ModalBottomSheet` uses `BottomSheetProvider`’s React Native portal by
+  default. Use this when you want modal behavior while keeping layering control
+  in your React tree, so global UI such as toasts, menus, floating controls, or
+  debug overlays can be arranged above or below the sheet by where you place
+  them relative to the provider.
+- `ModalBottomSheet` with `nativeOverlay` bypasses the provider portal and
+  presents in a native overlay. Use this when the sheet must appear above other
+  native overlays, such as a React Navigation native-stack screen presented with
+  `presentation: 'modal'`.
