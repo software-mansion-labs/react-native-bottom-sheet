@@ -16,7 +16,7 @@ jobs:
           node-version-file: .nvmrc
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
-      - run: npm install -g npm@latest
+      - run: npm install -g npm@11.18.0
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: .bun-version
