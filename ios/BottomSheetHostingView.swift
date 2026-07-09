@@ -294,6 +294,31 @@ public final class BottomSheetHostingView: UIView {
       return
     }
 
+    if window == nil {
+      // Resolved detents intentionally stay stale while detached, but the raw
+      // specs already reflect the latest props. Treat every detached index
+      // update as authoritative so a later request can replace or cancel an
+      // earlier queued snap before the view is reattached.
+      guard rawDetentSpecs.indices.contains(newIndex) else {
+        pendingSnapRequest = nil
+        return
+      }
+
+      if newIndex == targetIndex {
+        pendingSnapRequest = nil
+        return
+      }
+
+      pendingSnapRequest = PendingSnapRequest(
+        index: newIndex,
+        velocity: 0,
+        emitIndexChange: false,
+        emitSettle: true,
+        preserveScrimPin: false
+      )
+      return
+    }
+
     guard newIndex < detentSpecs.count, newIndex != targetIndex else { return }
     snapToIndex(newIndex, velocity: 0, emitIndexChange: false)
   }
