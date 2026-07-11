@@ -144,6 +144,16 @@ class BottomSheetViewManager :
     view.extendUnderStatusBar = value
   }
 
+  @ReactProp(name = "bottomInset")
+  override fun setBottomInset(view: BottomSheetView, value: Double) {
+    view.setBottomInset(value.toFloat())
+  }
+
+  @ReactProp(name = "cornerRadius")
+  override fun setCornerRadius(view: BottomSheetView, value: Double) {
+    view.setCornerRadius(value.toFloat())
+  }
+
   @ReactProp(name = "disableScrollableNegotiation")
   override fun setDisableScrollableNegotiation(view: BottomSheetView, value: Boolean) {
     view.disableScrollableNegotiation = value

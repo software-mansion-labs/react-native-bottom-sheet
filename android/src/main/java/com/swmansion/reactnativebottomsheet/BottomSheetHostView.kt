@@ -3,12 +3,14 @@ package com.swmansion.reactnativebottomsheet
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Outline
 import android.graphics.Paint
 import android.view.MotionEvent
 import android.view.VelocityTracker
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
+import android.view.ViewOutlineProvider
 import android.view.ViewTreeObserver
 import android.view.WindowInsets
 import android.widget.FrameLayout
@@ -320,10 +322,13 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
 
   private fun layoutSheetContainer(viewWidth: Int, viewHeight: Int) {
     val maxHeight = resolvedMaxDetentHeight(viewHeight)
-    val containerTop = (viewHeight - maxHeight).toInt()
+    // Anchor the container bottom at the floating edge (lifted by bottomInsetPx),
+    // not the raw view bottom.
+    val containerTop = (viewHeight - bottomInsetPx - maxHeight).toInt()
     lastAppliedMaxDetentHeight = maxHeight
     sheetContainer.layout(0, containerTop, viewWidth, containerTop + maxHeight.toInt())
     layoutSheetChildren(viewWidth, maxHeight.toInt())
+    if (bottomInsetPx > 0f) invalidateOutline()
   }
 
   // MARK: - Prop setters
@@ -747,6 +752,61 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
       recomputeNativeGeometry()
     }
 
+  // Floats the sheet up off the bottom edge by this many px — a detached /
+  // "floating card" sheet. The detent cap shrinks so the sheet stays inside the
+  // region above the inset, and the floating bottom edge is clipped + rounded
+  // via `cornerRadiusPx`. Stored in px (the setter converts from dp).
+  var bottomInsetPx: Float = 0f
+    private set
+
+  fun setBottomInset(dp: Float) {
+    val px = dp * density
+    if (bottomInsetPx == px) return
+    bottomInsetPx = px
+    updateDetachedClip()
+    recomputeNativeGeometry()
+    requestLayout()
+  }
+
+  // Corner radius (px) for the detached sheet's floating bottom corners.
+  var cornerRadiusPx: Float = 0f
+    private set
+
+  fun setCornerRadius(dp: Float) {
+    val px = dp * density
+    if (cornerRadiusPx == px) return
+    cornerRadiusPx = px
+    invalidateOutline()
+  }
+
+  // The Y the sheet's bottom edge is anchored to: this view's bottom edge,
+  // lifted by `bottomInsetPx` for a detached sheet.
+  private val sheetBottomAnchor: Float
+    get() = (height - bottomInsetPx).coerceAtLeast(0f)
+
+  // Clips the over-sized surface canvas to the floating bottom edge and rounds
+  // its bottom corners, so a detached sheet reads as a card floating above the
+  // bottom. A no-op (clip off) when anchored, preserving the anchored sheet's
+  // slide-off-screen close. Clips this host, so a native scrim (if any) is
+  // clipped with it — detached sheets should use an external backdrop.
+  private fun updateDetachedClip() {
+    val detached = bottomInsetPx > 0f
+    clipToOutline = detached
+    if (detached && outlineProvider !is DetachedOutlineProvider) {
+      outlineProvider = DetachedOutlineProvider()
+    }
+    invalidateOutline()
+  }
+
+  private inner class DetachedOutlineProvider : ViewOutlineProvider() {
+    override fun getOutline(view: View, outline: Outline) {
+      val anchor = sheetBottomAnchor.toInt().coerceAtLeast(0)
+      // Round the bottom corners at the floating edge; the top corners sit at
+      // y=0 above the (capped) content, where the surface owns the rounding.
+      outline.setRoundRect(0, 0, view.width, anchor, cornerRadiusPx)
+    }
+  }
+
   /**
    * Re-derives all natively measured geometry from this view's own size, window position, and the
    * window's top inset, then pushes it into the shadow tree: the sheet frame (consumed by the
@@ -769,8 +829,11 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
     // sheet inside a container that starts below the status bar keeps its full
     // height.
     val topOverlap = (topInset - location[1]).coerceAtLeast(0)
+    // Anchor the cap to the (possibly lifted) floating bottom, not the raw view
+    // bottom, so a detached sheet stays inside the region above the inset.
+    val anchor = (height - bottomInsetPx).coerceAtLeast(0f)
     val cap =
-      (if (extendUnderStatusBar) height else height - topOverlap).toFloat().coerceAtLeast(0f)
+      (if (extendUnderStatusBar) anchor else anchor - topOverlap).coerceAtLeast(0f)
 
     val capChanged = cap != nativeCapPx
     nativeCapPx = cap
@@ -821,7 +884,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
 
   private fun updateShadowState(translationY: Float) {
     val maxDetentHeight = resolvedMaxDetentHeight()
-    val containerTop = height.toFloat() - maxDetentHeight
+    val containerTop = (height - bottomInsetPx) - maxDetentHeight
     // The content's in-host displacement from its Yoga position: the container
     // offset plus the sheet's translation. The content-region inset shrinks
     // the content via Yoga BOTTOM padding, keeping the Yoga origin at zero, so

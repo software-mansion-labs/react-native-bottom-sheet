@@ -80,6 +80,16 @@
   _impl.extendUnderStatusBar = extendUnderStatusBar;
 }
 
+- (void)setBottomInset:(CGFloat)bottomInset
+{
+  _impl.bottomInset = bottomInset;
+}
+
+- (void)setCornerRadius:(CGFloat)cornerRadius
+{
+  _impl.cornerRadius = cornerRadius;
+}
+
 - (CGFloat)contentRegionInset
 {
   return _impl.contentRegionInset;

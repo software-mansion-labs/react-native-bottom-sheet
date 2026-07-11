@@ -135,6 +135,10 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       host.extendUnderStatusBar = value
     }
 
+  fun setBottomInset(dp: Float) = host.setBottomInset(dp)
+
+  fun setCornerRadius(dp: Float) = host.setCornerRadius(dp)
+
   fun setScrimColor(color: Int?) = host.setScrimColor(color)
 
   fun setScrimOpacities(values: List<Float>) = host.setScrimOpacities(values)

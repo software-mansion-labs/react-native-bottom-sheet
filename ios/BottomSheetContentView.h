@@ -31,6 +31,10 @@ NS_ASSUME_NONNULL_BEGIN
 // Whether full-height detents may extend under the status bar; feeds the
 // natively computed detent cap.
 - (void)setExtendUnderStatusBar:(BOOL)extendUnderStatusBar;
+// Floats the sheet up off the bottom edge by this many points (detached sheet).
+- (void)setBottomInset:(CGFloat)bottomInset;
+// Corner radius for the detached sheet's floating bottom corners.
+- (void)setCornerRadius:(CGFloat)cornerRadius;
 // The natively measured inset of the content region: the gap between the
 // sheet's height and the detent cap.
 - (CGFloat)contentRegionInset;

@@ -22,6 +22,16 @@ export interface NativeProps extends ViewProps {
   // computed from the overlay's real bounds and insets; inline sheets bake the
   // flag into the JS-computed maxDetentHeight as before.
   extendUnderStatusBar?: boolean;
+  // Floats the sheet up off the bottom edge by this many points (a detached /
+  // "floating card" sheet). The detent cap shrinks to keep the sheet inside the
+  // safe region above the inset, and the floating bottom edge is clipped +
+  // rounded via `cornerRadius`. Horizontal detachment is done by the consumer
+  // insetting the host `style` (e.g. `{ left, right }`). Default 0 (anchored).
+  bottomInset?: CodegenTypes.WithDefault<CodegenTypes.Double, 0>;
+  // Corner radius (points) applied to the detached sheet's floating bottom
+  // corners. Match it to the surface's top radius for a uniform card. Only used
+  // when `bottomInset > 0`. Default 0 (square clip).
+  cornerRadius?: CodegenTypes.WithDefault<CodegenTypes.Double, 0>;
   disableScrollableNegotiation?: boolean;
   scrimColor?: ColorValue;
   scrimOpacities?: ReadonlyArray<CodegenTypes.Double>;

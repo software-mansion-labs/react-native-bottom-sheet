@@ -72,6 +72,21 @@ export interface BottomSheetProps {
    */
   extendUnderStatusBar?: boolean;
   /**
+   * Floats the sheet up off the bottom edge by this many points — a detached /
+   * "floating card" sheet. The detent cap shrinks so the sheet stays inside the
+   * region above the inset, and the floating bottom edge is clipped and rounded
+   * with {@link cornerRadius}. Combine with a horizontal `style` inset
+   * (`{ left, right }`) for a fully floating card. Defaults to `0` (anchored to
+   * the bottom edge).
+   */
+  bottomInset?: number;
+  /**
+   * Corner radius (points) for the detached sheet's floating bottom corners.
+   * Match it to your surface's top radius for a uniform card. Only applied when
+   * {@link bottomInset} is greater than 0. Defaults to `0` (square clip).
+   */
+  cornerRadius?: number;
+  /**
    * Called when a user-driven snap is initiated: the moment a drag commits to a
    * detent, before the animation settles. Does not fire for programmatic `index`
    * changes; you already know when you make those. Use it to keep your controlled
@@ -152,6 +167,8 @@ export const BottomSheet = (props: BottomSheetProps) => {
     animateIn = true,
     animateContentHeight = true,
     extendUnderStatusBar = false,
+    bottomInset = 0,
+    cornerRadius = 0,
     onIndexChange,
     onSettle,
     onPositionChange,
@@ -254,6 +271,8 @@ export const BottomSheet = (props: BottomSheetProps) => {
           ]}
           detents={nativeDetents}
           extendUnderStatusBar={extendUnderStatusBar}
+          bottomInset={bottomInset}
+          cornerRadius={cornerRadius}
           index={index}
           animateIn={animateIn}
           animateContentHeight={animateContentHeight}
