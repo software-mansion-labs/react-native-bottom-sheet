@@ -35,6 +35,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setBottomInset:(CGFloat)bottomInset;
 // Corner radius for the detached sheet's floating bottom corners.
 - (void)setCornerRadius:(CGFloat)cornerRadius;
+// Whether the detached sheet's floating bottom corners use a continuous curve.
+- (void)setBorderCurveContinuous:(BOOL)continuous;
 // The natively measured inset of the content region: the gap between the
 // sheet's height and the detent cap.
 - (CGFloat)contentRegionInset;

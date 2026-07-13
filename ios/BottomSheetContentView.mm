@@ -90,6 +90,11 @@
   _impl.cornerRadius = cornerRadius;
 }
 
+- (void)setBorderCurveContinuous:(BOOL)continuous
+{
+  _impl.borderCurveContinuous = continuous;
+}
+
 - (CGFloat)contentRegionInset
 {
   return _impl.contentRegionInset;

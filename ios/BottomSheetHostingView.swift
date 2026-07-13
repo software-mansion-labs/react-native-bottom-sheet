@@ -97,6 +97,15 @@ public final class BottomSheetHostingView: UIView {
     }
   }
 
+  /// Whether the detached sheet's floating bottom corners use Apple's
+  /// continuous corner curve instead of the default circular curve.
+  public var borderCurveContinuous = false {
+    didSet {
+      guard borderCurveContinuous != oldValue else { return }
+      setNeedsLayout()
+    }
+  }
+
   public var disableScrollableNegotiation: Bool = false
 
   private var rawDetentSpecs: [RawDetentSpec] = []
@@ -1009,17 +1018,16 @@ public final class BottomSheetHostingView: UIView {
       width: bounds.width,
       height: sheetBottomAnchor + bounds.height
     )
-    let path = UIBezierPath(
-      roundedRect: clipRect,
-      byRoundingCorners: [.bottomLeft, .bottomRight],
-      cornerRadii: CGSize(width: cornerRadius, height: cornerRadius)
-    ).cgPath
-    let maskLayer = (layer.mask as? CAShapeLayer) ?? CAShapeLayer()
-    // The mask is a screen-fixed frame; setting its path must not implicitly
-    // animate, or the floating bottom would lag the sheet's height changes.
+    let maskLayer = layer.mask ?? CALayer()
+    // The mask is a screen-fixed frame; updating it must not implicitly animate,
+    // or the floating bottom would lag the sheet's height changes.
     CATransaction.begin()
     CATransaction.setDisableActions(true)
-    maskLayer.path = path
+    maskLayer.frame = clipRect
+    maskLayer.backgroundColor = UIColor.black.cgColor
+    maskLayer.cornerRadius = cornerRadius
+    maskLayer.cornerCurve = borderCurveContinuous ? .continuous : .circular
+    maskLayer.maskedCorners = [.layerMinXMaxYCorner, .layerMaxXMaxYCorner]
     layer.mask = maskLayer
     CATransaction.commit()
   }

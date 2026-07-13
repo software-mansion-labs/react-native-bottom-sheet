@@ -87,6 +87,13 @@ export interface BottomSheetProps {
    */
   cornerRadius?: number;
   /**
+   * Corner curve for the detached sheet's floating bottom corners on iOS.
+   * Match the `borderCurve` style on your surface so all four corners use the
+   * same curve. Defaults to `'circular'`. Android always uses its platform
+   * round-rect curve.
+   */
+  borderCurve?: 'circular' | 'continuous';
+  /**
    * Called when a user-driven snap is initiated: the moment a drag commits to a
    * detent, before the animation settles. Does not fire for programmatic `index`
    * changes; you already know when you make those. Use it to keep your controlled
@@ -169,6 +176,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
     extendUnderStatusBar = false,
     bottomInset = 0,
     cornerRadius = 0,
+    borderCurve = 'circular',
     onIndexChange,
     onSettle,
     onPositionChange,
@@ -273,6 +281,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
           extendUnderStatusBar={extendUnderStatusBar}
           bottomInset={bottomInset}
           cornerRadius={cornerRadius}
+          borderCurve={borderCurve}
           index={index}
           animateIn={animateIn}
           animateContentHeight={animateContentHeight}

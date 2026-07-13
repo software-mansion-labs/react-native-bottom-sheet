@@ -8,7 +8,7 @@ By default the sheet is anchored to the bottom of its host: its bottom edge sits
 on the screen edge and only the top corners are rounded. A **detached** sheet
 floats off the bottom as a card, with rounded corners on all four sides.
 
-Two props drive it:
+Three props drive it:
 
 - `bottomInset` — floats the sheet up off the bottom edge by this many points.
   The detent cap shrinks by the same amount, so the sheet stays inside the
@@ -17,11 +17,15 @@ Two props drive it:
 - `cornerRadius` — the radius (points) applied to the floating bottom corners.
   Match it to your surface's top radius for a uniform card. Only used when
   `bottomInset` is greater than 0.
+- `borderCurve` — the floating bottom corners' curve on iOS: `'circular'` (the
+  default) or `'continuous'`. Apply the matching `borderCurve` style to the
+  surface so its top corners use the same curve. Android uses its platform
+  round-rect curve.
 
 `bottomInset` handles the vertical float; add a horizontal `style` inset for the
 side margins. Round the top corners on your `surface` as usual — the top corners
-animate with the sheet, so the surface owns them, while `cornerRadius` rounds the
-fixed floating bottom.
+animate with the sheet, so the surface owns them, while `cornerRadius` rounds
+the fixed floating bottom.
 
 ```tsx
 import { StyleSheet, View } from 'react-native';
@@ -34,6 +38,7 @@ const RADIUS = 24;
   // Float 12pt above the bottom (plus your own safe-area inset), 12pt in on each side.
   bottomInset={insets.bottom + 12}
   cornerRadius={RADIUS}
+  borderCurve="continuous"
   style={{ left: 12, right: 12 }}
   surface={
     <View
@@ -43,6 +48,7 @@ const RADIUS = 24;
           backgroundColor: 'white',
           borderTopLeftRadius: RADIUS,
           borderTopRightRadius: RADIUS,
+          borderCurve: 'continuous',
         },
       ]}
     />

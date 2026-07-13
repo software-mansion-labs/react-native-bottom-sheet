@@ -154,6 +154,11 @@ class BottomSheetViewManager :
     view.setCornerRadius(value.toFloat())
   }
 
+  // React Native's borderCurve is iOS-only. Android keeps its platform
+  // round-rect outline for both accepted values.
+  @ReactProp(name = "borderCurve")
+  override fun setBorderCurve(view: BottomSheetView, value: String?) {}
+
   @ReactProp(name = "disableScrollableNegotiation")
   override fun setDisableScrollableNegotiation(view: BottomSheetView, value: Boolean) {
     view.disableScrollableNegotiation = value

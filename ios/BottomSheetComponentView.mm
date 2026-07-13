@@ -145,6 +145,8 @@ using namespace facebook::react;
   // setters no-op on an unchanged value, so redundant sets are cheap.
   [_sheetView setBottomInset:newViewProps.bottomInset];
   [_sheetView setCornerRadius:newViewProps.cornerRadius];
+  [_sheetView setBorderCurveContinuous:
+                  newViewProps.borderCurve == BottomSheetViewBorderCurve::Continuous];
 
   if (newViewProps.disableScrollableNegotiation != oldViewProps.disableScrollableNegotiation) {
     _sheetView.disableScrollableNegotiation = newViewProps.disableScrollableNegotiation;

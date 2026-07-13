@@ -32,6 +32,10 @@ export interface NativeProps extends ViewProps {
   // corners. Match it to the surface's top radius for a uniform card. Only used
   // when `bottomInset > 0`. Default 0 (square clip).
   cornerRadius?: CodegenTypes.WithDefault<CodegenTypes.Double, 0>;
+  // Corner curve applied to the detached sheet's floating bottom corners on
+  // iOS. Consumers should apply the same `borderCurve` style to their surface
+  // so all four corners match. Android keeps its platform round-rect curve.
+  borderCurve?: CodegenTypes.WithDefault<'circular' | 'continuous', 'circular'>;
   disableScrollableNegotiation?: boolean;
   scrimColor?: ColorValue;
   scrimOpacities?: ReadonlyArray<CodegenTypes.Double>;
