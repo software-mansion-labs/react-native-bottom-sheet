@@ -22,7 +22,8 @@ export interface NativeProps extends ViewProps {
   // computed from the overlay's real bounds and insets; inline sheets bake the
   // flag into the JS-computed maxDetentHeight as before.
   extendUnderStatusBar?: boolean;
-  disableScrollableNegotiation?: boolean;
+  scrollableExpandNegotiation: CodegenTypes.Int32;
+  scrollableCollapseNegotiation: CodegenTypes.Int32;
   scrimColor?: ColorValue;
   scrimOpacities?: ReadonlyArray<CodegenTypes.Double>;
   onIndexChange?: CodegenTypes.DirectEventHandler<

@@ -111,9 +111,9 @@ export default function RootLayout() {
               options={{ title: 'Invalid detents', headerShown: false }}
             />
             <Stack.Screen
-              name="disable-scrollable-negotiation"
+              name="scrollable-negotiation"
               options={{
-                title: 'Disable scrollable negotiation',
+                title: 'Scrollable negotiation modes',
                 headerShown: false,
               }}
             />

@@ -123,10 +123,16 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       host.modal = value
     }
 
-  var disableScrollableNegotiation: Boolean
-    get() = host.disableScrollableNegotiation
+  var scrollableExpandNegotiation: Int
+    get() = host.scrollableExpandNegotiation
     set(value) {
-      host.disableScrollableNegotiation = value
+      host.scrollableExpandNegotiation = value
+    }
+
+  var scrollableCollapseNegotiation: Int
+    get() = host.scrollableCollapseNegotiation
+    set(value) {
+      host.scrollableCollapseNegotiation = value
     }
 
   var extendUnderStatusBar: Boolean

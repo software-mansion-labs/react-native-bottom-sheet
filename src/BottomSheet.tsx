@@ -28,6 +28,27 @@ export type PositionChangeEventData = Readonly<{
   index: number;
 }>;
 
+export type ScrollableNegotiationMode = 'none' | 'initial' | 'handoff';
+
+export type ScrollableNegotiation =
+  | ScrollableNegotiationMode
+  | Readonly<{
+      expand: ScrollableNegotiationMode;
+      collapse: ScrollableNegotiationMode;
+    }>;
+
+const SCROLLABLE_NEGOTIATION_LEVEL: Record<ScrollableNegotiationMode, number> =
+  {
+    none: 0,
+    initial: 1,
+    handoff: 2,
+  };
+
+const DEFAULT_SCROLLABLE_NEGOTIATION = {
+  expand: 'handoff',
+  collapse: 'initial',
+} as const satisfies Exclude<ScrollableNegotiation, string>;
+
 /**
  * Props for the inline bottom-sheet component.
  */
@@ -104,10 +125,15 @@ export interface BottomSheetProps {
     component: ComponentType<NativeProps>
   ) => ComponentType<NativeProps>;
   /**
-   * Escape hatch that disables sheet/list gesture negotiation.
-   * If a gesture starts inside a nested scrollable, that scrollable keeps it
-   * even when it cannot scroll any further.
+   * Controls how gestures that start in nested scrollables interact with the
+   * sheet. A string applies to both directions; an object configures expansion
+   * and collapse independently. `initial` selects one owner at touch-down,
+   * while `handoff` also permits ownership to transfer without lifting.
+   *
+   * @default { expand: 'handoff', collapse: 'initial' }
    */
+  scrollableNegotiation?: ScrollableNegotiation;
+  /** @deprecated Use `scrollableNegotiation="none"` instead. */
   disableScrollableNegotiation?: boolean;
 }
 
@@ -158,10 +184,24 @@ export const BottomSheet = (props: BottomSheetProps) => {
     wrapNativeView,
     modal = false,
     nativeOverlay = false,
-    disableScrollableNegotiation = false,
+    scrollableNegotiation,
+    disableScrollableNegotiation,
     scrimColor,
     scrimOpacities,
   } = props as BottomSheetInternalProps;
+  const resolvedScrollableNegotiation =
+    scrollableNegotiation ??
+    (disableScrollableNegotiation
+      ? ('none' as const)
+      : DEFAULT_SCROLLABLE_NEGOTIATION);
+  const resolvedExpandNegotiation =
+    typeof resolvedScrollableNegotiation === 'string'
+      ? resolvedScrollableNegotiation
+      : resolvedScrollableNegotiation.expand;
+  const resolvedCollapseNegotiation =
+    typeof resolvedScrollableNegotiation === 'string'
+      ? resolvedScrollableNegotiation
+      : resolvedScrollableNegotiation.collapse;
   const usesNativeOverlay = modal && nativeOverlay;
   // All real geometry — the sheet's frame, the content wrapper's bounds, and
   // the detent cap (host height minus the overlapping status-bar inset, unless
@@ -259,7 +299,12 @@ export const BottomSheet = (props: BottomSheetProps) => {
           animateContentHeight={animateContentHeight}
           modal={modal}
           nativeOverlay={usesNativeOverlay}
-          disableScrollableNegotiation={disableScrollableNegotiation}
+          scrollableExpandNegotiation={
+            SCROLLABLE_NEGOTIATION_LEVEL[resolvedExpandNegotiation]
+          }
+          scrollableCollapseNegotiation={
+            SCROLLABLE_NEGOTIATION_LEVEL[resolvedCollapseNegotiation]
+          }
           scrimColor={scrimColor}
           scrimOpacities={resolvedScrimOpacity}
           onIndexChange={handleIndexChange}

@@ -37,6 +37,77 @@ private struct PendingSnapRequest {
   let preserveScrimPin: Bool
 }
 
+private enum PanCoordinationMode {
+  case sheet
+  case scrollView
+}
+
+private enum ScrollableNegotiationLevel: Int {
+  case none = 0
+  case initial = 1
+  case handoff = 2
+
+  init(clamping value: Int) {
+    self = ScrollableNegotiationLevel(rawValue: min(max(value, 0), 2)) ?? .none
+  }
+}
+
+private final class ActiveScrollViewState {
+  weak var scrollView: UIScrollView?
+  var pinnedOffset: CGPoint
+  let inverted: Bool
+  let bounces: Bool
+  let directionalLockEnabled: Bool
+  let showsVerticalScrollIndicator: Bool
+  private var contentOffsetObservation: NSKeyValueObservation?
+  private var isRestoringPinnedOffset = false
+
+  init(scrollView: UIScrollView, inverted: Bool) {
+    self.scrollView = scrollView
+    self.pinnedOffset = scrollView.contentOffset
+    self.inverted = inverted
+    self.bounces = scrollView.bounces
+    self.directionalLockEnabled = scrollView.isDirectionalLockEnabled
+    self.showsVerticalScrollIndicator = scrollView.showsVerticalScrollIndicator
+  }
+
+  func startPinning(at offset: CGPoint) {
+    stopPinning()
+    pinnedOffset = offset
+    guard let scrollView else { return }
+
+    contentOffsetObservation = scrollView.observe(\.contentOffset, options: [.new]) {
+      [weak self] observedScrollView, _ in
+      self?.restorePinnedOffset(on: observedScrollView)
+    }
+    restorePinnedOffset(on: scrollView)
+  }
+
+  func restorePinnedOffset() {
+    guard let scrollView else { return }
+    restorePinnedOffset(on: scrollView)
+  }
+
+  func stopPinning() {
+    contentOffsetObservation?.invalidate()
+    contentOffsetObservation = nil
+    isRestoringPinnedOffset = false
+  }
+
+  private func restorePinnedOffset(on scrollView: UIScrollView) {
+    guard
+      contentOffsetObservation != nil,
+      !isRestoringPinnedOffset,
+      scrollView.contentOffset != pinnedOffset
+    else {
+      return
+    }
+    isRestoringPinnedOffset = true
+    scrollView.setContentOffset(pinnedOffset, animated: false)
+    isRestoringPinnedOffset = false
+  }
+}
+
 @objcMembers
 public final class BottomSheetHostingView: UIView {
   public weak var eventDelegate: BottomSheetHostingViewDelegate?
@@ -76,7 +147,8 @@ public final class BottomSheetHostingView: UIView {
     }
   }
 
-  public var disableScrollableNegotiation: Bool = false
+  public var scrollableExpandNegotiation: Int = ScrollableNegotiationLevel.handoff.rawValue
+  public var scrollableCollapseNegotiation: Int = ScrollableNegotiationLevel.initial.rawValue
 
   private var rawDetentSpecs: [RawDetentSpec] = []
   private var detentSpecs: [DetentSpec] = [] {
@@ -106,6 +178,13 @@ public final class BottomSheetHostingView: UIView {
   private var panStartingIndex: Int?
   private var activeDragRange: (minTy: CGFloat, maxTy: CGFloat)?
   private var activeDragDetentSpecs: [DetentSpec]?
+  private var activeScrollViewStates: [ActiveScrollViewState] = []
+  private var panCoordinationMode: PanCoordinationMode = .sheet
+  private var activeScrollableNegotiationLevel: ScrollableNegotiationLevel = .none
+  private var didMoveSheetDuringPan = false
+  private var didCancelTouchesForPan = false
+  private var activeScrollViewsLocked = false
+  private var scrollViewOwnsLowerBoundary = false
   private var isContentInteractionDisabled = false
   private var contentHeightMarker: UIView?
   private weak var surfaceView: UIView?
@@ -367,6 +446,7 @@ public final class BottomSheetHostingView: UIView {
     panStartingIndex = nil
     activeDragRange = nil
     activeDragDetentSpecs = nil
+    finishScrollViewCoordination()
     setContentInteractionEnabled(true)
     stopObservingContentHeightMarker()
     surfaceView = nil
@@ -526,6 +606,81 @@ public final class BottomSheetHostingView: UIView {
       subview.isUserInteractionEnabled = isEnabled
     }
     isContentInteractionDisabled = !isEnabled
+  }
+
+  private func cancelContentTouchesForPanIfNeeded() {
+    guard !didCancelTouchesForPan else { return }
+    didCancelTouchesForPan = true
+    if let handler = surfaceTouchHandler {
+      handler.isEnabled = false
+      handler.isEnabled = true
+    }
+  }
+
+  private func lockActiveScrollViews(pinToStart: Bool = false) {
+    guard !activeScrollViewStates.isEmpty else { return }
+
+    for state in activeScrollViewStates {
+      guard let scrollView = state.scrollView else { continue }
+      let pinnedOffset = pinToStart
+        ? scrollStartOffset(for: scrollView, inverted: state.inverted)
+        : scrollView.contentOffset
+      scrollView.bounces = false
+      scrollView.isDirectionalLockEnabled = true
+      scrollView.showsVerticalScrollIndicator = false
+      state.startPinning(at: pinnedOffset)
+    }
+    activeScrollViewsLocked = true
+  }
+
+  private func pinActiveScrollViews() {
+    guard activeScrollViewsLocked else { return }
+    for state in activeScrollViewStates {
+      state.restorePinnedOffset()
+    }
+  }
+
+  private func unlockActiveScrollViews() {
+    guard activeScrollViewsLocked else { return }
+    for state in activeScrollViewStates {
+      state.stopPinning()
+      guard let scrollView = state.scrollView else { continue }
+      scrollView.bounces = state.bounces
+      scrollView.isDirectionalLockEnabled = state.directionalLockEnabled
+      scrollView.showsVerticalScrollIndicator = state.showsVerticalScrollIndicator
+    }
+    activeScrollViewsLocked = false
+  }
+
+  private func cancelActiveScrollViewPans() {
+    let states = activeScrollViewStates
+    for state in states {
+      guard let scrollView = state.scrollView else { continue }
+      scrollView.panGestureRecognizer.isEnabled = false
+      scrollView.setContentOffset(state.pinnedOffset, animated: false)
+    }
+
+    // The sheet and scroll-view recognizers receive the same release event,
+    // but UIKit does not guarantee which target callback runs first. Re-enable
+    // on the next main-loop turn so the scroll view cannot process the tail of
+    // this release after us and start decelerating with the fling velocity.
+    DispatchQueue.main.async {
+      for state in states {
+        guard let scrollView = state.scrollView else { continue }
+        scrollView.setContentOffset(state.pinnedOffset, animated: false)
+        scrollView.panGestureRecognizer.isEnabled = true
+      }
+    }
+  }
+
+  private func finishScrollViewCoordination() {
+    unlockActiveScrollViews()
+    activeScrollViewStates = []
+    panCoordinationMode = .sheet
+    activeScrollableNegotiationLevel = .none
+    didMoveSheetDuringPan = false
+    didCancelTouchesForPan = false
+    scrollViewOwnsLowerBoundary = false
   }
 
   /// Extra lead applied to the spring prediction when emitting follower
@@ -702,36 +857,136 @@ public final class BottomSheetHostingView: UIView {
 
     switch gesture.state {
     case .began:
+      if activeSpring != nil {
+        cancelActiveSpring()
+      }
       isPanning = true
       scrimPinnedFull = false
       panStartingIndex = targetIndex
       activeDragDetentSpecs = detentSpecs
       activeDragRange = snapshotDraggableRange(including: targetIndex, in: detentSpecs)
       sheetContainer.endEditing(true)
-      setContentInteractionEnabled(false)
-      if let handler = surfaceTouchHandler {
-        handler.isEnabled = false
-        handler.isEnabled = true
+      didMoveSheetDuringPan = false
+      didCancelTouchesForPan = false
+      scrollViewOwnsLowerBoundary = false
+      activeScrollableNegotiationLevel = negotiationLevel(forVerticalVelocity: gesture.velocity(in: self).y)
+
+      let locationInContainer = gesture.location(in: sheetContainer)
+      activeScrollViewStates = scrollableAncestorChain(containing: locationInContainer).map {
+        ActiveScrollViewState(scrollView: $0.scrollView, inverted: $0.inverted)
+      }
+
+      if activeScrollViewStates.isEmpty {
+        setContentInteractionEnabled(false)
+        cancelContentTouchesForPanIfNeeded()
+        panCoordinationMode = .sheet
+      } else {
+        // Keep every scroll recognizer alive from touch-down. While the sheet
+        // moves, pin the scrollable(s); at the largest detent, release them so
+        // UIKit continues the same pan and supplies native deceleration.
+        setContentInteractionEnabled(true)
+        let range = activeDragRange ?? draggableRange(including: panStartingIndex)
+        let isAtLargestDetent = sheetContainer.transform.ty <= range.minTy + 0.5
+        let velocity = gesture.velocity(in: self).y
+        if
+          activeScrollableNegotiationLevel == .handoff,
+          isAtLargestDetent && (velocity < 0 || !activeScrollViewsAreAtStart())
+        {
+          panCoordinationMode = .scrollView
+        } else {
+          panCoordinationMode = .sheet
+          lockActiveScrollViews(pinToStart: isAtLargestDetent)
+        }
       }
       gesture.setTranslation(.zero, in: self)
-      if activeSpring != nil {
-        cancelActiveSpring()
-      }
 
     case .changed:
       let delta = gesture.translation(in: self).y
       gesture.setTranslation(.zero, in: self)
       let range = activeDragRange ?? draggableRange(including: panStartingIndex)
+
+      if
+        activeScrollableNegotiationLevel == .handoff,
+        !activeScrollViewStates.isEmpty,
+        panCoordinationMode == .scrollView
+      {
+        if scrollViewOwnsLowerBoundary {
+          // Once the sheet is fully collapsed, downward movement belongs to
+          // native bounce/RefreshControl. On reversal, let that overscroll
+          // return to its resting offset before the sheet can expand again.
+          if delta < 0, activeScrollViewsAreAtStart(requireExactOffset: true) {
+            scrollViewOwnsLowerBoundary = false
+            panCoordinationMode = .sheet
+            lockActiveScrollViews(pinToStart: true)
+          }
+          return
+        }
+        // A downward scroll remains with the content until every vertical
+        // scrollable in the touched ancestor chain reaches its visual start.
+        // Start moving the sheet on the following update so the boundary
+        // movement is not consumed twice by UIKit and the sheet.
+        if delta > 0, activeScrollViewsAreAtStart() {
+          panCoordinationMode = .sheet
+          lockActiveScrollViews(pinToStart: true)
+        }
+        return
+      }
+
+      pinActiveScrollViews()
       let minTy = range.minTy
       let maxTy = range.maxTy
       let newTy = max(minTy, min(maxTy, sheetContainer.transform.ty + delta))
-      sheetContainer.transform = CGAffineTransform(translationX: 0, y: newTy)
-      emitPosition()
+      if abs(newTy - sheetContainer.transform.ty) > .ulpOfOne {
+        cancelContentTouchesForPanIfNeeded()
+        didMoveSheetDuringPan = true
+        sheetContainer.transform = CGAffineTransform(translationX: 0, y: newTy)
+        emitPosition()
+      }
+      pinActiveScrollViews()
+
+      if
+        activeScrollableNegotiationLevel == .handoff,
+        !activeScrollViewStates.isEmpty,
+        delta < 0,
+        newTy <= minTy + 0.5
+      {
+        // The boundary update remains pinned; subsequent updates and the
+        // eventual release are handled natively by the still-active scroll pan.
+        panCoordinationMode = .scrollView
+        scrollViewOwnsLowerBoundary = false
+        unlockActiveScrollViews()
+      } else if
+        activeScrollableNegotiationLevel == .handoff,
+        !activeScrollViewStates.isEmpty,
+        delta > 0,
+        newTy >= maxTy - 0.5
+      {
+        // The sheet has no smaller detent to consume. Release subsequent
+        // downward movement to native bounce and RefreshControl.
+        panCoordinationMode = .scrollView
+        scrollViewOwnsLowerBoundary = true
+        unlockActiveScrollViews()
+      }
 
     case .ended:
       isPanning = false
       setContentInteractionEnabled(true)
+      let coordinatedScrollView = !activeScrollViewStates.isEmpty
+      let sheetMoved = didMoveSheetDuringPan
+      if sheetMoved, panCoordinationMode == .sheet {
+        // The sheet never handed ownership to content. Cancel the still-live
+        // scroll pans so they cannot begin decelerating after being unpinned.
+        cancelActiveScrollViewPans()
+      }
+      unlockActiveScrollViews()
       let velocity = gesture.velocity(in: self).y
+      if coordinatedScrollView, !sheetMoved {
+        panStartingIndex = nil
+        activeDragRange = nil
+        activeDragDetentSpecs = nil
+        finishScrollViewCoordination()
+        return
+      }
       let currentHeight = maxHeight - sheetContainer.transform.ty
       let index =
         activeDragDetentSpecs.flatMap {
@@ -751,12 +1006,26 @@ public final class BottomSheetHostingView: UIView {
       panStartingIndex = nil
       activeDragRange = nil
       activeDragDetentSpecs = nil
+      finishScrollViewCoordination()
       snapToIndex(index, velocity: velocity)
 
     case .cancelled:
       isPanning = false
       setContentInteractionEnabled(true)
+      let coordinatedScrollView = !activeScrollViewStates.isEmpty
+      let sheetMoved = didMoveSheetDuringPan
+      if sheetMoved, panCoordinationMode == .sheet {
+        cancelActiveScrollViewPans()
+      }
+      unlockActiveScrollViews()
       let cancelVelocity = gesture.velocity(in: self).y
+      if coordinatedScrollView, !sheetMoved {
+        panStartingIndex = nil
+        activeDragRange = nil
+        activeDragDetentSpecs = nil
+        finishScrollViewCoordination()
+        return
+      }
       let cancelHeight = maxHeight - sheetContainer.transform.ty
       let cancelIndex =
         activeDragDetentSpecs.flatMap {
@@ -776,6 +1045,7 @@ public final class BottomSheetHostingView: UIView {
       panStartingIndex = nil
       activeDragRange = nil
       activeDragDetentSpecs = nil
+      finishScrollViewCoordination()
       snapToIndex(cancelIndex, velocity: cancelVelocity)
 
     case .failed:
@@ -784,6 +1054,7 @@ public final class BottomSheetHostingView: UIView {
       activeDragRange = nil
       activeDragDetentSpecs = nil
       setContentInteractionEnabled(true)
+      finishScrollViewCoordination()
 
     default:
       break
@@ -862,6 +1133,81 @@ public final class BottomSheetHostingView: UIView {
     return nil
   }
 
+  private func scrollableAncestorChain(
+    containing location: CGPoint
+  ) -> [(scrollView: UIScrollView, inverted: Bool)] {
+    guard let touchedScrollView = scrollView(containing: location, in: sheetContainer) else {
+      return []
+    }
+
+    var views: [UIView] = []
+    var node: UIView? = touchedScrollView
+    while let view = node, view !== sheetContainer {
+      views.append(view)
+      node = view.superview
+    }
+
+    var inverted = false
+    var result: [(scrollView: UIScrollView, inverted: Bool)] = []
+    for view in views.reversed() {
+      inverted = inverted || view.transform.d < 0
+      if let candidate = view as? UIScrollView, isVerticallyScrollable(candidate) {
+        result.append((candidate, inverted))
+      }
+    }
+    return result
+  }
+
+  private func scrollStartOffset(for scrollView: UIScrollView, inverted: Bool) -> CGPoint {
+    let minimumY = -scrollView.adjustedContentInset.top
+    guard inverted else {
+      return CGPoint(x: scrollView.contentOffset.x, y: minimumY)
+    }
+    let maximumY = max(
+      minimumY,
+      scrollView.contentSize.height - scrollView.bounds.height
+        + scrollView.adjustedContentInset.bottom
+    )
+    return CGPoint(x: scrollView.contentOffset.x, y: maximumY)
+  }
+
+  private func activeScrollViewsAreAtStart(requireExactOffset: Bool = false) -> Bool {
+    let edgeTolerance: CGFloat = 0.5
+    guard !activeScrollViewStates.isEmpty else { return false }
+    return activeScrollViewStates.allSatisfy { state in
+      guard let scrollView = state.scrollView else { return true }
+      let startY = scrollStartOffset(for: scrollView, inverted: state.inverted).y
+      if requireExactOffset {
+        return abs(scrollView.contentOffset.y - startY) <= edgeTolerance
+      }
+      return state.inverted
+        ? scrollView.contentOffset.y >= startY - edgeTolerance
+        : scrollView.contentOffset.y <= startY + edgeTolerance
+    }
+  }
+
+  private func negotiationLevel(forVerticalVelocity velocityY: CGFloat) -> ScrollableNegotiationLevel {
+    let rawValue = velocityY < 0 ? scrollableExpandNegotiation : scrollableCollapseNegotiation
+    return ScrollableNegotiationLevel(clamping: rawValue)
+  }
+
+  private var hasAnyScrollableNegotiation: Bool {
+    ScrollableNegotiationLevel(clamping: scrollableExpandNegotiation) != .none
+      || ScrollableNegotiationLevel(clamping: scrollableCollapseNegotiation) != .none
+  }
+
+  private func scrollableChainIsAtStart(
+    _ chain: [(scrollView: UIScrollView, inverted: Bool)]
+  ) -> Bool {
+    let edgeTolerance: CGFloat = 0.5
+    return chain.allSatisfy { item in
+      let startY = scrollStartOffset(for: item.scrollView, inverted: item.inverted).y
+      return item.inverted
+        ? item.scrollView.contentOffset.y >= startY - edgeTolerance
+        : item.scrollView.contentOffset.y <= startY + edgeTolerance
+    }
+  }
+
   override public func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
     guard gestureRecognizer === panGesture else { return true }
 
@@ -871,60 +1217,39 @@ public final class BottomSheetHostingView: UIView {
     let candidates = snapCandidateIndices(including: targetIndex)
     guard candidates.count > 1 else { return false }
 
-    if disableScrollableNegotiation {
-      let locationInContainer = panGesture.location(in: sheetContainer)
-      if scrollView(containing: locationInContainer, in: sheetContainer) != nil {
-        return false
-      }
-    }
-
-    let maxCandidateHeight = candidates.map { detentSpecs[$0].height }.max() ?? 0
-    // Below max: allow drag in either direction to reach other detents.
-    guard currentSheetHeight >= maxCandidateHeight - 0.5 else { return true }
-    // At max: only allow a downward drag, and only when no scroller under the touch can
-    // still absorb it (see the ancestor walk below) — otherwise a scroller handles it.
-    if velocity.y < 0 {
-      return false
-    }
-
     let locationInContainer = panGesture.location(in: sheetContainer)
-    guard let touchedScrollView = scrollView(containing: locationInContainer, in: sheetContainer) else {
+    let scrollableChain = scrollableAncestorChain(containing: locationInContainer)
+    guard !scrollableChain.isEmpty else {
+      // Outside a scrollable, the sheet owns any direction in which it has a
+      // detent available.
+      let range = draggableRange(including: targetIndex)
+      let currentTy = sheetContainerHeight - currentSheetHeight
+      return velocity.y < 0
+        ? currentTy > range.minTy + 0.5
+        : currentTy < range.maxTy - 0.5
+    }
+
+    let level = negotiationLevel(forVerticalVelocity: velocity.y)
+    guard level != .none else { return false }
+
+    let range = draggableRange(including: targetIndex)
+    let currentTy = sheetContainerHeight - currentSheetHeight
+    let canMoveSheet = velocity.y < 0
+      ? currentTy > range.minTy + 0.5
+      : currentTy < range.maxTy - 0.5
+    guard canMoveSheet else { return false }
+
+    if level == .handoff {
       return true
     }
 
-    // Collapse the sheet only when EVERY vertically-scrollable scroller under the touch is
-    // already at its relevant edge; if any of them can still scroll, the gesture belongs to
-    // that scroller. Inspecting only the innermost scroller breaks on a nested *horizontal*
-    // carousel: it can pass isVerticallyScrollable(_:) via vertical bounce or a slightly
-    // taller contentSize, yet its contentOffset.y is always 0 ("at top"), so the sheet
-    // collapsed while the enclosing vertical list was still mid-scroll.
-    //
-    // Walk the touched scroller and its ancestors up to the sheet container, resolving
-    // inversion top-down as we go: a view is inverted when it — or any ancestor up to the
-    // container — has a flipped vertical axis. edgeTolerance absorbs a sub-pixel residual so
-    // the sheet can still collapse when a list is effectively, if not exactly, at its edge.
-    let edgeTolerance: CGFloat = 0.5
-
-    var chain: [UIView] = []
-    var node: UIView? = touchedScrollView
-    while let view = node, view !== sheetContainer {
-      chain.append(view)
-      node = view.superview
-    }
-
-    var inverted = false
-    for view in chain.reversed() {
-      inverted = inverted || view.transform.d < 0
-      guard let candidate = view as? UIScrollView, isVerticallyScrollable(candidate) else {
-        continue
-      }
-      if inverted {
-        let maxOffsetY =
-          candidate.contentSize.height - candidate.bounds.height + candidate.adjustedContentInset.bottom
-        if candidate.contentOffset.y < maxOffsetY - edgeTolerance { return false }
-      } else if candidate.contentOffset.y > edgeTolerance {
-        return false
-      }
+    // Initial-only collapse is available at the largest detent only when all
+    // scrollable ancestors were already at their visual start at touch-down.
+    // Below the largest detent, this preserves the original sheet-first owner
+    // selection in either direction.
+    let isAtLargestDetent = currentTy <= range.minTy + 0.5
+    if velocity.y > 0, isAtLargestDetent {
+      return scrollableChainIsAtStart(scrollableChain)
     }
     return true
   }
@@ -1204,18 +1529,38 @@ extension BottomSheetHostingView: CAAnimationDelegate {
 }
 
 extension BottomSheetHostingView: UIGestureRecognizerDelegate {
+  private func canCoordinate(with other: UIGestureRecognizer) -> Bool {
+    guard
+      hasAnyScrollableNegotiation,
+      let scrollView = other.view as? UIScrollView,
+      other === scrollView.panGestureRecognizer,
+      scrollView.isDescendant(of: sheetContainer),
+      isVerticallyScrollable(scrollView)
+    else {
+      return false
+    }
+    return true
+  }
+
   public func gestureRecognizer(
     _ gestureRecognizer: UIGestureRecognizer,
     shouldBeRequiredToFailBy other: UIGestureRecognizer
   ) -> Bool {
     guard gestureRecognizer === panGesture else { return false }
+    if canCoordinate(with: other) { return false }
     return other is UIPanGestureRecognizer || other is UITapGestureRecognizer
   }
 
   public func gestureRecognizer(
-    _: UIGestureRecognizer,
-    shouldRecognizeSimultaneouslyWith _: UIGestureRecognizer
+    _ gestureRecognizer: UIGestureRecognizer,
+    shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
   ) -> Bool {
+    if gestureRecognizer === panGesture {
+      return canCoordinate(with: other)
+    }
+    if other === panGesture {
+      return canCoordinate(with: gestureRecognizer)
+    }
     return false
   }
 }
