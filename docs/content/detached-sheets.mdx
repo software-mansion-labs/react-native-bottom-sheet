@@ -27,6 +27,14 @@ side margins. Round the top corners on your `surface` as usual — the top corne
 animate with the sheet, so the surface owns them, while `cornerRadius` rounds
 the fixed floating bottom.
 
+The `surface` cannot reliably own the floating bottom corners. It fills the
+sheet's maximum-height moving canvas so that shorter detents and shrinking
+content remain covered. At those heights, the surface's actual bottom edge sits
+below the visible floating edge, so bottom radii on the surface would be
+offscreen and would move with the canvas. The native host clip knows the fixed
+floating edge and clips both the surface and content there; `cornerRadius`
+configures that clip.
+
 ```tsx
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
