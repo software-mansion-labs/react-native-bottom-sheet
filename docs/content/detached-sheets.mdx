@@ -28,39 +28,70 @@ animate with the sheet, so the surface owns them, while `cornerRadius` rounds
 the fixed floating bottom.
 
 ```tsx
-import { StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BottomSheet } from '@swmansion/react-native-bottom-sheet';
 
 const RADIUS = 24;
 
-<BottomSheet // Or `ModalBottomSheet`.
-  index={index}
-  onIndexChange={setIndex}
-  // Float 12pt above the bottom (plus your own safe-area inset), 12pt in on each side.
-  bottomInset={insets.bottom + 12}
-  cornerRadius={RADIUS}
-  borderCurve="continuous"
-  style={{ left: 12, right: 12 }}
-  surface={
-    <View
-      style={[
-        StyleSheet.absoluteFill,
-        {
-          backgroundColor: 'white',
-          borderTopLeftRadius: RADIUS,
-          borderTopRightRadius: RADIUS,
-          borderCurve: 'continuous',
-        },
-      ]}
-    />
-  }
->
-  <Text>Sheet content</Text>
-</BottomSheet>;
+export function DetachedSheetExample() {
+  const [index, setIndex] = useState(1);
+  const insets = useSafeAreaInsets();
+
+  return (
+    <BottomSheet // Or `ModalBottomSheet`.
+      index={index}
+      onIndexChange={setIndex}
+      // Float 12pt above the safe area, 12pt in on each side.
+      bottomInset={insets.bottom + 12}
+      cornerRadius={RADIUS}
+      borderCurve="continuous"
+      style={{ left: 12, right: 12 }}
+      surface={
+        <View
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              backgroundColor: 'white',
+              borderTopLeftRadius: RADIUS,
+              borderTopRightRadius: RADIUS,
+              borderCurve: 'continuous',
+            },
+          ]}
+        />
+      }
+    >
+      <Text>Sheet content</Text>
+    </BottomSheet>
+  );
+}
 ```
+
+`bottomInset` is measured from the bottom of the sheet's host. For a
+full-screen, edge-to-edge host, add the safe-area bottom inset to the visual gap
+you want, as shown above. `useSafeAreaInsets()` follows Android gesture
+navigation, three-button navigation, and other system-bar configurations; do not
+hardcode a navigation-bar height. If the host is already laid out above the
+system navigation area, pass only the visual gap so the safe area is not counted
+twice.
 
 The floating bottom is clipped by masking the sheet host, so a **native scrim**
 (`scrimColor` / `scrimOpacities`) is clipped along with it. Detached sheets
-should dim the screen with an external backdrop rather than the native scrim.
+should dim the screen with an external backdrop rather than the native scrim. In
+development, `ModalBottomSheet` warns when `scrimColor` and a positive
+`bottomInset` are both set.
+
+The same mask clips any shadow or elevation that the sheet host or surface draws
+beyond the floating bottom edge. A detached sheet therefore cannot currently
+cast a native shadow outside the card. If the design requires one, render a
+separate shadow shape in the external backdrop layer and keep it aligned with
+the sheet (for example, with `onPositionChange`).
+
+When a detached sheet closes to a zero-height detent, its surface and content
+slide down behind the fixed floating-edge mask and are progressively clipped at
+that edge. The card does not remain visible while moving through the bottom gap.
+Anchored sheets keep their existing slide-off-screen close.
 
 `bottomInset` composes with everything else — content (`'content'`) detents,
 fixed-point detents, keyboard avoidance, and grow/shrink height animation. The
