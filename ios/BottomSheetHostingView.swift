@@ -147,6 +147,36 @@ public final class BottomSheetHostingView: UIView {
     }
   }
 
+  /// Floats the sheet up off the bottom edge by this many points — a detached
+  /// "floating card" sheet. The detent cap shrinks so the sheet stays inside the
+  /// region above the inset, and the floating bottom edge is clipped and rounded
+  /// via `cornerRadius`. Default 0 (anchored to the bottom edge).
+  public var bottomInset: CGFloat = 0 {
+    didSet {
+      guard bottomInset != oldValue else { return }
+      refreshDetentsFromLayout()
+      setNeedsLayout()
+    }
+  }
+
+  /// Corner radius for the detached sheet's floating bottom corners. Only applied
+  /// when `bottomInset > 0`.
+  public var cornerRadius: CGFloat = 0 {
+    didSet {
+      guard cornerRadius != oldValue else { return }
+      setNeedsLayout()
+    }
+  }
+
+  /// Whether the detached sheet's floating bottom corners use Apple's
+  /// continuous corner curve instead of the default circular curve.
+  public var borderCurveContinuous = false {
+    didSet {
+      guard borderCurveContinuous != oldValue else { return }
+      setNeedsLayout()
+    }
+  }
+
   public var scrollableExpandNegotiation: Int = ScrollableNegotiationLevel.handoff.rawValue
   public var scrollableCollapseNegotiation: Int = ScrollableNegotiationLevel.initial.rawValue
 
@@ -269,13 +299,17 @@ public final class BottomSheetHostingView: UIView {
     let maxHeight = sheetContainerHeight
     lastAppliedMaxDetentHeight = maxHeight
     sheetContainer.bounds = CGRect(x: 0, y: 0, width: bounds.width, height: maxHeight)
-    sheetContainer.center = CGPoint(x: bounds.width / 2, y: bounds.height - maxHeight / 2)
+    sheetContainer.center = CGPoint(x: bounds.width / 2, y: sheetBottomAnchor - maxHeight / 2)
 
     // The surface fills the full container so it always covers the visible sheet
     // (the container is translated to the current sheet position), regardless of
     // how short the content becomes. Sized from the top via frame — never via
     // anchorPoint.
     surfaceView?.frame = sheetContainer.bounds
+
+    // Detached: clip the over-sized canvas to the floating bottom edge and round
+    // its bottom corners (no-op when anchored).
+    updateDetachedClip()
 
     // Report fresh native geometry so the component layer can push the content
     // wrapper's target size (and the overlay frame) into the shadow tree.
@@ -316,17 +350,32 @@ public final class BottomSheetHostingView: UIView {
   }
 
   private var presentedSheetFrame: CGRect {
-    guard activeSpring != nil else { return sheetContainer.frame }
-    // Mid-settle, derive the on-screen frame from the spring instead of the
-    // presentation layer (which lags one commit behind right after a snap
-    // starts). The container's transform is translation-only.
-    let size = sheetContainer.bounds.size
-    let center = sheetContainer.center
+    let rawFrame: CGRect
+    if activeSpring != nil {
+      // Mid-settle, derive the on-screen frame from the spring instead of the
+      // presentation layer (which lags one commit behind right after a snap
+      // starts). The container's transform is translation-only.
+      let size = sheetContainer.bounds.size
+      let center = sheetContainer.center
+      rawFrame = CGRect(
+        x: center.x - size.width / 2,
+        y: center.y - size.height / 2 + currentTranslationY,
+        width: size.width,
+        height: size.height
+      )
+    } else {
+      rawFrame = sheetContainer.frame
+    }
+    // Detached: the visible sheet ends at the floating bottom; the over-sized
+    // canvas below it is clipped away, so hit-testing must not treat that region
+    // as the sheet — taps in the floating gap fall through to the backdrop.
+    guard bottomInset > 0 else { return rawFrame }
+    let clippedMaxY = min(rawFrame.maxY, sheetBottomAnchor)
     return CGRect(
-      x: center.x - size.width / 2,
-      y: center.y - size.height / 2 + currentTranslationY,
-      width: size.width,
-      height: size.height
+      x: rawFrame.minX,
+      y: rawFrame.minY,
+      width: rawFrame.width,
+      height: max(0, clippedMaxY - rawFrame.minY)
     )
   }
 
@@ -453,6 +502,7 @@ public final class BottomSheetHostingView: UIView {
     sheetContainer.transform = .identity
     scrimView.alpha = 0
     scrimView.isHidden = true
+    layer.mask = nil
     for subview in sheetContainer.subviews {
       subview.removeFromSuperview()
     }
@@ -553,7 +603,7 @@ public final class BottomSheetHostingView: UIView {
     // the content via Yoga BOTTOM padding, keeping the Yoga origin at zero, so
     // the full displacement is carried here.
     let maxHeight = sheetContainerHeight
-    let containerTop = bounds.height - maxHeight
+    let containerTop = sheetBottomAnchor - maxHeight
     return containerTop + currentTranslationY
   }
 
@@ -1260,12 +1310,51 @@ public final class BottomSheetHostingView: UIView {
     // overlaps this view. Measured from real window geometry in every mode —
     // inline, portal, and overlay — so no JS-estimated dimensions are
     // involved. Before the view is in a window, fall back to full height.
+    let anchor = sheetBottomAnchor
     guard !extendUnderStatusBar, let window else {
-      return bounds.height
+      return anchor
     }
     let originYInWindow = convert(CGPoint.zero, to: window).y
     let topOverlap = max(0, window.safeAreaInsets.top - originYInWindow)
-    return min(max(0, bounds.height - topOverlap), bounds.height)
+    return min(max(0, anchor - topOverlap), anchor)
+  }
+
+  /// The Y the sheet's bottom edge is anchored to: the host's bottom edge, lifted
+  /// by `bottomInset` for a detached / floating sheet.
+  private var sheetBottomAnchor: CGFloat {
+    max(0, bounds.height - bottomInset)
+  }
+
+  /// Clips the over-sized surface canvas to the floating bottom edge and rounds
+  /// its bottom corners, so a detached sheet reads as a card floating above the
+  /// bottom. A no-op (mask removed) when anchored, preserving the anchored
+  /// sheet's slide-off-screen close. Masks the host layer; a native scrim (if
+  /// any) is clipped with it, so detached sheets should use an external backdrop.
+  private func updateDetachedClip() {
+    guard bottomInset > 0, bounds.width > 0 else {
+      if layer.mask != nil { layer.mask = nil }
+      return
+    }
+    // Extend the clip above the sheet so only the bottom edge is trimmed; the
+    // surface owns the (animated) rounded top corners.
+    let clipRect = CGRect(
+      x: 0,
+      y: -bounds.height,
+      width: bounds.width,
+      height: sheetBottomAnchor + bounds.height
+    )
+    let maskLayer = layer.mask ?? CALayer()
+    // The mask is a screen-fixed frame; updating it must not implicitly animate,
+    // or the floating bottom would lag the sheet's height changes.
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    maskLayer.frame = clipRect
+    maskLayer.backgroundColor = UIColor.black.cgColor
+    maskLayer.cornerRadius = cornerRadius
+    maskLayer.cornerCurve = borderCurveContinuous ? .continuous : .circular
+    maskLayer.maskedCorners = [.layerMinXMaxYCorner, .layerMaxXMaxYCorner]
+    layer.mask = maskLayer
+    CATransaction.commit()
   }
 
   /// The natively measured inset of the content region: the gap between the

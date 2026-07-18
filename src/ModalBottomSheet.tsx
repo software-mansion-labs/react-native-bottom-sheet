@@ -1,4 +1,4 @@
-import { createElement } from 'react';
+import { createElement, useEffect, useRef } from 'react';
 
 import {
   BottomSheet,
@@ -46,6 +46,25 @@ export interface ModalBottomSheetProps extends BottomSheetProps {
 
 /** Bottom sheet presented above the current UI with a scrim. */
 export const ModalBottomSheet = (props: ModalBottomSheetProps) => {
+  const warnedAboutDetachedScrim = useRef(false);
+  const hasDetachedNativeScrim =
+    (props.bottomInset ?? 0) > 0 && props.scrimColor != null;
+
+  useEffect(() => {
+    if (!hasDetachedNativeScrim) {
+      warnedAboutDetachedScrim.current = false;
+      return;
+    }
+    if (!__DEV__ || warnedAboutDetachedScrim.current) {
+      return;
+    }
+
+    warnedAboutDetachedScrim.current = true;
+    console.warn(
+      '[react-native-bottom-sheet] scrimColor is clipped to the detached sheet when bottomInset is greater than 0. Use an external backdrop to dim the full host.'
+    );
+  }, [hasDetachedNativeScrim]);
+
   // `modal` lives on the internal prop set (it is hidden from the public
   // `BottomSheet` type), so type the merged object as the internal shape rather
   // than casting it away.
