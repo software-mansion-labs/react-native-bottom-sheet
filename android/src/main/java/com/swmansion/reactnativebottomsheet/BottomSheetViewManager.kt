@@ -159,9 +159,14 @@ class BottomSheetViewManager :
   @ReactProp(name = "borderCurve")
   override fun setBorderCurve(view: BottomSheetView, value: String?) {}
 
-  @ReactProp(name = "disableScrollableNegotiation")
-  override fun setDisableScrollableNegotiation(view: BottomSheetView, value: Boolean) {
-    view.disableScrollableNegotiation = value
+  @ReactProp(name = "scrollableExpandNegotiation")
+  override fun setScrollableExpandNegotiation(view: BottomSheetView, value: Int) {
+    view.scrollableExpandNegotiation = value
+  }
+
+  @ReactProp(name = "scrollableCollapseNegotiation")
+  override fun setScrollableCollapseNegotiation(view: BottomSheetView, value: Int) {
+    view.scrollableCollapseNegotiation = value
   }
 
   @ReactProp(name = "scrimColor", customType = "Color")

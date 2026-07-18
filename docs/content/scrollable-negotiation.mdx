@@ -4,20 +4,74 @@ title: Scrollable negotiation
 
 # Scrollable negotiation
 
-By default, the sheet coordinates vertical gestures with nested scrollables,
-such as `ScrollView` and `FlatList`.
-
-If you want gestures that start inside a nested scrollable to stay with that
-scrollable even when it cannot scroll any further,
-set `disableScrollableNegotiation`:
+`scrollableNegotiation` controls how vertical gestures that start inside a
+nested scrollable, such as a `ScrollView` or `FlatList`, interact with the
+sheet. Expansion and collapse can be configured independently:
 
 ```tsx
 <BottomSheet
-  index={index}
-  onIndexChange={setIndex}
-  surface={/* ... */}
-  disableScrollableNegotiation
+  scrollableNegotiation={{
+    expand: 'handoff',
+    collapse: 'initial',
+  }}
 >
   {/* ... */}
 </BottomSheet>
 ```
+
+The default is `{ expand: 'handoff', collapse: 'initial' }`. This lets an upward
+drag expand the sheet and continue into the list without lifting, while a
+downward drag chooses either the list or the sheet when the gesture begins. It
+avoids handing a downward list gesture to the sheet midway through the drag,
+which can otherwise cause an accidental collapse.
+
+## Modes
+
+Each direction accepts one of three modes:
+
+| Mode      | Behavior for a gesture that starts in a scrollable                                                                   |
+| --------- | -------------------------------------------------------------------------------------------------------------------- |
+| `none`    | The scrollable keeps the gesture; the sheet does not move.                                                           |
+| `initial` | The sheet or scrollable is selected when the gesture begins, and that owner is kept until the finger lifts.          |
+| `handoff` | Uses the same initial selection but can transfer between the sheet and scrollable at their boundary without lifting. |
+
+For example, with expansion set to `handoff`, dragging up first moves the sheet
+to its largest detent and then scrolls the content. With collapse set to
+`handoff`, dragging down first scrolls the content to its visual start and then
+moves the sheet to a smaller detent. Releasing before the sheet reaches the
+boundary does not fling the content.
+
+Pass a string to use the same mode in both directions:
+
+```tsx
+<BottomSheet scrollableNegotiation="none">{/* ... */}</BottomSheet>
+```
+
+Or pass an object to configure the directions separately:
+
+```tsx
+<BottomSheet scrollableNegotiation={{ expand: 'initial', collapse: 'handoff' }}>
+  {/* ... */}
+</BottomSheet>
+```
+
+Gestures that start outside a scrollable are unaffected and continue to move the
+sheet normally.
+
+## Platform support
+
+Nested and inverted vertical lists are resolved at their visual edge, while
+horizontal lists keep their horizontal gesture handling. Native bounce and
+refresh controls take over after the sheet reaches the boundary in their
+direction.
+
+On iOS, handoff works with `UIScrollView` subclasses. On Android, handoff
+requires an Android nested-scrolling child. React Native’s vertical
+`ScrollView`, `FlatList`, and `SectionList` use a native Android `ScrollView`.
+For the active touch gesture, the sheet temporarily turns on that view’s
+nested-scrolling participation if needed, then restores its previous setting.
+This does not change `scrollEnabled`. Third-party components work when they
+implement the Android nested-scrolling-child contract and have nested scrolling
+enabled. Components such as `WebView` and bespoke scrollers that do not
+participate in nested scrolling use `initial` behavior as a fallback and cannot
+switch consumers in the middle of a gesture.

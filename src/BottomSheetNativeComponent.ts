@@ -36,7 +36,8 @@ export interface NativeProps extends ViewProps {
   // iOS. Consumers should apply the same `borderCurve` style to their surface
   // so all four corners match. Android keeps its platform round-rect curve.
   borderCurve?: CodegenTypes.WithDefault<'circular' | 'continuous', 'circular'>;
-  disableScrollableNegotiation?: boolean;
+  scrollableExpandNegotiation: CodegenTypes.Int32;
+  scrollableCollapseNegotiation: CodegenTypes.Int32;
   scrimColor?: ColorValue;
   scrimOpacities?: ReadonlyArray<CodegenTypes.Double>;
   onIndexChange?: CodegenTypes.DirectEventHandler<

@@ -148,8 +148,12 @@ using namespace facebook::react;
   [_sheetView setBorderCurveContinuous:
                   newViewProps.borderCurve == BottomSheetViewBorderCurve::Continuous];
 
-  if (newViewProps.disableScrollableNegotiation != oldViewProps.disableScrollableNegotiation) {
-    _sheetView.disableScrollableNegotiation = newViewProps.disableScrollableNegotiation;
+  if (newViewProps.scrollableExpandNegotiation != oldViewProps.scrollableExpandNegotiation) {
+    _sheetView.scrollableExpandNegotiation = newViewProps.scrollableExpandNegotiation;
+  }
+
+  if (newViewProps.scrollableCollapseNegotiation != oldViewProps.scrollableCollapseNegotiation) {
+    _sheetView.scrollableCollapseNegotiation = newViewProps.scrollableCollapseNegotiation;
   }
 
   if (newViewProps.scrimColor != oldViewProps.scrimColor) {

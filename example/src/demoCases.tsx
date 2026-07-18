@@ -16,7 +16,7 @@ export type CaseKey =
   | 'inline-flat-list'
   | 'inline-nested-flat-list'
   | 'invalid-detents'
-  | 'disable-scrollable-negotiation'
+  | 'scrollable-negotiation'
   | 'programmatic-detent-drag'
   | 'dynamic-detents'
   | 'dynamic-content-height'
@@ -120,9 +120,9 @@ export const DEMO_CASES: DemoCase[] = [
     throws: true,
   },
   {
-    key: 'disable-scrollable-negotiation',
-    title: 'Disable scrollable negotiation',
-    href: '/disable-scrollable-negotiation',
+    key: 'scrollable-negotiation',
+    title: 'Scrollable negotiation modes',
+    href: '/scrollable-negotiation',
   },
   {
     key: 'programmatic-detent-drag',

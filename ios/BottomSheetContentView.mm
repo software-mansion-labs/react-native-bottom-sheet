@@ -50,14 +50,24 @@
   return _impl.sheetContainer;
 }
 
-- (BOOL)disableScrollableNegotiation
+- (NSInteger)scrollableExpandNegotiation
 {
-  return _impl.disableScrollableNegotiation;
+  return _impl.scrollableExpandNegotiation;
 }
 
-- (void)setDisableScrollableNegotiation:(BOOL)disableScrollableNegotiation
+- (void)setScrollableExpandNegotiation:(NSInteger)scrollableExpandNegotiation
 {
-  _impl.disableScrollableNegotiation = disableScrollableNegotiation;
+  _impl.scrollableExpandNegotiation = scrollableExpandNegotiation;
+}
+
+- (NSInteger)scrollableCollapseNegotiation
+{
+  return _impl.scrollableCollapseNegotiation;
+}
+
+- (void)setScrollableCollapseNegotiation:(NSInteger)scrollableCollapseNegotiation
+{
+  _impl.scrollableCollapseNegotiation = scrollableCollapseNegotiation;
 }
 
 - (BOOL)modal

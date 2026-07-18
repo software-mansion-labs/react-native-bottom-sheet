@@ -14,6 +14,10 @@ import android.view.ViewOutlineProvider
 import android.view.ViewTreeObserver
 import android.view.WindowInsets
 import android.widget.FrameLayout
+import android.widget.ScrollView
+import androidx.core.view.NestedScrollingChild
+import androidx.core.view.NestedScrollingParent3
+import androidx.core.view.NestedScrollingParentHelper
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.dynamicanimation.animation.DynamicAnimation
@@ -25,10 +29,22 @@ import com.facebook.react.uimanager.RootView
 import com.facebook.react.uimanager.StateWrapper
 import com.facebook.react.views.view.ReactViewGroup
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 private enum class DetentKind {
   POINTS,
   CONTENT,
+}
+
+private enum class ScrollableNegotiationLevel(val value: Int) {
+  NONE(0),
+  INITIAL(1),
+  HANDOFF(2);
+
+  companion object {
+    fun from(value: Int): ScrollableNegotiationLevel =
+      entries.firstOrNull { it.value == value.coerceIn(0, 2) } ?: NONE
+  }
 }
 
 private data class RawDetentSpec(val value: Float, val kind: DetentKind, val programmatic: Boolean)
@@ -43,7 +59,7 @@ interface BottomSheetViewListener {
   fun onPositionChange(position: Double, index: Double)
 }
 
-class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
+class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScrollingParent3 {
 
   // MARK: - Listener
 
@@ -84,7 +100,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
       updateScrim()
     }
 
-  var disableScrollableNegotiation: Boolean = false
+  var scrollableExpandNegotiation: Int = ScrollableNegotiationLevel.HANDOFF.value
+  var scrollableCollapseNegotiation: Int = ScrollableNegotiationLevel.INITIAL.value
   private var pendingIndex: Int? = null
   private var hasLaidOut = false
   private var isPanning = false
@@ -101,6 +118,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   private var velocityTracker: VelocityTracker? = null
   private val density = context.resources.displayMetrics.density
   private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+  private val nestedScrollingParentHelper = NestedScrollingParentHelper(this)
 
   // Touch tracking
   private var initialTouchY = 0f
@@ -109,6 +127,12 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   private var activePointerId = MotionEvent.INVALID_POINTER_ID
   private var scrimPressed = false
   private var scrimTouchActive = false
+  private var nestedTouchTarget: View? = null
+  private var nestedTouchWasEnabled = false
+  private var nestedTouchInverted = false
+  private var nestedScrollInProgress = false
+  private var nestedSheetMoved = false
+  private var nestedPanSettled = false
   private var scrimColor = Color.TRANSPARENT
   // The JS layer always supplies a per-detent array; the fully-opaque fallback
   // only guards against empty input (indexing requires a non-empty array).
@@ -1013,7 +1037,20 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
 
   // MARK: - Touch handling
 
+  private fun negotiationLevel(expanding: Boolean): ScrollableNegotiationLevel =
+    ScrollableNegotiationLevel.from(
+      if (expanding) scrollableExpandNegotiation else scrollableCollapseNegotiation
+    )
+
+  private val hasAnyHandoffNegotiation: Boolean
+    get() =
+      negotiationLevel(expanding = true) == ScrollableNegotiationLevel.HANDOFF ||
+        negotiationLevel(expanding = false) == ScrollableNegotiationLevel.HANDOFF
+
   override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
+    if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+      clearNestedScrollState()
+    }
     val sheetTop = sheetContainer.top + sheetContainer.translationY
     if (event.actionMasked == MotionEvent.ACTION_DOWN && event.y < sheetTop) {
       if (isScrimVisible()) {
@@ -1034,6 +1071,11 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
         initialTouchY = event.y
         lastTouchY = event.y
         activePointerId = event.getPointerId(0)
+        nestedTouchTarget = if (hasAnyHandoffNegotiation) prepareNestedScrollableAtTouch() else null
+        nestedTouchInverted = nestedTouchTarget?.let(::isViewInverted) == true
+        nestedScrollInProgress = false
+        nestedSheetMoved = false
+        nestedPanSettled = false
       }
       MotionEvent.ACTION_MOVE -> {
         if (activePointerId == MotionEvent.INVALID_POINTER_ID) return false
@@ -1046,8 +1088,25 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
 
         val dragRange = draggableRange(targetIndex)
         if (abs(dy) > touchSlop && abs(dy) > abs(dx) && dragRange.start < dragRange.endInclusive) {
-          if (disableScrollableNegotiation && findScrollableAtTouch() != null) {
-            return false
+          val canMoveSheet =
+            if (dy < 0) {
+              sheetContainer.translationY > dragRange.start + 1f
+            } else {
+              sheetContainer.translationY < dragRange.endInclusive - 1f
+            }
+          if (!canMoveSheet) return false
+
+          val touchedScrollable = findScrollableAtTouch()
+          if (touchedScrollable != null) {
+            val level = negotiationLevel(expanding = dy < 0)
+            if (level == ScrollableNegotiationLevel.NONE) return false
+
+            // A supported nested-scrolling child keeps the touch stream for a
+            // handoff direction. Initial-only—and unsupported handoff—use the
+            // original touch-down owner selection below.
+            if (level == ScrollableNegotiationLevel.HANDOFF && nestedTouchTarget != null) {
+              return false
+            }
           }
           if (!isAtMaxDragCandidate(targetIndex)) {
             lastTouchY = y
@@ -1068,6 +1127,9 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
         activePointerId = MotionEvent.INVALID_POINTER_ID
         scrimPressed = false
         scrimTouchActive = false
+        if (!nestedScrollInProgress) {
+          clearNestedScrollState()
+        }
       }
     }
     return false
@@ -1135,18 +1197,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
             v
           } ?: 0f
         velocityTracker = null
-        val maxHeight = resolvedMaxDetentHeight()
-        val currentHeight = maxHeight - sheetContainer.translationY
-        val startingIndex = panStartingIndex
-        val index =
-          activeDragDetentSpecs
-            ?.takeIf { it.size == detentSpecs.size }
-            ?.let { snapshotBestSnapIndex(currentHeight, velocity, startingIndex, it) }
-            ?: bestSnapIndex(currentHeight, velocity, startingIndex)
-        panStartingIndex = null
-        activeDragRange = null
-        activeDragDetentSpecs = null
-        snapToIndex(index, velocity)
+        settleActivePan(velocity)
         return true
       }
       MotionEvent.ACTION_POINTER_UP -> {
@@ -1181,6 +1232,35 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
     }
   }
 
+  private fun beginNestedPanIfNeeded() {
+    if (isPanning) return
+    isPanning = true
+    scrimPinnedFull = false
+    panStartingIndex = targetIndex
+    val dragDetentSpecs = detentSpecs.toList()
+    activeDragDetentSpecs = dragDetentSpecs
+    activeDragRange = snapshotDraggableRange(targetIndex, dragDetentSpecs)
+    activeAnimation?.let {
+      it.cancel()
+      activeAnimation = null
+    }
+  }
+
+  private fun settleActivePan(velocity: Float) {
+    val maxHeight = resolvedMaxDetentHeight()
+    val currentHeight = maxHeight - sheetContainer.translationY
+    val startingIndex = panStartingIndex
+    val index =
+      activeDragDetentSpecs
+        ?.takeIf { it.size == detentSpecs.size }
+        ?.let { snapshotBestSnapIndex(currentHeight, velocity, startingIndex, it) }
+        ?: bestSnapIndex(currentHeight, velocity, startingIndex)
+    panStartingIndex = null
+    activeDragRange = null
+    activeDragDetentSpecs = null
+    snapToIndex(index, velocity)
+  }
+
   // Announce to ancestors that the sheet is taking over the touch stream. The
   // press "decider" for any child lives above us, so both signals travel up:
   //   - onChildStartedNativeGesture cancels React Native's own JS touch
@@ -1207,18 +1287,241 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
     }
   }
 
+  // MARK: - Nested scrolling
+
+  override fun onStartNestedScroll(child: View, target: View, axes: Int, type: Int): Boolean {
+    return type == ViewCompat.TYPE_TOUCH &&
+      axes and ViewCompat.SCROLL_AXIS_VERTICAL != 0 &&
+      hasAnyHandoffNegotiation &&
+      nestedTouchTarget != null &&
+      target.isDescendantOf(sheetContainer)
+  }
+
+  override fun onNestedScrollAccepted(child: View, target: View, axes: Int, type: Int) {
+    nestedScrollingParentHelper.onNestedScrollAccepted(child, target, axes, type)
+    nestedScrollInProgress = true
+  }
+
+  override fun onStopNestedScroll(target: View, type: Int) {
+    nestedScrollingParentHelper.onStopNestedScroll(target, type)
+    if (type == ViewCompat.TYPE_TOUCH && nestedScrollInProgress) {
+      isPanning = false
+      if (nestedSheetMoved && !nestedPanSettled) {
+        settleActivePan(0f)
+      } else if (!nestedSheetMoved) {
+        panStartingIndex = null
+        activeDragRange = null
+        activeDragDetentSpecs = null
+      }
+      clearNestedScrollState()
+    }
+  }
+
+  override fun onNestedPreScroll(target: View, dx: Int, dy: Int, consumed: IntArray, type: Int) {
+    if (type != ViewCompat.TYPE_TOUCH || dy == 0) return
+
+    val normalizedDy = if (nestedTouchInverted) -dy else dy
+    if (
+      normalizedDy > 0 && negotiationLevel(expanding = true) == ScrollableNegotiationLevel.HANDOFF
+    ) {
+      consumed[1] += consumeNestedSheetScroll(dy)
+    } else if (
+      normalizedDy < 0 &&
+        negotiationLevel(expanding = false) == ScrollableNegotiationLevel.HANDOFF &&
+        scrollableAncestorsAreAtStart()
+    ) {
+      // Consume before native overscroll/RefreshControl while the sheet still
+      // has a smaller detent. Once the sheet reaches that boundary this returns
+      // zero, leaving the same gesture available to the child.
+      consumed[1] += consumeNestedSheetScroll(dy)
+    }
+  }
+
+  override fun onNestedScroll(
+    target: View,
+    dxConsumed: Int,
+    dyConsumed: Int,
+    dxUnconsumed: Int,
+    dyUnconsumed: Int,
+    type: Int,
+    consumed: IntArray,
+  ) {
+    if (type != ViewCompat.TYPE_TOUCH || dyUnconsumed == 0) return
+
+    val normalizedDy = if (nestedTouchInverted) -dyUnconsumed else dyUnconsumed
+    if (
+      normalizedDy < 0 && negotiationLevel(expanding = false) == ScrollableNegotiationLevel.HANDOFF
+    ) {
+      consumed[1] += consumeNestedSheetScroll(dyUnconsumed)
+    }
+  }
+
+  override fun onNestedPreFling(target: View, velocityX: Float, velocityY: Float): Boolean {
+    if (!nestedScrollInProgress || !nestedSheetMoved) return false
+
+    val normalizedVelocityY = if (nestedTouchInverted) -velocityY else velocityY
+    if (
+      negotiationLevel(expanding = normalizedVelocityY > 0) != ScrollableNegotiationLevel.HANDOFF
+    ) {
+      return false
+    }
+    val range = activeDragRange ?: draggableRange(panStartingIndex)
+    val isAtLargestDetent = sheetContainer.translationY <= range.start + 1f
+    val isAtSmallestDetent = sheetContainer.translationY >= range.endInclusive - 1f
+
+    // Once the sheet reaches a boundary, an outward release belongs to the
+    // child so it retains native fling/deceleration (or refresh overscroll).
+    // Every other release settles the sheet and prevents content from moving.
+    if (
+      (isAtLargestDetent && normalizedVelocityY > 0) ||
+        (isAtSmallestDetent && normalizedVelocityY < 0)
+    ) {
+      return false
+    }
+
+    isPanning = false
+    nestedPanSettled = true
+    settleActivePan(-normalizedVelocityY)
+    return true
+  }
+
+  override fun onNestedFling(
+    target: View,
+    velocityX: Float,
+    velocityY: Float,
+    consumed: Boolean,
+  ): Boolean = false
+
+  override fun getNestedScrollAxes(): Int = nestedScrollingParentHelper.nestedScrollAxes
+
+  override fun onStartNestedScroll(child: View, target: View, axes: Int): Boolean =
+    onStartNestedScroll(child, target, axes, ViewCompat.TYPE_TOUCH)
+
+  override fun onNestedScrollAccepted(child: View, target: View, axes: Int) {
+    onNestedScrollAccepted(child, target, axes, ViewCompat.TYPE_TOUCH)
+  }
+
+  override fun onStopNestedScroll(target: View) {
+    onStopNestedScroll(target, ViewCompat.TYPE_TOUCH)
+  }
+
+  override fun onNestedPreScroll(target: View, dx: Int, dy: Int, consumed: IntArray) {
+    onNestedPreScroll(target, dx, dy, consumed, ViewCompat.TYPE_TOUCH)
+  }
+
+  override fun onNestedScroll(
+    target: View,
+    dxConsumed: Int,
+    dyConsumed: Int,
+    dxUnconsumed: Int,
+    dyUnconsumed: Int,
+  ) {
+    onNestedScroll(
+      target,
+      dxConsumed,
+      dyConsumed,
+      dxUnconsumed,
+      dyUnconsumed,
+      ViewCompat.TYPE_TOUCH,
+    )
+  }
+
+  override fun onNestedScroll(
+    target: View,
+    dxConsumed: Int,
+    dyConsumed: Int,
+    dxUnconsumed: Int,
+    dyUnconsumed: Int,
+    type: Int,
+  ) {
+    onNestedScroll(target, dxConsumed, dyConsumed, dxUnconsumed, dyUnconsumed, type, IntArray(2))
+  }
+
+  private fun consumeNestedSheetScroll(rawDy: Int): Int {
+    val normalizedDy = if (nestedTouchInverted) -rawDy else rawDy
+    if (normalizedDy == 0) return 0
+
+    beginNestedPanIfNeeded()
+    val range = activeDragRange ?: draggableRange(panStartingIndex)
+    val oldTy = sheetContainer.translationY
+    val newTy = (oldTy - normalizedDy).coerceIn(range.start, range.endInclusive)
+    if (newTy == oldTy) return 0
+
+    sheetContainer.translationY = newTy
+    nestedSheetMoved = true
+    emitPosition()
+
+    val normalizedConsumed = (oldTy - newTy).roundToInt()
+    return if (nestedTouchInverted) -normalizedConsumed else normalizedConsumed
+  }
+
+  private fun clearNestedScrollState() {
+    val touchTarget = nestedTouchTarget
+    val shouldRestoreDisabled = touchTarget is ScrollView && !nestedTouchWasEnabled
+
+    // Restoring nested scrolling to false calls View.stopNestedScroll(), which
+    // synchronously re-enters onStopNestedScroll(). Clear ownership first so
+    // that callback observes an already-finished gesture instead of settling
+    // and restoring again recursively.
+    nestedTouchTarget = null
+    nestedTouchWasEnabled = false
+    nestedTouchInverted = false
+    nestedScrollInProgress = false
+    nestedSheetMoved = false
+    nestedPanSettled = false
+
+    if (shouldRestoreDisabled) {
+      ViewCompat.setNestedScrollingEnabled(touchTarget, false)
+    }
+  }
+
+  private fun View.isDescendantOf(ancestor: ViewGroup): Boolean {
+    var node: View? = this
+    while (node != null) {
+      if (node === ancestor) return true
+      node = node.parent as? View
+    }
+    return false
+  }
+
   // MARK: - Scroll view helpers
-  //
-  // Explicit scroll-view detection is required because Android's touch dispatch
-  // doesn't support mid-gesture handoff. Once a ScrollView claims a gesture it
-  // keeps it for the entire sequence, and it always claims (returns true from
-  // onTouchEvent) even when at the scroll boundary. Without this check the sheet
-  // could never collapse by dragging down when a ScrollView is at the top.
+
+  // Nested-scrolling children use the parent callbacks above for a continuous
+  // handoff. Explicit edge detection remains as the compatibility fallback for
+  // scrollables that do not implement Android's nested-scrolling child contract.
+
+  private fun prepareNestedScrollableAtTouch(): View? {
+    val scrollView = findScrollableAtTouch() ?: return null
+    nestedTouchWasEnabled = ViewCompat.isNestedScrollingEnabled(scrollView)
+    when (scrollView) {
+      is ScrollView -> ViewCompat.setNestedScrollingEnabled(scrollView, true)
+      is NestedScrollingChild -> {
+        // Respect an explicit opt-out on arbitrary third-party scrollables.
+        if (!ViewCompat.isNestedScrollingEnabled(scrollView)) return null
+      }
+      else -> return null
+    }
+    return scrollView.takeIf { ViewCompat.isNestedScrollingEnabled(it) }
+  }
 
   private fun isScrollViewAtTop(): Boolean {
     val scrollView = findScrollableAtTouch() ?: return true
     val inverted = isViewInverted(scrollView)
     return if (inverted) !scrollView.canScrollVertically(1) else !scrollView.canScrollVertically(-1)
+  }
+
+  private fun scrollableAncestorsAreAtStart(): Boolean {
+    var current = nestedTouchTarget ?: return true
+    while (current !== sheetContainer) {
+      if (isVerticallyScrollable(current)) {
+        val inverted = isViewInverted(current)
+        val canScrollTowardStart =
+          if (inverted) current.canScrollVertically(1) else current.canScrollVertically(-1)
+        if (canScrollTowardStart) return false
+      }
+      current = current.parent as? View ?: break
+    }
+    return true
   }
 
   private fun findScrollableAtTouch(): View? {
@@ -1304,6 +1607,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context) {
   // MARK: - Cleanup
 
   fun destroy() {
+    clearNestedScrollState()
     activeAnimation?.cancel()
     activeAnimation = null
     velocityTracker?.recycle()
