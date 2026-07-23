@@ -108,7 +108,7 @@ export default function RootLayout() {
             />
             <Stack.Screen
               name="invalid-detents"
-              options={{ title: 'Invalid detents', headerShown: false }}
+              options={{ title: 'Invalid props', headerShown: false }}
             />
             <Stack.Screen
               name="scrollable-negotiation"
@@ -121,6 +121,13 @@ export default function RootLayout() {
               name="programmatic-detent-drag"
               options={{
                 title: 'Programmatic detent drag',
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="percentage-detents"
+              options={{
+                title: 'Numeric and percentage detents',
                 headerShown: false,
               }}
             />

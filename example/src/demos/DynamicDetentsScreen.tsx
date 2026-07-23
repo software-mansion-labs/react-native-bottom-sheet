@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Button, StyleSheet, Text, View } from 'react-native';
-import { BottomSheet } from '@swmansion/react-native-bottom-sheet';
+import { BottomSheet, type Detent } from '@swmansion/react-native-bottom-sheet';
 
 import {
   DemoScreen,
@@ -12,12 +12,23 @@ import {
 export const DynamicDetentsScreen = () => {
   const [index, setIndex] = useState(0);
   const [middleDetent, setMiddleDetent] = useState(200);
+  const [usesShortDetents, setUsesShortDetents] = useState(false);
   const [position, setPosition] = useState(0);
   const sheetBottomPadding = useSheetBottomPadding(0);
-  const detents = useMemo(
-    () => [0, middleDetent, 'content'] as const,
-    [middleDetent]
+  const detents = useMemo<Detent[]>(
+    () => (usesShortDetents ? [0, middleDetent] : [0, middleDetent, 'content']),
+    [middleDetent, usesShortDetents]
   );
+
+  const shortenDetents = () => {
+    setIndex(1);
+    setUsesShortDetents(true);
+  };
+
+  const restoreContentDetent = () => {
+    setIndex(2);
+    setUsesShortDetents(false);
+  };
 
   return (
     <DemoScreen
@@ -57,7 +68,7 @@ export const DynamicDetentsScreen = () => {
     >
       <View style={{ gap: 12 }}>
         <Button title="Open at index 1" onPress={() => setIndex(1)} />
-        <Button title="Expand to content" onPress={() => setIndex(2)} />
+        <Button title="Expand to content" onPress={restoreContentDetent} />
         <Button title="Collapse" onPress={() => setIndex(0)} />
       </View>
       <View style={{ gap: 12 }}>
@@ -69,6 +80,14 @@ export const DynamicDetentsScreen = () => {
           title="Use 300pt middle detent"
           onPress={() => setMiddleDetent(300)}
         />
+        <Button
+          title="Shorten detents and select last index"
+          onPress={shortenDetents}
+        />
+        <Button
+          title="Restore content detent and select it"
+          onPress={restoreContentDetent}
+        />
       </View>
       <View
         style={{
@@ -79,9 +98,15 @@ export const DynamicDetentsScreen = () => {
         }}
       >
         <Text style={{ fontWeight: '600' }}>Current state</Text>
-        <Text>detents: [{`0, ${middleDetent}, 'content'`}]</Text>
+        <Text>
+          detents: [0, {middleDetent}
+          {usesShortDetents ? '' : ", 'content'"}]
+        </Text>
         <Text>index: {index}</Text>
         <Text>position: {position.toFixed(0)}pt</Text>
+        <Text>
+          Shortening and restoring update detents and index in the same render.
+        </Text>
       </View>
     </DemoScreen>
   );

@@ -18,6 +18,7 @@ export type CaseKey =
   | 'invalid-detents'
   | 'scrollable-negotiation'
   | 'programmatic-detent-drag'
+  | 'percentage-detents'
   | 'dynamic-detents'
   | 'dynamic-content-height'
   | 'snap-callbacks'
@@ -115,7 +116,7 @@ export const DEMO_CASES: DemoCase[] = [
   },
   {
     key: 'invalid-detents',
-    title: 'Invalid detents',
+    title: 'Invalid props',
     href: '/invalid-detents',
     throws: true,
   },
@@ -128,6 +129,11 @@ export const DEMO_CASES: DemoCase[] = [
     key: 'programmatic-detent-drag',
     title: 'Programmatic detent drag',
     href: '/programmatic-detent-drag',
+  },
+  {
+    key: 'percentage-detents',
+    title: 'Numeric and percentage detents',
+    href: '/percentage-detents',
   },
   {
     key: 'dynamic-detents',

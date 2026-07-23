@@ -96,7 +96,7 @@ using namespace facebook::react;
     for (const auto &detent : newViewProps.detents) {
       [detentsArray addObject:@{
         @"value": @(detent.value),
-        @"kind": detent.kind == "content" ? @"content" : @"points",
+        @"kind": RCTNSStringFromString(detent.kind),
         @"programmatic": @(detent.programmatic),
       }];
     }

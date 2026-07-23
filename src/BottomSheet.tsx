@@ -7,7 +7,12 @@ import BottomSheetNativeView, {
 } from './BottomSheetNativeComponent';
 import BottomSheetSurfaceNativeComponent from './BottomSheetSurfaceNativeComponent';
 import { Portal } from './BottomSheetProvider';
-import { type Detent } from './bottomSheetUtils';
+import {
+  type Detent,
+  isNormalizedDetentClosed,
+  normalizeDetent,
+  validateIndex,
+} from './bottomSheetUtils';
 export type { Detent, DetentValue } from './bottomSheetUtils';
 export { programmatic } from './bottomSheetUtils';
 
@@ -71,12 +76,17 @@ export interface BottomSheetProps {
   style?: StyleProp<ViewStyle>;
   /**
    * Snap points for the sheet, in ascending order by height. Defaults to
-   * `[0, 'content']`. Fixed detents may be taller than the measured content
-   * height, so `[0, 'content', 600]` is valid when the content is shorter than
-   * 600pt.
+   * `[0, 'content']` and must contain at least one value. Numbers must be finite
+   * and non-negative. Percentage strings must be unsigned values from `0%`
+   * through `100%` and resolve against the native usable height. Fixed detents
+   * may be taller than the measured content or available height; native layout
+   * caps them to the available geometry.
    */
   detents?: Detent[];
-  /** Zero-based index into `detents`. */
+  /**
+   * Finite, zero-based integer in `0..(detents.length - 1)`. When shortening
+   * `detents`, update `index` to remain in range in the same render.
+   */
   index: number;
   /** Whether the sheet should animate in on first layout. */
   animateIn?: boolean;
@@ -211,38 +221,21 @@ export const BottomSheet = (props: BottomSheetProps) => {
   // only size the native-overlay host for the first frame, before the overlay
   // window reports its measured geometry.
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  const nativeDetents = detents.map((detent) => {
-    const programmatic = isDetentProgrammatic(detent);
-    const value = resolveDetentValue(detent);
+  // Percentage detents stay as unitless ratios and are resolved against the
+  // current native cap whenever detents are refreshed. Point detents retain
+  // their requested height; native layout clamps both kinds to that cap.
+  validateIndex(index, detents.length);
+  const normalizedDetents = detents.map(normalizeDetent);
 
-    if (value === 'content') {
-      return {
-        value: 0,
-        kind: 'content',
-        programmatic,
-      };
-    }
-
-    return {
-      // Detents are clamped natively against the natively computed cap;
-      // pre-clamping here against a JS-estimated height would reintroduce the
-      // estimate as a ceiling.
-      value: Math.max(0, value),
-      kind: 'points',
-      programmatic,
-    };
-  });
-
-  const clampedIndex = Math.max(0, Math.min(index, nativeDetents.length - 1));
-  const selectedDetentValue = detents[clampedIndex]
-    ? resolveDetentValue(detents[clampedIndex])
-    : 0;
-  const isCollapsed = selectedDetentValue === 0;
+  const selectedNormalizedDetent = normalizedDetents[index]!;
+  const isSheetClosed = isNormalizedDetentClosed(selectedNormalizedDetent);
   // Default the scrim opacity per detent: transparent at any closed detent,
   // fully opaque at every open one.
-  const resolvedScrimOpacity =
+  const resolvedScrimOpacities =
     scrimOpacities ??
-    detents.map((detent) => (resolveDetentValue(detent) === 0 ? 0 : 1));
+    normalizedDetents.map((detent) =>
+      isNormalizedDetentClosed(detent) ? 0 : 1
+    );
   const handleIndexChange = (event: { nativeEvent: { index: number } }) => {
     onIndexChange?.(event.nativeEvent.index);
   };
@@ -268,7 +261,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
   const sheet = (
     <View
       style={StyleSheet.absoluteFill}
-      pointerEvents={modal ? (isCollapsed ? 'none' : 'auto') : 'box-none'}
+      pointerEvents={modal ? (isSheetClosed ? 'none' : 'auto') : 'box-none'}
     >
       <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
         <NativeView
@@ -292,7 +285,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
               : StyleSheet.absoluteFill,
             style,
           ]}
-          detents={nativeDetents}
+          detents={normalizedDetents}
           extendUnderStatusBar={extendUnderStatusBar}
           index={index}
           animateIn={animateIn}
@@ -306,7 +299,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
             SCROLLABLE_NEGOTIATION_LEVEL[resolvedCollapseNegotiation]
           }
           scrimColor={scrimColor}
-          scrimOpacities={resolvedScrimOpacity}
+          scrimOpacities={resolvedScrimOpacities}
           onIndexChange={handleIndexChange}
           onSettle={handleSettle}
           onPositionChange={onPositionChange}
@@ -350,20 +343,6 @@ export const BottomSheet = (props: BottomSheetProps) => {
 
   return sheet;
 };
-
-function isDetentProgrammatic(detent: Detent): boolean {
-  if (typeof detent === 'object' && detent !== null) {
-    return detent.programmatic === true;
-  }
-  return false;
-}
-
-function resolveDetentValue(detent: Detent) {
-  if (typeof detent === 'object' && detent !== null) {
-    return detent.value;
-  }
-  return detent;
-}
 
 const styles = StyleSheet.create({
   contentWrapper: { flex: 1 },

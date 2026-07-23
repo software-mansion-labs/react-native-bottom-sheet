@@ -31,6 +31,7 @@ import kotlin.math.roundToInt
 
 private enum class DetentKind {
   POINTS,
+  PERCENTAGE,
   CONTENT,
 }
 
@@ -146,7 +147,9 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   private var pendingInitialContentDetentFrames = 0
 
   private val contentHeightMarkerLayoutListener =
-    View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> refreshDetentsFromLayout() }
+    View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+      refreshDetentsFromLayout()
+    }
 
   init {
     clipChildren = false
@@ -353,17 +356,19 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   // MARK: - Prop setters
 
   fun setDetents(raw: List<Map<String, Any>>) {
-    rawDetentSpecs =
-      raw.mapNotNull { dict ->
-        val value = (dict["value"] as? Number)?.toDouble() ?: return@mapNotNull null
-        val kind =
-          when ((dict["kind"] as? String)?.lowercase()) {
-            "content" -> DetentKind.CONTENT
-            else -> DetentKind.POINTS
-          }
-        val programmatic = dict["programmatic"] as? Boolean ?: false
-        RawDetentSpec(value = (value * density).toFloat(), kind = kind, programmatic = programmatic)
-      }
+    rawDetentSpecs = raw.mapNotNull { dict ->
+      val value = (dict["value"] as? Number)?.toDouble() ?: return@mapNotNull null
+      val kind =
+        when (dict["kind"] as? String) {
+          "content" -> DetentKind.CONTENT
+          "percentage" -> DetentKind.PERCENTAGE
+          else -> DetentKind.POINTS
+        }
+      val programmatic = dict["programmatic"] as? Boolean ?: false
+      val nativeValue =
+        if (kind == DetentKind.POINTS) (value * density).toFloat() else value.toFloat()
+      RawDetentSpec(value = nativeValue, kind = kind, programmatic = programmatic)
+    }
     refreshDetentsFromLayout()
   }
 
@@ -428,6 +433,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
       val height =
         when (spec.kind) {
           DetentKind.POINTS -> spec.value
+          DetentKind.PERCENTAGE -> maxHeight * spec.value
           DetentKind.CONTENT ->
             measuredContentHeight ?: unresolvedContentDetentHeight(index, maxHeight)
         }.coerceIn(0f, maxHeight)
@@ -444,9 +450,16 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   }
 
   private fun unresolvedContentDetentHeight(index: Int, maxHeight: Float): Float {
-    val nextPointHeight =
-      rawDetentSpecs.drop(index + 1).firstOrNull { it.kind == DetentKind.POINTS }?.value
-    return (nextPointHeight ?: maxHeight).coerceIn(0f, maxHeight)
+    val nextBound =
+      rawDetentSpecs.drop(index + 1).firstOrNull { it.kind != DetentKind.CONTENT }
+        ?: return maxHeight
+    val nextBoundHeight =
+      when (nextBound.kind) {
+        DetentKind.POINTS -> nextBound.value
+        DetentKind.PERCENTAGE -> maxHeight * nextBound.value
+        DetentKind.CONTENT -> maxHeight
+      }
+    return nextBoundHeight.coerceIn(0f, maxHeight)
   }
 
   private fun refreshDetentsFromLayout() {
@@ -591,23 +604,22 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     if (!observer.isAlive) return
 
     pendingInitialContentDetentFrames = 0
-    val listener =
-      ViewTreeObserver.OnPreDrawListener {
-        refreshContentHeightMarker()
-        refreshDetentsFromLayout()
-        // refreshDetentsFromLayout() completes and stops observing via
-        // trySnapPendingInitialContentDetent() once the target is measurable.
-        // If it is still pending, this frame was unproductive: bound how many
-        // such frames we spend so a content detent that never becomes
-        // measurable cannot keep us redrawing forever.
-        if (
-          pendingInitialContentDetentSnap &&
-            ++pendingInitialContentDetentFrames >= MAX_PENDING_INITIAL_CONTENT_DETENT_FRAMES
-        ) {
-          removePendingInitialContentDetentObserver()
-        }
-        true
+    val listener = ViewTreeObserver.OnPreDrawListener {
+      refreshContentHeightMarker()
+      refreshDetentsFromLayout()
+      // refreshDetentsFromLayout() completes and stops observing via
+      // trySnapPendingInitialContentDetent() once the target is measurable.
+      // If it is still pending, this frame was unproductive: bound how many
+      // such frames we spend so a content detent that never becomes
+      // measurable cannot keep us redrawing forever.
+      if (
+        pendingInitialContentDetentSnap &&
+          ++pendingInitialContentDetentFrames >= MAX_PENDING_INITIAL_CONTENT_DETENT_FRAMES
+      ) {
+        removePendingInitialContentDetentObserver()
       }
+      true
+    }
 
     // Keep the exact observer instance used for registration. Android can
     // replace a ViewTreeObserver across attach/detach boundaries, and listeners

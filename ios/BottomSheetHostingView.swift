@@ -20,6 +20,7 @@ private struct DetentSpec: Equatable {
 
 private enum DetentKind {
   case points
+  case percentage
   case content
 }
 
@@ -356,8 +357,17 @@ public final class BottomSheetHostingView: UIView {
       guard let value = dict["value"] as? Double ?? (dict["value"] as? NSNumber)?.doubleValue else {
         return nil
       }
-      let kindString = (dict["kind"] as? String) ?? ((dict["kind"] as? NSString) as String?) ?? "points"
-      let kind: DetentKind = kindString == "content" ? .content : .points
+      let kindString =
+        (dict["kind"] as? String) ?? ((dict["kind"] as? NSString) as String?) ?? "points"
+      let kind: DetentKind
+      switch kindString {
+      case "content":
+        kind = .content
+      case "percentage":
+        kind = .percentage
+      default:
+        kind = .points
+      }
       let programmatic = (dict["programmatic"] as? Bool) ?? (dict["programmatic"] as? NSNumber)?.boolValue ?? false
       return RawDetentSpec(value: CGFloat(value), kind: kind, programmatic: programmatic)
     }
@@ -1296,6 +1306,8 @@ public final class BottomSheetHostingView: UIView {
       switch spec.kind {
       case .points:
         height = spec.value
+      case .percentage:
+        height = maxHeight * spec.value
       case .content:
         height =
           measuredContentHeight ?? unresolvedContentDetentHeight(after: index, maxHeight: maxHeight)
@@ -1321,10 +1333,17 @@ public final class BottomSheetHostingView: UIView {
     guard index + 1 < rawDetentSpecs.count else {
       return maxHeight
     }
-    let nextPointHeight = rawDetentSpecs[(index + 1)...]
-      .first { $0.kind == .points }
-      .map(\.value)
-    return min(max(0, nextPointHeight ?? maxHeight), maxHeight)
+    for spec in rawDetentSpecs[(index + 1)...] {
+      switch spec.kind {
+      case .points:
+        return min(max(0, spec.value), maxHeight)
+      case .percentage:
+        return min(max(0, maxHeight * spec.value), maxHeight)
+      case .content:
+        continue
+      }
+    }
+    return maxHeight
   }
 
   private func refreshDetentsFromLayout() {
@@ -1513,7 +1532,7 @@ public final class BottomSheetHostingView: UIView {
       return false
     }
     switch rawDetentSpecs[index].kind {
-    case .points:
+    case .points, .percentage:
       return false
     case .content:
       return validContentHeight == nil

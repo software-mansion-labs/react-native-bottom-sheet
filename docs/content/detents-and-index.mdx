@@ -4,17 +4,35 @@ title: Detents and index
 
 # Detents and index
 
-Detents are the points to which the sheet snaps. Each detent is either a number
-(a fixed height in pixels) or `'content'` (the sheet’s content height, capped by
-the available screen height). The default detents are `[0, 'content']`. Pass
-detents in ascending order, from shortest to tallest. Fixed detents can be
-taller than the measured content height, so `[0, 'content', 600]` lets a compact
-content-sized sheet expand to a larger surface.
+Detents are the heights to which the sheet snaps. Each detent is a number (a
+fixed height in React Native density-independent layout units—points on iOS and
+dp on Android), a percentage string such as `'30%'`, or `'content'` (the
+measured content height, capped by the available sheet height). The default
+detents are `[0, 'content']`.
 
-Sheet children are laid out in a flex container. For a full-height
-sheet, apply `flex: 1` to your content and use the `'content'` detent.
-`surface` is sized by the library, so `flex: 1` only ever belongs on your
-content, never on the surface:
+For example, `[0, 'content']` creates a content-sized sheet, `[0, 300]` keeps
+the open height fixed, and `['0%', '30%', '80%']` creates responsive heights.
+
+Percentage values from `0%` through `100%`, including decimals such as `12.5%`,
+resolve against the available sheet height and update when that height changes.
+The percentage syntax is unsigned and does not allow whitespace, so values such
+as `'-10%'` are invalid.
+
+`detents` must contain at least one item. Numeric detents must be finite and
+non-negative; the library throws an `Error` for values such as `-10`, `NaN`, or
+`Infinity` instead of correcting them. A numeric detent may be taller than the
+measured content or exceed the available height; native layout caps its resolved
+height to the available geometry.
+
+Pass detents in ascending order, from shortest to tallest. Detent forms can be
+mixed, but they must remain ordered by their resolved heights at every layout
+size your app supports. The library validates the resolved order during native
+layout.
+
+Sheet children are laid out in a flex container. For a full-height sheet, apply
+`flex: 1` to your content and use the `'content'` detent. `surface` is sized by
+the library, so `flex: 1` only ever belongs on your content, never on the
+surface:
 
 ```tsx
 <BottomSheet
@@ -46,8 +64,11 @@ screen height:
 
 ## Index events
 
-The `index` prop is a zero-based index into the `detents` array.
-`onIndexChange` and `onSettle` have different responsibilities:
+The `index` prop must be a finite, zero-based integer in the range
+`0..(detents.length - 1)`. Invalid indices and empty `detents` arrays throw an
+`Error` synchronously in JavaScript for both `BottomSheet` and
+`ModalBottomSheet`. `onIndexChange` and `onSettle` have different
+responsibilities:
 
 - `onIndexChange` fires when a user-triggered snap is _initiated_: the
   moment a drag commits to a detent, before the animation settles. It does not
@@ -65,7 +86,7 @@ const [index, setIndex] = useState(0);
 
 ```tsx
 <BottomSheet // Or `ModalBottomSheet`.
-  detents={[0, 300, 'content']} // Collapsed, 300 px, content height.
+  detents={[0, 300, 600]} // Collapsed, 300 layout units, 600 layout units.
   index={index}
   onIndexChange={setIndex} // Fires when a drag commits; keep state in sync.
   surface={/* ... */}
@@ -78,7 +99,9 @@ const [index, setIndex] = useState(0);
 ```
 
 Detents can also change over time. When you update `detents`, the sheet keeps
-the current index and animates to the updated detent height when needed.
+the current index and animates to the updated detent height when needed. If an
+update shortens the array, set a matching in-range `index` in the same render;
+the library does not clamp a now-out-of-range index.
 
 ## Programmatic-only detents
 
@@ -89,7 +112,7 @@ detent is programmatic-only, tapping the scrim does not dismiss the sheet.
 
 ```tsx
 <BottomSheet
-  detents={[0, programmatic(300), 'content']}
+  detents={[0, programmatic(300), 600]}
   index={index}
   onIndexChange={setIndex}
   surface={/* ... */}
