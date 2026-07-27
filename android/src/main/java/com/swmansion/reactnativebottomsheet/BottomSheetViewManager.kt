@@ -144,6 +144,21 @@ class BottomSheetViewManager :
     view.extendUnderStatusBar = value
   }
 
+  @ReactProp(name = "bottomInset")
+  override fun setBottomInset(view: BottomSheetView, value: Double) {
+    view.setBottomInset(value.toFloat())
+  }
+
+  @ReactProp(name = "cornerRadius")
+  override fun setCornerRadius(view: BottomSheetView, value: Double) {
+    view.setCornerRadius(value.toFloat())
+  }
+
+  // React Native's borderCurve is iOS-only. Android keeps its platform
+  // round-rect outline for both accepted values.
+  @ReactProp(name = "borderCurve")
+  override fun setBorderCurve(view: BottomSheetView, value: String?) {}
+
   @ReactProp(name = "scrollableExpandNegotiation")
   override fun setScrollableExpandNegotiation(view: BottomSheetView, value: Int) {
     view.scrollableExpandNegotiation = value
