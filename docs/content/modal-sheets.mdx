@@ -46,12 +46,10 @@ By default, the scrim fades in as the sheet opens and then holds at full
 opacity, so detents above the first share the same scrim. Use `scrimOpacities`
 to control the opacity at each detent: It takes one value in 0–1 per detent,
 indexed to match `detents`, and interpolates linearly as the sheet is dragged
-between them. A shorter array reuses its last value for any
-remaining detents.
+between them. A shorter array reuses its last value for any remaining detents.
 
 The default maps each detent to 0 when it is closed and 1 otherwise, so the
-scrim is transparent at any closed detent and fully opaque at every
-open one.
+scrim is transparent at any closed detent and fully opaque at every open one.
 
 To keep the scrim deepening across every detent, pass one value per detent:
 
@@ -67,6 +65,135 @@ To keep the scrim deepening across every detent, pass one value per detent:
   {/* ... */}
 </ModalBottomSheet>
 ```
+
+## Android close requests
+
+`onRequestClose` is **Android only**. When the sheet is open, Android system
+Back, a committed predictive Back gesture, and a complete, unmodified
+external-keyboard Escape press invoke the same callback.
+
+`onRequestClose` is emitted only after a predictive Back gesture commits.
+Gesture progress does not currently animate the sheet, and cancelling the
+gesture does not invoke the callback. The request-close Back callbacks are
+enabled and disabled with the current close-request eligibility state,
+following Android’s [predictive Back callback best
+practices](https://developer.android.com/guide/navigation/custom-back/predictive-back-gesture#best-practices).
+
+Escape is claimed on its initial key-down and emits once on the matching key-up.
+Holding the key does not emit repeated requests. A cancelled key-up, a key-up
+with modifiers, or a press that never completes does not emit a request. A
+modified press or one that starts while the sheet is ineligible is not claimed.
+
+The input transport depends on how the sheet is presented. A portal sheet
+registers a native Back callback with the host Activity’s dispatcher. While the
+sheet is eligible, that callback consumes Back before React Native emits a
+`hardwareBackPress` event to its JavaScript `BackHandler`. A `nativeOverlay` has
+a separate window and therefore handles Back through its dialog dispatcher. In
+portal mode, Escape is intercepted by the Activity window callback before the
+focused view; a `nativeOverlay` handles it through the dialog window’s key
+listener.
+
+When multiple portal sheets stay mounted, `BottomSheetProvider` coordinates
+their visual stack. Only the last open portal in render order can enable its
+Back/Escape request-close callback. A portal below another open portal keeps its
+callback inactive, even if the lower portal was reopened most recently. The
+topmost portal participates in this ordering whether or not it has an
+`onRequestClose` handler: if it has none, Back propagates to the Activity
+dispatcher and Escape remains unclaimed instead of invoking a lower sheet’s
+handler. `nativeOverlay` uses its separate native window and does not
+participate in this portal coordination.
+
+When a portal is ineligible, Back continues through the remaining Activity
+callbacks to navigation, React Native’s `BackHandler`, or the Activity’s default
+behavior. A focusable `nativeOverlay` uses a lower-priority dialog callback to
+forward an ineligible, committed Back to the dispatcher of the Activity that
+owns the dialog. It can therefore reach React Navigation, React Native’s
+`BackHandler`, or the Activity’s default behavior. This fallback does not
+natively dismiss the non-cancelable dialog. Because the event crosses windows,
+only the committed Back is forwarded; predictive gesture start, progress,
+cancellation, and their animations are not forwarded to the Activity. An
+ineligible Escape is not claimed by the library; in a focusable `nativeOverlay`
+it remains in the dialog window’s key routing, not the Activity’s.
+
+The callback is a controlled request, not a native dismissal. The sheet does not
+change its index, choose a detent, use the scrim-dismiss path, or dismiss a
+`nativeOverlay` dialog. To close it, update your controlled `index` to a
+zero-height detent:
+
+```tsx
+const [index, setIndex] = useState(1);
+
+<ModalBottomSheet
+  detents={[0, 400]}
+  index={index}
+  onIndexChange={setIndex}
+  onRequestClose={() => setIndex(0)}
+>
+  {/* content */}
+</ModalBottomSheet>;
+```
+
+With this setup, the first Back closes the sheet without leaving the current
+screen. Both presentation modes disable their request-close callback as soon as
+the controlled update resolves to a zero-height target. In portal mode, the next
+Back continues through the remaining Activity callbacks. If a `nativeOverlay`
+dialog is still focusable while its closing animation runs, the next committed
+Back reaches the same Activity dispatcher through the dialog fallback; once the
+dialog becomes non-focusable, Back reaches the Activity directly. In either
+case, it can continue to navigation, React Native’s `BackHandler`, or the
+Activity’s default behavior. Reopening the sheet enables the request-close
+callback again.
+
+A no-op handler consumes a qualifying Back or Escape request and leaves the
+sheet open:
+
+```tsx
+<ModalBottomSheet
+  detents={[0, 400]}
+  index={index}
+  onRequestClose={() => {
+    // Confirm with the user, or intentionally keep the sheet open.
+  }}
+>
+  {/* ... */}
+</ModalBottomSheet>
+```
+
+Close-request eligibility in both presentation modes is based on the resolved
+native target, not its index or the sheet’s animated position. This means
+`index={0}` remains eligible for `detents={[300, 600]}`. Targets that resolve to
+zero—including numeric `0`, `0%`, and `programmatic(0)`—are closed. A `content`
+target becomes eligible after its content is measured and resolves to a height
+greater than zero. While the view is detached, no close request is emitted and
+its native input handlers are removed until it reattaches. While the attached
+target is not yet resolved, a portal leaves Back and Escape unclaimed, while a
+focusable `nativeOverlay` forwards committed Back through the dialog fallback
+and keeps Escape in the dialog window’s key routing. A sheet whose detents all
+resolve to a nonzero height remains eligible at every resolved target:
+
+```tsx
+<ModalBottomSheet
+  detents={[300, 600]}
+  index={index}
+  onRequestClose={() => {
+    // There is no closed detent. Unmount the sheet or replace the detents if
+    // this request should make it disappear.
+  }}
+>
+  {/* ... */}
+</ModalBottomSheet>
+```
+
+When `onRequestClose` is omitted, or while the native target is unresolved or
+resolves to zero height, Escape remains unclaimed by the library. In portal mode
+Back continues to React Navigation, another `BackHandler`, or the Activity. A
+focusable `nativeOverlay` forwards committed Back to its host Activity’s
+dispatcher without natively closing the dialog.
+
+Scrim taps, drag dismissal, accessibility dismiss actions, and programmatic
+index changes keep their existing independent behavior and do not invoke this
+callback. iOS physical-keyboard Escape, `accessibilityPerformEscape`, and inline
+`BottomSheet` are outside this API.
 
 ## Native overlay
 

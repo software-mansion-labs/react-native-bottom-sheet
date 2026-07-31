@@ -5,6 +5,8 @@ export type CaseKey =
   | 'native-overlay-nested'
   | 'native-overlay-full-height-list'
   | 'native-overlay-keyboard-input'
+  | 'request-close'
+  | 'portal-request-close-stack'
   | 'modal-scroll-view'
   | 'modal-flat-list'
   | 'keyboard-content-detent'
@@ -63,6 +65,16 @@ export const DEMO_CASES: DemoCase[] = [
     key: 'native-overlay-keyboard-input',
     title: 'Native overlay keyboard input',
     href: '/native-overlay-keyboard-input',
+  },
+  {
+    key: 'request-close',
+    title: 'Android close requests',
+    href: '/request-close',
+  },
+  {
+    key: 'portal-request-close-stack',
+    title: 'Portal close-request stack',
+    href: '/portal-request-close-stack',
   },
   {
     key: 'modal-scroll-view',

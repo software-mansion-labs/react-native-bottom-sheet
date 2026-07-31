@@ -67,5 +67,6 @@ android {
 
 dependencies {
   implementation "com.facebook.react:react-android"
+  implementation "androidx.activity:activity:1.6.0"
   implementation "androidx.dynamicanimation:dynamicanimation:1.0.0"
 }

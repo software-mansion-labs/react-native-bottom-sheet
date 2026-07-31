@@ -150,6 +150,8 @@ export interface BottomSheetProps {
 type ModalOnlyBottomSheetProps = {
   /** Internal flag used by `ModalBottomSheet`. */
   modal?: boolean;
+  /** Android-only controlled close-request callback used by `ModalBottomSheet`. */
+  onRequestClose?: () => void;
   /**
    * Internal flag used by `ModalBottomSheet`. When set, the sheet is presented
    * in a native overlay above everything (including native modal screens)
@@ -191,6 +193,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
     onIndexChange,
     onSettle,
     onPositionChange,
+    onRequestClose,
     wrapNativeView,
     modal = false,
     nativeOverlay = false,
@@ -229,6 +232,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
 
   const selectedNormalizedDetent = normalizedDetents[index]!;
   const isSheetClosed = isNormalizedDetentClosed(selectedNormalizedDetent);
+  const hasRequestCloseHandler = onRequestClose != null;
   // Default the scrim opacity per detent: transparent at any closed detent,
   // fully opaque at every open one.
   const resolvedScrimOpacities =
@@ -241,6 +245,9 @@ export const BottomSheet = (props: BottomSheetProps) => {
   };
   const handleSettle = (event: { nativeEvent: { index: number } }) => {
     onSettle?.(event.nativeEvent.index);
+  };
+  const handleRequestClose = () => {
+    onRequestClose?.();
   };
 
   // The native sheet view, optionally wrapped (e.g. with
@@ -258,7 +265,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
       >
   );
 
-  const sheet = (
+  const renderSheet = (requestCloseEnabled: boolean) => (
     <View
       style={StyleSheet.absoluteFill}
       pointerEvents={modal ? (isSheetClosed ? 'none' : 'auto') : 'box-none'}
@@ -292,6 +299,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
           animateContentHeight={animateContentHeight}
           modal={modal}
           nativeOverlay={usesNativeOverlay}
+          requestCloseEnabled={requestCloseEnabled}
           scrollableExpandNegotiation={
             SCROLLABLE_NEGOTIATION_LEVEL[resolvedExpandNegotiation]
           }
@@ -303,6 +311,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
           onIndexChange={handleIndexChange}
           onSettle={handleSettle}
           onPositionChange={onPositionChange}
+          onRequestClose={handleRequestClose}
         >
           {surface != null && (
             <BottomSheetSurfaceNativeComponent
@@ -336,12 +345,16 @@ export const BottomSheet = (props: BottomSheetProps) => {
     // reparents it into a full-screen overlay above everything (including
     // native modal screens), so it bypasses the provider portal entirely.
     if (usesNativeOverlay) {
-      return sheet;
+      return renderSheet(hasRequestCloseHandler);
     }
-    return <Portal>{sheet}</Portal>;
+    return (
+      <Portal open={!isSheetClosed}>
+        {(isTopmost) => renderSheet(hasRequestCloseHandler && isTopmost)}
+      </Portal>
+    );
   }
 
-  return sheet;
+  return renderSheet(hasRequestCloseHandler);
 };
 
 const styles = StyleSheet.create({
