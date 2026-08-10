@@ -54,6 +54,7 @@ internal class EscapeRequestCloseDispatcher {
     repeatCount: Int,
     hasModifiers: Boolean,
     isCanceled: Boolean,
+    shouldCapturePress: () -> Boolean,
     isRequestCloseEligible: () -> Boolean,
     emitRequestCloseIfEligible: () -> Boolean,
   ): Boolean {
@@ -92,7 +93,7 @@ internal class EscapeRequestCloseDispatcher {
       return false
     }
 
-    if (hasModifiers || !isRequestCloseEligible()) {
+    if (hasModifiers || !shouldCapturePress()) {
       unclaimedPresses += pressToken
       return false
     }

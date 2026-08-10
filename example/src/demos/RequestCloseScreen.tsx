@@ -75,9 +75,9 @@ export const RequestCloseScreen = () => {
             <Text style={styles.helpText}>
               Focus the input and type. Regular keys should reach it; Android
               system Back or an unmodified Escape should request a close when a
-              callback is set. Without one, committed system Back is forwarded
-              to the host Activity dispatcher without natively closing the
-              overlay. Raw Escape is a separate key path and stays unclaimed.
+              callback is set. A nativeOverlay consumes Back and Escape even
+              without a callback, just like React Native Modal. Closing remains
+              consumer-controlled.
             </Text>
             <TextInput
               autoCorrect={false}
@@ -98,11 +98,10 @@ export const RequestCloseScreen = () => {
     >
       <Text style={styles.helpText}>
         Use the Android system Back gesture, navigation button, or emulator Back
-        control to test Activity routing. The screen or app may navigate when
-        the overlay has no callback or is already closing. A hardware keyboard
-        Escape tests the separate Escape path. If the software keyboard is
-        visible, system Back dismisses it before reaching the sheet. The request
-        counter resets each time.
+        control. A nativeOverlay consumes Back/Escape while open, including
+        during its closing animation; after it finishes, input reaches the
+        screen below. If the software keyboard is visible, system Back dismisses
+        it before reaching the sheet. The request counter resets each time.
       </Text>
       <View style={styles.statusCard}>
         <Text style={styles.statusTitle}>Current state</Text>

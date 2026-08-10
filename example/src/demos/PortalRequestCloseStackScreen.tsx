@@ -5,6 +5,7 @@ import { ModalBottomSheet } from '@swmansion/react-native-bottom-sheet';
 import { DemoScreen, SheetBackground, SheetHeader } from '../demoShared';
 
 type HandlerMode = 'close' | 'no-op' | 'omitted';
+type PresentationMode = 'portal' | 'nativeOverlay';
 
 type StackStatusProps = {
   aIndex: number;
@@ -56,6 +57,8 @@ export const PortalRequestCloseStackScreen = () => {
   const [aRequestCount, setARequestCount] = useState(0);
   const [bRequestCount, setBRequestCount] = useState(0);
   const [bHandlerMode, setBHandlerMode] = useState<HandlerMode>('close');
+  const [bPresentationMode, setBPresentationMode] =
+    useState<PresentationMode>('nativeOverlay');
 
   const expectedTopmost = bIndex > 0 ? 'B' : aIndex > 0 ? 'A' : 'none';
 
@@ -111,6 +114,7 @@ export const PortalRequestCloseStackScreen = () => {
           <ModalBottomSheet
             detents={[0, 540]}
             index={bIndex}
+            nativeOverlay={bPresentationMode === 'nativeOverlay'}
             onIndexChange={setBIndex}
             onRequestClose={
               bHandlerMode === 'omitted' ? undefined : handleBRequestClose
@@ -141,9 +145,10 @@ export const PortalRequestCloseStackScreen = () => {
     >
       <Text style={styles.helpText}>
         Open B, then reopen A from inside B. Although A updates last, B should
-        remain the only close-request target because it is rendered above A.
-        With B's handler omitted, Back is left to navigation or the Activity and
-        can leave the screen or app.
+        remain the only close-request target because it is rendered above A. Try
+        B as a nativeOverlay to verify that it consumes Back and Escape without
+        a handler, including while it closes. With a portal B and an omitted
+        handler, portal behavior remains unchanged.
       </Text>
       {status}
       <View style={styles.controls}>
@@ -165,6 +170,21 @@ export const PortalRequestCloseStackScreen = () => {
         />
       </View>
       <HandlerModeControls mode={bHandlerMode} onChange={setBHandlerMode} />
+      <View style={styles.variantGroup}>
+        <Text style={styles.variantTitle}>
+          B presentation: {bPresentationMode}
+        </Text>
+        <View style={styles.controls}>
+          <Button
+            title="Portal B"
+            onPress={() => setBPresentationMode('portal')}
+          />
+          <Button
+            title="nativeOverlay B"
+            onPress={() => setBPresentationMode('nativeOverlay')}
+          />
+        </View>
+      </View>
     </DemoScreen>
   );
 };

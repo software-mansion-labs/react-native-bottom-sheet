@@ -61,7 +61,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   private var overlayFocusable: Boolean? = null
   private var overlayFallbackBackCallback: OnBackPressedCallback? = null
   private var overlayRequestCloseBackCallback: OnBackPressedCallback? = null
-  private var overlayHostActivity: ComponentActivity? = null
 
   private var requestCloseEnabled = false
   private var requestCloseEligible = false
@@ -263,7 +262,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     val activity = reactContext?.currentActivity
     if (activity == null || activity.isFinishing || activity.isDestroyed) {
       // Without an activity there is no window to host the dialog; stay inline.
-      overlayHostActivity = null
       nativeOverlay = false
       overlayPresentationFailed = true
       updateRequestCloseHandling()
@@ -297,7 +295,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     overlayFocusable = null
     overlayRoot = root
     overlayDialog = dialog
-    overlayHostActivity = activity as? ComponentActivity
     installOverlayInputHandlers(dialog)
     try {
       dialog.show()
@@ -313,7 +310,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       overlayRoot = null
       overlayInteractive = null
       overlayFocusable = null
-      overlayHostActivity = null
       nativeOverlay = false
       overlayPresentationFailed = true
       (host.parent as? ViewGroup)?.removeView(host)
@@ -333,7 +329,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     overlayRoot = null
     overlayInteractive = null
     overlayFocusable = null
-    overlayHostActivity = null
     attachHostInline()
     updateRequestCloseHandling()
   }
@@ -450,9 +445,22 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     requestCloseEligible = isRequestCloseEligible(state)
     updatePortalBackHandler()
     updatePortalEscapeWindowListener()
+    overlayFallbackBackCallback?.isEnabled = overlayOwnsCloseInput()
     overlayRequestCloseBackCallback?.isEnabled = requestCloseEligible
     updateOverlayWindowInputFlags()
   }
+
+  /**
+   * A native overlay owns close input for its whole visible/interactive lifetime. This is
+   * deliberately broader than request-close eligibility: an omitted handler still gives the overlay
+   * Modal-like ownership, and a closing animation must not expose the Activity below it.
+   */
+  private fun overlayOwnsCloseInput(): Boolean =
+    nativeOverlay &&
+      isViewAttached &&
+      isHostActive &&
+      overlayDialog?.isShowing == true &&
+      (host.isRequestCloseTargetOpen || overlayInteractive == true)
 
   private fun requestCloseEligibilityState(): RequestCloseEligibility {
     val presentationAttached =
@@ -581,6 +589,10 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
         repeatCount = event.repeatCount,
         hasModifiers = !event.hasNoModifiers(),
         isCanceled = event.isCanceled,
+        shouldCapturePress = {
+          if (nativeOverlay) overlayOwnsCloseInput()
+          else isRequestCloseEligible(requestCloseEligibilityState())
+        },
         isRequestCloseEligible = {
           isRequestCloseEligible(requestCloseEligibilityState())
         },
@@ -626,9 +638,8 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   private fun updateOverlayWindowInputFlags() {
     val window = overlayDialog?.window ?: return
     val touchable = overlayInteractive == true
-    val focusable =
-      touchable ||
-        (nativeOverlay && (requestCloseEligible || escapeRequestCloseDispatcher.hasCapturedPress))
+    val ownsCloseInput = overlayOwnsCloseInput()
+    val focusable = touchable || ownsCloseInput || escapeRequestCloseDispatcher.hasCapturedPress
 
     if (touchable) {
       window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
@@ -645,7 +656,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       }
     }
 
-    window.setOverlayWindowAlpha(touchable || (nativeOverlay && requestCloseEligible))
+    window.setOverlayWindowAlpha(touchable || ownsCloseInput)
   }
 
   private fun clearOverlayInputHandlers(dialog: ComponentDialog?) {
@@ -662,7 +673,9 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     val fallbackBackCallback =
       object : OnBackPressedCallback(true) {
         override fun handleOnBackPressed() {
-          overlayHostActivity?.onBackPressedDispatcher?.onBackPressed()
+          // The native overlay owns Back while it is visible or animating. This callback is the
+          // consuming fallback for overlays without a request handler and for requests that are
+          // no longer eligible while the sheet finishes closing.
         }
       }
     overlayFallbackBackCallback = fallbackBackCallback
@@ -678,6 +691,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       }
     overlayRequestCloseBackCallback = requestCloseBackCallback
     dialog.onBackPressedDispatcher.addCallback(dialog, requestCloseBackCallback)
+    fallbackBackCallback.isEnabled = overlayOwnsCloseInput()
     requestCloseBackCallback.isEnabled = requestCloseEligible
     dialog.setOnKeyListener(DialogInterface.OnKeyListener { _, _, event -> dispatchEscape(event) })
   }
@@ -733,7 +747,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     overlayRoot = null
     overlayInteractive = null
     overlayFocusable = null
-    overlayHostActivity = null
     escapeRequestCloseDispatcher.clear()
     host.destroy()
   }
