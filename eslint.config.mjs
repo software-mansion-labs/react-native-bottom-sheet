@@ -26,6 +26,6 @@ export default defineConfig([
     },
   },
   {
-    ignores: ['docs/', 'node_modules/', 'lib/'],
+    ignores: ['**/build/', 'docs/', 'node_modules/', 'lib/'],
   },
 ]);
