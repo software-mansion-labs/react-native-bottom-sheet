@@ -177,6 +177,7 @@ public final class BottomSheetHostingView: UIView {
   private var isPanning = false
   private var lastReportedInvalidDetentMessage: String?
   private var panStartingIndex: Int?
+  private var initialTouchLocation: CGPoint?
   private var activeDragRange: (minTy: CGFloat, maxTy: CGFloat)?
   private var activeDragDetentSpecs: [DetentSpec]?
   private var activeScrollViewStates: [ActiveScrollViewState] = []
@@ -881,7 +882,7 @@ public final class BottomSheetHostingView: UIView {
       scrollViewOwnsLowerBoundary = false
       activeScrollableNegotiationLevel = negotiationLevel(forVerticalVelocity: gesture.velocity(in: self).y)
 
-      let locationInContainer = gesture.location(in: sheetContainer)
+      let locationInContainer = initialTouchLocation ?? gesture.location(in: sheetContainer)
       activeScrollViewStates = scrollableAncestorChain(containing: locationInContainer).map {
         ActiveScrollViewState(scrollView: $0.scrollView, inverted: $0.inverted)
       }
@@ -1227,7 +1228,7 @@ public final class BottomSheetHostingView: UIView {
     let candidates = snapCandidateIndices(including: targetIndex)
     guard candidates.count > 1 else { return false }
 
-    let locationInContainer = panGesture.location(in: sheetContainer)
+    let locationInContainer = initialTouchLocation ?? panGesture.location(in: sheetContainer)
     let scrollableChain = scrollableAncestorChain(containing: locationInContainer)
     guard !scrollableChain.isEmpty else {
       // Outside a scrollable, the sheet owns any direction in which it has a
@@ -1557,6 +1558,20 @@ extension BottomSheetHostingView: UIGestureRecognizerDelegate {
       isVerticallyScrollable(scrollView)
     else {
       return false
+    }
+    return true
+  }
+
+  public func gestureRecognizer(
+    _ gestureRecognizer: UIGestureRecognizer,
+    shouldReceive touch: UITouch
+  ) -> Bool {
+    // Record the touch-down point before the pan's translation threshold is
+    // exceeded. gestureRecognizerShouldBegin and handlePan(.began) hit-test
+    // scrollables from this point instead of the post-threshold pan location,
+    // matching Android's ACTION_DOWN semantics.
+    if gestureRecognizer === panGesture, panGesture.numberOfTouches == 0 {
+      initialTouchLocation = touch.location(in: sheetContainer)
     }
     return true
   }
