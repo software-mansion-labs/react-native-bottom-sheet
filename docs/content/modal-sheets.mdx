@@ -74,18 +74,27 @@ external-keyboard Escape press invoke the same callback.
 
 `onRequestClose` is emitted only after a predictive Back gesture commits.
 Gesture progress does not currently animate the sheet, and cancelling the
-gesture does not invoke the callback. The request-close Back callbacks are
-enabled and disabled with the current close-request eligibility state,
-following Android’s [predictive Back callback best
-practices](https://developer.android.com/guide/navigation/custom-back/predictive-back-gesture#best-practices).
+gesture does not invoke the callback. A portal registers its request-close Back
+callback lazily: no native callback is added until `onRequestClose` is first
+provided for the resolved host. After that first installation, the portal keeps
+the callback for the host's structural lifetime and changes only its enabled
+state when eligibility changes, following Android’s
+[predictive Back callback best practices](https://developer.android.com/guide/navigation/custom-back/predictive-back-gesture#callback-best-practices).
+If eligibility is lost after a predictive gesture selects that callback but
+before commit, the commit completes as a no-op; it is not re-dispatched to
+navigation.
 
 Escape is claimed on its initial key-down and emits once on the matching key-up
 when a request handler is eligible. A `nativeOverlay` claims an unmodified
-Escape even without a handler, and keeps the sequence until its terminal
-key-up.
+Escape even without a handler, and keeps the sequence until its terminal key-up.
 Holding the key does not emit repeated requests. A cancelled key-up, a key-up
 with modifiers, or a press that never completes does not emit a request. A
 modified press or one that starts while the sheet is ineligible is not claimed.
+For stable ordering between sheets, the same lazy-sticky lifetime applies to the
+portal's Escape listener and window-callback wrapper. This is an internal
+library coordination rule, separate from Android's predictive Back
+recommendation. An ineligible listener remains passive and delegates the event
+through the window callback chain.
 
 The input transport depends on how the sheet is presented. A portal sheet uses
 the nearest valid `OnBackPressedDispatcherOwner` published in its Android view
@@ -95,8 +104,9 @@ also has a resolved lifecycle. While the sheet is eligible, its native callback
 consumes Back before React Native emits a `hardwareBackPress` event to its
 JavaScript `BackHandler`. A plain `Activity` does not implement
 `OnBackPressedDispatcherOwner`, so it supports portal Escape but not portal
-Back. A `nativeOverlay` has a separate window and therefore handles Back through
-its dialog dispatcher.
+Back. A portal without `onRequestClose` does not add either native registration.
+A `nativeOverlay` has a separate window and therefore handles Back through its
+dialog dispatcher.
 
 Portal Escape handling is resolved independently from the Back dispatcher. It
 uses the matching window of the resolved owners, their root-view owners, or the
@@ -111,17 +121,22 @@ A portal claims new Back or Escape input only while its resolved lifecycle is
 `RESUMED`. The nearest view-tree lifecycle is used by default. When a custom
 dispatcher is nested below only a broader Activity or `ComponentDialog`
 lifecycle, the dispatcher’s own lifecycle is used instead. Pausing that owner
-releases Back and new Escape presses. An Escape press that began while `RESUMED`
-remains consumed through its terminal key-up, but does not emit
-`onRequestClose` if the lifecycle paused in the meantime. `DESTROYED` removes
-both registrations immediately. When no lifecycle exists, the React host’s
-active state is used as a limited eligibility fallback for Escape; Back still
-requires both a dispatcher and lifecycle. A destroyed custom owner never falls
-back to a broader Activity lifecycle.
+disables Back and makes its stable Escape listener passive for new presses. An
+Escape press that began while `RESUMED` remains consumed through its terminal
+key-up, but does not emit `onRequestClose` if the lifecycle paused in the
+meantime. Closing the target, removing the handler, or losing topmost status
+changes eligibility without reordering registrations that were already
+installed. Structural boundaries — `modal={false}`, switching to
+`nativeOverlay`, detach/destroy, presentation failure, or a host/window change —
+remove those registrations and reset the lazy lifetime. It is not carried to a
+new host when no handler is present there. When no lifecycle exists, the React
+host’s active state is used as a limited eligibility fallback for Escape; Back
+still requires both a dispatcher and lifecycle. A destroyed custom owner never
+falls back to a broader Activity lifecycle.
 
 This host resolution is supported for standard AndroidX hosts
-(`ComponentActivity`, `ComponentDialog`, and their subclasses) and custom
-owners nested under those hosts’ root views. A custom host that owns a separate,
+(`ComponentActivity`, `ComponentDialog`, and their subclasses) and custom owners
+nested under those hosts’ root views. A custom host that owns a separate,
 non-`ComponentDialog` window is outside this guaranteed scope.
 
 The `RESUMED` check is a best-effort safeguard. A `BottomSheetProvider` mounted
@@ -140,8 +155,15 @@ dispatcher callbacks and Escape remains unclaimed instead of invoking a lower
 sheet’s handler. `nativeOverlay` uses its separate native window and does not
 participate in this portal coordination. An open `nativeOverlay` owns Android
 Back and unmodified Escape regardless of whether `onRequestClose` is provided.
-Without a handler it consumes the request without changing the sheet, so it
-also blocks `BackHandler`, modal callbacks, navigation, and portals below it.
+Without a handler it consumes the request without changing the sheet, so it also
+blocks `BackHandler`, modal callbacks, navigation, and portals below it. The
+provider-level topmost guarantee extends only to the sheets that provider
+coordinates. Across independent providers and external native Back callbacks,
+[`OnBackPressedDispatcher`](https://developer.android.com/reference/androidx/activity/OnBackPressedDispatcher)
+uses LIFO order: the enabled callback added most recently receives Back first.
+Once installed, closing and reopening a sheet or temporarily removing its
+handler changes only its stable callback's enabled state, so it does not change
+that registration order.
 
 When a portal is ineligible, Back continues through the remaining dispatcher
 callbacks to navigation, React Native’s `BackHandler`, or the Activity’s default
@@ -170,9 +192,9 @@ const [index, setIndex] = useState(1);
 ```
 
 With this setup, the first Back closes the sheet without leaving the current
-screen. The overlay continues consuming Back during the closing animation;
-after it finishes, the next Back continues through the remaining Activity
-callbacks. Reopening the sheet enables the request-close callback again.
+screen. The overlay continues consuming Back during the closing animation; after
+it finishes, the next Back continues through the remaining Activity callbacks.
+Reopening the sheet enables the request-close callback again.
 
 A no-op handler consumes a qualifying Back or Escape request and leaves the
 sheet open:

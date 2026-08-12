@@ -25,6 +25,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": true,
       "package": "com.swmansion.reactnativebottomsheet.example"
     },
     "web": {

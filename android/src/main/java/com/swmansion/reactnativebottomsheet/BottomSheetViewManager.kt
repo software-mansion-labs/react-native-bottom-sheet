@@ -149,6 +149,11 @@ class BottomSheetViewManager :
     view.setRequestCloseEnabled(value)
   }
 
+  @ReactProp(name = "requestCloseHandlerPresent")
+  override fun setRequestCloseHandlerPresent(view: BottomSheetView, value: Boolean) {
+    view.setRequestCloseHandlerPresent(value)
+  }
+
   @ReactProp(name = "extendUnderStatusBar")
   override fun setExtendUnderStatusBar(view: BottomSheetView, value: Boolean) {
     view.extendUnderStatusBar = value

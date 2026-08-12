@@ -19,8 +19,12 @@ export interface NativeProps extends ViewProps {
   modal: boolean;
   nativeOverlay?: boolean;
   // The direct event exists in the shared schema on both platforms; this
-  // separate boolean is the Android native gate for callback presence.
+  // boolean is the Android native gate for current close-request eligibility.
   requestCloseEnabled: boolean;
+  // Android uses callback presence separately from current eligibility so a
+  // portal can install its native handlers lazily, then preserve their host
+  // registration order while the handler is temporarily removed.
+  requestCloseHandlerPresent: boolean;
   // Consulted natively only in native-overlay mode, where the detent cap is
   // computed from the overlay's real bounds and insets; inline sheets bake the
   // flag into the JS-computed maxDetentHeight as before.

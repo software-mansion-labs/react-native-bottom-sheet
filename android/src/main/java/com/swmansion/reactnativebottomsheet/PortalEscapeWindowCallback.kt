@@ -5,8 +5,9 @@ import android.view.Window
 import java.util.WeakHashMap
 
 /**
- * Installs one callback wrapper per portal window and keeps listeners in registration order. The
- * most recently registered eligible portal receives Escape first.
+ * Installs one callback wrapper per portal window and keeps structurally registered listeners in
+ * stable order. Listeners decide eligibility without being removed, so the most recently registered
+ * eligible portal receives Escape first and passive listeners delegate normally.
  */
 internal object PortalEscapeWindowCallbackRegistry {
   private class Entry(
