@@ -265,7 +265,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
       >
   );
 
-  const renderSheet = (requestCloseEnabled: boolean) => (
+  const renderSheet = () => (
     <View
       style={StyleSheet.absoluteFill}
       pointerEvents={modal ? (isSheetClosed ? 'none' : 'auto') : 'box-none'}
@@ -299,7 +299,6 @@ export const BottomSheet = (props: BottomSheetProps) => {
           animateContentHeight={animateContentHeight}
           modal={modal}
           nativeOverlay={usesNativeOverlay}
-          requestCloseEnabled={requestCloseEnabled}
           requestCloseHandlerPresent={modal && hasRequestCloseHandler}
           scrollableExpandNegotiation={
             SCROLLABLE_NEGOTIATION_LEVEL[resolvedExpandNegotiation]
@@ -346,16 +345,12 @@ export const BottomSheet = (props: BottomSheetProps) => {
     // reparents it into a full-screen overlay above everything (including
     // native modal screens), so it bypasses the provider portal entirely.
     if (usesNativeOverlay) {
-      return renderSheet(hasRequestCloseHandler);
+      return renderSheet();
     }
-    return (
-      <Portal open={!isSheetClosed}>
-        {(isTopmost) => renderSheet(hasRequestCloseHandler && isTopmost)}
-      </Portal>
-    );
+    return <Portal>{renderSheet()}</Portal>;
   }
 
-  return renderSheet(hasRequestCloseHandler);
+  return renderSheet();
 };
 
 const styles = StyleSheet.create({

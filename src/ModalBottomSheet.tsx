@@ -17,6 +17,12 @@ export interface ModalBottomSheetProps extends BottomSheetProps {
    * Predictive gesture progress does not animate the sheet, and cancelling the
    * gesture does not invoke the callback.
    *
+   * Portals in the same Android root share native ownership. The most recently
+   * attached portal with a resolved target height above zero receives the
+   * request; unresolved and zero-height portals are skipped. An open owner
+   * without a handler blocks lower portal handlers while letting Back continue
+   * outside the portal group and leaving Escape unhandled.
+   *
    * This is a controlled request: the sheet does not change its index or
    * dismiss itself. Update `index` in the callback to close it, or leave the
    * callback as a no-op to keep it open while consuming the request.

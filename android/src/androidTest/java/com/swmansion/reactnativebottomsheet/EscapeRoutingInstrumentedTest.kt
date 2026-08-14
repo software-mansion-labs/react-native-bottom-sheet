@@ -83,10 +83,12 @@ class EscapeRoutingInstrumentedTest {
   }
 
   @Test
-  fun escapeFocusedInLowerPortalRoutesToOnlyEligibleUpperPortal() {
+  fun escapeFocusedInLowerPortalMovesFromZeroContentUpperToPositiveContentUpper() {
     val lowerRequestCount = AtomicInteger()
     val upperRequestCount = AtomicInteger()
     val lowerChildEventCount = AtomicInteger()
+    lateinit var upperContent: MutableContentHeightView
+    lateinit var upperSheet: BottomSheetView
 
     ActivityScenario.launch(ComponentActivity::class.java).use { scenario ->
       scenario.onActivity { activity ->
@@ -107,7 +109,8 @@ class EscapeRoutingInstrumentedTest {
         activity.setContentView(root)
         assertTrue(lowerChild.requestFocus())
 
-        val upperSheet = openSheet(activity, upperRequestCount)
+        upperContent = MutableContentHeightView(activity)
+        upperSheet = openContentSheet(activity, upperRequestCount, upperContent)
         root.addView(
           upperSheet,
           FrameLayout.LayoutParams(
@@ -115,7 +118,6 @@ class EscapeRoutingInstrumentedTest {
             FrameLayout.LayoutParams.MATCH_PARENT,
           ),
         )
-        lowerSheet.setRequestCloseEnabled(false)
 
         assertTrue(lowerChild.isFocused)
       }
@@ -125,14 +127,50 @@ class EscapeRoutingInstrumentedTest {
       instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_ESCAPE)
       instrumentation.waitForIdleSync()
 
+      assertEquals(0, lowerChildEventCount.get())
+      assertEquals(1, lowerRequestCount.get())
+      assertEquals(0, upperRequestCount.get())
+
+      scenario.onActivity { activity ->
+        upperContent.contentHeight = 300
+        upperContent.requestLayout()
+        upperSheet.setDetents(contentDetents())
+        activity.window.decorView.requestLayout()
+      }
+      instrumentation.waitForIdleSync()
+      instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_ESCAPE)
+      instrumentation.waitForIdleSync()
+
       scenario.onActivity { activity ->
         assertTrue(activity.currentFocus is EscapeRecordingView)
       }
       assertEquals(0, lowerChildEventCount.get())
-      assertEquals(0, lowerRequestCount.get())
+      assertEquals(1, lowerRequestCount.get())
       assertEquals(1, upperRequestCount.get())
     }
   }
+
+  private fun openContentSheet(
+    context: Context,
+    requestCount: AtomicInteger,
+    content: MutableContentHeightView,
+  ) =
+    BottomSheetView(context).apply {
+      listener = CountingRequestCloseListener(requestCount)
+      animateIn = false
+      animateContentHeight = false
+      modal = true
+      setRequestCloseHandlerPresent(true)
+      addSheetChild(content, 0)
+      setDetents(contentDetents())
+      setIndex(1)
+    }
+
+  private fun contentDetents(): List<Map<String, Any>> =
+    listOf(
+      mapOf("value" to 0.0, "kind" to "points", "programmatic" to false),
+      mapOf("value" to 0.0, "kind" to "content", "programmatic" to false),
+    )
 
   private fun openSheet(
     context: Context,
@@ -143,7 +181,6 @@ class EscapeRoutingInstrumentedTest {
       animateIn = false
       modal = true
       setRequestCloseHandlerPresent(true)
-      setRequestCloseEnabled(true)
       setDetents(
         listOf(
           mapOf("value" to 0.0, "kind" to "points", "programmatic" to false),
@@ -152,6 +189,35 @@ class EscapeRoutingInstrumentedTest {
       )
       setIndex(1)
     }
+}
+
+private class MutableContentHeightView(context: Context) : ViewGroup(context) {
+  private val marker = View(context)
+  var contentHeight = 0
+    set(value) {
+      field = value
+      marker.layout(0, value, 1, value + 1)
+      requestLayout()
+    }
+
+  init {
+    addView(marker)
+  }
+
+  override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+    setMeasuredDimension(
+      MeasureSpec.getSize(widthMeasureSpec),
+      MeasureSpec.getSize(heightMeasureSpec),
+    )
+    marker.measure(
+      MeasureSpec.makeMeasureSpec(1, MeasureSpec.EXACTLY),
+      MeasureSpec.makeMeasureSpec(1, MeasureSpec.EXACTLY),
+    )
+  }
+
+  override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+    marker.layout(0, contentHeight, 1, contentHeight + 1)
+  }
 }
 
 private class EscapeRecordingView(

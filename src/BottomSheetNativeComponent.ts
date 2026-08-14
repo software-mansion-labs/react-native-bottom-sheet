@@ -18,9 +18,6 @@ export interface NativeProps extends ViewProps {
   animateContentHeight?: CodegenTypes.WithDefault<boolean, true>;
   modal: boolean;
   nativeOverlay?: boolean;
-  // The direct event exists in the shared schema on both platforms; this
-  // boolean is the Android native gate for current close-request eligibility.
-  requestCloseEnabled: boolean;
   // Android uses callback presence separately from current eligibility so a
   // portal can install its native handlers lazily, then preserve their host
   // registration order while the handler is temporarily removed.

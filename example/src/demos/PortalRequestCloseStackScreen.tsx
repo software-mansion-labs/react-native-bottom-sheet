@@ -5,32 +5,37 @@ import { ModalBottomSheet } from '@swmansion/react-native-bottom-sheet';
 import { DemoScreen, SheetBackground, SheetHeader } from '../demoShared';
 
 type HandlerMode = 'close' | 'no-op' | 'omitted';
-type PresentationMode = 'portal' | 'nativeOverlay';
+type ContentStage = 'zero' | 'positive';
 
 type StackStatusProps = {
   aIndex: number;
+  bMounted: boolean;
   bIndex: number;
+  bContentStage: ContentStage;
   aRequestCount: number;
   bRequestCount: number;
-  expectedTopmost: 'A' | 'B' | 'none';
+  expectedOwner: 'A' | 'B' | 'none';
 };
 
 const StackStatus = ({
   aIndex,
+  bMounted,
   bIndex,
+  bContentStage,
   aRequestCount,
   bRequestCount,
-  expectedTopmost,
+  expectedOwner,
 }: StackStatusProps) => (
   <View style={styles.statusCard}>
-    <Text style={styles.statusTitle}>Current stack</Text>
+    <Text style={styles.statusTitle}>Native portal ownership</Text>
     <Text>
-      index A: {aIndex} · requests A: {aRequestCount}
+      A index: {aIndex} · requests: {aRequestCount}
     </Text>
     <Text>
-      index B: {bIndex} · requests B: {bRequestCount}
+      B: {bMounted ? `index ${bIndex} · content ${bContentStage}` : 'unmounted'}
+      {' · '}requests: {bRequestCount}
     </Text>
-    <Text>expected topmost portal: {expectedTopmost}</Text>
+    <Text>expected request owner: {expectedOwner}</Text>
   </View>
 );
 
@@ -52,20 +57,22 @@ const HandlerModeControls = ({
 );
 
 export const PortalRequestCloseStackScreen = () => {
-  const [aIndex, setAIndex] = useState(0);
-  const [bIndex, setBIndex] = useState(0);
+  const [aIndex, setAIndex] = useState(1);
+  const [bIndex, setBIndex] = useState(1);
+  const [bMounted, setBMounted] = useState(false);
+  const [bGeneration, setBGeneration] = useState(0);
+  const [bContentStage, setBContentStage] = useState<ContentStage>('zero');
   const [aRequestCount, setARequestCount] = useState(0);
   const [bRequestCount, setBRequestCount] = useState(0);
   const [aInputValue, setAInputValue] = useState('');
-  const [bHandlerMode, setBHandlerMode] = useState<HandlerMode>('close');
-  const [bPresentationMode, setBPresentationMode] =
-    useState<PresentationMode>('nativeOverlay');
+  const [bHandlerMode, setBHandlerMode] = useState<HandlerMode>('no-op');
 
-  const expectedTopmost = bIndex > 0 ? 'B' : aIndex > 0 ? 'A' : 'none';
+  const bOwnsRequests =
+    bMounted && bIndex === 1 && bContentStage === 'positive';
+  const expectedOwner = bOwnsRequests ? 'B' : aIndex > 0 ? 'A' : 'none';
 
   const handleARequestClose = () => {
     setARequestCount((count) => count + 1);
-    setAIndex(0);
   };
 
   const handleBRequestClose = () => {
@@ -75,13 +82,22 @@ export const PortalRequestCloseStackScreen = () => {
     }
   };
 
+  const mountZeroContentB = () => {
+    setBContentStage('zero');
+    setBIndex(1);
+    setBGeneration((generation) => generation + 1);
+    setBMounted(true);
+  };
+
   const status = (
     <StackStatus
       aIndex={aIndex}
+      bMounted={bMounted}
       bIndex={bIndex}
+      bContentStage={bContentStage}
       aRequestCount={aRequestCount}
       bRequestCount={bRequestCount}
-      expectedTopmost={expectedTopmost}
+      expectedOwner={expectedOwner}
     />
   );
 
@@ -104,105 +120,105 @@ export const PortalRequestCloseStackScreen = () => {
           >
             <SheetHeader title="Lower portal A" onClose={() => setAIndex(0)} />
             <View style={styles.sheetContent}>
-              <Text style={styles.sheetLabel}>A · mounted first</Text>
+              <Text style={styles.sheetLabel}>A · mounted first and open</Text>
               <Text style={styles.helpText}>
-                A closes on a request only when it is the highest open portal.
+                Focus this input, then change B's content height. Escape should
+                stay out of the focused child and follow the native owner.
               </Text>
               <TextInput
                 style={styles.input}
                 value={aInputValue}
                 onChangeText={setAInputValue}
-                placeholder="Focus this input before opening B"
+                placeholder="Keep focus here while testing Escape"
               />
               <Button
-                title="Open portal B without moving focus"
+                title="Mount B: unresolved → zero"
+                onPress={mountZeroContentB}
+              />
+              <Button
+                title="Resolve B content above zero"
                 onPress={() => {
-                  setBPresentationMode('portal');
                   setBIndex(1);
+                  setBContentStage('positive');
                 }}
+              />
+              <Button
+                title="Return B content to zero"
+                onPress={() => setBContentStage('zero')}
               />
               {status}
             </View>
           </ModalBottomSheet>
 
-          <ModalBottomSheet
-            detents={[0, 540]}
-            index={bIndex}
-            nativeOverlay={bPresentationMode === 'nativeOverlay'}
-            onIndexChange={setBIndex}
-            onRequestClose={
-              bHandlerMode === 'omitted' ? undefined : handleBRequestClose
-            }
-            scrimColor="rgba(70, 35, 110, 0.38)"
-            surface={
-              <SheetBackground
-                style={[StyleSheet.absoluteFill, styles.upperSurface]}
-              />
-            }
-          >
-            <SheetHeader title="Upper portal B" onClose={() => setBIndex(0)} />
-            <View style={styles.sheetContent}>
-              <Text style={styles.sheetLabel}>B · mounted second</Text>
-              {status}
-              <Button
-                title="Open/reopen lower A"
-                onPress={() => setAIndex(1)}
-              />
-              <HandlerModeControls
-                mode={bHandlerMode}
-                onChange={setBHandlerMode}
-              />
-            </View>
-          </ModalBottomSheet>
+          {bMounted && (
+            <ModalBottomSheet
+              key={bGeneration}
+              detents={[0, 'content']}
+              index={bIndex}
+              animateContentHeight={false}
+              onIndexChange={setBIndex}
+              onRequestClose={
+                bHandlerMode === 'omitted' ? undefined : handleBRequestClose
+              }
+              scrimColor="rgba(70, 35, 110, 0.38)"
+              surface={
+                <SheetBackground
+                  style={[StyleSheet.absoluteFill, styles.upperSurface]}
+                />
+              }
+            >
+              {bContentStage === 'positive' && (
+                <View style={styles.upperContent}>
+                  <SheetHeader
+                    title="Upper portal B"
+                    onClose={() => setBIndex(0)}
+                  />
+                  <View style={styles.sheetContent}>
+                    <Text style={styles.sheetLabel}>
+                      B · resolved positive content detent
+                    </Text>
+                    {status}
+                    <HandlerModeControls
+                      mode={bHandlerMode}
+                      onChange={setBHandlerMode}
+                    />
+                  </View>
+                </View>
+              )}
+            </ModalBottomSheet>
+          )}
         </>
       }
     >
       <Text style={styles.helpText}>
-        Open B, then reopen A from inside B. Although A updates last, B should
-        remain the only close-request target because it is rendered above A. Try
-        B as a nativeOverlay to verify that it consumes Back and Escape without
-        a handler, including while it closes. With a portal B and an omitted
-        handler, portal behavior remains unchanged. Portal Escape is best effort
-        after normal view dispatch when focus is outside the eligible portal;
-        inside any portal sheet in the same Android root it is routed to the
-        highest eligible portal before the focused child. nativeOverlay Escape
-        is dialog-owned and guaranteed.
+        A starts open. Mounting B targets a `content` detent that is initially
+        unresolved and then resolves to zero, so Back/Escape still request A.
+        Give B positive content and the next request goes only to B; return it
+        to zero and ownership returns to A without changing native membership
+        order. With B open but its handler omitted, it blocks lower portal
+        callbacks: Back falls through and Escape remains unhandled.
       </Text>
       {status}
       <View style={styles.controls}>
-        <Button title="Open lower A" onPress={() => setAIndex(1)} />
-        <Button title="Open upper B" onPress={() => setBIndex(1)} />
+        <Button title="Open/reopen lower A" onPress={() => setAIndex(1)} />
         <Button
-          title="Open both"
+          title="Mount B: unresolved → zero"
+          onPress={mountZeroContentB}
+        />
+        <Button
+          title="B content > 0"
           onPress={() => {
-            setAIndex(1);
             setBIndex(1);
+            setBContentStage('positive');
           }}
         />
         <Button
-          title="Close both"
-          onPress={() => {
-            setAIndex(0);
-            setBIndex(0);
-          }}
+          title="B content = 0"
+          onPress={() => setBContentStage('zero')}
         />
+        <Button title="Unmount B" onPress={() => setBMounted(false)} />
       </View>
       <HandlerModeControls mode={bHandlerMode} onChange={setBHandlerMode} />
-      <View style={styles.variantGroup}>
-        <Text style={styles.variantTitle}>
-          B presentation: {bPresentationMode}
-        </Text>
-        <View style={styles.controls}>
-          <Button
-            title="Portal B"
-            onPress={() => setBPresentationMode('portal')}
-          />
-          <Button
-            title="nativeOverlay B"
-            onPress={() => setBPresentationMode('nativeOverlay')}
-          />
-        </View>
-      </View>
     </DemoScreen>
   );
 };
@@ -236,6 +252,9 @@ const styles = StyleSheet.create({
   sheetLabel: {
     fontSize: 18,
     fontWeight: '700',
+  },
+  upperContent: {
+    height: 420,
   },
   input: {
     borderWidth: StyleSheet.hairlineWidth,

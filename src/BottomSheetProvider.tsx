@@ -9,17 +9,10 @@ import {
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-type PortalContent = ReactNode | ((isTopmost: boolean) => ReactNode);
-
-type PortalEntry = Readonly<{
-  content: PortalContent;
-  open: boolean;
-}>;
-
-type PortalSnapshot = Array<[string, PortalEntry]>;
+type PortalSnapshot = Array<[string, ReactNode]>;
 
 interface PortalContextType {
-  addPortal: (key: string, portal: PortalEntry) => void;
+  addPortal: (key: string, content: ReactNode) => void;
   removePortal: (key: string) => void;
   subscribe: (callback: () => void) => () => void;
   getSnapshot: () => PortalSnapshot;
@@ -35,33 +28,17 @@ const PortalHost = () => {
     context.getSnapshot
   );
 
-  // The snapshot follows the Map's stable render order. Updating an existing
-  // portal never moves it, so the last open entry is also visually topmost.
-  let topmostOpenPortal: string | undefined;
-  for (const [key, portal] of portals) {
-    if (portal.open) {
-      topmostOpenPortal = key;
-    }
-  }
-
-  return portals.map(([key, portal]) => {
-    const element =
-      typeof portal.content === 'function'
-        ? portal.content(key === topmostOpenPortal)
-        : portal.content;
-
-    return (
-      <View key={key} style={StyleSheet.absoluteFill} pointerEvents="box-none">
-        {element}
-      </View>
-    );
-  });
+  return portals.map(([key, content]) => (
+    <View key={key} style={StyleSheet.absoluteFill} pointerEvents="box-none">
+      {content}
+    </View>
+  ));
 };
 
 /** Provides the portal host required for modal bottom sheets. */
 export const BottomSheetProvider = ({ children }: { children: ReactNode }) => {
   const [context] = useState<PortalContextType>(() => {
-    const portals = new Map<string, PortalEntry>();
+    const portals = new Map<string, ReactNode>();
     const subscribers = new Set<() => void>();
     let snapshot: PortalSnapshot = [];
     const notify = () => {
@@ -95,13 +72,7 @@ export const BottomSheetProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
-export const Portal = ({
-  children,
-  open,
-}: {
-  children: PortalContent;
-  open: boolean;
-}) => {
+export const Portal = ({ children }: { children: ReactNode }) => {
   const context = useContext(PortalContext);
   if (context === null) {
     throw new Error('`Portal` must be used within `BottomSheetProvider`.');
@@ -111,8 +82,8 @@ export const Portal = ({
   const id = useId();
 
   useLayoutEffect(() => {
-    addPortal(id, { content: children, open });
-  }, [id, children, open, addPortal]);
+    addPortal(id, children);
+  }, [id, children, addPortal]);
   useLayoutEffect(() => {
     return () => {
       removePortal(id);

@@ -144,11 +144,6 @@ class BottomSheetViewManager :
     view.setNativeOverlay(value)
   }
 
-  @ReactProp(name = "requestCloseEnabled")
-  override fun setRequestCloseEnabled(view: BottomSheetView, value: Boolean) {
-    view.setRequestCloseEnabled(value)
-  }
-
   @ReactProp(name = "requestCloseHandlerPresent")
   override fun setRequestCloseHandlerPresent(view: BottomSheetView, value: Boolean) {
     view.setRequestCloseHandlerPresent(value)
