@@ -148,7 +148,10 @@ export const PortalRequestCloseStackScreen = () => {
         remain the only close-request target because it is rendered above A. Try
         B as a nativeOverlay to verify that it consumes Back and Escape without
         a handler, including while it closes. With a portal B and an omitted
-        handler, portal behavior remains unchanged.
+        handler, portal behavior remains unchanged. Portal Escape is best effort
+        after normal view dispatch when focus is outside the eligible portal;
+        inside its subtree it is intercepted before the focused child.
+        nativeOverlay Escape is dialog-owned and guaranteed.
       </Text>
       {status}
       <View style={styles.controls}>

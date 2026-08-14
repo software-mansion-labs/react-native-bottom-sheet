@@ -74,10 +74,12 @@ export const RequestCloseScreen = () => {
             <Text>onRequestClose calls: {requestCount}</Text>
             <Text style={styles.helpText}>
               Focus the input and type. Regular keys should reach it; Android
-              system Back or an unmodified Escape should request a close when a
-              callback is set. A nativeOverlay consumes Back and Escape even
-              without a callback, just like React Native Modal. Closing remains
-              consumer-controlled.
+              system Back should request a close when a callback is set. In a
+              portal, an eligible sheet intercepts Escape before this focused
+              input. With focus outside the sheet, Escape requests a close only
+              when normal view dispatch leaves it unhandled. A nativeOverlay
+              owns and consumes Back and Escape even without a callback, just
+              like React Native Modal. Closing remains consumer-controlled.
             </Text>
             <TextInput
               autoCorrect={false}
@@ -98,10 +100,13 @@ export const RequestCloseScreen = () => {
     >
       <Text style={styles.helpText}>
         Use the Android system Back gesture, navigation button, or emulator Back
-        control. A nativeOverlay consumes Back/Escape while open, including
-        during its closing animation; after it finishes, input reaches the
-        screen below. If the software keyboard is visible, system Back dismisses
-        it before reaching the sheet. The request counter resets each time.
+        control. With a physical keyboard, Portal Escape is intercepted while
+        focus is inside the sheet and is best effort after normal key dispatch
+        while focus is outside; nativeOverlay Escape is guaranteed. A
+        nativeOverlay consumes Back/Escape while open, including during its
+        closing animation; after it finishes, input reaches the screen below. If
+        the software keyboard is visible, system Back dismisses it before
+        reaching the sheet. The request counter resets each time.
       </Text>
       <View style={styles.statusCard}>
         <Text style={styles.statusTitle}>Current state</Text>
@@ -112,6 +117,11 @@ export const RequestCloseScreen = () => {
       </View>
       <View style={styles.variantGroup}>
         <Text style={styles.variantTitle}>Portal</Text>
+        <Text style={styles.helpText}>
+          Back is supported. Physical Escape is intercepted inside the sheet;
+          with focus outside it is handled only when normal routing leaves it
+          unhandled.
+        </Text>
         <View style={styles.controls}>
           <Button
             title="Open with closing callback"
@@ -126,7 +136,8 @@ export const RequestCloseScreen = () => {
       <View style={styles.variantGroup}>
         <Text style={styles.variantTitle}>nativeOverlay</Text>
         <Text style={styles.helpText}>
-          Uses a separate native window (an Android Dialog).
+          Uses a separate native window (an Android Dialog) for guaranteed
+          physical Escape handling.
         </Text>
         <View style={styles.controls}>
           <Button

@@ -1,0 +1,128 @@
+package com.swmansion.reactnativebottomsheet
+
+import android.content.Context
+import android.view.KeyEvent
+import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import androidx.activity.ComponentActivity
+import androidx.test.core.app.ActivityScenario
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import com.facebook.react.internal.featureflags.ReactNativeFeatureFlagsForTests
+import java.util.concurrent.atomic.AtomicInteger
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+
+@RunWith(AndroidJUnit4::class)
+class EscapeRoutingInstrumentedTest {
+  @Before
+  fun useLocalReactNativeFeatureFlags() {
+    ReactNativeFeatureFlagsForTests.setUp()
+  }
+
+  @Test
+  fun portalInterceptsEscapeBeforeFocusedDescendant() {
+    val requestCount = AtomicInteger()
+    val childEventCount = AtomicInteger()
+
+    ActivityScenario.launch(ComponentActivity::class.java).use { scenario ->
+      scenario.onActivity { activity ->
+        val sheet = openSheet(activity, requestCount)
+        val child = EscapeRecordingView(activity, childEventCount, consumesEscape = true)
+        child.isFocusableInTouchMode = true
+        sheet.addView(child, ViewGroup.LayoutParams(1, 1))
+        activity.setContentView(sheet)
+        assertTrue(child.requestFocus())
+      }
+
+      val instrumentation = InstrumentationRegistry.getInstrumentation()
+      instrumentation.waitForIdleSync()
+      instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_ESCAPE)
+      instrumentation.waitForIdleSync()
+
+      assertEquals(0, childEventCount.get())
+      assertEquals(1, requestCount.get())
+    }
+  }
+
+  @Test
+  fun unhandledEscapeOutsidePortalUsesWindowFallback() {
+    val requestCount = AtomicInteger()
+    val siblingEventCount = AtomicInteger()
+
+    ActivityScenario.launch(ComponentActivity::class.java).use { scenario ->
+      scenario.onActivity { activity ->
+        val root = FrameLayout(activity)
+        val sheet = openSheet(activity, requestCount)
+        val sibling = EscapeRecordingView(activity, siblingEventCount, consumesEscape = false)
+        sibling.isFocusableInTouchMode = true
+        root.addView(
+          sheet,
+          FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT,
+          ),
+        )
+        root.addView(sibling, FrameLayout.LayoutParams(100, 100))
+        activity.setContentView(root)
+        assertTrue(sibling.requestFocus())
+      }
+
+      val instrumentation = InstrumentationRegistry.getInstrumentation()
+      instrumentation.waitForIdleSync()
+      instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_ESCAPE)
+      instrumentation.waitForIdleSync()
+
+      assertEquals(1, siblingEventCount.get())
+      assertEquals(1, requestCount.get())
+    }
+  }
+
+  private fun openSheet(
+    context: Context,
+    requestCount: AtomicInteger,
+  ) =
+    BottomSheetView(context).apply {
+      listener = CountingRequestCloseListener(requestCount)
+      animateIn = false
+      modal = true
+      setRequestCloseHandlerPresent(true)
+      setRequestCloseEnabled(true)
+      setDetents(
+        listOf(
+          mapOf("value" to 0.0, "kind" to "points", "programmatic" to false),
+          mapOf("value" to 300.0, "kind" to "points", "programmatic" to false),
+        )
+      )
+      setIndex(1)
+    }
+}
+
+private class EscapeRecordingView(
+  context: Context,
+  private val eventCount: AtomicInteger,
+  private val consumesEscape: Boolean,
+) : View(context) {
+  override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+    if (event.keyCode != KeyEvent.KEYCODE_ESCAPE) return super.dispatchKeyEvent(event)
+    eventCount.incrementAndGet()
+    return consumesEscape
+  }
+}
+
+private class CountingRequestCloseListener(private val requestCount: AtomicInteger) :
+  BottomSheetViewListener {
+  override fun onIndexChange(index: Int) = Unit
+
+  override fun onSettle(index: Int) = Unit
+
+  override fun onPositionChange(position: Double, index: Double) = Unit
+
+  override fun onRequestClose() {
+    requestCount.incrementAndGet()
+  }
+}

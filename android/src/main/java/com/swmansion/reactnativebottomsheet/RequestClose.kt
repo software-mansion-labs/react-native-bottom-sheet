@@ -13,19 +13,6 @@ internal data class RequestCloseEligibility(
 internal fun isRequestCloseEligible(state: RequestCloseEligibility): Boolean =
   state.isAttached && state.isActive && state.isModal && state.isEnabled && state.isTargetOpen
 
-internal data class RequestCloseKeyEventToken(
-  val downTime: Long,
-  val eventTime: Long,
-  val deviceId: Int,
-  val source: Int,
-  val keyCode: Int,
-  val scanCode: Int,
-  val action: Int,
-  val repeatCount: Int,
-  val metaState: Int,
-  val flags: Int,
-)
-
 internal data class RequestCloseKeyPressToken(
   val downTime: Long,
   val deviceId: Int,
@@ -34,52 +21,81 @@ internal data class RequestCloseKeyPressToken(
   val scanCode: Int,
 )
 
+internal data class RequestCloseKeyIdentity(
+  val deviceId: Int,
+  val source: Int,
+  val keyCode: Int,
+  val scanCode: Int,
+)
+
 /**
- * Owns an eligible Escape press from its initial down through its terminal up. Event tokens
- * deduplicate the hierarchy and window-callback paths if the same [KeyEvent] reaches both.
+ * Owns an eligible Escape press from its initial down through its terminal up. Initial downs use
+ * the full press token to keep competing sequences distinct. A terminal up can fall back to the
+ * stable key identity because Android's instrumentation may rewrite [KeyEvent.getDownTime] between
+ * the two events. Completed unclaimed presses remain as short-lived tombstones so the same up is
+ * not captured when it reaches both the local hierarchy and the unhandled-key fallback.
  */
 internal class EscapeRequestCloseDispatcher {
-  private var consumedEvent: Any? = null
+  private data class UnclaimedPress(
+    val keyIdentity: Any,
+    var isComplete: Boolean = false,
+  )
+
   private var capturedPress: Any? = null
-  private val unclaimedPresses = mutableSetOf<Any>()
+  private var capturedKeyIdentity: Any? = null
+  private val unclaimedPresses = mutableMapOf<Any, UnclaimedPress>()
 
   val hasCapturedPress: Boolean
     get() = capturedPress != null
 
   fun dispatch(
-    eventToken: Any,
     pressToken: Any,
+    keyIdentity: Any,
     keyCode: Int,
     action: Int,
     repeatCount: Int,
     hasModifiers: Boolean,
     isCanceled: Boolean,
     shouldCapturePress: () -> Boolean,
-    isRequestCloseEligible: () -> Boolean,
     emitRequestCloseIfEligible: () -> Boolean,
   ): Boolean {
-    if (eventToken == consumedEvent) return true
     if (keyCode != KeyEvent.KEYCODE_ESCAPE) return false
 
-    if (pressToken in unclaimedPresses) {
+    if (action == KeyEvent.ACTION_DOWN && repeatCount == 0) {
+      unclaimedPresses.entries.removeAll { it.value.isComplete }
+    }
+
+    val unclaimedPress =
+      unclaimedPresses.keys.firstOrNull { it == pressToken }
+        ?: if (action == KeyEvent.ACTION_UP) {
+          unclaimedPresses.entries
+            .firstOrNull { !it.value.isComplete && it.value.keyIdentity == keyIdentity }
+            ?.key
+        } else {
+          null
+        }
+    if (unclaimedPress != null) {
       if (action == KeyEvent.ACTION_UP) {
-        unclaimedPresses.remove(pressToken)
+        unclaimedPresses[unclaimedPress]?.isComplete = true
       }
       return false
     }
 
     val currentPress = capturedPress
     if (currentPress != null) {
-      if (pressToken != currentPress) {
-        rememberUnclaimedInitialDown(pressToken, action, repeatCount)
+      val matchesCapturedPress =
+        pressToken == currentPress ||
+          (action == KeyEvent.ACTION_UP && keyIdentity == capturedKeyIdentity)
+      if (!matchesCapturedPress) {
+        rememberUnclaimedInitialDown(pressToken, keyIdentity, action, repeatCount)
         return false
       }
 
       return when (action) {
-        KeyEvent.ACTION_DOWN -> consume(eventToken)
+        KeyEvent.ACTION_DOWN -> true
         KeyEvent.ACTION_UP -> {
           capturedPress = null
-          consume(eventToken)
+          capturedKeyIdentity = null
           if (!isCanceled && !hasModifiers) {
             emitRequestCloseIfEligible()
           }
@@ -94,57 +110,29 @@ internal class EscapeRequestCloseDispatcher {
     }
 
     if (hasModifiers || !shouldCapturePress()) {
-      unclaimedPresses += pressToken
+      unclaimedPresses[pressToken] = UnclaimedPress(keyIdentity)
       return false
     }
 
     capturedPress = pressToken
-    return consume(eventToken)
-  }
-
-  private fun consume(eventToken: Any): Boolean {
-    consumedEvent = eventToken
+    capturedKeyIdentity = keyIdentity
     return true
   }
 
   private fun rememberUnclaimedInitialDown(
     pressToken: Any,
+    keyIdentity: Any,
     action: Int,
     repeatCount: Int,
   ) {
     if (action == KeyEvent.ACTION_DOWN && repeatCount == 0) {
-      unclaimedPresses += pressToken
+      unclaimedPresses[pressToken] = UnclaimedPress(keyIdentity)
     }
   }
 
   fun clear() {
-    consumedEvent = null
     capturedPress = null
+    capturedKeyIdentity = null
     unclaimedPresses.clear()
-  }
-}
-
-internal class RequestCloseKeyEventListenerStack<Event> {
-  private val listeners = mutableListOf<(Event) -> Boolean>()
-
-  val isEmpty: Boolean
-    get() = listeners.isEmpty()
-
-  fun add(listener: (Event) -> Boolean) {
-    listeners += listener
-  }
-
-  fun remove(listener: (Event) -> Boolean) {
-    listeners.remove(listener)
-  }
-
-  fun dispatch(
-    event: Event,
-    delegate: (Event) -> Boolean,
-  ): Boolean {
-    for (index in listeners.lastIndex downTo 0) {
-      if (listeners[index](event)) return true
-    }
-    return delegate(event)
   }
 }

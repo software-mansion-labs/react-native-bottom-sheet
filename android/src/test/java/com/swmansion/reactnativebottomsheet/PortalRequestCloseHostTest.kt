@@ -34,7 +34,6 @@ class PortalRequestCloseHostTest {
 
       assertSame(activity, host.dispatcherOwner)
       assertSame(activity, host.lifecycleOwner)
-      assertSame(activity.window, host.window)
     }
   }
 
@@ -60,7 +59,6 @@ class PortalRequestCloseHostTest {
 
       assertSame(innerDispatcherOwner, host.dispatcherOwner)
       assertSame(innerLifecycleOwner, host.lifecycleOwner)
-      assertSame(activity.window, host.window)
     }
   }
 
@@ -78,7 +76,6 @@ class PortalRequestCloseHostTest {
 
       assertSame(owner, host.dispatcherOwner)
       assertSame(owner, host.lifecycleOwner)
-      assertSame(activity.window, host.window)
     }
   }
 
@@ -96,7 +93,6 @@ class PortalRequestCloseHostTest {
 
       assertSame(activity, host.dispatcherOwner)
       assertSame(lifecycleOwner, host.lifecycleOwner)
-      assertSame(activity.window, host.window)
     }
   }
 
@@ -114,7 +110,6 @@ class PortalRequestCloseHostTest {
 
       assertSame(owner, host.dispatcherOwner)
       assertSame(owner, host.lifecycleOwner)
-      assertSame(activity.window, host.window)
     }
   }
 
@@ -137,7 +132,7 @@ class PortalRequestCloseHostTest {
   }
 
   @Test
-  fun `ComponentDialog provides its dispatcher lifecycle and window`() {
+  fun `ComponentDialog provides its dispatcher and lifecycle`() {
     withActivity<ComponentActivity> { activity ->
       val dialog = ComponentDialog(activity)
       val portal = View(activity)
@@ -149,7 +144,6 @@ class PortalRequestCloseHostTest {
 
         assertSame(dialog, host.dispatcherOwner)
         assertSame(dialog, host.lifecycleOwner)
-        assertSame(dialog.window, host.window)
       } finally {
         dialog.dismiss()
       }
@@ -157,7 +151,7 @@ class PortalRequestCloseHostTest {
   }
 
   @Test
-  fun `custom owners inside ComponentDialog use the dialog window`() {
+  fun `custom owners inside ComponentDialog remain nearest`() {
     withActivity<ComponentActivity> { activity ->
       val dialog = ComponentDialog(activity)
       val dispatcherOwner = TestDispatcherOwner().apply { resume() }
@@ -175,7 +169,6 @@ class PortalRequestCloseHostTest {
 
         assertSame(dispatcherOwner, host.dispatcherOwner)
         assertSame(lifecycleOwner, host.lifecycleOwner)
-        assertSame(dialog.window, host.window)
       } finally {
         dialog.dismiss()
       }
@@ -183,7 +176,7 @@ class PortalRequestCloseHostTest {
   }
 
   @Test
-  fun `plain Activity has Escape window but no Back dispatcher owner`() {
+  fun `plain Activity has no Back dispatcher or lifecycle owner`() {
     withActivity<Activity> { activity ->
       val portal = View(activity)
       activity.setContentView(portal)
@@ -192,7 +185,6 @@ class PortalRequestCloseHostTest {
 
       assertNull(host.dispatcherOwner)
       assertNull(host.lifecycleOwner)
-      assertSame(activity.window, host.window)
     }
   }
 
@@ -210,7 +202,6 @@ class PortalRequestCloseHostTest {
 
       assertNull(host.dispatcherOwner)
       assertNull(host.lifecycleOwner)
-      assertNull(host.window)
     } finally {
       secondController.close()
       firstController.close()
@@ -228,7 +219,6 @@ class PortalRequestCloseHostTest {
 
       assertNull(host.dispatcherOwner)
       assertNull(host.lifecycleOwner)
-      assertNull(host.window)
     }
   }
 
@@ -247,7 +237,6 @@ class PortalRequestCloseHostTest {
 
       assertNull(host.dispatcherOwner)
       assertNull(host.lifecycleOwner)
-      assertNull(host.window)
     } finally {
       staleController.close()
       portalController.close()

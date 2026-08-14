@@ -15,7 +15,6 @@ import androidx.lifecycle.findViewTreeLifecycleOwner
 internal data class PortalRequestCloseHost(
   val dispatcherOwner: OnBackPressedDispatcherOwner?,
   val lifecycleOwner: LifecycleOwner?,
-  val window: Window?,
 )
 
 /**
@@ -53,30 +52,8 @@ internal fun View.resolvePortalRequestCloseHost(
       else -> dispatcherOwner
     }
 
-  val window =
-    sequenceOf(
-        dispatcherOwner,
-        lifecycleOwner,
-        rootView.findViewTreeOnBackPressedDispatcherOwner(),
-        rootView.findViewTreeLifecycleOwner(),
-        validatedCurrentActivity,
-      )
-      .mapNotNull { windowCandidate(it) }
-      .firstOrNull()
-
-  return PortalRequestCloseHost(dispatcherOwner, lifecycleOwner, window)
+  return PortalRequestCloseHost(dispatcherOwner, lifecycleOwner)
 }
-
-private fun View.windowCandidate(owner: Any?): Window? =
-  when (owner) {
-    is Activity -> owner.takeIf(::isValidActivityOwner)?.window
-    is ComponentDialog ->
-      owner.context
-        .findActivity()
-        ?.takeIf { !it.isFinishing && !it.isDestroyed }
-        ?.let { owner.window?.takeIf(::belongsToWindow) }
-    else -> null
-  }
 
 private fun View.isValidActivityOwner(activity: Activity): Boolean =
   !activity.isFinishing && !activity.isDestroyed && belongsToWindow(activity.window)

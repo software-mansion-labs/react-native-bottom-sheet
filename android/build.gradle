@@ -40,6 +40,7 @@ android {
   defaultConfig {
     minSdkVersion getExtOrDefault("minSdkVersion")
     targetSdkVersion getExtOrDefault("targetSdkVersion")
+    testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     // Ships the keep rule for the reflectively-resolved JSTouchDispatcher overload (see
     // JSTouchDispatcherCompat.kt) to consuming apps' R8/ProGuard.
     consumerProguardFiles "proguard-rules.pro"
@@ -94,7 +95,12 @@ android {
 dependencies {
   implementation "com.facebook.react:react-android"
   implementation "androidx.activity:activity:1.8.2"
+  implementation "androidx.core:core:1.8.0"
   implementation "androidx.dynamicanimation:dynamicanimation:1.0.0"
+
+  androidTestImplementation "androidx.test:runner:1.7.0"
+  androidTestImplementation "androidx.test:core:1.7.0"
+  androidTestImplementation "androidx.test.ext:junit:1.3.0"
 
   testImplementation "androidx.test.ext:junit:1.3.0"
   testImplementation "junit:junit:4.13.2"

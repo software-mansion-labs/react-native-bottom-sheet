@@ -9,8 +9,11 @@ import {
 /** Props for the modal bottom-sheet variant rendered through the provider portal. */
 export interface ModalBottomSheetProps extends BottomSheetProps {
   /**
-   * Android only. Called when system Back, a committed predictive Back, or an
-   * unmodified external-keyboard Escape requests that an open sheet close.
+   * Android only. Called when system Back or a committed predictive Back
+   * requests that an open sheet close. In portal mode, an unmodified physical
+   * Escape is intercepted before a focused descendant, or handled through an
+   * AndroidX fallback when focus is elsewhere and normal key routing leaves it
+   * unhandled. Use `nativeOverlay` when Escape handling must be guaranteed.
    * Predictive gesture progress does not animate the sheet, and cancelling the
    * gesture does not invoke the callback.
    *

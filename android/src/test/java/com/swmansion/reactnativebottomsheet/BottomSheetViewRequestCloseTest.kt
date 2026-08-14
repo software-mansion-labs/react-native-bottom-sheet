@@ -4,9 +4,11 @@ package com.swmansion.reactnativebottomsheet
 
 import android.app.Activity
 import android.content.Context
+import android.os.Build
 import android.os.Looper
 import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.Window
 import android.widget.FrameLayout
 import androidx.activity.BackEventCompat
@@ -36,8 +38,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
+@Config(sdk = [27, 35])
 class BottomSheetViewRequestCloseTest {
   private var nextEscapeDownTime = 1_000L
 
@@ -60,7 +64,95 @@ class BottomSheetViewRequestCloseTest {
   }
 
   @Test
-  fun `inline sheet installs no portal Back callback or Escape wrapper`() {
+  fun `unhandled Portal Escape emits once without replacing the Window callback`() {
+    withActivity<ComponentActivity> { activity ->
+      val originalWindowCallback = activity.window.callback
+      val listener = CountingBottomSheetListener()
+      val sheet = openPortalSheet(activity, listener)
+
+      assertSame(originalWindowCallback, activity.window.callback)
+      assertPortalEscape(activity, expectedHandled = true)
+
+      assertEquals(1, listener.requestCloseCount)
+      assertSame(originalWindowCallback, activity.window.callback)
+      sheet.destroy()
+      assertSame(originalWindowCallback, activity.window.callback)
+    }
+  }
+
+  @Test
+  fun `eligible portal intercepts Escape before a focused descendant`() {
+    withActivity<ComponentActivity> { activity ->
+      val listener = CountingBottomSheetListener()
+      val sheet = openPortalSheet(activity, listener)
+      val focusedView = EscapeConsumingView(activity)
+      focusedView.isFocusableInTouchMode = true
+      sheet.addView(focusedView, ViewGroup.LayoutParams(1, 1))
+      layoutView(sheet)
+      assertTrue(focusedView.requestFocus())
+
+      assertPortalEscape(activity, expectedHandled = true)
+
+      assertEquals(0, focusedView.escapeEventCount)
+      assertEquals(1, listener.requestCloseCount)
+      sheet.destroy()
+    }
+  }
+
+  @Test
+  fun `ordinary keys still reach a focused portal descendant`() {
+    withActivity<ComponentActivity> { activity ->
+      val listener = CountingBottomSheetListener()
+      val sheet = openPortalSheet(activity, listener)
+      val focusedView = EscapeConsumingView(activity)
+      focusedView.isFocusableInTouchMode = true
+      sheet.addView(focusedView, ViewGroup.LayoutParams(1, 1))
+      layoutView(sheet)
+      assertTrue(focusedView.requestFocus())
+      val downTime = 90L
+
+      assertTrue(
+        focusedView.dispatchKeyEvent(
+          KeyEvent(downTime, downTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_A, 0)
+        )
+      )
+      assertTrue(
+        focusedView.dispatchKeyEvent(
+          KeyEvent(downTime, downTime + 1, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_A, 0)
+        )
+      )
+
+      assertEquals(2, focusedView.ordinaryEventCount)
+      assertEquals(0, listener.requestCloseCount)
+      sheet.destroy()
+    }
+  }
+
+  @Config(sdk = [27])
+  @Test
+  fun `ComponentActivity compat fallback receives unhandled Escape outside the portal`() {
+    withActivity<ComponentActivity> { activity ->
+      val root = FrameLayout(activity)
+      val listener = CountingBottomSheetListener()
+      val sheet = configuredOpenSheet(activity, listener)
+      val sibling = EscapeConsumingView(activity, consumesEscape = false)
+      sibling.isFocusableInTouchMode = true
+      root.addView(sheet)
+      root.addView(sibling, FrameLayout.LayoutParams(1, 1))
+      activity.setContentView(root)
+      layoutPortal(sheet)
+      assertTrue(sibling.requestFocus())
+
+      assertPortalEscape(activity, expectedHandled = true)
+
+      assertEquals(1, sibling.escapeEventCount)
+      assertEquals(1, listener.requestCloseCount)
+      sheet.destroy()
+    }
+  }
+
+  @Test
+  fun `inline sheet installs no portal Back callback or Escape listener`() {
     withActivity<ComponentActivity> { activity ->
       val originalWindowCallback = activity.window.callback
       val originalBackCallbackCount = activity.onBackPressedDispatcher.callbackCountForTest()
@@ -76,12 +168,13 @@ class BottomSheetViewRequestCloseTest {
         originalBackCallbackCount,
         activity.onBackPressedDispatcher.callbackCountForTest(),
       )
+      assertTrue(sheet.unhandledKeyListenerRegistrationsForTest().isEmpty())
       sheet.destroy()
     }
   }
 
   @Test
-  fun `portal modal without a handler installs no Back callback or Escape wrapper`() {
+  fun `portal modal without a handler installs no Back callback or Escape listener`() {
     withActivity<ComponentActivity> { activity ->
       val originalWindowCallback = activity.window.callback
       val originalBackCallbackCount = activity.onBackPressedDispatcher.callbackCountForTest()
@@ -96,6 +189,7 @@ class BottomSheetViewRequestCloseTest {
         originalBackCallbackCount,
         activity.onBackPressedDispatcher.callbackCountForTest(),
       )
+      assertTrue(sheet.unhandledKeyListenerRegistrationsForTest().isEmpty())
       assertEquals(0, listener.requestCloseCount)
       sheet.destroy()
     }
@@ -116,20 +210,21 @@ class BottomSheetViewRequestCloseTest {
       )
       sheet.setRequestCloseHandlerPresent(true)
       sheet.setRequestCloseEnabled(true)
-      val escapeWindowCallback = activity.window.callback
-      assertFalse(escapeWindowCallback === originalWindowCallback)
+      assertSame(originalWindowCallback, activity.window.callback)
       assertEquals(
         originalBackCallbackCount + 1,
         activity.onBackPressedDispatcher.callbackCountForTest(),
       )
+      assertEquals(1, sheet.unhandledKeyListenerRegistrationsForTest().size)
 
       sheet.setRequestCloseEnabled(false)
       sheet.setRequestCloseHandlerPresent(false)
-      assertSame(escapeWindowCallback, activity.window.callback)
+      assertSame(originalWindowCallback, activity.window.callback)
       assertEquals(
         originalBackCallbackCount + 1,
         activity.onBackPressedDispatcher.callbackCountForTest(),
       )
+      assertEquals(1, sheet.unhandledKeyListenerRegistrationsForTest().size)
       var navigationCount = 0
       val navigationCallback =
         object : OnBackPressedCallback(true) {
@@ -141,7 +236,7 @@ class BottomSheetViewRequestCloseTest {
 
       sheet.setRequestCloseHandlerPresent(true)
       sheet.setRequestCloseEnabled(true)
-      assertSame(escapeWindowCallback, activity.window.callback)
+      assertSame(originalWindowCallback, activity.window.callback)
       activity.onBackPressedDispatcher.onBackPressed()
 
       assertEquals(1, navigationCount)
@@ -165,7 +260,7 @@ class BottomSheetViewRequestCloseTest {
       container.addView(sheet)
       activity.setContentView(container)
       layoutPortal(sheet)
-      val escapeWindowCallback = activity.window.callback
+      val originalWindowCallback = activity.window.callback
 
       owner.pause()
       var navigationCount = 0
@@ -178,7 +273,7 @@ class BottomSheetViewRequestCloseTest {
       owner.onBackPressedDispatcher.addCallback(navigationCallback)
       owner.resumeFromPause()
 
-      assertSame(escapeWindowCallback, activity.window.callback)
+      assertSame(originalWindowCallback, activity.window.callback)
       owner.onBackPressedDispatcher.onBackPressed()
       assertEquals(1, navigationCount)
       assertEquals(0, listener.requestCloseCount)
@@ -190,14 +285,48 @@ class BottomSheetViewRequestCloseTest {
   }
 
   @Test
+  fun `Escape listener identity stays stable through transient eligibility changes`() {
+    withActivity<ComponentActivity> { activity ->
+      val owner = MutableTestDispatcherOwner().apply { resume() }
+      val container = FrameLayout(activity)
+      container.setViewTreeOnBackPressedDispatcherOwner(owner)
+      container.setViewTreeLifecycleOwner(owner)
+      val listener = CountingBottomSheetListener()
+      val sheet = configuredOpenSheet(activity, listener)
+      container.addView(sheet)
+      activity.setContentView(container)
+      layoutPortal(sheet)
+      val registration = sheet.unhandledKeyListenerRegistrationsForTest().single()
+
+      owner.pause()
+      assertSame(registration, sheet.unhandledKeyListenerRegistrationsForTest().single())
+      sheet.setIndex(0)
+      assertSame(registration, sheet.unhandledKeyListenerRegistrationsForTest().single())
+      sheet.setRequestCloseEnabled(false)
+      sheet.setRequestCloseHandlerPresent(false)
+      assertSame(registration, sheet.unhandledKeyListenerRegistrationsForTest().single())
+
+      owner.resumeFromPause()
+      sheet.setIndex(1)
+      sheet.setRequestCloseHandlerPresent(true)
+      sheet.setRequestCloseEnabled(true)
+      assertSame(registration, sheet.unhandledKeyListenerRegistrationsForTest().single())
+      sheet.destroy()
+      assertTrue(sheet.unhandledKeyListenerRegistrationsForTest().isEmpty())
+    }
+  }
+
+  @Test
   fun `close and reopen preserve later Back callback priority and Escape registration`() {
     withActivity<ComponentActivity> { activity ->
       val listener = CountingBottomSheetListener()
       val sheet = openPortalSheet(activity, listener)
-      val escapeWindowCallback = activity.window.callback
+      val originalWindowCallback = activity.window.callback
 
       sheet.setIndex(0)
       assertFalse(sheet.hostForTest().isRequestCloseTargetOpen)
+      assertPortalEscape(activity, expectedHandled = false)
+      assertEquals(0, listener.requestCloseCount)
       var navigationCount = 0
       val navigationCallback =
         object : OnBackPressedCallback(true) {
@@ -209,7 +338,7 @@ class BottomSheetViewRequestCloseTest {
       sheet.setIndex(1)
 
       assertTrue(sheet.hostForTest().isRequestCloseTargetOpen)
-      assertSame(escapeWindowCallback, activity.window.callback)
+      assertSame(originalWindowCallback, activity.window.callback)
       activity.onBackPressedDispatcher.onBackPressed()
       assertEquals(1, navigationCount)
       assertEquals(0, listener.requestCloseCount)
@@ -286,25 +415,25 @@ class BottomSheetViewRequestCloseTest {
 
       owner.onBackPressedDispatcher.onBackPressed()
       assertEquals(1, listener.requestCloseCount)
-      assertEscape(activity, expectedHandled = true)
+      assertPortalEscape(activity, expectedHandled = true)
       assertEquals(2, listener.requestCloseCount)
 
       owner.pause()
       owner.onBackPressedDispatcher.onBackPressed()
       assertEquals(1, fallbackCount)
-      assertEscape(activity, expectedHandled = false)
+      assertPortalEscape(activity, expectedHandled = false)
       assertEquals(2, listener.requestCloseCount)
 
       owner.resumeFromPause()
       owner.onBackPressedDispatcher.onBackPressed()
       assertEquals(3, listener.requestCloseCount)
-      assertEscape(activity, expectedHandled = true)
+      assertPortalEscape(activity, expectedHandled = true)
       assertEquals(4, listener.requestCloseCount)
 
       owner.destroy()
       owner.onBackPressedDispatcher.onBackPressed()
       assertEquals(2, fallbackCount)
-      assertEscape(activity, expectedHandled = false)
+      assertPortalEscape(activity, expectedHandled = false)
       assertEquals(4, listener.requestCloseCount)
       sheet.destroy()
     }
@@ -323,14 +452,14 @@ class BottomSheetViewRequestCloseTest {
       activity.setContentView(container)
       layoutPortal(sheet)
       val downTime = 100L
-      val escapeWindowCallback = activity.window.callback
+      val originalWindowCallback = activity.window.callback
 
-      assertTrue(activity.window.callback.dispatchKeyEvent(escapeDown(downTime)))
+      assertTrue(activity.dispatchKeyEvent(escapeDown(downTime)))
       owner.pause()
-      assertTrue(activity.window.callback.dispatchKeyEvent(escapeUp(downTime)))
+      assertTrue(activity.dispatchKeyEvent(escapeUp(downTime)))
 
       assertEquals(0, listener.requestCloseCount)
-      assertSame(escapeWindowCallback, activity.window.callback)
+      assertSame(originalWindowCallback, activity.window.callback)
       sheet.destroy()
     }
   }
@@ -340,22 +469,102 @@ class BottomSheetViewRequestCloseTest {
     withActivity<ComponentActivity> { activity ->
       val listener = CountingBottomSheetListener()
       val sheet = openPortalSheet(activity, listener)
-      val escapeWindowCallback = activity.window.callback
+      val originalWindowCallback = activity.window.callback
       val downTime = 125L
 
-      assertTrue(activity.window.callback.dispatchKeyEvent(escapeDown(downTime)))
+      assertTrue(activity.dispatchKeyEvent(escapeDown(downTime)))
       sheet.setRequestCloseEnabled(false)
-      assertSame(escapeWindowCallback, activity.window.callback)
-      assertTrue(activity.window.callback.dispatchKeyEvent(escapeUp(downTime)))
+      assertSame(originalWindowCallback, activity.window.callback)
+      assertTrue(activity.dispatchKeyEvent(escapeUp(downTime)))
 
       assertEquals(0, listener.requestCloseCount)
-      assertSame(escapeWindowCallback, activity.window.callback)
+      assertSame(originalWindowCallback, activity.window.callback)
       sheet.destroy()
     }
   }
 
   @Test
-  fun `DESTROYED clears a captured Escape and restores the window callback`() {
+  fun `Portal Escape accepts only an initial unmodified press and emits on terminal key-up`() {
+    withActivity<ComponentActivity> { activity ->
+      val listener = CountingBottomSheetListener()
+      val sheet = openPortalSheet(activity, listener)
+
+      val modifiedDownTime = 130L
+      assertFalse(
+        activity.dispatchKeyEvent(escapeDown(modifiedDownTime, metaState = KeyEvent.META_SHIFT_ON))
+      )
+      assertFalse(
+        activity.dispatchKeyEvent(escapeUp(modifiedDownTime, metaState = KeyEvent.META_SHIFT_ON))
+      )
+
+      val repeatedDownTime = 140L
+      assertTrue(activity.dispatchKeyEvent(escapeDown(repeatedDownTime)))
+      assertTrue(activity.dispatchKeyEvent(escapeDown(repeatedDownTime, repeatCount = 1)))
+      assertEquals(0, listener.requestCloseCount)
+      assertTrue(activity.dispatchKeyEvent(escapeUp(repeatedDownTime)))
+      assertEquals(1, listener.requestCloseCount)
+
+      val canceledDownTime = 145L
+      assertTrue(activity.dispatchKeyEvent(escapeDown(canceledDownTime)))
+      assertTrue(activity.dispatchKeyEvent(escapeUp(canceledDownTime, canceled = true)))
+      assertEquals(1, listener.requestCloseCount)
+
+      val modifiedUpDownTime = 146L
+      assertTrue(activity.dispatchKeyEvent(escapeDown(modifiedUpDownTime)))
+      assertTrue(
+        activity.dispatchKeyEvent(escapeUp(modifiedUpDownTime, metaState = KeyEvent.META_SHIFT_ON))
+      )
+      assertEquals(1, listener.requestCloseCount)
+      sheet.destroy()
+    }
+  }
+
+  @Test
+  fun `Portal Escape rejects orphaned and concurrent press tokens without duplicates`() {
+    withActivity<ComponentActivity> { activity ->
+      val listener = CountingBottomSheetListener()
+      val sheet = openPortalSheet(activity, listener)
+      val capturedDownTime = 148L
+      val concurrentDownTime = 149L
+
+      assertFalse(activity.dispatchKeyEvent(escapeUp(147L)))
+      assertTrue(activity.dispatchKeyEvent(escapeDown(capturedDownTime)))
+      assertFalse(activity.dispatchKeyEvent(escapeDown(concurrentDownTime)))
+      assertFalse(activity.dispatchKeyEvent(escapeDown(concurrentDownTime, repeatCount = 1)))
+      assertFalse(activity.dispatchKeyEvent(escapeUp(concurrentDownTime)))
+      assertTrue(activity.dispatchKeyEvent(escapeUp(capturedDownTime)))
+
+      assertEquals(1, listener.requestCloseCount)
+
+      val rewrittenDownTime = 151L
+      assertTrue(activity.dispatchKeyEvent(escapeDown(rewrittenDownTime)))
+      assertTrue(activity.dispatchKeyEvent(escapeUp(rewrittenDownTime + 1)))
+      assertEquals(2, listener.requestCloseCount)
+      sheet.destroy()
+    }
+  }
+
+  @Test
+  fun `Portal Escape press that begins ineligible remains unclaimed`() {
+    withActivity<ComponentActivity> { activity ->
+      val listener = CountingBottomSheetListener()
+      val sheet = openPortalSheet(activity, listener)
+      val downTime = 147L
+
+      sheet.setRequestCloseEnabled(false)
+      assertFalse(activity.dispatchKeyEvent(escapeDown(downTime)))
+      sheet.setRequestCloseEnabled(true)
+      assertFalse(activity.dispatchKeyEvent(escapeUp(downTime)))
+      assertEquals(0, listener.requestCloseCount)
+
+      assertPortalEscape(activity, expectedHandled = true)
+      assertEquals(1, listener.requestCloseCount)
+      sheet.destroy()
+    }
+  }
+
+  @Test
+  fun `DESTROYED clears a captured Escape without changing the Window callback`() {
     withActivity<ComponentActivity> { activity ->
       val owner = MutableTestDispatcherOwner().apply { resume() }
       val container = FrameLayout(activity)
@@ -367,12 +576,13 @@ class BottomSheetViewRequestCloseTest {
       activity.setContentView(container)
       layoutPortal(sheet)
       val downTime = 150L
+      val originalWindowCallback = activity.window.callback
 
-      assertTrue(activity.window.callback.dispatchKeyEvent(escapeDown(downTime)))
+      assertTrue(activity.dispatchKeyEvent(escapeDown(downTime)))
       owner.destroy()
 
-      assertSame(activity, activity.window.callback)
-      assertFalse(sheet.dispatchKeyEvent(escapeUp(downTime)))
+      assertSame(originalWindowCallback, activity.window.callback)
+      assertFalse(activity.dispatchKeyEvent(escapeUp(downTime)))
       assertEquals(0, listener.requestCloseCount)
       sheet.destroy()
     }
@@ -390,11 +600,12 @@ class BottomSheetViewRequestCloseTest {
       root.addView(sheet)
       layoutPortal(sheet)
 
-      assertFalse(activity.window.callback === originalWindowCallback)
+      assertSame(originalWindowCallback, activity.window.callback)
       assertEquals(
         originalBackCallbackCount + 1,
         activity.onBackPressedDispatcher.callbackCountForTest(),
       )
+      assertEquals(1, sheet.unhandledKeyListenerRegistrationsForTest().size)
 
       sheet.setRequestCloseEnabled(false)
       sheet.setRequestCloseHandlerPresent(false)
@@ -405,22 +616,28 @@ class BottomSheetViewRequestCloseTest {
         originalBackCallbackCount,
         activity.onBackPressedDispatcher.callbackCountForTest(),
       )
+      assertTrue(sheet.unhandledKeyListenerRegistrationsForTest().isEmpty())
 
       root.addView(sheet)
       layoutPortal(sheet)
       assertSame(originalWindowCallback, activity.window.callback)
+      assertPortalEscape(activity, expectedHandled = false)
       assertEquals(
         originalBackCallbackCount,
         activity.onBackPressedDispatcher.callbackCountForTest(),
       )
+      assertTrue(sheet.unhandledKeyListenerRegistrationsForTest().isEmpty())
 
       sheet.setRequestCloseHandlerPresent(true)
       sheet.setRequestCloseEnabled(true)
-      assertFalse(activity.window.callback === originalWindowCallback)
+      assertSame(originalWindowCallback, activity.window.callback)
+      assertPortalEscape(activity, expectedHandled = true)
+      assertEquals(1, listener.requestCloseCount)
       assertEquals(
         originalBackCallbackCount + 1,
         activity.onBackPressedDispatcher.callbackCountForTest(),
       )
+      assertEquals(1, sheet.unhandledKeyListenerRegistrationsForTest().size)
       sheet.destroy()
     }
   }
@@ -468,7 +685,7 @@ class BottomSheetViewRequestCloseTest {
       sheet.setRequestCloseEnabled(true)
       secondActivity.onBackPressedDispatcher.onBackPressed()
       assertEquals(2, listener.requestCloseCount)
-      assertEscape(secondActivity, expectedHandled = true)
+      assertPortalEscape(secondActivity, expectedHandled = true)
       assertEquals(3, listener.requestCloseCount)
       sheet.destroy()
     } finally {
@@ -499,13 +716,15 @@ class BottomSheetViewRequestCloseTest {
       dialog.show()
       shadowOf(Looper.getMainLooper()).idle()
       layoutPortal(sheet)
+      val originalDialogWindowCallback = dialog.window?.callback
       try {
         owner.onBackPressedDispatcher.onBackPressed()
         assertEquals(1, listener.requestCloseCount)
         assertEquals(0, activityBackCount)
-        assertEscape(dialog, expectedHandled = true)
+        assertPortalEscape(dialog, expectedHandled = true)
         assertEquals(2, listener.requestCloseCount)
         assertSame(activity, activity.window.callback)
+        assertSame(originalDialogWindowCallback, dialog.window?.callback)
         assertEquals(0, activityBackCount)
       } finally {
         sheet.destroy()
@@ -515,7 +734,7 @@ class BottomSheetViewRequestCloseTest {
   }
 
   @Test
-  fun `plain Activity passes Back through while handling Escape from its window`() {
+  fun `plain Activity passes Back through while handling unhandled Portal Escape`() {
     withActivity<Activity> { activity ->
       val listener = CountingBottomSheetListener()
       val sheet = configuredOpenSheet(activity, listener)
@@ -524,7 +743,7 @@ class BottomSheetViewRequestCloseTest {
       layoutPortal(sheet)
 
       // A plain Activity exposes no OnBackPressedDispatcherOwner to the portal.
-      assertEscape(activity, expectedHandled = true)
+      assertPortalEscape(activity, expectedHandled = true)
       assertEquals(1, listener.requestCloseCount)
       sheet.destroy()
     }
@@ -582,7 +801,7 @@ class BottomSheetViewRequestCloseTest {
       layoutPortal(upperSheet)
 
       activity.onBackPressedDispatcher.onBackPressed()
-      assertEscape(activity, expectedHandled = true)
+      assertPortalEscape(activity, expectedHandled = true)
 
       assertEquals(0, lowerListener.requestCloseCount)
       assertEquals(2, upperListener.requestCloseCount)
@@ -606,20 +825,22 @@ class BottomSheetViewRequestCloseTest {
       layoutPortal(upperSheet)
 
       activity.onBackPressedDispatcher.onBackPressed()
-      assertEscape(activity, expectedHandled = true)
+      assertPortalEscape(activity, expectedHandled = true)
       assertEquals(0, lowerListener.requestCloseCount)
       assertEquals(2, upperListener.requestCloseCount)
 
       upperSheet.setRequestCloseEnabled(false)
+      assertTrue(lowerSheet.requestFocus())
       activity.onBackPressedDispatcher.onBackPressed()
-      assertEscape(activity, expectedHandled = true)
+      assertPortalEscape(activity, expectedHandled = true)
       assertEquals(2, lowerListener.requestCloseCount)
       assertEquals(2, upperListener.requestCloseCount)
 
       lowerSheet.setRequestCloseEnabled(false)
       upperSheet.setRequestCloseEnabled(true)
+      assertTrue(upperSheet.requestFocus())
       activity.onBackPressedDispatcher.onBackPressed()
-      assertEscape(activity, expectedHandled = true)
+      assertPortalEscape(activity, expectedHandled = true)
       assertEquals(2, lowerListener.requestCloseCount)
       assertEquals(4, upperListener.requestCloseCount)
       upperSheet.destroy()
@@ -628,7 +849,7 @@ class BottomSheetViewRequestCloseTest {
   }
 
   @Test
-  fun `ineligible portal keeps its Escape registration and delegates to the window callback`() {
+  fun `existing Window integration that consumes Escape prevents Portal emission`() {
     withActivity<ComponentActivity> { activity ->
       val originalCallback = requireNotNull(activity.window.callback)
       var delegatedEventCount = 0
@@ -642,10 +863,8 @@ class BottomSheetViewRequestCloseTest {
       activity.window.callback = delegate
       val listener = CountingBottomSheetListener()
       val sheet = openPortalSheet(activity, listener)
-      val escapeWindowCallback = activity.window.callback
 
-      sheet.setRequestCloseEnabled(false)
-      assertSame(escapeWindowCallback, activity.window.callback)
+      assertSame(delegate, activity.window.callback)
       assertTrue(activity.window.callback.dispatchKeyEvent(escapeDown(350L)))
       assertTrue(activity.window.callback.dispatchKeyEvent(escapeUp(350L)))
 
@@ -657,21 +876,87 @@ class BottomSheetViewRequestCloseTest {
   }
 
   @Test
-  fun `same Escape event is not delivered twice through view and window paths`() {
+  fun `focused view that consumes Escape prevents Portal emission`() {
+    withActivity<ComponentActivity> { activity ->
+      val root = FrameLayout(activity)
+      val listener = CountingBottomSheetListener()
+      val sheet = configuredOpenSheet(activity, listener)
+      val focusedView = EscapeConsumingView(activity)
+      root.addView(sheet)
+      root.addView(focusedView, FrameLayout.LayoutParams(1, 1))
+      activity.setContentView(root)
+      layoutPortal(sheet)
+      focusedView.isFocusableInTouchMode = true
+      assertTrue(focusedView.requestFocus())
+
+      assertPortalEscape(activity, expectedHandled = true)
+
+      assertEquals(2, focusedView.escapeEventCount)
+      assertEquals(0, listener.requestCloseCount)
+      sheet.destroy()
+    }
+  }
+
+  @Config(sdk = [27])
+  @Test
+  fun `plain Activity has local interception but no external compat fallback`() {
+    withActivity<Activity> { activity ->
+      val root = FrameLayout(activity)
+      val listener = CountingBottomSheetListener()
+      val sheet = configuredOpenSheet(activity, listener)
+      val sibling = EscapeConsumingView(activity, consumesEscape = false)
+      sibling.isFocusableInTouchMode = true
+      root.addView(sheet)
+      root.addView(sibling, FrameLayout.LayoutParams(1, 1))
+      activity.setContentView(root)
+      sheet.onHostResume()
+      layoutPortal(sheet)
+      assertTrue(sibling.requestFocus())
+
+      assertPortalEscape(activity, expectedHandled = false)
+
+      assertEquals(2, sibling.escapeEventCount)
+      assertEquals(0, listener.requestCloseCount)
+      sheet.destroy()
+    }
+  }
+
+  @Test
+  fun `removing portal integration never restores an earlier Window callback`() {
     withActivity<ComponentActivity> { activity ->
       val listener = CountingBottomSheetListener()
       val sheet = openPortalSheet(activity, listener)
-      val callback = activity.window.callback
-      val down = escapeDown(400L)
-      val up = escapeUp(400L)
+      val installedCallback = requireNotNull(activity.window.callback)
+      val laterCallback = object : Window.Callback by installedCallback {}
+      activity.window.callback = laterCallback
 
-      assertTrue(sheet.dispatchKeyEvent(down))
-      assertTrue(callback.dispatchKeyEvent(down))
-      assertTrue(callback.dispatchKeyEvent(up))
-      assertTrue(sheet.dispatchKeyEvent(up))
-
-      assertEquals(1, listener.requestCloseCount)
+      sheet.modal = false
+      assertSame(laterCallback, activity.window.callback)
       sheet.destroy()
+      assertSame(laterCallback, activity.window.callback)
+    }
+  }
+
+  @Test
+  fun `nativeOverlay presentation failure clears portal registration and captured Escape`() {
+    withActivity<ComponentActivity> { activity ->
+      val reactContext = BridgeReactContext(activity.applicationContext)
+      val themedContext = ThemedReactContext(reactContext, activity, "test", 1)
+      val listener = CountingBottomSheetListener()
+      val sheet = configuredOpenSheet(themedContext, listener)
+      activity.setContentView(sheet)
+      layoutPortal(sheet)
+      val downTime = 360L
+
+      assertEquals(1, sheet.unhandledKeyListenerRegistrationsForTest().size)
+      assertTrue(activity.dispatchKeyEvent(escapeDown(downTime)))
+      sheet.setNativeOverlay(true)
+
+      assertTrue(sheet.unhandledKeyListenerRegistrationsForTest().isEmpty())
+      assertFalse(activity.dispatchKeyEvent(escapeUp(downTime)))
+      assertEquals(0, listener.requestCloseCount)
+      sheet.destroy()
+      reactContext.onHostDestroy()
     }
   }
 
@@ -756,9 +1041,8 @@ class BottomSheetViewRequestCloseTest {
       val originalBackCallbackCount = activity.onBackPressedDispatcher.callbackCountForTest()
       val listener = CountingBottomSheetListener()
       val sheet = openPortalSheet(activity, listener)
-      val firstPortalWindowCallback = activity.window.callback
 
-      assertFalse(firstPortalWindowCallback === originalWindowCallback)
+      assertSame(originalWindowCallback, activity.window.callback)
       assertEquals(
         originalBackCallbackCount + 1,
         activity.onBackPressedDispatcher.callbackCountForTest(),
@@ -766,7 +1050,7 @@ class BottomSheetViewRequestCloseTest {
 
       sheet.setRequestCloseEnabled(false)
       sheet.setRequestCloseHandlerPresent(false)
-      assertSame(firstPortalWindowCallback, activity.window.callback)
+      assertSame(originalWindowCallback, activity.window.callback)
       sheet.modal = false
 
       assertSame(originalWindowCallback, activity.window.callback)
@@ -774,6 +1058,7 @@ class BottomSheetViewRequestCloseTest {
         originalBackCallbackCount,
         activity.onBackPressedDispatcher.callbackCountForTest(),
       )
+      assertTrue(sheet.unhandledKeyListenerRegistrationsForTest().isEmpty())
 
       sheet.modal = true
       assertSame(originalWindowCallback, activity.window.callback)
@@ -781,15 +1066,18 @@ class BottomSheetViewRequestCloseTest {
         originalBackCallbackCount,
         activity.onBackPressedDispatcher.callbackCountForTest(),
       )
+      assertTrue(sheet.unhandledKeyListenerRegistrationsForTest().isEmpty())
 
       sheet.setRequestCloseHandlerPresent(true)
       sheet.setRequestCloseEnabled(true)
-      assertFalse(activity.window.callback === originalWindowCallback)
-      assertFalse(activity.window.callback === firstPortalWindowCallback)
+      assertSame(originalWindowCallback, activity.window.callback)
+      assertPortalEscape(activity, expectedHandled = true)
+      assertEquals(1, listener.requestCloseCount)
       assertEquals(
         originalBackCallbackCount + 1,
         activity.onBackPressedDispatcher.callbackCountForTest(),
       )
+      assertEquals(1, sheet.unhandledKeyListenerRegistrationsForTest().size)
       sheet.destroy()
     }
   }
@@ -814,22 +1102,24 @@ class BottomSheetViewRequestCloseTest {
       activity.setContentView(sheet)
       layoutPortal(sheet)
       sheet.onHostResume()
-      val portalWindowCallback = activity.window.callback
-      assertFalse(portalWindowCallback === activity)
+      val originalWindowCallback = activity.window.callback
 
       sheet.setNativeOverlay(true)
       shadowOf(Looper.getMainLooper()).idle()
-      assertSame(activity, activity.window.callback)
+      assertSame(originalWindowCallback, activity.window.callback)
+      assertTrue(sheet.unhandledKeyListenerRegistrationsForTest().isEmpty())
       activity.onBackPressedDispatcher.onBackPressed()
       assertEquals(1, activityBackCount)
       assertEquals(0, listener.requestCloseCount)
 
       sheet.setNativeOverlay(false)
       layoutPortal(sheet)
-      assertFalse(activity.window.callback === activity)
-      assertFalse(activity.window.callback === portalWindowCallback)
+      assertSame(originalWindowCallback, activity.window.callback)
+      assertEquals(1, sheet.unhandledKeyListenerRegistrationsForTest().size)
       activity.onBackPressedDispatcher.onBackPressed()
       assertEquals(1, listener.requestCloseCount)
+      assertPortalEscape(activity, expectedHandled = true)
+      assertEquals(2, listener.requestCloseCount)
       sheet.destroy()
       reactContext.onHostDestroy()
     }
@@ -867,6 +1157,8 @@ class BottomSheetViewRequestCloseTest {
 
   private fun layoutPortal(sheet: BottomSheetView) {
     layoutView(sheet)
+    sheet.isFocusableInTouchMode = true
+    assertTrue(sheet.requestFocus())
   }
 
   private fun layoutView(view: View) {
@@ -886,8 +1178,40 @@ class BottomSheetViewRequestCloseTest {
   ) {
     val downTime = nextEscapeDownTime
     nextEscapeDownTime += 10L
-    assertEquals(expectedHandled, activity.window.callback.dispatchKeyEvent(escapeDown(downTime)))
-    assertEquals(expectedHandled, activity.window.callback.dispatchKeyEvent(escapeUp(downTime)))
+    assertEquals(expectedHandled, activity.dispatchKeyEvent(escapeDown(downTime)))
+    assertEquals(expectedHandled, activity.dispatchKeyEvent(escapeUp(downTime)))
+  }
+
+  private fun assertPortalEscape(
+    activity: Activity,
+    expectedHandled: Boolean,
+  ) {
+    val downTime = nextEscapeDownTime
+    nextEscapeDownTime += 10L
+    assertEquals(
+      expectedHandled,
+      activity.dispatchKeyEvent(escapeDown(downTime)),
+    )
+    assertEquals(
+      expectedHandled,
+      activity.dispatchKeyEvent(escapeUp(downTime)),
+    )
+  }
+
+  private fun assertPortalEscape(
+    dialog: ComponentDialog,
+    expectedHandled: Boolean,
+  ) {
+    val downTime = nextEscapeDownTime
+    nextEscapeDownTime += 10L
+    assertEquals(
+      expectedHandled,
+      dialog.dispatchKeyEvent(escapeDown(downTime)),
+    )
+    assertEquals(
+      expectedHandled,
+      dialog.dispatchKeyEvent(escapeUp(downTime)),
+    )
   }
 
   private fun assertEscape(
@@ -896,15 +1220,52 @@ class BottomSheetViewRequestCloseTest {
   ) {
     val downTime = nextEscapeDownTime
     nextEscapeDownTime += 10L
-    assertEquals(expectedHandled, dialog.window?.callback?.dispatchKeyEvent(escapeDown(downTime)))
-    assertEquals(expectedHandled, dialog.window?.callback?.dispatchKeyEvent(escapeUp(downTime)))
+    assertEquals(expectedHandled, dialog.dispatchKeyEvent(escapeDown(downTime)))
+    assertEquals(expectedHandled, dialog.dispatchKeyEvent(escapeUp(downTime)))
   }
 
-  private fun escapeDown(downTime: Long) =
-    KeyEvent(downTime, downTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ESCAPE, 0)
+  private fun escapeDown(
+    downTime: Long,
+    repeatCount: Int = 0,
+    metaState: Int = 0,
+  ) =
+    if (repeatCount == 0 && metaState == 0) {
+      KeyEvent(downTime, downTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ESCAPE, 0)
+    } else {
+      KeyEvent(
+        downTime,
+        downTime + repeatCount,
+        KeyEvent.ACTION_DOWN,
+        KeyEvent.KEYCODE_ESCAPE,
+        repeatCount,
+        metaState,
+      )
+    }
 
-  private fun escapeUp(downTime: Long) =
-    KeyEvent(downTime, downTime + 1, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ESCAPE, 0)
+  private fun escapeUp(
+    downTime: Long,
+    metaState: Int = 0,
+    canceled: Boolean = false,
+  ): KeyEvent {
+    val event =
+      if (metaState == 0) {
+        KeyEvent(downTime, downTime + 1, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ESCAPE, 0)
+      } else {
+        KeyEvent(
+          downTime,
+          downTime + 2,
+          KeyEvent.ACTION_UP,
+          KeyEvent.KEYCODE_ESCAPE,
+          0,
+          metaState,
+        )
+      }
+    return if (canceled) {
+      KeyEvent.changeFlags(event, event.flags or KeyEvent.FLAG_CANCELED)
+    } else {
+      event
+    }
+  }
 
   private inline fun <reified T : Activity> withActivity(block: (T) -> Unit) {
     val controller = Robolectric.buildActivity(T::class.java).setup()
@@ -939,6 +1300,26 @@ private fun BottomSheetView.hostForTest(): BottomSheetHostView =
       it.get(this) as? BottomSheetHostView
     }
   )
+
+private fun BottomSheetView.unhandledKeyListenerRegistrationsForTest(): List<Any> {
+  if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+    val listeners =
+      getTag(androidx.core.R.id.tag_unhandled_key_listeners) as? List<*> ?: return emptyList()
+    return listeners.filterNotNull()
+  }
+
+  val listenerInfo =
+    View::class.java.getDeclaredField("mListenerInfo").let {
+      it.isAccessible = true
+      it.get(this)
+    } ?: return emptyList()
+  val listeners =
+    listenerInfo.javaClass.getDeclaredField("mUnhandledKeyListeners").let {
+      it.isAccessible = true
+      it.get(listenerInfo) as? List<*>
+    } ?: return emptyList()
+  return listeners.filterNotNull()
+}
 
 private fun OnBackPressedDispatcher.callbackCountForTest(): Int =
   OnBackPressedDispatcher::class.java.getDeclaredField("onBackPressedCallbacks").let {
@@ -986,6 +1367,23 @@ private class CountingBottomSheetListener : BottomSheetViewListener {
 
   override fun onRequestClose() {
     requestCloseCount++
+  }
+}
+
+private class EscapeConsumingView(
+  context: Context,
+  private val consumesEscape: Boolean = true,
+) : View(context) {
+  var escapeEventCount = 0
+  var ordinaryEventCount = 0
+
+  override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+    if (event.keyCode == KeyEvent.KEYCODE_ESCAPE) {
+      escapeEventCount++
+      return consumesEscape
+    }
+    ordinaryEventCount++
+    return true
   }
 }
 
