@@ -15,6 +15,7 @@ import androidx.lifecycle.findViewTreeLifecycleOwner
 internal data class PortalRequestCloseHost(
   val dispatcherOwner: OnBackPressedDispatcherOwner?,
   val lifecycleOwner: LifecycleOwner?,
+  val rootView: View,
 )
 
 /**
@@ -52,7 +53,7 @@ internal fun View.resolvePortalRequestCloseHost(
       else -> dispatcherOwner
     }
 
-  return PortalRequestCloseHost(dispatcherOwner, lifecycleOwner)
+  return PortalRequestCloseHost(dispatcherOwner, lifecycleOwner, rootView)
 }
 
 private fun View.isValidActivityOwner(activity: Activity): Boolean =

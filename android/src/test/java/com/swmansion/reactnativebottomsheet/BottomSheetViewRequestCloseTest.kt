@@ -849,6 +849,70 @@ class BottomSheetViewRequestCloseTest {
   }
 
   @Test
+  fun `Escape focused in a lower portal routes to the only eligible upper portal`() {
+    withActivity<ComponentActivity> { activity ->
+      val root = FrameLayout(activity)
+      val lowerListener = CountingBottomSheetListener()
+      val upperListener = CountingBottomSheetListener()
+      val lowerSheet = configuredOpenSheet(activity, lowerListener)
+      val focusedLowerChild = EscapeConsumingView(activity)
+      focusedLowerChild.isFocusableInTouchMode = true
+      lowerSheet.addView(focusedLowerChild, ViewGroup.LayoutParams(1, 1))
+      root.addView(lowerSheet)
+      activity.setContentView(root)
+      layoutView(root)
+      assertTrue(focusedLowerChild.requestFocus())
+
+      val upperSheet = configuredOpenSheet(activity, upperListener)
+      root.addView(upperSheet)
+      layoutView(root)
+      lowerSheet.setRequestCloseEnabled(false)
+
+      assertTrue(focusedLowerChild.isFocused)
+      assertPortalEscape(activity, expectedHandled = true)
+
+      assertTrue(focusedLowerChild.isFocused)
+      assertEquals(0, focusedLowerChild.escapeEventCount)
+      assertEquals(0, lowerListener.requestCloseCount)
+      assertEquals(1, upperListener.requestCloseCount)
+      upperSheet.destroy()
+      lowerSheet.destroy()
+    }
+  }
+
+  @Test
+  fun `captured portal Escape is not transferred when eligibility moves`() {
+    withActivity<ComponentActivity> { activity ->
+      val root = FrameLayout(activity)
+      val lowerListener = CountingBottomSheetListener()
+      val upperListener = CountingBottomSheetListener()
+      val lowerSheet = configuredOpenSheet(activity, lowerListener)
+      val upperSheet = configuredOpenSheet(activity, upperListener)
+      root.addView(lowerSheet)
+      root.addView(upperSheet)
+      activity.setContentView(root)
+      layoutView(root)
+      upperSheet.setRequestCloseEnabled(false)
+      lowerSheet.isFocusableInTouchMode = true
+      assertTrue(lowerSheet.requestFocus())
+      val downTime = 340L
+
+      assertTrue(activity.dispatchKeyEvent(escapeDown(downTime)))
+      lowerSheet.setRequestCloseEnabled(false)
+      upperSheet.setRequestCloseEnabled(true)
+      assertTrue(activity.dispatchKeyEvent(escapeUp(downTime)))
+
+      assertEquals(0, lowerListener.requestCloseCount)
+      assertEquals(0, upperListener.requestCloseCount)
+      assertPortalEscape(activity, expectedHandled = true)
+      assertEquals(0, lowerListener.requestCloseCount)
+      assertEquals(1, upperListener.requestCloseCount)
+      upperSheet.destroy()
+      lowerSheet.destroy()
+    }
+  }
+
+  @Test
   fun `existing Window integration that consumes Escape prevents Portal emission`() {
     withActivity<ComponentActivity> { activity ->
       val originalCallback = requireNotNull(activity.window.callback)

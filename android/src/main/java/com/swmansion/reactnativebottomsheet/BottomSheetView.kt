@@ -73,6 +73,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   private var portalBackDispatcher: OnBackPressedDispatcher? = null
   private var portalBackCallback: OnBackPressedCallback? = null
   private var portalEscapeListenerInstalled = false
+  private var portalEscapeRegistration: PortalEscapeCoordinator.Registration? = null
   private val escapeRequestCloseDispatcher = EscapeRequestCloseDispatcher()
   private val portalLifecycleObserver: LifecycleEventObserver =
     LifecycleEventObserver { owner, event ->
@@ -87,6 +88,9 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     ViewCompat.OnUnhandledKeyEventListenerCompat { _, event ->
       dispatchPortalEscape(event)
     }
+  private val portalEscapeTarget = PortalEscapeTarget { event ->
+    dispatchPortalEscapeForThisSheet(event)
+  }
   private val syncPortalHostRunnable = Runnable { syncPortalRequestCloseHost() }
 
   init {
@@ -542,7 +546,8 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   ): Boolean {
     if (first == null || second == null) return first === second
     return first.dispatcherOwner === second.dispatcherOwner &&
-      first.lifecycleOwner === second.lifecycleOwner
+      first.lifecycleOwner === second.lifecycleOwner &&
+      first.rootView === second.rootView
   }
 
   /**
@@ -564,7 +569,10 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       return
     }
 
-    val handlerLifetimeStarted = portalBackCallback != null || portalEscapeListenerInstalled
+    val handlerLifetimeStarted =
+      portalBackCallback != null ||
+        portalEscapeListenerInstalled ||
+        portalEscapeRegistration != null
     if (!requestCloseHandlerPresent && !handlerLifetimeStarted) return
 
     val dispatcher = currentHost.dispatcherOwner?.onBackPressedDispatcher
@@ -587,6 +595,8 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     }
 
     if (!portalEscapeListenerInstalled) {
+      portalEscapeRegistration =
+        PortalEscapeCoordinator.register(currentHost.rootView, portalEscapeTarget)
       ViewCompat.addOnUnhandledKeyEventListener(this, portalUnhandledKeyEventListener)
       portalEscapeListenerInstalled = true
     }
@@ -609,6 +619,8 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       ViewCompat.removeOnUnhandledKeyEventListener(this, portalUnhandledKeyEventListener)
       portalEscapeListenerInstalled = false
     }
+    portalEscapeRegistration?.remove()
+    portalEscapeRegistration = null
     // The portal and dialog share the sequence handler. Portal cleanup while a native overlay is
     // active must not abandon a press owned by the dialog window.
     if (!nativeOverlay) {
@@ -617,7 +629,14 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   }
 
   private fun dispatchPortalEscape(event: KeyEvent): Boolean {
-    if (nativeOverlay || overlayPresentationFailed) return false
+    if (nativeOverlay || overlayPresentationFailed || !modal || !isViewAttached) return false
+    val portalRoot = portalRequestCloseHost?.rootView ?: return false
+    if (portalRoot !== rootView) return false
+    return PortalEscapeCoordinator.dispatch(portalRoot, event)
+  }
+
+  private fun dispatchPortalEscapeForThisSheet(event: KeyEvent): Boolean {
+    if (nativeOverlay || overlayPresentationFailed || !modal || !isViewAttached) return false
     return dispatchEscape(event)
   }
 

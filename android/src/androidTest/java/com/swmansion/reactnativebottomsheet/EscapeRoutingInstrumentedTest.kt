@@ -82,6 +82,58 @@ class EscapeRoutingInstrumentedTest {
     }
   }
 
+  @Test
+  fun escapeFocusedInLowerPortalRoutesToOnlyEligibleUpperPortal() {
+    val lowerRequestCount = AtomicInteger()
+    val upperRequestCount = AtomicInteger()
+    val lowerChildEventCount = AtomicInteger()
+
+    ActivityScenario.launch(ComponentActivity::class.java).use { scenario ->
+      scenario.onActivity { activity ->
+        val root = FrameLayout(activity)
+        val lowerSheet = openSheet(activity, lowerRequestCount)
+        val lowerChild =
+          EscapeRecordingView(activity, lowerChildEventCount, consumesEscape = true).apply {
+            isFocusableInTouchMode = true
+          }
+        lowerSheet.addView(lowerChild, ViewGroup.LayoutParams(1, 1))
+        root.addView(
+          lowerSheet,
+          FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT,
+          ),
+        )
+        activity.setContentView(root)
+        assertTrue(lowerChild.requestFocus())
+
+        val upperSheet = openSheet(activity, upperRequestCount)
+        root.addView(
+          upperSheet,
+          FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT,
+          ),
+        )
+        lowerSheet.setRequestCloseEnabled(false)
+
+        assertTrue(lowerChild.isFocused)
+      }
+
+      val instrumentation = InstrumentationRegistry.getInstrumentation()
+      instrumentation.waitForIdleSync()
+      instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_ESCAPE)
+      instrumentation.waitForIdleSync()
+
+      scenario.onActivity { activity ->
+        assertTrue(activity.currentFocus is EscapeRecordingView)
+      }
+      assertEquals(0, lowerChildEventCount.get())
+      assertEquals(0, lowerRequestCount.get())
+      assertEquals(1, upperRequestCount.get())
+    }
+  }
+
   private fun openSheet(
     context: Context,
     requestCount: AtomicInteger,

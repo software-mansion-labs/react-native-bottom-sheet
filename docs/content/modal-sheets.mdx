@@ -71,10 +71,12 @@ To keep the scrim deepening across every detent, pass one value per detent:
 `onRequestClose` is **Android only**. When the sheet is open, Android system
 Back and a committed predictive Back gesture invoke the callback. A complete,
 unmodified physical-keyboard Escape press uses the same request path. In portal
-mode, an eligible sheet intercepts Escape before a focused descendant in its own
-subtree. When focus is outside that subtree, AndroidX provides a non-invasive
-fallback after normal key routing leaves Escape unhandled. A `nativeOverlay`
-owns its dialog window and therefore provides guaranteed Escape handling.
+mode, focus inside any portal sheet that shares the same Android `rootView` is
+routed to the highest eligible registered portal before the focused descendant
+receives Escape. When focus is outside all portal subtrees, AndroidX provides a
+non-invasive fallback after normal key routing leaves Escape unhandled. A
+`nativeOverlay` owns its dialog window and therefore provides guaranteed Escape
+handling.
 
 `onRequestClose` is emitted only after a predictive Back gesture commits.
 Gesture progress does not currently animate the sheet, and cancelling the
@@ -95,14 +97,16 @@ Holding the key does not emit repeated requests. A cancelled key-up, a key-up
 with modifiers, or a press that never completes does not emit a request. A
 modified press or one that starts while the sheet is ineligible is not claimed.
 
-A portal installs one stable AndroidX unhandled-key listener lazily when
-`onRequestClose` first appears, then keeps it for that host's structural
-lifetime. When focus is inside the eligible portal subtree, the portal claims
-Escape before the focused child receives it. With focus elsewhere, focused views
-receive Escape through normal dispatch first; if one consumes it, the portal
-does not emit a close request. This is why external-focus portal Escape is best
-effort and `nativeOverlay` is required when Escape must be intercepted. The
-generic AndroidX
+A portal installs one stable AndroidX unhandled-key listener and one root-scoped
+coordinator registration lazily when `onRequestClose` first appears, then keeps
+both for that host's structural lifetime. Every portal in the same root
+delegates local Escape dispatch to that coordinator, which asks live
+registrations in reverse stable registration order and stops at the first
+eligible sheet that claims the sequence. With focus outside the portal subtrees,
+focused views receive Escape through normal dispatch first; if one consumes it,
+the portal group does not emit a close request. This is why external-focus
+portal Escape is best effort and `nativeOverlay` is required when Escape must be
+intercepted. The generic AndroidX
 [`ViewCompat.addOnUnhandledKeyEventListener`](<https://developer.android.com/reference/androidx/core/view/ViewCompat#addOnUnhandledKeyEventListener(android.view.View,androidx.core.view.ViewCompat.OnUnhandledKeyEventListenerCompat)>)
 API documents the underlying unhandled-key contract.
 
@@ -128,13 +132,13 @@ above. A portal without `onRequestClose` does not add either native
 registration. A `nativeOverlay` has a separate window and therefore handles Back
 through its dialog dispatcher.
 
-Portal Escape handling is resolved independently from the Back dispatcher. The
-listener is attached directly to the portal `BottomSheetView`, while Activity
-ownership checks remain in host resolution for Back and lifecycle safety. This
-also lets a custom owner nested under a `ComponentDialog` keep Back on its
-custom dispatcher while Escape follows normal dispatch in the dialog's view
-hierarchy. A `nativeOverlay` handles Escape through its dialog window's key
-listener.
+Portal Escape handling is resolved independently from the Back dispatcher. Each
+listener is attached directly to its portal `BottomSheetView` and delegates to
+the coordinator for that exact `rootView`, while Activity ownership checks
+remain in host resolution for Back and lifecycle safety. This also lets a custom
+owner nested under a `ComponentDialog` keep Back on its custom dispatcher while
+Escape follows normal dispatch in the dialog's view hierarchy. A `nativeOverlay`
+handles Escape through its dialog window's key listener.
 
 A portal claims new Back or Escape input only while its resolved lifecycle is
 `RESUMED`. The nearest view-tree lifecycle is used by default. When a custom
@@ -146,12 +150,13 @@ key-up, but does not emit `onRequestClose` if the lifecycle paused in the
 meantime. Closing the target, removing the handler, or losing topmost status
 changes eligibility without reordering registrations that were already
 installed. Structural boundaries — `modal={false}`, switching to
-`nativeOverlay`, detach/destroy, presentation failure, or a host change — remove
-those registrations and reset the lazy lifetime. It is not carried to a new host
-when no handler is present there. When no lifecycle exists, the React host’s
-active state is used as a limited eligibility fallback for Escape; Back still
-requires both a dispatcher and lifecycle. A destroyed custom owner never falls
-back to a broader Activity lifecycle.
+`nativeOverlay`, detach/destroy, presentation failure, or a host or `rootView`
+change — remove those registrations, clear any captured Escape sequence, and
+reset the lazy lifetime. It is not carried to a new host when no handler is
+present there. When no lifecycle exists, the React host’s active state is used
+as a limited eligibility fallback for Escape; Back still requires both a
+dispatcher and lifecycle. A destroyed custom owner never falls back to a broader
+Activity lifecycle.
 
 This host resolution is supported for standard AndroidX hosts
 (`ComponentActivity`, `ComponentDialog`, and their subclasses) and custom owners
@@ -182,7 +187,12 @@ coordinates. Across independent providers and external native Back callbacks,
 uses LIFO order: the enabled callback added most recently receives Back first.
 Once installed, closing and reopening a sheet or temporarily removing its
 handler changes only its stable callback's enabled state, so it does not change
-that registration order.
+that registration order. Portal Escape uses the same reverse, sticky
+registration order within one Android root. This is only a tie-breaker: each
+sheet still decides its own eligibility, so the provider's JS topmost portal is
+the sole eligible target. If independent providers make multiple portals
+eligible in one root, the most recently registered live target receives Escape
+first.
 
 When a portal is ineligible, Back continues through the remaining dispatcher
 callbacks to navigation, React Native’s `BackHandler`, or the Activity’s default

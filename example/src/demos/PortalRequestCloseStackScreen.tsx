@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, StyleSheet, Text, View } from 'react-native';
+import { Button, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ModalBottomSheet } from '@swmansion/react-native-bottom-sheet';
 
 import { DemoScreen, SheetBackground, SheetHeader } from '../demoShared';
@@ -56,6 +56,7 @@ export const PortalRequestCloseStackScreen = () => {
   const [bIndex, setBIndex] = useState(0);
   const [aRequestCount, setARequestCount] = useState(0);
   const [bRequestCount, setBRequestCount] = useState(0);
+  const [aInputValue, setAInputValue] = useState('');
   const [bHandlerMode, setBHandlerMode] = useState<HandlerMode>('close');
   const [bPresentationMode, setBPresentationMode] =
     useState<PresentationMode>('nativeOverlay');
@@ -107,6 +108,19 @@ export const PortalRequestCloseStackScreen = () => {
               <Text style={styles.helpText}>
                 A closes on a request only when it is the highest open portal.
               </Text>
+              <TextInput
+                style={styles.input}
+                value={aInputValue}
+                onChangeText={setAInputValue}
+                placeholder="Focus this input before opening B"
+              />
+              <Button
+                title="Open portal B without moving focus"
+                onPress={() => {
+                  setBPresentationMode('portal');
+                  setBIndex(1);
+                }}
+              />
               {status}
             </View>
           </ModalBottomSheet>
@@ -150,8 +164,9 @@ export const PortalRequestCloseStackScreen = () => {
         a handler, including while it closes. With a portal B and an omitted
         handler, portal behavior remains unchanged. Portal Escape is best effort
         after normal view dispatch when focus is outside the eligible portal;
-        inside its subtree it is intercepted before the focused child.
-        nativeOverlay Escape is dialog-owned and guaranteed.
+        inside any portal sheet in the same Android root it is routed to the
+        highest eligible portal before the focused child. nativeOverlay Escape
+        is dialog-owned and guaranteed.
       </Text>
       {status}
       <View style={styles.controls}>
@@ -221,6 +236,14 @@ const styles = StyleSheet.create({
   sheetLabel: {
     fontSize: 18,
     fontWeight: '700',
+  },
+  input: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#7a8491',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#fff',
   },
   lowerSurface: {
     backgroundColor: '#dceeff',
