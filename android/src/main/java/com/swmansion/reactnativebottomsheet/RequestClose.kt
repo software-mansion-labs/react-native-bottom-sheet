@@ -29,21 +29,24 @@ internal data class RequestCloseKeyIdentity(
 )
 
 /**
- * Owns an eligible Escape press from its initial down through its terminal up. Initial downs use
- * the full press token to keep competing sequences distinct. A terminal up can fall back to the
- * stable key identity because Android's instrumentation may rewrite [KeyEvent.getDownTime] between
- * the two events. Completed unclaimed presses remain as short-lived tombstones so the same up is
- * not captured when it reaches both the local hierarchy and the unhandled-key fallback.
+ * Owns an eligible Escape press from its initial down through its terminal up. A new initial down
+ * supersedes an unfinished sequence with the same stable key identity, since Android may omit the
+ * preceding up, while sequences from other input identities remain independent. Superseded
+ * sequences become short-lived tombstones so their late events cannot finish the replacement:
+ * formerly captured events remain consumed, while unclaimed events remain unhandled. Exact press
+ * tokens take precedence over the stable-identity fallback used when Android's instrumentation
+ * rewrites [KeyEvent.getDownTime] between an otherwise matching down and up.
  */
 internal class EscapeRequestCloseDispatcher {
-  private data class UnclaimedPress(
+  private data class StalePress(
     val keyIdentity: Any,
     var isComplete: Boolean = false,
+    val consumeEvents: Boolean = false,
   )
 
   private var capturedPress: Any? = null
   private var capturedKeyIdentity: Any? = null
-  private val unclaimedPresses = mutableMapOf<Any, UnclaimedPress>()
+  private val stalePresses = mutableMapOf<Any, StalePress>()
 
   val hasCapturedPress: Boolean
     get() = capturedPress != null
@@ -61,24 +64,27 @@ internal class EscapeRequestCloseDispatcher {
   ): Boolean {
     if (keyCode != KeyEvent.KEYCODE_ESCAPE) return false
 
-    if (action == KeyEvent.ACTION_DOWN && repeatCount == 0) {
-      unclaimedPresses.entries.removeAll { it.value.isComplete }
+    prepareForInitialDown(pressToken, keyIdentity, action, repeatCount)
+
+    val exactStalePress = stalePresses[pressToken]
+    if (exactStalePress != null) {
+      if (action == KeyEvent.ACTION_UP) {
+        exactStalePress.isComplete = true
+      }
+      return exactStalePress.consumeEvents
     }
 
-    val unclaimedPress =
-      unclaimedPresses.keys.firstOrNull { it == pressToken }
-        ?: if (action == KeyEvent.ACTION_UP) {
-          unclaimedPresses.entries
-            .firstOrNull { !it.value.isComplete && it.value.keyIdentity == keyIdentity }
-            ?.key
-        } else {
-          null
-        }
-    if (unclaimedPress != null) {
+    val matchingStalePress =
       if (action == KeyEvent.ACTION_UP) {
-        unclaimedPresses[unclaimedPress]?.isComplete = true
+        stalePresses.values.firstOrNull {
+          !it.isComplete && it.keyIdentity == keyIdentity
+        }
+      } else {
+        null
       }
-      return false
+    if (matchingStalePress != null) {
+      matchingStalePress.isComplete = true
+      return matchingStalePress.consumeEvents
     }
 
     val currentPress = capturedPress
@@ -87,7 +93,7 @@ internal class EscapeRequestCloseDispatcher {
         pressToken == currentPress ||
           (action == KeyEvent.ACTION_UP && keyIdentity == capturedKeyIdentity)
       if (!matchesCapturedPress) {
-        rememberUnclaimedInitialDown(pressToken, keyIdentity, action, repeatCount)
+        rememberStaleInitialDown(pressToken, keyIdentity, action, repeatCount)
         return false
       }
 
@@ -110,7 +116,7 @@ internal class EscapeRequestCloseDispatcher {
     }
 
     if (hasModifiers || !shouldCapturePress()) {
-      unclaimedPresses[pressToken] = UnclaimedPress(keyIdentity)
+      stalePresses[pressToken] = StalePress(keyIdentity)
       return false
     }
 
@@ -119,20 +125,51 @@ internal class EscapeRequestCloseDispatcher {
     return true
   }
 
-  private fun rememberUnclaimedInitialDown(
+  private fun prepareForInitialDown(
+    pressToken: Any,
+    keyIdentity: Any,
+    action: Int,
+    repeatCount: Int,
+  ) {
+    if (action != KeyEvent.ACTION_DOWN || repeatCount != 0) return
+
+    stalePresses.entries.removeAll { it.value.isComplete }
+
+    val supersededPress = capturedPress
+    if (
+      supersededPress != null && supersededPress != pressToken && capturedKeyIdentity == keyIdentity
+    ) {
+      stalePresses[supersededPress] =
+        StalePress(
+          keyIdentity = keyIdentity,
+          isComplete = true,
+          consumeEvents = true,
+        )
+      capturedPress = null
+      capturedKeyIdentity = null
+    }
+
+    stalePresses.forEach { (staleToken, stalePress) ->
+      if (staleToken != pressToken && stalePress.keyIdentity == keyIdentity) {
+        stalePress.isComplete = true
+      }
+    }
+  }
+
+  private fun rememberStaleInitialDown(
     pressToken: Any,
     keyIdentity: Any,
     action: Int,
     repeatCount: Int,
   ) {
     if (action == KeyEvent.ACTION_DOWN && repeatCount == 0) {
-      unclaimedPresses[pressToken] = UnclaimedPress(keyIdentity)
+      stalePresses[pressToken] = StalePress(keyIdentity)
     }
   }
 
   fun clear() {
     capturedPress = null
     capturedKeyIdentity = null
-    unclaimedPresses.clear()
+    stalePresses.clear()
   }
 }

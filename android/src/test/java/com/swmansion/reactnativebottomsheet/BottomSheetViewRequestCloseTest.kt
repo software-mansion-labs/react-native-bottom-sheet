@@ -520,26 +520,87 @@ class BottomSheetViewRequestCloseTest {
   }
 
   @Test
-  fun `Portal Escape rejects orphaned and concurrent press tokens without duplicates`() {
+  fun `Portal Escape replaces an orphaned captured press when its up never arrives`() {
     withActivity<ComponentActivity> { activity ->
       val listener = CountingBottomSheetListener()
       val sheet = openPortalSheet(activity, listener)
-      val capturedDownTime = 148L
-      val concurrentDownTime = 149L
+      val orphanedDownTime = 148L
+      val replacementDownTime = 149L
 
-      assertFalse(activity.dispatchKeyEvent(escapeUp(147L)))
-      assertTrue(activity.dispatchKeyEvent(escapeDown(capturedDownTime)))
-      assertFalse(activity.dispatchKeyEvent(escapeDown(concurrentDownTime)))
-      assertFalse(activity.dispatchKeyEvent(escapeDown(concurrentDownTime, repeatCount = 1)))
-      assertFalse(activity.dispatchKeyEvent(escapeUp(concurrentDownTime)))
-      assertTrue(activity.dispatchKeyEvent(escapeUp(capturedDownTime)))
+      assertTrue(activity.dispatchKeyEvent(escapeDown(orphanedDownTime)))
+      assertTrue(activity.dispatchKeyEvent(escapeDown(replacementDownTime)))
+      assertTrue(activity.dispatchKeyEvent(escapeUp(replacementDownTime)))
 
       assertEquals(1, listener.requestCloseCount)
 
-      val rewrittenDownTime = 151L
-      assertTrue(activity.dispatchKeyEvent(escapeDown(rewrittenDownTime)))
-      assertTrue(activity.dispatchKeyEvent(escapeUp(rewrittenDownTime + 1)))
+      val nextDownTime = 150L
+      assertTrue(activity.dispatchKeyEvent(escapeDown(nextDownTime)))
+      assertTrue(activity.dispatchKeyEvent(escapeUp(nextDownTime)))
       assertEquals(2, listener.requestCloseCount)
+      sheet.destroy()
+    }
+  }
+
+  @Test
+  fun `Portal Escape consumes a late orphaned up without finishing its replacement`() {
+    withActivity<ComponentActivity> { activity ->
+      val listener = CountingBottomSheetListener()
+      val sheet = openPortalSheet(activity, listener)
+      val orphanedDownTime = 148L
+      val replacementDownTime = 149L
+
+      assertTrue(activity.dispatchKeyEvent(escapeDown(orphanedDownTime)))
+      assertTrue(activity.dispatchKeyEvent(escapeDown(replacementDownTime)))
+      assertTrue(activity.dispatchKeyEvent(escapeDown(replacementDownTime, repeatCount = 1)))
+      assertTrue(activity.dispatchKeyEvent(escapeUp(orphanedDownTime)))
+      assertEquals(0, listener.requestCloseCount)
+      assertTrue(activity.dispatchKeyEvent(escapeUp(replacementDownTime + 1)))
+
+      assertEquals(1, listener.requestCloseCount)
+      sheet.destroy()
+    }
+  }
+
+  @Test
+  fun `Portal Escape replaces an orphaned unclaimed press after eligibility returns`() {
+    withActivity<ComponentActivity> { activity ->
+      val listener = CountingBottomSheetListener()
+      val sheet = openPortalSheet(activity, listener)
+      val orphanedDownTime = 147L
+      val replacementDownTime = 148L
+
+      sheet.setRequestCloseEnabled(false)
+      assertFalse(activity.dispatchKeyEvent(escapeDown(orphanedDownTime)))
+      sheet.setRequestCloseEnabled(true)
+      assertTrue(activity.dispatchKeyEvent(escapeDown(replacementDownTime)))
+      assertFalse(activity.dispatchKeyEvent(escapeUp(orphanedDownTime)))
+      assertEquals(0, listener.requestCloseCount)
+      assertTrue(activity.dispatchKeyEvent(escapeUp(replacementDownTime)))
+
+      assertEquals(1, listener.requestCloseCount)
+      sheet.destroy()
+    }
+  }
+
+  @Test
+  fun `Portal Escape keeps initial downs from other key identities concurrent`() {
+    withActivity<ComponentActivity> { activity ->
+      val listener = CountingBottomSheetListener()
+      val sheet = openPortalSheet(activity, listener)
+      val capturedDownTime = 149L
+      val concurrentDownTime = 150L
+      val concurrentDeviceId = 1
+
+      assertTrue(activity.dispatchKeyEvent(escapeDown(capturedDownTime)))
+      assertFalse(
+        activity.dispatchKeyEvent(escapeDown(concurrentDownTime, deviceId = concurrentDeviceId))
+      )
+      assertFalse(
+        activity.dispatchKeyEvent(escapeUp(concurrentDownTime, deviceId = concurrentDeviceId))
+      )
+      assertTrue(activity.dispatchKeyEvent(escapeUp(capturedDownTime)))
+
+      assertEquals(1, listener.requestCloseCount)
       sheet.destroy()
     }
   }
@@ -1292,8 +1353,9 @@ class BottomSheetViewRequestCloseTest {
     downTime: Long,
     repeatCount: Int = 0,
     metaState: Int = 0,
+    deviceId: Int? = null,
   ) =
-    if (repeatCount == 0 && metaState == 0) {
+    if (repeatCount == 0 && metaState == 0 && deviceId == null) {
       KeyEvent(downTime, downTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ESCAPE, 0)
     } else {
       KeyEvent(
@@ -1303,6 +1365,10 @@ class BottomSheetViewRequestCloseTest {
         KeyEvent.KEYCODE_ESCAPE,
         repeatCount,
         metaState,
+        deviceId ?: -1,
+        0,
+        0,
+        0,
       )
     }
 
@@ -1310,9 +1376,10 @@ class BottomSheetViewRequestCloseTest {
     downTime: Long,
     metaState: Int = 0,
     canceled: Boolean = false,
+    deviceId: Int? = null,
   ): KeyEvent {
     val event =
-      if (metaState == 0) {
+      if (metaState == 0 && deviceId == null) {
         KeyEvent(downTime, downTime + 1, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ESCAPE, 0)
       } else {
         KeyEvent(
@@ -1322,6 +1389,10 @@ class BottomSheetViewRequestCloseTest {
           KeyEvent.KEYCODE_ESCAPE,
           0,
           metaState,
+          deviceId ?: -1,
+          0,
+          0,
+          0,
         )
       }
     return if (canceled) {
