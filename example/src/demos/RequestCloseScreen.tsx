@@ -74,12 +74,12 @@ export const RequestCloseScreen = () => {
             <Text>onRequestClose calls: {requestCount}</Text>
             <Text style={styles.helpText}>
               Focus the input and type. Regular keys should reach it; Android
-              system Back should request a close when a callback is set. In a
-              portal, an eligible sheet intercepts Escape before this focused
-              input. With focus outside the sheet, Escape requests a close only
-              when normal view dispatch leaves it unhandled. A nativeOverlay
-              owns and consumes Back and Escape even without a callback, just
-              like React Native Modal. Closing remains consumer-controlled.
+              system Back should request a close when a callback is set. With a
+              callback, both presentations intercept Escape before this focused
+              input. Without one, a portal leaves Escape to normal key routing,
+              while nativeOverlay still consumes it before the input. This has
+              the modal effect of React Native Modal; closing remains
+              consumer-controlled.
             </Text>
             <TextInput
               autoCorrect={false}
@@ -100,13 +100,15 @@ export const RequestCloseScreen = () => {
     >
       <Text style={styles.helpText}>
         Use the Android system Back gesture, navigation button, or emulator Back
-        control. With a physical keyboard, Portal Escape is intercepted while
-        focus is inside the sheet and is best effort after normal key dispatch
-        while focus is outside; nativeOverlay Escape is guaranteed. A
-        nativeOverlay consumes Back/Escape while open, including during its
-        closing animation; after it finishes, input reaches the screen below. If
-        the software keyboard is visible, system Back dismisses it before
-        reaching the sheet. The request counter resets each time.
+        control. With a callback and a physical keyboard, both Portal and
+        nativeOverlay give the sheet priority over the focused input. Portal
+        Escape is best effort after normal key dispatch while focus is outside;
+        nativeOverlay Escape is guaranteed. Without a callback, Portal leaves
+        Escape unclaimed but nativeOverlay still consumes it. A nativeOverlay
+        also consumes Back while open, including during its closing animation;
+        after it finishes, input reaches the screen below. If the software
+        keyboard is visible, system Back dismisses it before reaching the sheet.
+        The request counter resets each time.
       </Text>
       <View style={styles.statusCard}>
         <Text style={styles.statusTitle}>Current state</Text>
@@ -118,9 +120,10 @@ export const RequestCloseScreen = () => {
       <View style={styles.variantGroup}>
         <Text style={styles.variantTitle}>Portal</Text>
         <Text style={styles.helpText}>
-          Back is supported. Physical Escape is intercepted inside the sheet;
-          with focus outside it is handled only when normal routing leaves it
-          unhandled.
+          With a callback, physical Escape is intercepted before the focused
+          input. Without a callback it stays in normal key routing and no lower
+          portal receives a request. With focus outside the sheet it is handled
+          only when normal routing leaves it unhandled.
         </Text>
         <View style={styles.controls}>
           <Button
@@ -131,13 +134,17 @@ export const RequestCloseScreen = () => {
             title="Open with no-op callback"
             onPress={() => openSheet('portal', 'no-op')}
           />
+          <Button
+            title="Open without callback"
+            onPress={() => openSheet('portal', 'omitted')}
+          />
         </View>
       </View>
       <View style={styles.variantGroup}>
         <Text style={styles.variantTitle}>nativeOverlay</Text>
         <Text style={styles.helpText}>
-          Uses a separate native window (an Android Dialog) for guaranteed
-          physical Escape handling.
+          Uses a separate Android Dialog to intercept physical Escape before the
+          focused input, including when no callback is provided.
         </Text>
         <View style={styles.controls}>
           <Button

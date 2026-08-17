@@ -81,7 +81,7 @@ class BottomSheetViewRequestCloseTest {
   }
 
   @Test
-  fun `eligible portal intercepts Escape before a focused descendant`() {
+  fun `eligible portal intercepts the full Escape sequence before a focused descendant and emits once`() {
     withActivity<ComponentActivity> { activity ->
       val listener = CountingBottomSheetListener()
       val sheet = openPortalSheet(activity, listener)
@@ -1030,6 +1030,42 @@ class BottomSheetViewRequestCloseTest {
   }
 
   @Test
+  fun `upper portal without handler lets its focused descendant consume Escape without notifying lower portals`() {
+    withActivity<ComponentActivity> { activity ->
+      val root = FrameLayout(activity)
+      val lowerListener = CountingBottomSheetListener()
+      val upperListener = CountingBottomSheetListener()
+      val lowerSheet = configuredOpenSheet(activity, lowerListener)
+      val upperSheet = configuredOpenSheet(activity, upperListener, handlerPresent = false)
+      val focusedUpperChild = EscapeConsumingView(activity)
+      focusedUpperChild.isFocusableInTouchMode = true
+      upperSheet.addView(focusedUpperChild, ViewGroup.LayoutParams(1, 1))
+      root.addView(lowerSheet)
+      root.addView(upperSheet)
+      activity.setContentView(root)
+      layoutView(root)
+      assertTrue(focusedUpperChild.requestFocus())
+      val downTime = nextEscapeDownTime
+      nextEscapeDownTime += 10L
+      val down = escapeDown(downTime)
+      val up = escapeUp(downTime)
+
+      // Robolectric does not continue this direct parent dispatch to the focused child, so model
+      // the normal parent-to-descendant continuation explicitly after the portal declines it.
+      assertFalse(upperSheet.dispatchKeyEvent(down))
+      assertTrue(focusedUpperChild.dispatchKeyEvent(down))
+      assertFalse(upperSheet.dispatchKeyEvent(up))
+      assertTrue(focusedUpperChild.dispatchKeyEvent(up))
+
+      assertEquals(2, focusedUpperChild.escapeEventCount)
+      assertEquals(0, lowerListener.requestCloseCount)
+      assertEquals(0, upperListener.requestCloseCount)
+      upperSheet.destroy()
+      lowerSheet.destroy()
+    }
+  }
+
+  @Test
   fun `open upper with inactive lifecycle blocks lower without handling requests`() {
     withActivity<ComponentActivity> { activity ->
       var navigationCount = 0
@@ -1278,13 +1314,16 @@ class BottomSheetViewRequestCloseTest {
 
   @Suppress("DEPRECATION")
   @Test
-  fun `nativeOverlay keeps dialog ownership and does not close itself`() {
+  fun `nativeOverlay intercepts the full Escape sequence before a focused descendant and emits once without closing`() {
     withActivity<ComponentActivity> { activity ->
       val reactContext = BridgeReactContext(activity.applicationContext)
       reactContext.onHostResume(activity)
       val themedContext = ThemedReactContext(reactContext, activity, "test", 1)
       val listener = CountingBottomSheetListener()
       val sheet = configuredOpenSheet(themedContext, listener)
+      val focusedView = EscapeConsumingView(activity)
+      focusedView.isFocusableInTouchMode = true
+      sheet.addView(focusedView, ViewGroup.LayoutParams(1, 1))
       sheet.eventDispatcher = NoOpEventDispatcher
       activity.setContentView(sheet)
       layoutPortal(sheet)
@@ -1300,12 +1339,13 @@ class BottomSheetViewRequestCloseTest {
         dialog.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED),
       )
       assertTrue("overlay target must resolve open", sheet.hostForTest().isRequestCloseTargetOpen)
+      assertTrue(focusedView.requestFocus())
 
-      dialog.onBackPressedDispatcher.onBackPressed()
-      dialog.onBackPressedDispatcher.onBackPressed()
       assertEscape(dialog, expectedHandled = true)
 
-      assertEquals(3, listener.requestCloseCount)
+      assertEquals(0, focusedView.escapeEventCount)
+      assertEquals(1, listener.requestCloseCount)
+      assertTrue(sheet.hostForTest().isRequestCloseTargetOpen)
       assertTrue(dialog.isShowing)
       sheet.destroy()
       reactContext.onHostDestroy()
@@ -1314,13 +1354,16 @@ class BottomSheetViewRequestCloseTest {
 
   @Suppress("DEPRECATION")
   @Test
-  fun `nativeOverlay without a handler consumes close input while open and closing`() {
+  fun `nativeOverlay without a handler consumes close input before a focused descendant while open and closing`() {
     withActivity<ComponentActivity> { activity ->
       val reactContext = BridgeReactContext(activity.applicationContext)
       reactContext.onHostResume(activity)
       val themedContext = ThemedReactContext(reactContext, activity, "test", 1)
       val listener = CountingBottomSheetListener()
       val sheet = configuredOpenSheet(themedContext, listener, handlerPresent = false)
+      val focusedView = EscapeConsumingView(activity)
+      focusedView.isFocusableInTouchMode = true
+      sheet.addView(focusedView, ViewGroup.LayoutParams(1, 1))
       sheet.eventDispatcher = NoOpEventDispatcher
       activity.setContentView(sheet)
       layoutPortal(sheet)
@@ -1329,10 +1372,12 @@ class BottomSheetViewRequestCloseTest {
       val dialog = sheet.overlayDialogForTest()
       layoutView(sheet.overlayRootForTest())
       sheet.onHostResume()
+      assertTrue(focusedView.requestFocus())
 
       dialog.onBackPressedDispatcher.onBackPressed()
       assertEscape(dialog, expectedHandled = true)
 
+      assertEquals(0, focusedView.escapeEventCount)
       assertEquals(0, listener.requestCloseCount)
       assertTrue(sheet.hostForTest().isRequestCloseTargetOpen)
       assertTrue(dialog.isShowing)
@@ -1342,6 +1387,7 @@ class BottomSheetViewRequestCloseTest {
       dialog.onBackPressedDispatcher.onBackPressed()
       assertEscape(dialog, expectedHandled = true)
 
+      assertEquals(0, focusedView.escapeEventCount)
       assertEquals(0, listener.requestCloseCount)
       assertFalse(sheet.hostForTest().isRequestCloseTargetOpen)
       assertTrue(dialog.isShowing)

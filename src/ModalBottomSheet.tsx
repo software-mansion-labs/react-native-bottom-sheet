@@ -11,9 +11,11 @@ export interface ModalBottomSheetProps extends BottomSheetProps {
   /**
    * Android only. Called when system Back or a committed predictive Back
    * requests that an open sheet close. In portal mode, an unmodified physical
-   * Escape is intercepted before a focused descendant, or handled through an
-   * AndroidX fallback when focus is elsewhere and normal key routing leaves it
-   * unhandled. Use `nativeOverlay` when Escape handling must be guaranteed.
+   * Escape is intercepted before a focused descendant, so descendants cannot
+   * consume that sequence, or handled through an AndroidX fallback when focus
+   * is elsewhere and normal key routing leaves it unhandled. A portal without
+   * a handler leaves Escape unhandled. `nativeOverlay` provides the same modal
+   * priority through its dialog and consumes Escape even without a handler.
    * Predictive gesture progress does not animate the sheet, and cancelling the
    * gesture does not invoke the callback.
    *
@@ -25,7 +27,9 @@ export interface ModalBottomSheetProps extends BottomSheetProps {
    *
    * This is a controlled request: the sheet does not change its index or
    * dismiss itself. Update `index` in the callback to close it, or leave the
-   * callback as a no-op to keep it open while consuming the request.
+   * callback as a no-op to keep it open while consuming the request. If sheet
+   * content has transient state such as an open dropdown, the callback can
+   * close that layer first and leave the sheet open.
    */
   onRequestClose?: () => void;
   /**

@@ -72,7 +72,10 @@ To keep the scrim deepening across every detent, pass one value per detent:
 greater than zero, Android system Back and a committed predictive Back gesture
 can invoke the callback. A complete, unmodified physical-keyboard Escape press
 uses the same request path. The callback only reports the request: the consumer
-still decides whether and how to change the controlled target.
+still decides whether and how to change the controlled target. This matches the
+modal effect of React Native `Modal`: close input is intercepted and reported
+instead of choosing a dismissal for the consumer. The Android transports are not
+intended to be identical event-for-event.
 
 Portal sheets that share the same Android `rootView` form one native ownership
 stack, including sheets rendered by independent `BottomSheetProvider` instances.
@@ -106,12 +109,19 @@ not emit a request. Modified presses and presses whose owner cannot handle the
 request are not claimed.
 
 Every local and unhandled-key portal path delegates to the same root
-coordinator. With focus inside any portal subtree in the root, dispatch reaches
-the native owner before the focused descendant. With focus outside all portal
-subtrees, focused views receive Escape through normal dispatch first; if one
-consumes it, the portal group does not emit a close request. Portal Escape from
-outside those subtrees is therefore best effort. Use `nativeOverlay` when Escape
-must be owned by a separate dialog window. The generic AndroidX
+coordinator. With focus inside any portal subtree in the root, an eligible owner
+with a handler claims the complete Escape sequence before the focused
+descendant, so that descendant cannot consume either key-down or key-up. If the
+owner has no handler, the portal leaves Escape unhandled and normal descendant
+dispatch can consume it; the request never falls through to a lower portal.
+`nativeOverlay` enforces the same modal priority through its separate dialog key
+listener and, unlike a portal, consumes Escape even when no handler is present.
+
+With focus outside all portal subtrees, focused views receive Escape through
+normal dispatch first; if one consumes it, the portal group does not emit a
+close request. Portal Escape from outside those subtrees is therefore best
+effort. Use `nativeOverlay` when Escape must be owned by a separate dialog
+window. The generic AndroidX
 [`ViewCompat.addOnUnhandledKeyEventListener`](<https://developer.android.com/reference/androidx/core/view/ViewCompat#addOnUnhandledKeyEventListener(android.view.View,androidx.core.view.ViewCompat.OnUnhandledKeyEventListenerCompat)>)
 API documents the underlying unhandled-key contract.
 
@@ -184,9 +194,10 @@ falls through to a lower sheet merely because the owner cannot emit.
 `nativeOverlay` uses its separate native window and does not participate in root
 portal coordination. An open `nativeOverlay` owns Android Back and unmodified
 Escape regardless of whether `onRequestClose` is provided. Without a handler it
-consumes the request without changing the sheet, so it also blocks
-`BackHandler`, modal callbacks, navigation, and portals below it. Its fallback
-continues consuming while the overlay is visible or interactive during closing.
+consumes the request before a focused descendant without changing the sheet, so
+it also blocks `BackHandler`, modal callbacks, navigation, and portals below it.
+Its fallback continues consuming while the overlay is visible or interactive
+during closing.
 
 When no open portal owns the root, its stable callbacks are disabled and Back
 continues through the dispatcher. Predictive Back requests are emitted only
@@ -230,6 +241,29 @@ sheet open:
 </ModalBottomSheet>
 ```
 
+Because an eligible sheet has modal priority over focused descendants, a control
+with transient state can handle the request in the sheet callback. For example,
+close an open dropdown first and close the sheet on a later request:
+
+```tsx
+const handleRequestClose = () => {
+  if (dropdownOpen) {
+    setDropdownOpen(false);
+    return;
+  }
+
+  setIndex(0);
+};
+
+<ModalBottomSheet
+  index={index}
+  onIndexChange={setIndex}
+  onRequestClose={handleRequestClose}
+>
+  {/* content with the dropdown */}
+</ModalBottomSheet>;
+```
+
 Close-request eligibility in both presentation modes is based on the resolved
 native target, not its index or the sheet’s animated position. This means
 `index={0}` remains eligible for `detents={[300, 600]}`. Targets that resolve to
@@ -258,9 +292,10 @@ eligible at every resolved target:
 
 When `onRequestClose` is omitted, an open portal owns its root position but
 cannot handle the request: it blocks lower portals, lets Back continue outside
-the portal group, and leaves Escape unhandled. An open `nativeOverlay` instead
-consumes Back and unmodified Escape without closing the dialog; the consumer
-must unmount it or change its controlled target if it should disappear.
+the portal group, and leaves Escape for normal descendant dispatch. An open
+`nativeOverlay` instead consumes Back and unmodified Escape before descendants
+without closing the dialog; the consumer must unmount it or change its
+controlled target if it should disappear.
 
 Scrim taps, drag dismissal, accessibility dismiss actions, and programmatic
 index changes keep their existing independent behavior and do not invoke this

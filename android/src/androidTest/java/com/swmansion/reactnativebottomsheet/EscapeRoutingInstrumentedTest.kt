@@ -25,7 +25,7 @@ class EscapeRoutingInstrumentedTest {
   }
 
   @Test
-  fun portalInterceptsEscapeBeforeFocusedDescendant() {
+  fun eligiblePortalInterceptsFullEscapeSequenceBeforeFocusedDescendantAndEmitsOnce() {
     val requestCount = AtomicInteger()
     val childEventCount = AtomicInteger()
 

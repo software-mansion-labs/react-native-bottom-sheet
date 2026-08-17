@@ -269,6 +269,10 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   }
 
   override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+    // Portal Escape is intentionally resolved before `super`: an eligible portal behaves as a
+    // modal boundary, so a focused descendant cannot consume the sequence first. The
+    // OnUnhandledKeyEventListener remains only an outside-subtree fallback after normal dispatch
+    // leaves Escape unhandled.
     if (dispatchPortalEscape(event)) return true
     return super.dispatchKeyEvent(event)
   }
