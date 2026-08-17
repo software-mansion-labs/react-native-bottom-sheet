@@ -10,8 +10,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
+import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
+@Config(sdk = [35])
 class PortalRequestCloseCoordinatorTest {
   @Test
   fun `newest open membership owns requests while unresolved and zero targets are skipped`() {

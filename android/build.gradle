@@ -64,26 +64,6 @@ android {
     unitTests {
       includeAndroidResources = true
     }
-
-    unitTests.all {
-      // React Native configures compilation for JDK 17, while Robolectric's API 36
-      // sandbox requires JDK 21. Use the newer JDK only for the test worker.
-      javaLauncher = javaToolchains.launcherFor {
-        languageVersion = JavaLanguageVersion.of(21)
-      }
-
-      jvmArgs += [
-        "--add-opens=java.base/java.lang=ALL-UNNAMED",
-        "--add-opens=java.base/java.util=ALL-UNNAMED",
-        "--add-opens=java.base/java.io=ALL-UNNAMED",
-        "--add-opens=java.base/java.net=ALL-UNNAMED",
-        "--add-opens=java.base/java.security=ALL-UNNAMED",
-        "--add-opens=java.base/java.text=ALL-UNNAMED",
-        "--add-opens=java.base/jdk.internal.access=ALL-UNNAMED",
-        "--add-opens=java.desktop/java.awt.font=ALL-UNNAMED",
-        "--add-opens=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED",
-      ]
-    }
   }
 
   compileOptions {

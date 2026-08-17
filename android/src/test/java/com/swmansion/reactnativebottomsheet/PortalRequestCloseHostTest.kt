@@ -21,8 +21,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
+@Config(sdk = [35])
 class PortalRequestCloseHostTest {
   @Test
   fun `ComponentActivity provides all portal owners`() {

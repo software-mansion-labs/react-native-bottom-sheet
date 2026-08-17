@@ -22,16 +22,9 @@ jobs:
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          # setup-java makes the last listed JDK the default, so keep JDK 17 last
-          # for React Native. Gradle discovers both installations below and uses
-          # JDK 21 only for Robolectric's API 36 test worker.
-          java-version: |
-            21
-            17
+          java-version: '17'
       - run: bun run test:android:prepare
       - uses: gradle/actions/setup-gradle@v6
         with:
           cache-provider: basic
       - run: bun run test:android:unit
-        env:
-          GRADLE_OPTS: -Dorg.gradle.java.installations.fromEnv=JAVA_HOME_21_X64,JAVA_HOME_17_X64
