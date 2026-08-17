@@ -670,13 +670,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     val hadCapturedPress = escapeRequestCloseDispatcher.hasCapturedPress
     val handled =
       escapeRequestCloseDispatcher.dispatch(
-        pressToken = requestCloseKeyPressToken(event),
-        keyIdentity = requestCloseKeyIdentity(event),
-        keyCode = event.keyCode,
-        action = event.action,
-        repeatCount = event.repeatCount,
-        hasModifiers = !event.hasNoModifiers(),
-        isCanceled = event.isCanceled,
+        event = event,
         shouldCapturePress = ::overlayOwnsCloseInput,
         emitRequestCloseIfEligible = ::emitRequestCloseIfEligible,
       )
@@ -686,23 +680,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     }
     return handled
   }
-
-  private fun requestCloseKeyPressToken(event: KeyEvent) =
-    RequestCloseKeyPressToken(
-      downTime = event.downTime,
-      deviceId = event.deviceId,
-      source = event.source,
-      keyCode = event.keyCode,
-      scanCode = event.scanCode,
-    )
-
-  private fun requestCloseKeyIdentity(event: KeyEvent) =
-    RequestCloseKeyIdentity(
-      deviceId = event.deviceId,
-      source = event.source,
-      keyCode = event.keyCode,
-      scanCode = event.scanCode,
-    )
 
   /**
    * Touchability stays coupled to the existing interaction/scrim state. Keyboard focusability is
