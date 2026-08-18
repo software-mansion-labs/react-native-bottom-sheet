@@ -77,7 +77,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   private var portalBackCallback: PortalBackCallback? = null
   private var portalEscapeListenerInstalled = false
   private var portalRequestCloseHandlerLifetimeStarted = false
-  private val escapeRequestCloseDispatcher = EscapeRequestCloseDispatcher()
+  private val nativeOverlayEscapeDispatcher = EscapeRequestCloseDispatcher()
   private val portalLifecycleObserver: LifecycleEventObserver =
     LifecycleEventObserver { owner, event ->
       if (owner !== portalRequestCloseHost?.lifecycleOwner) return@LifecycleEventObserver
@@ -234,9 +234,9 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     nativeOverlay = value
     overlayPresentationFailed = false
     if (value) {
-      // A presentation-mode change ends any portal-owned key sequence. The dialog installs its
-      // own stable handlers below if presentation succeeds.
-      escapeRequestCloseDispatcher.clear()
+      // Presentation modes own separate Escape dispatchers. Clear the overlay dispatcher before
+      // creating its dialog; clearing the portal host below invalidates the root-owned sequence.
+      nativeOverlayEscapeDispatcher.clear()
       clearPortalRequestCloseHost()
       presentOverlay()
     } else {
@@ -265,7 +265,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     removeCallbacks(syncPortalHostRunnable)
     clearPortalRequestCloseHost()
     clearOverlayInputHandlers(overlayDialog)
-    escapeRequestCloseDispatcher.clear()
+    nativeOverlayEscapeDispatcher.clear()
     updateRequestCloseHandling()
     super.onDetachedFromWindow()
   }
@@ -510,7 +510,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   private fun updateRequestCloseHandling() {
     val requestCloseEligible = isRequestCloseEligible(nativeOverlayRequestCloseEligibilityState())
     if (!requestCloseEligible) {
-      escapeRequestCloseDispatcher.degradeCapturedRequestClose()
+      nativeOverlayEscapeDispatcher.degradeCapturedRequestClose()
     }
     overlayBackCallback?.updateState(
       canReceiveBack = overlayCanReceiveBack(),
@@ -713,15 +713,15 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   }
 
   private fun dispatchEscape(event: KeyEvent): Boolean {
-    val hadCapturedPress = escapeRequestCloseDispatcher.hasCapturedPress
+    val hadCapturedPress = nativeOverlayEscapeDispatcher.hasCapturedPress
     val handled =
-      escapeRequestCloseDispatcher.dispatch(
+      nativeOverlayEscapeDispatcher.dispatch(
         event = event,
         resolveInitialAction = ::currentNativeOverlayEscapeAction,
         emitRequestCloseIfEligible = ::emitNativeOverlayRequestCloseIfEligible,
       )
 
-    if (hadCapturedPress && !escapeRequestCloseDispatcher.hasCapturedPress) {
+    if (hadCapturedPress && !nativeOverlayEscapeDispatcher.hasCapturedPress) {
       updateOverlayWindowInputFlags()
     }
     return handled
@@ -749,7 +749,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     val focusable =
       touchable ||
         ownsCloseInput ||
-        escapeRequestCloseDispatcher.hasCapturedPress ||
+        nativeOverlayEscapeDispatcher.hasCapturedPress ||
         overlayBackCallback?.isPredictiveBackInProgress == true
 
     if (touchable) {
@@ -776,7 +776,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     overlayBackCallback?.remove()
     overlayBackCallback = null
     overlayHostBackDispatcher = null
-    escapeRequestCloseDispatcher.clear()
+    nativeOverlayEscapeDispatcher.clear()
   }
 
   private fun installOverlayInputHandlers(dialog: ComponentDialog) {
@@ -876,7 +876,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     overlayRoot = null
     overlayInteractive = null
     overlayFocusable = null
-    escapeRequestCloseDispatcher.clear()
+    nativeOverlayEscapeDispatcher.clear()
     host.destroy()
   }
 }
