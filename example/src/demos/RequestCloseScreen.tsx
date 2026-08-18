@@ -76,10 +76,10 @@ export const RequestCloseScreen = () => {
               Focus the input and type. Regular keys should reach it; Android
               system Back should request a close when a callback is set. With a
               callback, both presentations intercept Escape before this focused
-              input. Without one, a portal leaves Escape to normal key routing,
-              while nativeOverlay still consumes it before the input. This has
-              the modal effect of React Native Modal; closing remains
-              consumer-controlled.
+              input. Without one, both presentations leave Escape to normal key
+              routing, and nativeOverlay forwards Back to the Activity. This has
+              the modal effect of React Native Modal only when a callback is
+              provided; closing remains consumer-controlled.
             </Text>
             <TextInput
               autoCorrect={false}
@@ -103,12 +103,13 @@ export const RequestCloseScreen = () => {
         control. With a callback and a physical keyboard, both Portal and
         nativeOverlay give the sheet priority over the focused input. Portal
         Escape is best effort after normal key dispatch while focus is outside;
-        nativeOverlay Escape is guaranteed. Without a callback, Portal leaves
-        Escape unclaimed but nativeOverlay still consumes it. A nativeOverlay
-        also consumes Back while open, including during its closing animation;
-        after it finishes, input reaches the screen below. If the software
-        keyboard is visible, system Back dismisses it before reaching the sheet.
-        The request counter resets each time.
+        nativeOverlay Escape is guaranteed while a callback is present. Without
+        a callback, both presentations leave Escape unclaimed, and nativeOverlay
+        forwards Back to the Activity. With a callback, nativeOverlay keeps
+        consuming close input during its closing animation; after it finishes,
+        input reaches the screen below. If the software keyboard is visible,
+        system Back dismisses it before reaching the sheet. The request counter
+        resets each time.
       </Text>
       <View style={styles.statusCard}>
         <Text style={styles.statusTitle}>Current state</Text>
@@ -143,8 +144,9 @@ export const RequestCloseScreen = () => {
       <View style={styles.variantGroup}>
         <Text style={styles.variantTitle}>nativeOverlay</Text>
         <Text style={styles.helpText}>
-          Uses a separate Android Dialog to intercept physical Escape before the
-          focused input, including when no callback is provided.
+          With a callback, the separate Android Dialog intercepts physical
+          Escape before the focused input. Without one, Escape follows normal
+          key routing and Back is forwarded to the Activity.
         </Text>
         <View style={styles.controls}>
           <Button

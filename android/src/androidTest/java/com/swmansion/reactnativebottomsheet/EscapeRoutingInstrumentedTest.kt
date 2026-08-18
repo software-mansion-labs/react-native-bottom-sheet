@@ -1,6 +1,9 @@
+@file:Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+
 package com.swmansion.reactnativebottomsheet
 
 import android.content.Context
+import android.graphics.Color
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
@@ -9,7 +12,13 @@ import androidx.activity.ComponentActivity
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.facebook.react.bridge.BridgeReactContext
 import com.facebook.react.internal.featureflags.ReactNativeFeatureFlagsForTests
+import com.facebook.react.uimanager.ThemedReactContext
+import com.facebook.react.uimanager.events.BatchEventDispatchedListener
+import com.facebook.react.uimanager.events.Event
+import com.facebook.react.uimanager.events.EventDispatcher
+import com.facebook.react.uimanager.events.EventDispatcherListener
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -150,6 +159,63 @@ class EscapeRoutingInstrumentedTest {
     }
   }
 
+  @Test
+  fun nativeOverlayWithoutHandlerRoutesTheFullEscapeSequenceToFocusedDescendant() {
+    val requestCount = AtomicInteger()
+    val childEventCount = AtomicInteger()
+    lateinit var reactContext: BridgeReactContext
+    lateinit var sheet: BottomSheetView
+    lateinit var child: EscapeRecordingView
+
+    ActivityScenario.launch(ComponentActivity::class.java).use { scenario ->
+      scenario.onActivity { activity ->
+        reactContext = BridgeReactContext(activity.applicationContext)
+        reactContext.onHostResume(activity)
+        val themedContext = ThemedReactContext(reactContext, activity, "test", 1)
+        sheet =
+          BottomSheetView(themedContext).apply {
+            listener = CountingRequestCloseListener(requestCount)
+            eventDispatcher = NoOpInstrumentedEventDispatcher
+            animateIn = false
+            modal = true
+            setRequestCloseHandlerPresent(false)
+            setScrimColor(Color.BLACK)
+            setScrimOpacities(listOf(0f, 1f))
+            setDetents(
+              listOf(
+                mapOf("value" to 0.0, "kind" to "points", "programmatic" to false),
+                mapOf("value" to 300.0, "kind" to "points", "programmatic" to false),
+              )
+            )
+            setIndex(1)
+          }
+        activity.setContentView(sheet)
+        sheet.setNativeOverlay(true)
+      }
+
+      val instrumentation = InstrumentationRegistry.getInstrumentation()
+      instrumentation.waitForIdleSync()
+      scenario.onActivity { activity ->
+        child = EscapeRecordingView(activity, childEventCount, consumesEscape = true)
+        child.isFocusableInTouchMode = true
+        val overlayRoot = requireNotNull(sheet.requestCloseTestSnapshot().overlayRoot) as ViewGroup
+        overlayRoot.addView(child, ViewGroup.LayoutParams(1, 1))
+        assertTrue(child.requestFocus())
+      }
+      instrumentation.waitForIdleSync()
+      instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_ESCAPE)
+      instrumentation.waitForIdleSync()
+
+      assertEquals(2, childEventCount.get())
+      assertEquals(0, requestCount.get())
+
+      scenario.onActivity {
+        sheet.destroy()
+        reactContext.onHostDestroy()
+      }
+    }
+  }
+
   private fun openContentSheet(
     context: Context,
     requestCount: AtomicInteger,
@@ -243,4 +309,20 @@ private class CountingRequestCloseListener(private val requestCount: AtomicInteg
   override fun onRequestClose() {
     requestCount.incrementAndGet()
   }
+}
+
+private object NoOpInstrumentedEventDispatcher : EventDispatcher {
+  override fun dispatchEvent(event: Event<*>) = Unit
+
+  override fun dispatchAllEvents() = Unit
+
+  override fun addListener(listener: EventDispatcherListener) = Unit
+
+  override fun removeListener(listener: EventDispatcherListener) = Unit
+
+  override fun addBatchEventDispatchedListener(listener: BatchEventDispatchedListener) = Unit
+
+  override fun removeBatchEventDispatchedListener(listener: BatchEventDispatchedListener) = Unit
+
+  override fun onCatalystInstanceDestroyed() = Unit
 }

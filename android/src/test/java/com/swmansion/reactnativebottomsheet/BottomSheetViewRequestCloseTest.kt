@@ -4,11 +4,13 @@ package com.swmansion.reactnativebottomsheet
 
 import android.app.Activity
 import android.content.Context
+import android.graphics.Color
 import android.os.Looper
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.Window
+import android.view.WindowManager
 import android.widget.FrameLayout
 import androidx.activity.BackEventCompat
 import androidx.activity.ComponentActivity
@@ -1488,40 +1490,31 @@ class BottomSheetViewRequestCloseTest {
   @Test
   fun `nativeOverlay intercepts the full Escape sequence before a focused descendant and emits once without closing`() {
     withActivity<ComponentActivity> { activity ->
-      val reactContext = BridgeReactContext(activity.applicationContext)
-      reactContext.onHostResume(activity)
-      val themedContext = ThemedReactContext(reactContext, activity, "test", 1)
       val listener = CountingBottomSheetListener()
-      val sheet = configuredOpenSheet(themedContext, listener)
       val focusedView = EscapeConsumingView(activity)
       focusedView.isFocusableInTouchMode = true
-      sheet.addView(focusedView, ViewGroup.LayoutParams(1, 1))
-      sheet.eventDispatcher = NoOpEventDispatcher
-      activity.setContentView(sheet)
-      layoutPortal(sheet)
-      sheet.setNativeOverlay(true)
-      shadowOf(Looper.getMainLooper()).idle()
-      val overlaySnapshot = sheet.requestCloseTestSnapshot()
-      val dialog = requireNotNull(overlaySnapshot.overlayDialog)
-      layoutView(requireNotNull(overlaySnapshot.overlayRoot))
-      // The test context was resumed before BottomSheetView registered its listener.
-      sheet.onHostResume()
+      val fixture = openNativeOverlaySheet(activity, listener)
 
       assertTrue(
         "dialog lifecycle must be active",
-        dialog.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED),
+        fixture.dialog.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED),
       )
-      assertTrue("overlay target must resolve open", sheet.requestCloseTestSnapshot().isTargetOpen)
-      assertTrue(focusedView.requestFocus())
+      assertTrue(
+        "overlay target must resolve open",
+        fixture.sheet.requestCloseTestSnapshot().isTargetOpen,
+      )
+      focusOverlayDescendant(fixture, focusedView)
+      assertTrue(
+        requireNotNull(fixture.sheet.requestCloseTestSnapshot().overlayBackCallback).isEnabled
+      )
 
-      assertEscape(dialog, expectedHandled = true)
+      assertEscape(fixture.dialog, expectedHandled = true)
 
       assertEquals(0, focusedView.escapeEventCount)
       assertEquals(1, listener.requestCloseCount)
-      assertTrue(sheet.requestCloseTestSnapshot().isTargetOpen)
-      assertTrue(dialog.isShowing)
-      sheet.destroy()
-      reactContext.onHostDestroy()
+      assertTrue(fixture.sheet.requestCloseTestSnapshot().isTargetOpen)
+      assertTrue(fixture.dialog.isShowing)
+      fixture.destroy()
     }
   }
 
@@ -1529,135 +1522,369 @@ class BottomSheetViewRequestCloseTest {
   @Test
   fun `nativeOverlay uses one stable Back callback across handler and closing changes`() {
     withActivity<ComponentActivity> { activity ->
-      val reactContext = BridgeReactContext(activity.applicationContext)
-      reactContext.onHostResume(activity)
-      val themedContext = ThemedReactContext(reactContext, activity, "test", 1)
-      val listener = CountingBottomSheetListener()
-      val sheet = configuredOpenSheet(themedContext, listener)
-      sheet.eventDispatcher = NoOpEventDispatcher
-      activity.setContentView(sheet)
-      layoutPortal(sheet)
-      sheet.setNativeOverlay(true)
-      shadowOf(Looper.getMainLooper()).idle()
-      val overlaySnapshot = sheet.requestCloseTestSnapshot()
-      val dialog = requireNotNull(overlaySnapshot.overlayDialog)
-      layoutView(requireNotNull(overlaySnapshot.overlayRoot))
-      sheet.onHostResume()
-      val callback = requireNotNull(sheet.requestCloseTestSnapshot().overlayBackCallback)
-
-      dialog.onBackPressedDispatcher.onBackPressed()
-
-      assertEquals(1, listener.requestCloseCount)
-      assertTrue(sheet.requestCloseTestSnapshot().isTargetOpen)
-      assertTrue(dialog.isShowing)
-
-      sheet.setRequestCloseHandlerPresent(false)
-      assertSame(callback, sheet.requestCloseTestSnapshot().overlayBackCallback)
-      assertTrue(callback.isEnabled)
-      dialog.onBackPressedDispatcher.onBackPressed()
-
-      assertEquals(1, listener.requestCloseCount)
-      assertTrue(sheet.requestCloseTestSnapshot().isTargetOpen)
-      assertTrue(dialog.isShowing)
-
-      sheet.setRequestCloseHandlerPresent(true)
-      assertSame(callback, sheet.requestCloseTestSnapshot().overlayBackCallback)
-      sheet.setIndex(0)
-      assertSame(callback, sheet.requestCloseTestSnapshot().overlayBackCallback)
-      assertTrue(callback.isEnabled)
-      dialog.onBackPressedDispatcher.onBackPressed()
-
-      assertEquals(1, listener.requestCloseCount)
-      assertFalse(sheet.requestCloseTestSnapshot().isTargetOpen)
-      assertTrue(dialog.isShowing)
-
-      sheet.onHostPause()
-      assertSame(callback, sheet.requestCloseTestSnapshot().overlayBackCallback)
-      assertFalse(callback.isEnabled)
-      sheet.destroy()
-      reactContext.onHostDestroy()
-    }
-  }
-
-  @Suppress("DEPRECATION")
-  @Test
-  fun `nativeOverlay predictive Back commits through the same callback after eligibility loss`() {
-    withActivity<ComponentActivity> { activity ->
-      val reactContext = BridgeReactContext(activity.applicationContext)
-      reactContext.onHostResume(activity)
-      val themedContext = ThemedReactContext(reactContext, activity, "test", 1)
-      val listener = CountingBottomSheetListener()
-      val sheet = configuredOpenSheet(themedContext, listener)
-      sheet.eventDispatcher = NoOpEventDispatcher
-      activity.setContentView(sheet)
-      layoutPortal(sheet)
-      sheet.setNativeOverlay(true)
-      shadowOf(Looper.getMainLooper()).idle()
-      val overlaySnapshot = sheet.requestCloseTestSnapshot()
-      val dialog = requireNotNull(overlaySnapshot.overlayDialog)
-      layoutView(requireNotNull(overlaySnapshot.overlayRoot))
-      sheet.onHostResume()
-      val callback = requireNotNull(sheet.requestCloseTestSnapshot().overlayBackCallback)
-
-      dialog.onBackPressedDispatcher.dispatchOnBackStarted(
-        BackEventCompat(0f, 0f, 0f, BackEventCompat.EDGE_LEFT)
+      var activityBackCount = 0
+      activity.onBackPressedDispatcher.addCallback(
+        object : OnBackPressedCallback(true) {
+          override fun handleOnBackPressed() {
+            activityBackCount++
+          }
+        }
       )
-      sheet.setRequestCloseHandlerPresent(false)
-
-      assertSame(callback, sheet.requestCloseTestSnapshot().overlayBackCallback)
-      assertTrue(callback.isEnabled)
-      dialog.onBackPressedDispatcher.onBackPressed()
-
-      assertEquals(0, listener.requestCloseCount)
-      assertTrue(sheet.requestCloseTestSnapshot().isTargetOpen)
-      assertTrue(dialog.isShowing)
-      sheet.destroy()
-      reactContext.onHostDestroy()
-    }
-  }
-
-  @Suppress("DEPRECATION")
-  @Test
-  fun `nativeOverlay without a handler consumes close input before a focused descendant while open and closing`() {
-    withActivity<ComponentActivity> { activity ->
-      val reactContext = BridgeReactContext(activity.applicationContext)
-      reactContext.onHostResume(activity)
-      val themedContext = ThemedReactContext(reactContext, activity, "test", 1)
       val listener = CountingBottomSheetListener()
-      val sheet = configuredOpenSheet(themedContext, listener, handlerPresent = false)
       val focusedView = EscapeConsumingView(activity)
       focusedView.isFocusableInTouchMode = true
-      sheet.addView(focusedView, ViewGroup.LayoutParams(1, 1))
-      sheet.eventDispatcher = NoOpEventDispatcher
-      activity.setContentView(sheet)
-      layoutPortal(sheet)
-      sheet.setNativeOverlay(true)
-      shadowOf(Looper.getMainLooper()).idle()
-      val overlaySnapshot = sheet.requestCloseTestSnapshot()
-      val dialog = requireNotNull(overlaySnapshot.overlayDialog)
-      layoutView(requireNotNull(overlaySnapshot.overlayRoot))
-      sheet.onHostResume()
-      assertTrue(focusedView.requestFocus())
+      val fixture = openNativeOverlaySheet(activity, listener)
+      val callback = requireNotNull(fixture.sheet.requestCloseTestSnapshot().overlayBackCallback)
+      focusOverlayDescendant(fixture, focusedView)
+      assertTrue(callback.isEnabled)
 
-      dialog.onBackPressedDispatcher.onBackPressed()
-      assertEscape(dialog, expectedHandled = true)
+      fixture.dialog.onBackPressedDispatcher.onBackPressed()
 
+      assertEquals(1, listener.requestCloseCount)
+      assertTrue(fixture.sheet.requestCloseTestSnapshot().isTargetOpen)
+      assertTrue(fixture.dialog.isShowing)
+
+      fixture.sheet.setRequestCloseHandlerPresent(false)
+      assertSame(callback, fixture.sheet.requestCloseTestSnapshot().overlayBackCallback)
+      fixture.sheet.setRequestCloseHandlerPresent(true)
+      assertSame(callback, fixture.sheet.requestCloseTestSnapshot().overlayBackCallback)
+      fixture.sheet.setIndex(0)
+      assertSame(callback, fixture.sheet.requestCloseTestSnapshot().overlayBackCallback)
+      assertFalse(fixture.sheet.requestCloseTestSnapshot().isTargetOpen)
+      fixture.dialog.onBackPressedDispatcher.onBackPressed()
+      assertEscape(fixture.dialog, expectedHandled = true)
+
+      assertEquals(1, listener.requestCloseCount)
+      assertEquals(0, activityBackCount)
       assertEquals(0, focusedView.escapeEventCount)
+      assertTrue(callback.isEnabled)
+      assertTrue(fixture.dialog.isShowing)
+
+      fixture.sheet.onHostPause()
+      assertSame(callback, fixture.sheet.requestCloseTestSnapshot().overlayBackCallback)
+      assertFalse(callback.isEnabled)
+      fixture.destroy()
+    }
+  }
+
+  @Suppress("DEPRECATION")
+  @Test
+  fun `nativeOverlay without a handler forwards Back and leaves Escape unclaimed while open and closing`() {
+    withActivity<ComponentActivity> { activity ->
+      var activityBackCount = 0
+      activity.onBackPressedDispatcher.addCallback(
+        object : OnBackPressedCallback(true) {
+          override fun handleOnBackPressed() {
+            activityBackCount++
+          }
+        }
+      )
+      val listener = CountingBottomSheetListener()
+      val fixture = openNativeOverlaySheet(activity, listener, handlerPresent = false)
+      val callback = requireNotNull(fixture.sheet.requestCloseTestSnapshot().overlayBackCallback)
+      assertTrue(callback.isEnabled)
+
+      fixture.dialog.onBackPressedDispatcher.onBackPressed()
+      assertEscape(fixture.dialog, expectedHandled = false)
+
+      assertEquals(1, activityBackCount)
       assertEquals(0, listener.requestCloseCount)
-      assertTrue(sheet.requestCloseTestSnapshot().isTargetOpen)
-      assertTrue(dialog.isShowing)
+      assertTrue(callback.isEnabled)
+      assertTrue(fixture.sheet.requestCloseTestSnapshot().isTargetOpen)
+      assertTrue(fixture.dialog.isShowing)
 
-      sheet.setIndex(0)
-      assertFalse(sheet.requestCloseTestSnapshot().isTargetOpen)
-      dialog.onBackPressedDispatcher.onBackPressed()
-      assertEscape(dialog, expectedHandled = true)
+      fixture.sheet.setIndex(0)
+      assertFalse(fixture.sheet.requestCloseTestSnapshot().isTargetOpen)
+      fixture.dialog.onBackPressedDispatcher.onBackPressed()
+      assertEscape(fixture.dialog, expectedHandled = false)
 
+      assertEquals(2, activityBackCount)
+      assertEquals(0, listener.requestCloseCount)
+      assertTrue(fixture.dialog.isShowing)
+      fixture.destroy()
+    }
+  }
+
+  @Suppress("DEPRECATION")
+  @Test
+  fun `nativeOverlay predictive request becomes a no-op when its handler is removed`() {
+    withActivity<ComponentActivity> { activity ->
+      var activityBackCount = 0
+      activity.onBackPressedDispatcher.addCallback(
+        object : OnBackPressedCallback(true) {
+          override fun handleOnBackPressed() {
+            activityBackCount++
+          }
+        }
+      )
+      val listener = CountingBottomSheetListener()
+      val fixture = openNativeOverlaySheet(activity, listener)
+
+      fixture.dialog.onBackPressedDispatcher.dispatchOnBackStarted(backEvent())
+      fixture.sheet.setRequestCloseHandlerPresent(false)
+      fixture.sheet.updateOverlayInteractionForTesting(false)
+      assertEquals(
+        0,
+        requireNotNull(fixture.dialog.window).attributes.flags and
+          WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+      )
+      fixture.dialog.onBackPressedDispatcher.onBackPressed()
+
+      assertEquals(0, listener.requestCloseCount)
+      assertEquals(0, activityBackCount)
+      assertTrue(
+        requireNotNull(fixture.dialog.window).attributes.flags and
+          WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE != 0
+      )
+
+      fixture.dialog.onBackPressedDispatcher.onBackPressed()
+
+      assertEquals(1, activityBackCount)
+      assertEquals(0, listener.requestCloseCount)
+      fixture.destroy()
+    }
+  }
+
+  @Suppress("DEPRECATION")
+  @Test
+  fun `nativeOverlay predictive forwarding stays pinned when a handler is added`() {
+    withActivity<ComponentActivity> { activity ->
+      var activityBackCount = 0
+      activity.onBackPressedDispatcher.addCallback(
+        object : OnBackPressedCallback(true) {
+          override fun handleOnBackPressed() {
+            activityBackCount++
+          }
+        }
+      )
+      val listener = CountingBottomSheetListener()
+      val fixture = openNativeOverlaySheet(activity, listener, handlerPresent = false)
+
+      fixture.dialog.onBackPressedDispatcher.dispatchOnBackStarted(backEvent())
+      fixture.sheet.setRequestCloseHandlerPresent(true)
+      fixture.dialog.onBackPressedDispatcher.onBackPressed()
+
+      assertEquals(1, activityBackCount)
+      assertEquals(0, listener.requestCloseCount)
+
+      fixture.dialog.onBackPressedDispatcher.onBackPressed()
+
+      assertEquals(1, activityBackCount)
+      assertEquals(1, listener.requestCloseCount)
+      fixture.destroy()
+    }
+  }
+
+  @Suppress("DEPRECATION")
+  @Test
+  fun `nativeOverlay predictive request stays ineligible after handler removal and restoration`() {
+    withActivity<ComponentActivity> { activity ->
+      val listener = CountingBottomSheetListener()
+      val fixture = openNativeOverlaySheet(activity, listener)
+
+      fixture.dialog.onBackPressedDispatcher.dispatchOnBackStarted(backEvent())
+      fixture.sheet.setRequestCloseHandlerPresent(false)
+      fixture.sheet.setRequestCloseHandlerPresent(true)
+      fixture.dialog.onBackPressedDispatcher.onBackPressed()
+
+      assertEquals(0, listener.requestCloseCount)
+
+      fixture.dialog.onBackPressedDispatcher.onBackPressed()
+
+      assertEquals(1, listener.requestCloseCount)
+      fixture.destroy()
+    }
+  }
+
+  @Suppress("DEPRECATION")
+  @Test
+  fun `nativeOverlay clears a predictive action before synchronous Activity forwarding`() {
+    withActivity<ComponentActivity> { activity ->
+      lateinit var sheet: BottomSheetView
+      var actionWasPinnedDuringForwarding = true
+      var activityBackCount = 0
+      activity.onBackPressedDispatcher.addCallback(
+        object : OnBackPressedCallback(true) {
+          override fun handleOnBackPressed() {
+            activityBackCount++
+            actionWasPinnedDuringForwarding =
+              sheet.requestCloseTestSnapshot().overlayPredictiveBackInProgress
+            sheet.setNativeOverlay(false)
+          }
+        }
+      )
+      val listener = CountingBottomSheetListener()
+      val fixture = openNativeOverlaySheet(activity, listener, handlerPresent = false)
+      sheet = fixture.sheet
+
+      fixture.dialog.onBackPressedDispatcher.dispatchOnBackStarted(backEvent())
+      assertTrue(sheet.requestCloseTestSnapshot().overlayPredictiveBackInProgress)
+      fixture.dialog.onBackPressedDispatcher.onBackPressed()
+
+      assertEquals(1, activityBackCount)
+      assertFalse(actionWasPinnedDuringForwarding)
+      assertNull(sheet.requestCloseTestSnapshot().overlayDialog)
+      assertEquals(0, listener.requestCloseCount)
+      fixture.destroy()
+    }
+  }
+
+  @Suppress("DEPRECATION")
+  @Test
+  fun `nativeOverlay ignores a late predictive forwarding commit after teardown`() {
+    withActivity<ComponentActivity> { activity ->
+      var activityBackCount = 0
+      activity.onBackPressedDispatcher.addCallback(
+        object : OnBackPressedCallback(true) {
+          override fun handleOnBackPressed() {
+            activityBackCount++
+          }
+        }
+      )
+      val listener = CountingBottomSheetListener()
+      val fixture = openNativeOverlaySheet(activity, listener, handlerPresent = false)
+      val callback = requireNotNull(fixture.sheet.requestCloseTestSnapshot().overlayBackCallback)
+
+      fixture.dialog.onBackPressedDispatcher.dispatchOnBackStarted(backEvent())
+      assertTrue(fixture.sheet.requestCloseTestSnapshot().overlayPredictiveBackInProgress)
+      fixture.sheet.setNativeOverlay(false)
+      callback.handleOnBackPressed()
+
+      assertNull(fixture.sheet.requestCloseTestSnapshot().overlayDialog)
+      assertEquals(0, activityBackCount)
+      assertEquals(0, listener.requestCloseCount)
+      fixture.destroy()
+    }
+  }
+
+  @Suppress("DEPRECATION")
+  @Test
+  fun `nativeOverlay captured Escape becomes a no-op after handler removal and next press is unclaimed`() {
+    withActivity<ComponentActivity> { activity ->
+      val listener = CountingBottomSheetListener()
+      val focusedView = EscapeConsumingView(activity)
+      focusedView.isFocusableInTouchMode = true
+      val fixture = openNativeOverlaySheet(activity, listener)
+      focusOverlayDescendant(fixture, focusedView)
+      val downTime = nextEscapeDownTime
+      nextEscapeDownTime += 10L
+      assertTrue(
+        requireNotNull(fixture.sheet.requestCloseTestSnapshot().overlayBackCallback).isEnabled
+      )
+
+      assertTrue(fixture.dialog.dispatchKeyEvent(escapeDown(downTime)))
+      fixture.sheet.setRequestCloseHandlerPresent(false)
+      assertTrue(fixture.dialog.dispatchKeyEvent(escapeUp(downTime)))
+
+      assertEquals(0, listener.requestCloseCount)
       assertEquals(0, focusedView.escapeEventCount)
+
+      assertEscape(fixture.dialog, expectedHandled = false)
+
       assertEquals(0, listener.requestCloseCount)
-      assertFalse(sheet.requestCloseTestSnapshot().isTargetOpen)
-      assertTrue(dialog.isShowing)
-      sheet.destroy()
-      reactContext.onHostDestroy()
+      assertEquals(0, focusedView.escapeEventCount)
+      fixture.destroy()
+    }
+  }
+
+  @Suppress("DEPRECATION")
+  @Test
+  fun `nativeOverlay with handler and modal false forwards Back and leaves Escape unclaimed`() {
+    withActivity<ComponentActivity> { activity ->
+      var activityBackCount = 0
+      activity.onBackPressedDispatcher.addCallback(
+        object : OnBackPressedCallback(true) {
+          override fun handleOnBackPressed() {
+            activityBackCount++
+          }
+        }
+      )
+      val listener = CountingBottomSheetListener()
+      val fixture = openNativeOverlaySheet(activity, listener, modal = false)
+
+      fixture.dialog.onBackPressedDispatcher.onBackPressed()
+      assertEscape(fixture.dialog, expectedHandled = false)
+
+      assertEquals(1, activityBackCount)
+      assertEquals(0, listener.requestCloseCount)
+      fixture.destroy()
+    }
+  }
+
+  @Suppress("DEPRECATION")
+  @Test
+  fun `nativeOverlay releases Back after its closing animation finishes`() {
+    withActivity<ComponentActivity> { activity ->
+      var activityBackCount = 0
+      activity.onBackPressedDispatcher.addCallback(
+        object : OnBackPressedCallback(true) {
+          override fun handleOnBackPressed() {
+            activityBackCount++
+          }
+        }
+      )
+      val listener = CountingBottomSheetListener()
+      val fixture = openNativeOverlaySheet(activity, listener)
+      val callback = requireNotNull(fixture.sheet.requestCloseTestSnapshot().overlayBackCallback)
+
+      fixture.sheet.setIndex(0)
+      fixture.sheet.updateOverlayInteractionForTesting(false)
+
+      assertFalse(fixture.sheet.requestCloseTestSnapshot().isTargetOpen)
+      assertFalse(callback.isEnabled)
+      assertTrue(
+        requireNotNull(fixture.dialog.window).attributes.flags and
+          WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE != 0
+      )
+
+      activity.onBackPressedDispatcher.onBackPressed()
+
+      assertEquals(1, activityBackCount)
+      assertEquals(0, listener.requestCloseCount)
+      fixture.destroy()
+    }
+  }
+
+  @Suppress("DEPRECATION")
+  @Test
+  fun `top nativeOverlay without handler forwards once without entering a lower overlay dispatcher`() {
+    withActivity<ComponentActivity> { activity ->
+      var activityBackCount = 0
+      activity.onBackPressedDispatcher.addCallback(
+        object : OnBackPressedCallback(true) {
+          override fun handleOnBackPressed() {
+            activityBackCount++
+          }
+        }
+      )
+      val root = FrameLayout(activity)
+      activity.setContentView(root)
+      val lowerListener = CountingBottomSheetListener()
+      val upperListener = CountingBottomSheetListener()
+      val lower =
+        openNativeOverlaySheet(
+          activity,
+          lowerListener,
+          handlerPresent = true,
+          container = root,
+        )
+      val upper =
+        openNativeOverlaySheet(
+          activity,
+          upperListener,
+          handlerPresent = false,
+          container = root,
+        )
+
+      upper.dialog.onBackPressedDispatcher.onBackPressed()
+
+      assertEquals(1, activityBackCount)
+      assertEquals(0, lowerListener.requestCloseCount)
+      assertEquals(0, upperListener.requestCloseCount)
+      lower.dialog.onBackPressedDispatcher.onBackPressed()
+      assertEquals(1, lowerListener.requestCloseCount)
+      upper.destroy()
+      lower.destroy()
     }
   }
 
@@ -1800,10 +2027,59 @@ class BottomSheetViewRequestCloseTest {
       layoutPortal(it)
     }
 
+  private fun openNativeOverlaySheet(
+    activity: ComponentActivity,
+    listener: CountingBottomSheetListener,
+    handlerPresent: Boolean = true,
+    modal: Boolean = true,
+    container: ViewGroup? = null,
+    configure: (BottomSheetView) -> Unit = {},
+  ): NativeOverlayTestFixture {
+    val reactContext = BridgeReactContext(activity.applicationContext)
+    reactContext.onHostResume(activity)
+    val themedContext = ThemedReactContext(reactContext, activity, "test", 1)
+    val sheet = configuredOpenSheet(themedContext, listener, handlerPresent)
+    sheet.modal = modal
+    sheet.setScrimColor(Color.BLACK)
+    sheet.setScrimOpacities(listOf(0f, 1f))
+    configure(sheet)
+    sheet.eventDispatcher = NoOpEventDispatcher
+    if (container == null) {
+      activity.setContentView(sheet)
+    } else {
+      container.addView(
+        sheet,
+        ViewGroup.LayoutParams(
+          ViewGroup.LayoutParams.MATCH_PARENT,
+          ViewGroup.LayoutParams.MATCH_PARENT,
+        ),
+      )
+    }
+    layoutPortal(sheet)
+    sheet.setNativeOverlay(true)
+    shadowOf(Looper.getMainLooper()).idle()
+    val snapshot = sheet.requestCloseTestSnapshot()
+    val dialog = requireNotNull(snapshot.overlayDialog)
+    layoutView(requireNotNull(snapshot.overlayRoot))
+    // The test context was resumed before BottomSheetView registered its listener.
+    sheet.onHostResume()
+    return NativeOverlayTestFixture(sheet, dialog, reactContext)
+  }
+
   private fun layoutPortal(sheet: BottomSheetView) {
     layoutView(sheet)
     sheet.isFocusableInTouchMode = true
     assertTrue(sheet.requestFocus())
+  }
+
+  private fun focusOverlayDescendant(
+    fixture: NativeOverlayTestFixture,
+    view: View,
+  ) {
+    val root = requireNotNull(fixture.sheet.requestCloseTestSnapshot().overlayRoot) as ViewGroup
+    root.addView(view, ViewGroup.LayoutParams(1, 1))
+    layoutView(root)
+    assertTrue(view.requestFocus())
   }
 
   private fun layoutView(view: View) {
@@ -1920,6 +2196,8 @@ class BottomSheetViewRequestCloseTest {
     }
   }
 
+  private fun backEvent() = BackEventCompat(0f, 0f, 0f, BackEventCompat.EDGE_LEFT)
+
   private inline fun <reified T : Activity> withActivity(block: (T) -> Unit) {
     val controller = Robolectric.buildActivity(T::class.java).setup()
     try {
@@ -1927,6 +2205,17 @@ class BottomSheetViewRequestCloseTest {
     } finally {
       controller.close()
     }
+  }
+}
+
+private data class NativeOverlayTestFixture(
+  val sheet: BottomSheetView,
+  val dialog: ComponentDialog,
+  val reactContext: BridgeReactContext,
+) {
+  fun destroy() {
+    sheet.destroy()
+    reactContext.onHostDestroy()
   }
 }
 

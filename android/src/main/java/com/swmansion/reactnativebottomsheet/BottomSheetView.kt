@@ -17,6 +17,7 @@ import android.view.ViewGroup
 import android.view.Window
 import android.view.WindowManager
 import androidx.activity.BackEventCompat
+import androidx.activity.ComponentActivity
 import androidx.activity.ComponentDialog
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.OnBackPressedDispatcher
@@ -62,7 +63,8 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   // don't thrash the window flags.
   private var overlayInteractive: Boolean? = null
   private var overlayFocusable: Boolean? = null
-  private var overlayBackCallback: OnBackPressedCallback? = null
+  private var overlayBackCallback: NativeOverlayBackCallback? = null
+  private var overlayHostBackDispatcher: OnBackPressedDispatcher? = null
 
   private var requestCloseHandlerPresent = false
   private var isViewAttached = false
@@ -149,7 +151,12 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
           portalEscapeListenerInstalled
         },
       overlayBackCallback = overlayBackCallback,
+      overlayPredictiveBackInProgress = overlayBackCallback?.isPredictiveBackInProgress == true,
     )
+
+  @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+  internal fun updateOverlayInteractionForTesting(interactive: Boolean) =
+    updateOverlayTouchability(interactive)
 
   // MARK: - Child view management (routed to the host's sheet container)
 
@@ -338,6 +345,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     overlayFocusable = null
     overlayRoot = root
     overlayDialog = dialog
+    overlayHostBackDispatcher = (activity as? ComponentActivity)?.onBackPressedDispatcher
     installOverlayInputHandlers(dialog)
     try {
       dialog.show()
@@ -353,6 +361,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       overlayRoot = null
       overlayInteractive = null
       overlayFocusable = null
+      overlayHostBackDispatcher = null
       nativeOverlay = false
       overlayPresentationFailed = true
       (host.parent as? ViewGroup)?.removeView(host)
@@ -460,7 +469,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   private fun updateOverlayTouchability(interactive: Boolean) {
     if (interactive == overlayInteractive) return
     overlayInteractive = interactive
-    updateOverlayWindowInputFlags()
+    updateRequestCloseHandling()
   }
 
   private fun Window.setOverlayWindowAlpha(interactive: Boolean) {
@@ -499,7 +508,10 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   }
 
   private fun updateRequestCloseHandling() {
-    overlayBackCallback?.isEnabled = overlayOwnsCloseInput()
+    overlayBackCallback?.updateState(
+      canReceiveBack = overlayCanReceiveBack(),
+      requestCloseEligible = isRequestCloseEligible(nativeOverlayRequestCloseEligibilityState()),
+    )
     updateOverlayWindowInputFlags()
   }
 
@@ -508,17 +520,25 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     updateRequestCloseHandling()
   }
 
-  /**
-   * A native overlay owns close input for its whole visible/interactive lifetime. This is
-   * deliberately broader than request-close eligibility: an omitted handler still gives the overlay
-   * Modal-like ownership, and a closing animation must not expose the Activity below it.
-   */
-  private fun overlayOwnsCloseInput(): Boolean =
-    nativeOverlay &&
+  /** Whether the dialog can be the platform recipient for a new Back sequence. */
+  private fun overlayCanReceiveBack(): Boolean {
+    val lifecycleActive =
+      overlayDialog?.lifecycle?.currentState?.isAtLeast(Lifecycle.State.STARTED) == true
+    return nativeOverlay &&
       isViewAttached &&
       isHostActive &&
+      lifecycleActive &&
       overlayDialog?.isShowing == true &&
       (host.isRequestCloseTargetOpen || overlayInteractive == true)
+  }
+
+  /**
+   * Modal close-input ownership is opt-in, like React Native Modal's `onRequestClose`. A handler
+   * keeps that boundary in place while the target finishes closing; without one, Back is forwarded
+   * to the host Activity and Escape stays in normal dialog key routing.
+   */
+  private fun overlayOwnsCloseInput(): Boolean =
+    overlayCanReceiveBack() && modal && requestCloseHandlerPresent
 
   private fun nativeOverlayRequestCloseEligibilityState(): RequestCloseEligibility {
     val lifecycleActive =
@@ -706,14 +726,18 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   /**
    * Touchability stays coupled to the existing interaction/scrim state. Keyboard focusability is
    * independently enabled for an eligible request, including when the configured scrim opacity is
-   * zero. A captured Escape keeps focus until its terminal up. Returning false for every non-Escape
-   * event lets focused inputs keep normal key routing.
+   * zero. A captured Escape and a pinned predictive-Back action keep focus until their terminal
+   * event. Returning false for every non-Escape event lets focused inputs keep normal key routing.
    */
   private fun updateOverlayWindowInputFlags() {
     val window = overlayDialog?.window ?: return
     val touchable = overlayInteractive == true
     val ownsCloseInput = overlayOwnsCloseInput()
-    val focusable = touchable || ownsCloseInput || escapeRequestCloseDispatcher.hasCapturedPress
+    val focusable =
+      touchable ||
+        ownsCloseInput ||
+        escapeRequestCloseDispatcher.hasCapturedPress ||
+        overlayBackCallback?.isPredictiveBackInProgress == true
 
     if (touchable) {
       window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
@@ -735,24 +759,57 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
 
   private fun clearOverlayInputHandlers(dialog: ComponentDialog?) {
     dialog?.setOnKeyListener(null)
+    overlayBackCallback?.dispose()
     overlayBackCallback?.remove()
     overlayBackCallback = null
+    overlayHostBackDispatcher = null
     escapeRequestCloseDispatcher.clear()
   }
 
   private fun installOverlayInputHandlers(dialog: ComponentDialog) {
-    clearOverlayInputHandlers(dialog)
-    val backCallback =
-      object : OnBackPressedCallback(overlayOwnsCloseInput()) {
-        override fun handleOnBackPressed() {
-          // The overlay owns Back while visible or animating. Eligibility is re-evaluated at
-          // commit, so an absent handler or a closing sheet consumes the request as a no-op.
-          emitRequestCloseIfEligible()
-        }
-      }
-    overlayBackCallback = backCallback
-    dialog.onBackPressedDispatcher.addCallback(dialog, backCallback)
+    if (overlayHostBackDispatcher == null) {
+      overlayHostBackDispatcher =
+        (dialog.context.findActivity() as? ComponentActivity)?.onBackPressedDispatcher
+    }
+    if (overlayBackCallback == null) {
+      val backCallback =
+        NativeOverlayBackCallback(
+          resolveAction = ::currentNativeOverlayBackAction,
+          executeAction = ::executeNativeOverlayBackAction,
+          onPredictiveBackStateChanged = ::updateOverlayWindowInputFlags,
+        )
+      overlayBackCallback = backCallback
+      // The dialog is torn down explicitly, so keep one structural registration and vary only
+      // isEnabled. Lifecycle-aware registration would remove and re-add the callback, changing
+      // dispatcher order and predictive-Back selection across transient lifecycle updates.
+      dialog.onBackPressedDispatcher.addCallback(backCallback)
+    }
     dialog.setOnKeyListener(DialogInterface.OnKeyListener { _, _, event -> dispatchEscape(event) })
+    updateRequestCloseHandling()
+  }
+
+  private fun currentNativeOverlayBackAction(): NativeOverlayBackAction? {
+    if (!overlayCanReceiveBack()) return null
+    if (!overlayOwnsCloseInput()) {
+      return if (overlayHostBackDispatcher != null) {
+        NativeOverlayBackAction.FORWARD_TO_ACTIVITY
+      } else {
+        NativeOverlayBackAction.CONSUME
+      }
+    }
+    return if (isRequestCloseEligible(nativeOverlayRequestCloseEligibilityState())) {
+      NativeOverlayBackAction.REQUEST_CLOSE
+    } else {
+      NativeOverlayBackAction.CONSUME
+    }
+  }
+
+  private fun executeNativeOverlayBackAction(action: NativeOverlayBackAction) {
+    when (action) {
+      NativeOverlayBackAction.REQUEST_CLOSE -> emitNativeOverlayRequestCloseIfEligible()
+      NativeOverlayBackAction.CONSUME -> Unit
+      NativeOverlayBackAction.FORWARD_TO_ACTIVITY -> overlayHostBackDispatcher?.onBackPressed()
+    }
   }
 
   // MARK: - Activity lifecycle
@@ -820,7 +877,83 @@ internal class BottomSheetViewRequestCloseTestSnapshot(
   val portalBackCallback: OnBackPressedCallback?,
   val portalEscapeListener: ViewCompat.OnUnhandledKeyEventListenerCompat?,
   val overlayBackCallback: OnBackPressedCallback?,
+  val overlayPredictiveBackInProgress: Boolean,
 )
+
+private enum class NativeOverlayBackAction {
+  REQUEST_CLOSE,
+  CONSUME,
+  FORWARD_TO_ACTIVITY,
+}
+
+/** Pins one complete Back action at predictive-gesture start and never retargets its commit. */
+private class NativeOverlayBackCallback(
+  private val resolveAction: () -> NativeOverlayBackAction?,
+  private val executeAction: (NativeOverlayBackAction) -> Unit,
+  private val onPredictiveBackStateChanged: () -> Unit,
+) : OnBackPressedCallback(false) {
+  private var canReceiveBack = false
+  private var pinnedAction: NativeOverlayBackAction? = null
+  private var disposed = false
+
+  var isPredictiveBackInProgress = false
+    private set
+
+  fun updateState(canReceiveBack: Boolean, requestCloseEligible: Boolean) {
+    if (disposed) return
+    this.canReceiveBack = canReceiveBack
+    if (
+      isPredictiveBackInProgress &&
+        pinnedAction == NativeOverlayBackAction.REQUEST_CLOSE &&
+        !requestCloseEligible
+    ) {
+      pinnedAction = NativeOverlayBackAction.CONSUME
+    }
+    isEnabled = canReceiveBack || isPredictiveBackInProgress
+  }
+
+  override fun handleOnBackStarted(backEvent: BackEventCompat) {
+    if (disposed) return
+    isPredictiveBackInProgress = true
+    pinnedAction = resolveAction()
+    isEnabled = canReceiveBack || isPredictiveBackInProgress
+    onPredictiveBackStateChanged()
+  }
+
+  override fun handleOnBackCancelled() {
+    clearPinnedAction()
+  }
+
+  override fun handleOnBackPressed() {
+    if (disposed) return
+    val action =
+      if (isPredictiveBackInProgress) {
+        pinnedAction
+      } else {
+        resolveAction()
+      }
+    // Clear before executing. Forwarding enters the Activity dispatcher synchronously and its
+    // callback may change props, switch presentation, detach, or destroy this view.
+    clearPinnedAction()
+    action?.let(executeAction)
+  }
+
+  private fun clearPinnedAction() {
+    isPredictiveBackInProgress = false
+    pinnedAction = null
+    isEnabled = canReceiveBack
+    onPredictiveBackStateChanged()
+  }
+
+  fun dispose() {
+    disposed = true
+    canReceiveBack = false
+    isPredictiveBackInProgress = false
+    pinnedAction = null
+    isEnabled = false
+    onPredictiveBackStateChanged()
+  }
+}
 
 /** Keeps the callback selected at predictive-Back start without retargeting its commit. */
 private class PortalBackCallback(

@@ -14,10 +14,14 @@ export interface ModalBottomSheetProps extends BottomSheetProps {
    * Escape is intercepted before a focused descendant, so descendants cannot
    * consume that sequence, or handled through an AndroidX fallback when focus
    * is elsewhere and normal key routing leaves it unhandled. A portal without
-   * a handler leaves Escape unhandled. `nativeOverlay` provides the same modal
-   * priority through its dialog and consumes Escape even without a handler.
-   * Predictive gesture progress does not animate the sheet, and cancelling the
-   * gesture does not invoke the callback.
+   * a handler leaves Escape unhandled. With `nativeOverlay`, providing this
+   * callback makes the dialog a modal close-input boundary. Back and Escape are
+   * consumed without another callback while the controlled target is closing;
+   * after the animation finishes, input reaches the Activity again. Without a
+   * callback, Back is forwarded to the host Activity and Escape follows normal
+   * key routing, preserving the legacy behavior. Predictive gesture progress
+   * does not animate the sheet, and cancelling the gesture does not invoke the
+   * callback.
    *
    * Portals in the same Android root share native ownership. The most recently
    * attached portal with a resolved target height above zero receives the

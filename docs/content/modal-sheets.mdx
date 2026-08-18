@@ -115,15 +115,15 @@ coordinator. With focus inside any portal subtree in the root, an eligible owner
 with a handler claims the complete Escape sequence before the focused
 descendant, so that descendant cannot consume either key-down or key-up. If the
 owner has no handler, the portal leaves Escape unhandled and normal descendant
-dispatch can consume it; the request never falls through to a lower portal.
-`nativeOverlay` enforces the same modal priority through its separate dialog key
-listener and, unlike a portal, consumes Escape even when no handler is present.
+dispatch can consume it; the request never falls through to a lower portal. With
+`onRequestClose`, `nativeOverlay` enforces the same modal priority through its
+separate dialog key listener. Without a handler, it does not claim Escape.
 
 With focus outside all portal subtrees, focused views receive Escape through
 normal dispatch first; if one consumes it, the portal group does not emit a
 close request. Portal Escape from outside those subtrees is therefore best
-effort. Use `nativeOverlay` when Escape must be owned by a separate dialog
-window. The generic AndroidX
+effort. Use `nativeOverlay` with `onRequestClose` when Escape must be owned by a
+separate dialog window. The generic AndroidX
 [`ViewCompat.addOnUnhandledKeyEventListener`](<https://developer.android.com/reference/androidx/core/view/ViewCompat#addOnUnhandledKeyEventListener(android.view.View,androidx.core.view.ViewCompat.OnUnhandledKeyEventListenerCompat)>)
 API documents the underlying unhandled-key contract.
 
@@ -198,12 +198,27 @@ removes that portal from current ownership without changing its membership
 order.
 
 `nativeOverlay` uses its separate native window and does not participate in root
-portal coordination. An open `nativeOverlay` owns Android Back and unmodified
-Escape regardless of whether `onRequestClose` is provided. Without a handler it
-consumes the request before a focused descendant without changing the sheet, so
-it also blocks `BackHandler`, modal callbacks, navigation, and portals below it.
-Its fallback continues consuming while the overlay is visible or interactive
-during closing.
+portal coordination. Providing `onRequestClose` gives an open `nativeOverlay`
+modal ownership of Android Back and unmodified Escape. Once the consumer starts
+closing the sheet, the dialog keeps that boundary while it remains visible or
+interactive: further Back and Escape input is consumed without a second
+callback. After the closing animation finishes, the Activity receives Back
+again.
+
+Without `onRequestClose`, `nativeOverlay` preserves its legacy pass-through
+behavior. Back is forwarded to the exact host `ComponentActivity` dispatcher
+associated with the dialog, including while the sheet is closing, and Escape
+stays in normal key routing. A focused descendant can therefore receive the full
+Escape sequence. Forwarding goes directly to the Activity; it is not offered to
+another `nativeOverlay` dialog below.
+
+The dialog keeps one Back callback registered for its structural lifetime. A
+predictive gesture pins its complete action at start: request close, consume, or
+forward to that host Activity dispatcher. Adding a handler does not retarget an
+already-started forwarding action. If a request-close action loses the handler,
+modal state, active lifecycle, or open target before commit, that gesture
+finishes as a consumed no-op even if eligibility returns; the next Back uses the
+new state.
 
 When no open portal owns the root, its stable callbacks are disabled and Back
 continues through the dispatcher. Predictive Back requests are emitted only
@@ -279,9 +294,11 @@ height greater than zero. While the view is detached, no close request is
 emitted and its native membership and input handlers are removed. An attached
 portal whose target is unresolved or zero is skipped in favor of the highest
 open portal below it; if none exists, portal Back/Escape are left unclaimed. A
-`nativeOverlay` instead consumes Back and Escape once it is visible or
-interactive. A sheet whose detents all resolve to a nonzero height remains
-eligible at every resolved target:
+`nativeOverlay` with a handler continues consuming Back and Escape while a
+closed target is still animating, without emitting another request. Once the
+animation finishes it releases close input. Without a handler it forwards Back
+and leaves Escape unclaimed throughout. A sheet whose detents all resolve to a
+nonzero height remains eligible at every resolved target:
 
 ```tsx
 <ModalBottomSheet
@@ -299,9 +316,9 @@ eligible at every resolved target:
 When `onRequestClose` is omitted, an open portal owns its root position but
 cannot handle the request: it blocks lower portals, lets Back continue outside
 the portal group, and leaves Escape for normal descendant dispatch. An open
-`nativeOverlay` instead consumes Back and unmodified Escape before descendants
-without closing the dialog; the consumer must unmount it or change its
-controlled target if it should disappear.
+`nativeOverlay` likewise emits no request. It forwards Back to the host Activity
+and leaves unmodified Escape in normal routing, including for focused
+descendants and while a controlled close is animating.
 
 Scrim taps, drag dismissal, accessibility dismiss actions, and programmatic
 index changes keep their existing independent behavior and do not invoke this
