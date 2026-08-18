@@ -508,9 +508,13 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   }
 
   private fun updateRequestCloseHandling() {
+    val requestCloseEligible = isRequestCloseEligible(nativeOverlayRequestCloseEligibilityState())
+    if (!requestCloseEligible) {
+      escapeRequestCloseDispatcher.degradeCapturedRequestClose()
+    }
     overlayBackCallback?.updateState(
       canReceiveBack = overlayCanReceiveBack(),
-      requestCloseEligible = isRequestCloseEligible(nativeOverlayRequestCloseEligibilityState()),
+      requestCloseEligible = requestCloseEligible,
     )
     updateOverlayWindowInputFlags()
   }
@@ -713,14 +717,23 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     val handled =
       escapeRequestCloseDispatcher.dispatch(
         event = event,
-        shouldCapturePress = ::overlayOwnsCloseInput,
-        emitRequestCloseIfEligible = ::emitRequestCloseIfEligible,
+        resolveInitialAction = ::currentNativeOverlayEscapeAction,
+        emitRequestCloseIfEligible = ::emitNativeOverlayRequestCloseIfEligible,
       )
 
     if (hadCapturedPress && !escapeRequestCloseDispatcher.hasCapturedPress) {
       updateOverlayWindowInputFlags()
     }
     return handled
+  }
+
+  private fun currentNativeOverlayEscapeAction(): EscapeRequestCloseDispatcher.Action {
+    if (!overlayOwnsCloseInput()) return EscapeRequestCloseDispatcher.Action.UNCLAIMED
+    return if (isRequestCloseEligible(nativeOverlayRequestCloseEligibilityState())) {
+      EscapeRequestCloseDispatcher.Action.REQUEST_CLOSE
+    } else {
+      EscapeRequestCloseDispatcher.Action.CONSUME
+    }
   }
 
   /**

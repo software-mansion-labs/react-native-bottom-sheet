@@ -203,7 +203,10 @@ modal ownership of Android Back and unmodified Escape. Once the consumer starts
 closing the sheet, the dialog keeps that boundary while it remains visible or
 interactive: further Back and Escape input is consumed without a second
 callback. After the closing animation finishes, the Activity receives Back
-again.
+again. If a captured Escape press loses its handler, modal state, active
+lifecycle, or open target, that loss is terminal for the current sequence:
+repeats and key-up remain consumed without a callback even if eligibility is
+restored. The next key-down uses the restored state.
 
 Without `onRequestClose`, `nativeOverlay` preserves its legacy pass-through
 behavior. Back is forwarded to the exact host `ComponentActivity` dispatcher

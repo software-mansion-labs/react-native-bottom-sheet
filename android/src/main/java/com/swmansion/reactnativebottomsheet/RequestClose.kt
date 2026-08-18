@@ -16,24 +16,25 @@ internal fun isRequestCloseEligible(state: RequestCloseEligibility): Boolean =
 /**
  * Tracks the current Escape sequence from its initial down through its terminal up. Android may
  * start a new sequence without delivering the preceding up, so every initial down replaces the
- * unfinished sequence. Repeats preserve the initial capture decision, and an up always finishes the
- * current sequence without relying on event identity or down time.
+ * unfinished sequence. Repeats preserve the initial action, and an up always finishes the current
+ * sequence without relying on event identity or down time. A request-close action can only degrade
+ * to consume, so eligibility returning during the same press never reactivates emission.
  */
 internal class EscapeRequestCloseDispatcher {
-  private enum class SequenceState {
-    NONE,
-    CAPTURED,
+  enum class Action {
+    REQUEST_CLOSE,
+    CONSUME,
     UNCLAIMED,
   }
 
-  private var sequenceState = SequenceState.NONE
+  private var sequenceAction: Action? = null
 
   val hasCapturedPress: Boolean
-    get() = sequenceState == SequenceState.CAPTURED
+    get() = sequenceAction == Action.REQUEST_CLOSE || sequenceAction == Action.CONSUME
 
   fun dispatch(
     event: KeyEvent,
-    shouldCapturePress: () -> Boolean,
+    resolveInitialAction: () -> Action,
     emitRequestCloseIfEligible: () -> Boolean,
   ): Boolean {
     if (event.keyCode != KeyEvent.KEYCODE_ESCAPE) return false
@@ -41,30 +42,31 @@ internal class EscapeRequestCloseDispatcher {
     return when (event.action) {
       KeyEvent.ACTION_DOWN -> {
         if (event.repeatCount == 0) {
-          sequenceState =
-            if (event.hasNoModifiers() && shouldCapturePress()) {
-              SequenceState.CAPTURED
-            } else {
-              SequenceState.UNCLAIMED
-            }
+          sequenceAction = if (event.hasNoModifiers()) resolveInitialAction() else Action.UNCLAIMED
         }
-        sequenceState == SequenceState.CAPTURED
+        hasCapturedPress
       }
       KeyEvent.ACTION_UP -> {
-        val completedState = sequenceState
-        sequenceState = SequenceState.NONE
+        val completedAction = sequenceAction
+        sequenceAction = null
         if (
-          completedState == SequenceState.CAPTURED && !event.isCanceled && event.hasNoModifiers()
+          completedAction == Action.REQUEST_CLOSE && !event.isCanceled && event.hasNoModifiers()
         ) {
           emitRequestCloseIfEligible()
         }
-        completedState == SequenceState.CAPTURED
+        completedAction == Action.REQUEST_CLOSE || completedAction == Action.CONSUME
       }
       else -> false
     }
   }
 
+  fun degradeCapturedRequestClose() {
+    if (sequenceAction == Action.REQUEST_CLOSE) {
+      sequenceAction = Action.CONSUME
+    }
+  }
+
   fun clear() {
-    sequenceState = SequenceState.NONE
+    sequenceAction = null
   }
 }

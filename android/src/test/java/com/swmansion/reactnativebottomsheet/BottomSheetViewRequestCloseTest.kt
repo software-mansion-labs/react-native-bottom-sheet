@@ -1789,6 +1789,34 @@ class BottomSheetViewRequestCloseTest {
 
   @Suppress("DEPRECATION")
   @Test
+  fun `nativeOverlay cannot reactivate a captured Escape after handler restoration`() {
+    withActivity<ComponentActivity> { activity ->
+      val listener = CountingBottomSheetListener()
+      val focusedView = EscapeConsumingView(activity)
+      focusedView.isFocusableInTouchMode = true
+      val fixture = openNativeOverlaySheet(activity, listener)
+      focusOverlayDescendant(fixture, focusedView)
+      val downTime = nextEscapeDownTime
+      nextEscapeDownTime += 10L
+
+      assertTrue(fixture.dialog.dispatchKeyEvent(escapeDown(downTime)))
+      fixture.sheet.setRequestCloseHandlerPresent(false)
+      fixture.sheet.setRequestCloseHandlerPresent(true)
+      assertTrue(fixture.dialog.dispatchKeyEvent(escapeUp(downTime)))
+
+      assertEquals(0, listener.requestCloseCount)
+      assertEquals(0, focusedView.escapeEventCount)
+
+      assertEscape(fixture.dialog, expectedHandled = true)
+
+      assertEquals(1, listener.requestCloseCount)
+      assertEquals(0, focusedView.escapeEventCount)
+      fixture.destroy()
+    }
+  }
+
+  @Suppress("DEPRECATION")
+  @Test
   fun `nativeOverlay with handler and modal false forwards Back and leaves Escape unclaimed`() {
     withActivity<ComponentActivity> { activity ->
       var activityBackCount = 0

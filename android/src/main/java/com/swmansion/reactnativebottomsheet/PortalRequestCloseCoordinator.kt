@@ -56,7 +56,6 @@ internal object PortalRequestCloseCoordinator {
     val escapeDispatcher = EscapeRequestCloseDispatcher()
     var owner: Entry? = null
     var capturedEscapeOwner: WeakReference<Entry>? = null
-    var capturedEscapeRemainsEligible = false
   }
 
   private class RegistrationImpl(
@@ -79,7 +78,7 @@ internal object PortalRequestCloseCoordinator {
 
       val currentRoot = rootReference.get()
       val currentRootState = currentRoot?.let(statesByRoot::get)
-      currentRootState?.let(::invalidateCapturedEscapeIfNeeded)
+      currentRootState?.let(::degradeCapturedEscapeIfNeeded)
 
       if (entry.handlingEnabled) {
         entry.handlingEnabled = false
@@ -126,17 +125,18 @@ internal object PortalRequestCloseCoordinator {
     val handled =
       rootState.escapeDispatcher.dispatch(
         event = event,
-        shouldCapturePress = {
+        resolveInitialAction = {
           rootState.capturedEscapeOwner = ownerAtDispatch?.let(::WeakReference)
-          rootState.capturedEscapeRemainsEligible =
-            ownerAtDispatch?.isRegistered == true && ownerAtDispatch.state.canEmitIfOwner
-          rootState.capturedEscapeRemainsEligible
+          if (ownerAtDispatch?.isRegistered == true && ownerAtDispatch.state.canEmitIfOwner) {
+            EscapeRequestCloseDispatcher.Action.REQUEST_CLOSE
+          } else {
+            EscapeRequestCloseDispatcher.Action.UNCLAIMED
+          }
         },
         emitRequestCloseIfEligible = {
           val capturedOwner = rootState.capturedEscapeOwner?.get()
           if (
-            rootState.capturedEscapeRemainsEligible &&
-              capturedOwner != null &&
+            capturedOwner != null &&
               capturedOwner.isRegistered &&
               rootState.owner === capturedOwner &&
               capturedOwner.state.canEmitIfOwner
@@ -150,7 +150,6 @@ internal object PortalRequestCloseCoordinator {
 
     if (!rootState.escapeDispatcher.hasCapturedPress) {
       rootState.capturedEscapeOwner = null
-      rootState.capturedEscapeRemainsEligible = false
     }
 
     return when {
@@ -173,7 +172,7 @@ internal object PortalRequestCloseCoordinator {
         entry.isRegistered && entry.state.isOwnerCandidate
       }
     rootState.owner = nextOwner
-    invalidateCapturedEscapeIfNeeded(rootState)
+    degradeCapturedEscapeIfNeeded(rootState)
 
     // Disable stale owners before enabling the new one so two portal Back callbacks are never
     // transiently active in the same root.
@@ -193,10 +192,8 @@ internal object PortalRequestCloseCoordinator {
     }
   }
 
-  private fun invalidateCapturedEscapeIfNeeded(rootState: RootState) {
-    if (!rootState.escapeDispatcher.hasCapturedPress || !rootState.capturedEscapeRemainsEligible) {
-      return
-    }
+  private fun degradeCapturedEscapeIfNeeded(rootState: RootState) {
+    if (!rootState.escapeDispatcher.hasCapturedPress) return
     val capturedOwner = rootState.capturedEscapeOwner?.get()
     if (
       capturedOwner == null ||
@@ -204,7 +201,7 @@ internal object PortalRequestCloseCoordinator {
         rootState.owner !== capturedOwner ||
         !capturedOwner.state.canEmitIfOwner
     ) {
-      rootState.capturedEscapeRemainsEligible = false
+      rootState.escapeDispatcher.degradeCapturedRequestClose()
     }
   }
 
@@ -222,7 +219,6 @@ internal object PortalRequestCloseCoordinator {
   private fun clearRootState(root: View, rootState: RootState) {
     rootState.escapeDispatcher.clear()
     rootState.capturedEscapeOwner = null
-    rootState.capturedEscapeRemainsEligible = false
     rootState.owner = null
     if (statesByRoot[root] === rootState) {
       statesByRoot.remove(root)
