@@ -20,6 +20,7 @@ import androidx.activity.BackEventCompat
 import androidx.activity.ComponentDialog
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.OnBackPressedDispatcher
+import androidx.annotation.VisibleForTesting
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
@@ -135,6 +136,21 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       overlayRoot?.eventDispatcher = value
     }
 
+  @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+  internal fun requestCloseTestSnapshot() =
+    BottomSheetViewRequestCloseTestSnapshot(
+      isTargetOpen = host.isRequestCloseTargetOpen,
+      overlayDialog = overlayDialog,
+      overlayRoot = overlayRoot,
+      portalBackDispatcher = portalBackDispatcher,
+      portalBackCallback = portalBackCallback,
+      portalEscapeListener =
+        portalUnhandledKeyEventListener.takeIf {
+          portalEscapeListenerInstalled
+        },
+      overlayBackCallback = overlayBackCallback,
+    )
+
   // MARK: - Child view management (routed to the host's sheet container)
 
   val sheetChildCount: Int
@@ -205,7 +221,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       if (!value && overlayPresentationFailed) {
         overlayPresentationFailed = false
         syncPortalRequestCloseHost()
-        updateRequestCloseHandling()
       }
       return
     }
@@ -221,7 +236,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       dismissOverlay()
     }
     syncPortalRequestCloseHost()
-    updateRequestCloseHandling()
   }
 
   // MARK: - Inline vs overlay presentation
@@ -231,7 +245,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     isViewAttached = true
     syncPortalRequestCloseHost()
     post(syncPortalHostRunnable)
-    updateRequestCloseHandling()
     overlayDialog?.let { dialog ->
       installOverlayInputHandlers(dialog)
     }
@@ -253,7 +266,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
     super.onWindowFocusChanged(hasWindowFocus)
     syncPortalRequestCloseHost()
-    updateRequestCloseHandling()
   }
 
   override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -753,7 +765,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       presentOverlay()
     }
     syncPortalRequestCloseHost()
-    updateRequestCloseHandling()
   }
 
   override fun onHostPause() {
@@ -799,6 +810,17 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     host.destroy()
   }
 }
+
+@VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+internal class BottomSheetViewRequestCloseTestSnapshot(
+  val isTargetOpen: Boolean,
+  val overlayDialog: ComponentDialog?,
+  val overlayRoot: View?,
+  val portalBackDispatcher: OnBackPressedDispatcher?,
+  val portalBackCallback: OnBackPressedCallback?,
+  val portalEscapeListener: ViewCompat.OnUnhandledKeyEventListenerCompat?,
+  val overlayBackCallback: OnBackPressedCallback?,
+)
 
 /** Keeps the callback selected at predictive-Back start without retargeting its commit. */
 private class PortalBackCallback(

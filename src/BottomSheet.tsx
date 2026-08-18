@@ -265,7 +265,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
       >
   );
 
-  const renderSheet = () => (
+  const sheet = (
     <View
       style={StyleSheet.absoluteFill}
       pointerEvents={modal ? (isSheetClosed ? 'none' : 'auto') : 'box-none'}
@@ -345,12 +345,12 @@ export const BottomSheet = (props: BottomSheetProps) => {
     // reparents it into a full-screen overlay above everything (including
     // native modal screens), so it bypasses the provider portal entirely.
     if (usesNativeOverlay) {
-      return renderSheet();
+      return sheet;
     }
-    return <Portal>{renderSheet()}</Portal>;
+    return <Portal>{sheet}</Portal>;
   }
 
-  return renderSheet();
+  return sheet;
 };
 
 const styles = StyleSheet.create({

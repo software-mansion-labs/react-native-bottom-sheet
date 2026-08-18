@@ -2,6 +2,7 @@ package com.swmansion.reactnativebottomsheet
 
 import android.view.KeyEvent
 import android.view.View
+import androidx.annotation.VisibleForTesting
 import java.lang.ref.WeakReference
 import java.util.WeakHashMap
 
@@ -58,6 +59,43 @@ internal object PortalRequestCloseCoordinator {
     var capturedEscapeRemainsEligible = false
   }
 
+  private class RegistrationImpl(
+    private val entry: Entry,
+    root: View,
+  ) : Registration {
+    private val rootReference = WeakReference(root)
+
+    override fun update(state: PortalRequestCloseState) {
+      if (!entry.isRegistered || entry.state == state) return
+      entry.state = state
+      val currentRoot = rootReference.get() ?: return
+      val currentRootState = statesByRoot[currentRoot] ?: return
+      updateHandling(currentRoot, currentRootState)
+    }
+
+    override fun remove() {
+      if (!entry.isRegistered) return
+      entry.isRegistered = false
+
+      val currentRoot = rootReference.get()
+      val currentRootState = currentRoot?.let(statesByRoot::get)
+      currentRootState?.let(::invalidateCapturedEscapeIfNeeded)
+
+      if (entry.handlingEnabled) {
+        entry.handlingEnabled = false
+        entry.target.get()?.onPortalRequestCloseHandlingChanged(false)
+      }
+
+      if (currentRoot == null || currentRootState == null) return
+      currentRootState.entries.remove(entry)
+      updateHandling(currentRoot, currentRootState)
+    }
+
+    fun clearTargetReference() {
+      entry.target.clear()
+    }
+  }
+
   private val statesByRoot = WeakHashMap<View, RootState>()
 
   fun register(
@@ -70,35 +108,13 @@ internal object PortalRequestCloseCoordinator {
     val entry = Entry(target, initialState)
     rootState.entries.add(entry)
     updateHandling(root, rootState)
-    val rootReference = WeakReference(root)
+    return RegistrationImpl(entry, root)
+  }
 
-    return object : Registration {
-      override fun update(state: PortalRequestCloseState) {
-        if (!entry.isRegistered || entry.state == state) return
-        entry.state = state
-        val currentRoot = rootReference.get() ?: return
-        val currentRootState = statesByRoot[currentRoot] ?: return
-        updateHandling(currentRoot, currentRootState)
-      }
-
-      override fun remove() {
-        if (!entry.isRegistered) return
-        entry.isRegistered = false
-
-        val currentRoot = rootReference.get()
-        val currentRootState = currentRoot?.let(statesByRoot::get)
-        currentRootState?.let(::invalidateCapturedEscapeIfNeeded)
-
-        if (entry.handlingEnabled) {
-          entry.handlingEnabled = false
-          entry.target.get()?.onPortalRequestCloseHandlingChanged(false)
-        }
-
-        if (currentRoot == null || currentRootState == null) return
-        currentRootState.entries.remove(entry)
-        updateHandling(currentRoot, currentRootState)
-      }
-    }
+  @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+  internal fun clearTargetReferenceForTest(registration: Registration) {
+    require(registration is RegistrationImpl)
+    registration.clearTargetReference()
   }
 
   fun dispatchEscape(root: View, event: KeyEvent): PortalEscapeDispatchResult {

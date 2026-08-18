@@ -4,7 +4,6 @@ import android.app.Activity
 import android.view.KeyEvent
 import android.widget.FrameLayout
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import java.lang.ref.WeakReference
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
@@ -229,7 +228,7 @@ class PortalRequestCloseCoordinatorTest {
       val upperRegistration = registerTransientTarget(root)
 
       try {
-        clearRegisteredTargetReference(upperRegistration)
+        PortalRequestCloseCoordinator.clearTargetReferenceForTest(upperRegistration)
         assertHandledEscape(root, 160L)
         assertTrue(lower.handlingEnabled)
         assertEquals(1, lower.requestCount)
@@ -303,22 +302,6 @@ class PortalRequestCloseCoordinatorTest {
     root: FrameLayout
   ): PortalRequestCloseCoordinator.Registration =
     PortalRequestCloseCoordinator.register(root, TestTarget(), portalState(candidate = true))
-
-  /** Clears the coordinator's weak reference deterministically instead of relying on a GC cycle. */
-  private fun clearRegisteredTargetReference(
-    registration: PortalRequestCloseCoordinator.Registration
-  ) {
-    val entryField =
-      registration.javaClass.declaredFields.first { field ->
-        field.type.name.endsWith("PortalRequestCloseCoordinator\u0024Entry")
-      }
-    entryField.isAccessible = true
-    val entry = entryField.get(registration)
-    val targetField = entry.javaClass.getDeclaredField("target")
-    targetField.isAccessible = true
-    @Suppress("UNCHECKED_CAST")
-    (targetField.get(entry) as WeakReference<PortalRequestCloseTarget>).clear()
-  }
 
   private fun portalState(
     candidate: Boolean,
