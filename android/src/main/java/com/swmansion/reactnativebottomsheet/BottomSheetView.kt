@@ -61,11 +61,9 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   // don't thrash the window flags.
   private var overlayInteractive: Boolean? = null
   private var overlayFocusable: Boolean? = null
-  private var overlayFallbackBackCallback: OnBackPressedCallback? = null
-  private var overlayRequestCloseBackCallback: OnBackPressedCallback? = null
+  private var overlayBackCallback: OnBackPressedCallback? = null
 
   private var requestCloseHandlerPresent = false
-  private var overlayRequestCloseEligible = false
   private var isViewAttached = false
   private var isHostActive = themedReactContext?.lifecycleState == LifecycleState.RESUMED
 
@@ -489,10 +487,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   }
 
   private fun updateRequestCloseHandling() {
-    overlayRequestCloseEligible =
-      isRequestCloseEligible(nativeOverlayRequestCloseEligibilityState())
-    overlayFallbackBackCallback?.isEnabled = overlayOwnsCloseInput()
-    overlayRequestCloseBackCallback?.isEnabled = overlayRequestCloseEligible
+    overlayBackCallback?.isEnabled = overlayOwnsCloseInput()
     updateOverlayWindowInputFlags()
   }
 
@@ -728,38 +723,23 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
 
   private fun clearOverlayInputHandlers(dialog: ComponentDialog?) {
     dialog?.setOnKeyListener(null)
-    overlayFallbackBackCallback?.remove()
-    overlayFallbackBackCallback = null
-    overlayRequestCloseBackCallback?.remove()
-    overlayRequestCloseBackCallback = null
+    overlayBackCallback?.remove()
+    overlayBackCallback = null
     escapeRequestCloseDispatcher.clear()
   }
 
   private fun installOverlayInputHandlers(dialog: ComponentDialog) {
     clearOverlayInputHandlers(dialog)
-    val fallbackBackCallback =
-      object : OnBackPressedCallback(true) {
+    val backCallback =
+      object : OnBackPressedCallback(overlayOwnsCloseInput()) {
         override fun handleOnBackPressed() {
-          // The native overlay owns Back while it is visible or animating. This callback is the
-          // consuming fallback for overlays without a request handler and for requests that are
-          // no longer eligible while the sheet finishes closing.
-        }
-      }
-    overlayFallbackBackCallback = fallbackBackCallback
-    dialog.onBackPressedDispatcher.addCallback(dialog, fallbackBackCallback)
-
-    val requestCloseBackCallback =
-      object : OnBackPressedCallback(false) {
-        override fun handleOnBackPressed() {
-          // A focusable dialog owns Back. If eligibility changed after the gesture began, keep
-          // the non-cancelable overlay open and finish handling as a no-op.
+          // The overlay owns Back while visible or animating. Eligibility is re-evaluated at
+          // commit, so an absent handler or a closing sheet consumes the request as a no-op.
           emitRequestCloseIfEligible()
         }
       }
-    overlayRequestCloseBackCallback = requestCloseBackCallback
-    dialog.onBackPressedDispatcher.addCallback(dialog, requestCloseBackCallback)
-    fallbackBackCallback.isEnabled = overlayOwnsCloseInput()
-    requestCloseBackCallback.isEnabled = overlayRequestCloseEligible
+    overlayBackCallback = backCallback
+    dialog.onBackPressedDispatcher.addCallback(dialog, backCallback)
     dialog.setOnKeyListener(DialogInterface.OnKeyListener { _, _, event -> dispatchEscape(event) })
   }
 

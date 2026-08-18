@@ -1524,6 +1524,95 @@ class BottomSheetViewRequestCloseTest {
 
   @Suppress("DEPRECATION")
   @Test
+  fun `nativeOverlay uses one stable Back callback across handler and closing changes`() {
+    withActivity<ComponentActivity> { activity ->
+      val reactContext = BridgeReactContext(activity.applicationContext)
+      reactContext.onHostResume(activity)
+      val themedContext = ThemedReactContext(reactContext, activity, "test", 1)
+      val listener = CountingBottomSheetListener()
+      val sheet = configuredOpenSheet(themedContext, listener)
+      sheet.eventDispatcher = NoOpEventDispatcher
+      activity.setContentView(sheet)
+      layoutPortal(sheet)
+      sheet.setNativeOverlay(true)
+      shadowOf(Looper.getMainLooper()).idle()
+      val dialog = sheet.overlayDialogForTest()
+      layoutView(sheet.overlayRootForTest())
+      sheet.onHostResume()
+      val callback = dialog.onBackPressedDispatcher.callbacksForTest().single()
+
+      dialog.onBackPressedDispatcher.onBackPressed()
+
+      assertEquals(1, listener.requestCloseCount)
+      assertTrue(sheet.hostForTest().isRequestCloseTargetOpen)
+      assertTrue(dialog.isShowing)
+
+      sheet.setRequestCloseHandlerPresent(false)
+      assertSame(callback, dialog.onBackPressedDispatcher.callbacksForTest().single())
+      assertTrue(callback.isEnabled)
+      dialog.onBackPressedDispatcher.onBackPressed()
+
+      assertEquals(1, listener.requestCloseCount)
+      assertTrue(sheet.hostForTest().isRequestCloseTargetOpen)
+      assertTrue(dialog.isShowing)
+
+      sheet.setRequestCloseHandlerPresent(true)
+      assertSame(callback, dialog.onBackPressedDispatcher.callbacksForTest().single())
+      sheet.setIndex(0)
+      assertSame(callback, dialog.onBackPressedDispatcher.callbacksForTest().single())
+      assertTrue(callback.isEnabled)
+      dialog.onBackPressedDispatcher.onBackPressed()
+
+      assertEquals(1, listener.requestCloseCount)
+      assertFalse(sheet.hostForTest().isRequestCloseTargetOpen)
+      assertTrue(dialog.isShowing)
+
+      sheet.onHostPause()
+      assertSame(callback, dialog.onBackPressedDispatcher.callbacksForTest().single())
+      assertFalse(callback.isEnabled)
+      sheet.destroy()
+      reactContext.onHostDestroy()
+    }
+  }
+
+  @Suppress("DEPRECATION")
+  @Test
+  fun `nativeOverlay predictive Back commits through the same callback after eligibility loss`() {
+    withActivity<ComponentActivity> { activity ->
+      val reactContext = BridgeReactContext(activity.applicationContext)
+      reactContext.onHostResume(activity)
+      val themedContext = ThemedReactContext(reactContext, activity, "test", 1)
+      val listener = CountingBottomSheetListener()
+      val sheet = configuredOpenSheet(themedContext, listener)
+      sheet.eventDispatcher = NoOpEventDispatcher
+      activity.setContentView(sheet)
+      layoutPortal(sheet)
+      sheet.setNativeOverlay(true)
+      shadowOf(Looper.getMainLooper()).idle()
+      val dialog = sheet.overlayDialogForTest()
+      layoutView(sheet.overlayRootForTest())
+      sheet.onHostResume()
+      val callback = dialog.onBackPressedDispatcher.callbacksForTest().single()
+
+      dialog.onBackPressedDispatcher.dispatchOnBackStarted(
+        BackEventCompat(0f, 0f, 0f, BackEventCompat.EDGE_LEFT)
+      )
+      sheet.setRequestCloseHandlerPresent(false)
+
+      assertSame(callback, dialog.onBackPressedDispatcher.callbacksForTest().single())
+      assertTrue(callback.isEnabled)
+      dialog.onBackPressedDispatcher.onBackPressed()
+
+      assertEquals(0, listener.requestCloseCount)
+      assertTrue(sheet.hostForTest().isRequestCloseTargetOpen)
+      assertTrue(dialog.isShowing)
+      sheet.destroy()
+      reactContext.onHostDestroy()
+    }
+  }
+
+  @Suppress("DEPRECATION")
+  @Test
   fun `nativeOverlay without a handler consumes close input before a focused descendant while open and closing`() {
     withActivity<ComponentActivity> { activity ->
       val reactContext = BridgeReactContext(activity.applicationContext)
