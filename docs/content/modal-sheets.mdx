@@ -79,11 +79,12 @@ intended to be identical event-for-event.
 
 Portal sheets that share the same Android `rootView` form one native ownership
 stack, including sheets rendered by independent `BottomSheetProvider` instances.
-The most recently attached portal whose target is resolved above zero owns
-Back/Escape. Unresolved and zero-height portals are skipped, so a lower open
-portal remains the owner until the upper target becomes positive. Closing,
-reopening, measuring content, toggling a handler, and lifecycle changes do not
-reorder existing memberships.
+Membership order is structural. The highest membership whose target is resolved
+above zero and whose lifecycle is `RESUMED` owns Back/Escape. Unresolved,
+zero-height, `PAUSED`, and `STOPPED` portals are skipped, so the next qualifying
+portal below can handle new requests. Resuming a portal restores its previous
+position instead of moving it to the top. Closing, reopening, measuring content,
+and toggling a handler likewise do not reorder existing memberships.
 
 `onRequestClose` is emitted only after a predictive Back gesture commits.
 Gesture progress does not currently animate the sheet, and cancelling the
@@ -91,8 +92,9 @@ gesture does not invoke the callback. Every attached portal registers
 lightweight root membership, even if it has no handler. Its platform Back
 callback and unhandled-key listener are installed lazily only after
 `onRequestClose` first appears for that structural host. They then remain stable
-across open/close, ownership, handler, and pause/resume updates. Back changes
-only the callback's enabled state, following Android’s
+across open/close, ownership, handler, pause/resume, and lifecycle-owner
+`DESTROYED` updates. Back changes only the callback's enabled state, following
+Android’s
 [predictive Back callback best practices](https://developer.android.com/guide/navigation/custom-back/predictive-back-gesture#callback-best-practices).
 If ownership, the handler, the active lifecycle, or the open target is lost
 after a predictive gesture selects that callback but before commit, the commit
@@ -143,9 +145,9 @@ consumes Back before React Native emits a `hardwareBackPress` event to its
 JavaScript `BackHandler`. A plain `Activity` does not implement
 `OnBackPressedDispatcherOwner`, so it supports local portal Escape but not
 portal Back; its external-focus Escape fallback follows the API limitations
-above. A portal without `onRequestClose` adds only root membership, not a Back
-callback or key listener. A `nativeOverlay` has a separate window and therefore
-handles Back through its dialog dispatcher.
+above. A portal whose structural host has never had `onRequestClose` adds only
+root membership, not a Back callback or key listener. A `nativeOverlay` has a
+separate window and therefore handles Back through its dialog dispatcher.
 
 Portal Escape handling is resolved independently from the Back dispatcher. Each
 listener is attached directly to its portal `BottomSheetView` and delegates to
@@ -159,20 +161,22 @@ A portal can handle new Back or Escape input only while its resolved lifecycle
 is `RESUMED`. The nearest view-tree lifecycle is used by default. When a custom
 dispatcher is nested below only a broader Activity or `ComponentDialog`
 lifecycle, the dispatcher’s own lifecycle is used instead. Pausing or destroying
-that owner makes the portal passive but does not remove its open membership: it
-continues blocking lower portal callbacks until its target closes or the portal
-leaves the root. A destroyed custom owner never falls back to a broader Activity
-lifecycle.
+that owner temporarily excludes the portal from ownership, allowing the next
+qualifying membership below to handle new requests. `RESUMED` restores the
+portal's earlier structural position. A destroyed custom owner stays excluded
+and never falls back to a broader Activity lifecycle. Lifecycle-owner
+`DESTROYED` does not by itself mean that `BottomSheetView.destroy()` ran, so an
+already-installed transport remains present but disabled until structural
+integration ends.
 
 Changing dispatcher or lifecycle host within the same root preserves membership
 position but replaces that host's platform integration. Detach, component
 destroy, `modal={false}`, switching between portal and `nativeOverlay`,
 presentation failure, or migration to another root removes membership and the
 platform integration. Reattachment in a root creates a new position. A handler
-lifetime is not carried to a new structural host when no handler is present
-there. When no lifecycle exists, the React host’s active state is used as a
-limited eligibility fallback for Escape; Back still requires both a dispatcher
-and lifecycle.
+lifetime is not carried to a new root when no handler is present there. When no
+lifecycle exists, the React host’s active state is used as a limited eligibility
+fallback for Escape; Back still requires a dispatcher.
 
 This host resolution is supported for standard AndroidX hosts
 (`ComponentActivity`, `ComponentDialog`, and their subclasses) and custom owners
@@ -185,11 +189,13 @@ lifecycle of the screen that originally opened a portal. Screen-level providers
 should therefore publish the appropriate owners and close or unmount their
 sheets when the screen blurs.
 
-An open portal owner participates whether or not it can handle requests. If it
-has no handler or its lifecycle is inactive, all lower portal callbacks remain
-disabled: Back can continue to an external dispatcher callback, navigation,
-`BackHandler`, or Activity behavior, while Escape remains unhandled. It never
-falls through to a lower sheet merely because the owner cannot emit.
+An active open portal owner participates whether or not it can handle requests.
+If it has no handler, all lower portal callbacks remain disabled: Back can
+continue to an external dispatcher callback, navigation, `BackHandler`, or
+Activity behavior, while Escape remains unhandled. It never falls through to a
+lower sheet merely because the owner cannot emit. An inactive lifecycle instead
+removes that portal from current ownership without changing its membership
+order.
 
 `nativeOverlay` uses its separate native window and does not participate in root
 portal coordination. An open `nativeOverlay` owns Android Back and unmodified
