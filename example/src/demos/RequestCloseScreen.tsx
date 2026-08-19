@@ -105,11 +105,11 @@ export const RequestCloseScreen = () => {
         Escape is best effort after normal key dispatch while focus is outside;
         nativeOverlay Escape is guaranteed while a callback is present. Without
         a callback, both presentations leave Escape unclaimed, and nativeOverlay
-        forwards Back to the Activity. With a callback, nativeOverlay keeps
-        consuming close input during its closing animation; after it finishes,
-        input reaches the screen below. If the software keyboard is visible,
-        system Back dismisses it before reaching the sheet. The request counter
-        resets each time.
+        forwards Back to the Activity. With a callback, both presentations keep
+        consuming close input during the closing animation without another
+        callback; after settle, input reaches the next portal or screen below.
+        If the software keyboard is visible, system Back dismisses it before
+        reaching the sheet. The request counter resets each time.
       </Text>
       <View style={styles.statusCard}>
         <Text style={styles.statusTitle}>Current state</Text>
@@ -122,9 +122,10 @@ export const RequestCloseScreen = () => {
         <Text style={styles.variantTitle}>Portal</Text>
         <Text style={styles.helpText}>
           With a callback, physical Escape is intercepted before the focused
-          input. Without a callback it stays in normal key routing and no lower
-          portal receives a request. With focus outside the sheet it is handled
-          only when normal routing leaves it unhandled.
+          input, including while a visible close is settling. Without a callback
+          it stays in normal key routing and no lower portal receives a request
+          until settle. With focus outside the sheet it is handled only when
+          normal routing leaves it unhandled.
         </Text>
         <View style={styles.controls}>
           <Button

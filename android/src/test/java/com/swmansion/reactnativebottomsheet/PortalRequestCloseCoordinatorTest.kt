@@ -92,6 +92,67 @@ class PortalRequestCloseCoordinatorTest {
   }
 
   @Test
+  fun `consuming upper owner blocks lower without emitting`() {
+    withActivity { activity ->
+      val root = FrameLayout(activity)
+      val lower = TestTarget()
+      val upper = TestTarget()
+      val lowerRegistration = register(root, lower, candidate = true)
+      val upperRegistration =
+        PortalRequestCloseCoordinator.register(
+          root,
+          upper,
+          portalState(candidate = true, action = RequestCloseInputAction.CONSUME),
+        )
+
+      try {
+        assertFalse(lower.handlingEnabled)
+        assertEquals(RequestCloseInputAction.CONSUME, upper.action)
+        assertHandledEscape(root, 135L)
+        assertEquals(0, lower.requestCount)
+        assertEquals(0, upper.requestCount)
+
+        upperRegistration.update(portalState(candidate = false))
+        assertTrue(lower.handlingEnabled)
+        assertHandledEscape(root, 136L)
+        assertEquals(1, lower.requestCount)
+      } finally {
+        upperRegistration.remove()
+        lowerRegistration.remove()
+      }
+    }
+  }
+
+  @Test
+  fun `same owner changes action without passing through`() {
+    withActivity { activity ->
+      val root = FrameLayout(activity)
+      val target = TestTarget()
+      val registration = register(root, target, candidate = true)
+
+      try {
+        registration.update(portalState(candidate = true, action = RequestCloseInputAction.CONSUME))
+        registration.update(
+          portalState(candidate = true, action = RequestCloseInputAction.REQUEST_CLOSE)
+        )
+
+        assertEquals(
+          listOf(
+            RequestCloseInputAction.REQUEST_CLOSE,
+            RequestCloseInputAction.CONSUME,
+            RequestCloseInputAction.REQUEST_CLOSE,
+          ),
+          target.actionChanges,
+        )
+        assertEquals(listOf(true, true, true), target.handlingChanges)
+        assertTrue(target.handlingEnabled)
+      } finally {
+        registration.remove()
+      }
+    }
+  }
+
+  @Test
   fun `inactive upper passes new requests lower and resume restores its position`() {
     withActivity { activity ->
       val root = FrameLayout(activity)
@@ -286,7 +347,10 @@ class PortalRequestCloseCoordinatorTest {
   @Test
   fun `state rejects emission without owner candidacy`() {
     assertThrows(IllegalArgumentException::class.java) {
-      PortalRequestCloseState(isOwnerCandidate = false, canEmitIfOwner = true)
+      PortalRequestCloseState(
+        isOwnerCandidate = false,
+        actionIfOwner = RequestCloseInputAction.REQUEST_CLOSE,
+      )
     }
   }
 
@@ -306,10 +370,17 @@ class PortalRequestCloseCoordinatorTest {
   private fun portalState(
     candidate: Boolean,
     canEmit: Boolean = candidate,
+    action: RequestCloseInputAction? = null,
   ) =
     PortalRequestCloseState(
       isOwnerCandidate = candidate,
-      canEmitIfOwner = canEmit,
+      actionIfOwner =
+        action
+          ?: if (candidate && canEmit) {
+            RequestCloseInputAction.REQUEST_CLOSE
+          } else {
+            RequestCloseInputAction.PASS_THROUGH
+          },
     )
 
   private fun assertHandledEscape(root: FrameLayout, downTime: Long = 90L) {
@@ -343,19 +414,24 @@ private class TestTarget(
   private val name: String? = null,
   private val sharedTransitions: MutableList<String>? = null,
 ) : PortalRequestCloseTarget {
+  var action = RequestCloseInputAction.PASS_THROUGH
   var handlingEnabled = false
   var locallyEligible = true
   var requestCount = 0
+  val actionChanges = mutableListOf<RequestCloseInputAction>()
   val handlingChanges = mutableListOf<Boolean>()
 
-  override fun onPortalRequestCloseHandlingChanged(enabled: Boolean) {
+  override fun onPortalRequestCloseActionChanged(action: RequestCloseInputAction) {
+    this.action = action
+    actionChanges.add(action)
+    val enabled = action != RequestCloseInputAction.PASS_THROUGH
     handlingEnabled = enabled
     handlingChanges.add(enabled)
     if (name != null) sharedTransitions?.add("$name:$enabled")
   }
 
   override fun emitPortalRequestCloseIfEligible(): Boolean {
-    if (!handlingEnabled || !locallyEligible) return false
+    if (action != RequestCloseInputAction.REQUEST_CLOSE || !locallyEligible) return false
     requestCount++
     return true
   }

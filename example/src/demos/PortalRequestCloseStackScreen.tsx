@@ -11,6 +11,7 @@ type StackStatusProps = {
   aIndex: number;
   bMounted: boolean;
   bIndex: number;
+  bSettledIndex: number;
   bContentStage: ContentStage;
   aRequestCount: number;
   bRequestCount: number;
@@ -21,6 +22,7 @@ const StackStatus = ({
   aIndex,
   bMounted,
   bIndex,
+  bSettledIndex,
   bContentStage,
   aRequestCount,
   bRequestCount,
@@ -35,7 +37,8 @@ const StackStatus = ({
       B: {bMounted ? `index ${bIndex} · content ${bContentStage}` : 'unmounted'}
       {' · '}requests: {bRequestCount}
     </Text>
-    <Text>expected request owner: {expectedOwner}</Text>
+    {bMounted && <Text>B last settled index: {bSettledIndex}</Text>}
+    <Text>expected structural input owner: {expectedOwner}</Text>
   </View>
 );
 
@@ -60,6 +63,7 @@ export const PortalRequestCloseStackScreen = () => {
   const [aIndex, setAIndex] = useState(1);
   const [bIndex, setBIndex] = useState(1);
   const [bMounted, setBMounted] = useState(false);
+  const [bSettledIndex, setBSettledIndex] = useState(0);
   const [bGeneration, setBGeneration] = useState(0);
   const [bContentStage, setBContentStage] = useState<ContentStage>('zero');
   const [aRequestCount, setARequestCount] = useState(0);
@@ -67,9 +71,11 @@ export const PortalRequestCloseStackScreen = () => {
   const [aInputValue, setAInputValue] = useState('');
   const [bHandlerMode, setBHandlerMode] = useState<HandlerMode>('no-op');
 
-  const bOwnsRequests =
-    bMounted && bIndex === 1 && bContentStage === 'positive';
-  const expectedOwner = bOwnsRequests ? 'B' : aIndex > 0 ? 'A' : 'none';
+  const bOwnsInput =
+    bMounted &&
+    bContentStage === 'positive' &&
+    (bIndex === 1 || bSettledIndex === 1);
+  const expectedOwner = bOwnsInput ? 'B' : aIndex > 0 ? 'A' : 'none';
 
   const handleARequestClose = () => {
     setARequestCount((count) => count + 1);
@@ -85,6 +91,7 @@ export const PortalRequestCloseStackScreen = () => {
   const mountZeroContentB = () => {
     setBContentStage('zero');
     setBIndex(1);
+    setBSettledIndex(0);
     setBGeneration((generation) => generation + 1);
     setBMounted(true);
   };
@@ -94,6 +101,7 @@ export const PortalRequestCloseStackScreen = () => {
       aIndex={aIndex}
       bMounted={bMounted}
       bIndex={bIndex}
+      bSettledIndex={bSettledIndex}
       bContentStage={bContentStage}
       aRequestCount={aRequestCount}
       bRequestCount={bRequestCount}
@@ -157,6 +165,7 @@ export const PortalRequestCloseStackScreen = () => {
               index={bIndex}
               animateContentHeight={false}
               onIndexChange={setBIndex}
+              onSettle={setBSettledIndex}
               onRequestClose={
                 bHandlerMode === 'omitted' ? undefined : handleBRequestClose
               }
@@ -196,7 +205,10 @@ export const PortalRequestCloseStackScreen = () => {
         Give B positive content and the next request goes only to B; return it
         to zero and ownership returns to A without changing native membership
         order. With B open but its handler omitted, it blocks lower portal
-        callbacks: Back falls through and Escape remains unhandled.
+        callbacks: Back falls through and Escape remains unhandled. When B
+        animates from positive content to index 0, the status keeps B as the
+        structural owner until `onSettle`; with a handler, repeated Back/Escape
+        is consumed without another request during that interval.
       </Text>
       {status}
       <View style={styles.controls}>

@@ -15,19 +15,22 @@ export interface ModalBottomSheetProps extends BottomSheetProps {
    * consume that sequence, or handled through an AndroidX fallback when focus
    * is elsewhere and normal key routing leaves it unhandled. A portal without
    * a handler leaves Escape unhandled. With `nativeOverlay`, providing this
-   * callback makes the dialog a modal close-input boundary. Back and Escape are
-   * consumed without another callback while the controlled target is closing;
-   * after the animation finishes, input reaches the Activity again. Without a
-   * callback, Back is forwarded to the host Activity and Escape follows normal
+   * callback makes the dialog a modal close-input boundary. In both modes,
+   * Back and Escape are consumed without another callback while a visible sheet
+   * is animating to a closed target; after settle, input reaches the next
+   * portal or Activity callback. Without a callback, Back is forwarded outside
+   * the active portal group or to the host Activity and Escape follows normal
    * key routing, preserving the legacy behavior. Predictive gesture progress
    * does not animate the sheet, and cancelling the gesture does not invoke the
    * callback.
    *
    * Portals in the same Android root share native ownership. The most recently
-   * attached portal with a resolved target height above zero receives the
-   * request; unresolved and zero-height portals are skipped. An open owner
-   * without a handler blocks lower portal handlers while letting Back continue
-   * outside the portal group and leaving Escape unhandled.
+   * attached active portal receives the request. An open target is active
+   * immediately; a visible animated close remains the owner until settle.
+   * Initially unresolved, already-settled zero-height, and directly closed
+   * portals are skipped. An active owner without a handler blocks lower portal
+   * handlers while letting Back continue outside the portal group and leaving
+   * Escape unhandled.
    *
    * This is a controlled request: the sheet does not change its index or
    * dismiss itself. Update `index` in the callback to close it, or leave the

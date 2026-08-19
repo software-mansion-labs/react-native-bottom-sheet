@@ -322,7 +322,8 @@ class BottomSheetViewRequestCloseTest {
 
       sheet.setIndex(0)
       assertFalse(sheet.requestCloseTestSnapshot().isTargetOpen)
-      assertPortalEscape(activity, expectedHandled = false)
+      assertTrue(sheet.requestCloseTestSnapshot().isPresentationActive)
+      assertPortalEscape(activity, expectedHandled = true)
       assertEquals(0, listener.requestCloseCount)
       var navigationCount = 0
       val navigationCallback =
@@ -368,6 +369,9 @@ class BottomSheetViewRequestCloseTest {
 
       assertEquals(0, listener.requestCloseCount)
       assertEquals(0, navigationCount)
+      activity.onBackPressedDispatcher.onBackPressed()
+      assertEquals(0, navigationCount)
+      finishActiveAnimation(sheet)
       activity.onBackPressedDispatcher.onBackPressed()
       assertEquals(1, navigationCount)
       sheet.destroy()
@@ -954,6 +958,14 @@ class BottomSheetViewRequestCloseTest {
   @Test
   fun `zero and positive upper target move Back and Escape ownership without reordering`() {
     withActivity<ComponentActivity> { activity ->
+      var navigationCount = 0
+      activity.onBackPressedDispatcher.addCallback(
+        object : OnBackPressedCallback(true) {
+          override fun handleOnBackPressed() {
+            navigationCount++
+          }
+        }
+      )
       val root = FrameLayout(activity)
       val lowerListener = CountingBottomSheetListener()
       val upperListener = CountingBottomSheetListener()
@@ -966,12 +978,29 @@ class BottomSheetViewRequestCloseTest {
       layoutPortal(upperSheet)
 
       upperSheet.setIndex(0)
+      upperSheet.setDetents(
+        listOf(
+          mapOf("value" to 0.0, "kind" to "points", "programmatic" to false),
+          mapOf("value" to 320.0, "kind" to "points", "programmatic" to false),
+        )
+      )
+      assertFalse(upperSheet.requestCloseTestSnapshot().isTargetOpen)
+      assertTrue(upperSheet.requestCloseTestSnapshot().isPresentationActive)
+      activity.onBackPressedDispatcher.onBackPressed()
+      assertPortalEscape(activity, expectedHandled = true)
+      assertEquals(0, lowerListener.requestCloseCount)
+      assertEquals(0, upperListener.requestCloseCount)
+      assertEquals(0, navigationCount)
+
+      finishActiveAnimation(upperSheet)
+      assertFalse(upperSheet.requestCloseTestSnapshot().isPresentationActive)
       activity.onBackPressedDispatcher.onBackPressed()
       assertPortalEscape(activity, expectedHandled = true)
       assertEquals(2, lowerListener.requestCloseCount)
-      assertEquals(0, upperListener.requestCloseCount)
+      assertEquals(0, navigationCount)
 
       upperSheet.setIndex(1)
+      finishActiveAnimation(upperSheet)
       assertTrue(upperSheet.requestFocus())
       activity.onBackPressedDispatcher.onBackPressed()
       assertPortalEscape(activity, expectedHandled = true)
@@ -982,8 +1011,12 @@ class BottomSheetViewRequestCloseTest {
       assertTrue(lowerSheet.requestFocus())
       activity.onBackPressedDispatcher.onBackPressed()
       assertPortalEscape(activity, expectedHandled = true)
-      assertEquals(4, lowerListener.requestCloseCount)
+      assertEquals(2, lowerListener.requestCloseCount)
       assertEquals(2, upperListener.requestCloseCount)
+      finishActiveAnimation(upperSheet)
+      activity.onBackPressedDispatcher.onBackPressed()
+      assertPortalEscape(activity, expectedHandled = true)
+      assertEquals(4, lowerListener.requestCloseCount)
       upperSheet.destroy()
       lowerSheet.destroy()
     }
@@ -1856,9 +1889,12 @@ class BottomSheetViewRequestCloseTest {
       val callback = requireNotNull(fixture.sheet.requestCloseTestSnapshot().overlayBackCallback)
 
       fixture.sheet.setIndex(0)
-      fixture.sheet.updateOverlayInteractionForTesting(false)
 
       assertFalse(fixture.sheet.requestCloseTestSnapshot().isTargetOpen)
+      assertTrue(fixture.sheet.requestCloseTestSnapshot().isPresentationActive)
+      assertTrue(callback.isEnabled)
+      finishActiveAnimation(fixture.sheet)
+      assertFalse(fixture.sheet.requestCloseTestSnapshot().isPresentationActive)
       assertFalse(callback.isEnabled)
       assertTrue(
         requireNotNull(fixture.dialog.window).attributes.flags and
@@ -2118,6 +2154,11 @@ class BottomSheetViewRequestCloseTest {
       View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY),
     )
     view.layout(0, 0, width, height)
+    shadowOf(Looper.getMainLooper()).idle()
+  }
+
+  private fun finishActiveAnimation(sheet: BottomSheetView) {
+    assertTrue(sheet.skipActiveAnimationToEndForTesting())
     shadowOf(Looper.getMainLooper()).idle()
   }
 
