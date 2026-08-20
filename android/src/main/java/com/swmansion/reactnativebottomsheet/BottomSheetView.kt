@@ -74,8 +74,10 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   private var portalRequestCloseAction = RequestCloseInputAction.PASS_THROUGH
   private var portalBackDispatcher: OnBackPressedDispatcher? = null
   private var portalBackCallback: RequestCloseBackCallback? = null
+  private var portalBackPresentationEnded = false
+  private var isReconcilingPortalBackHandler = false
   private var portalEscapeListenerInstalled = false
-  private var portalRequestCloseHandlerLifetimeStarted = false
+  private var portalEscapeListenerLifetimeStarted = false
   private val nativeOverlayEscapeDispatcher = EscapeRequestCloseDispatcher()
   private val portalLifecycleObserver: LifecycleEventObserver =
     LifecycleEventObserver { owner, event ->
@@ -84,6 +86,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
         owner.lifecycle.removeObserver(portalLifecycleObserver)
       }
       publishPortalRequestCloseState()
+      reconcilePortalBackHandler()
     }
   private val portalUnhandledKeyEventListener =
     ViewCompat.OnUnhandledKeyEventListenerCompat { _, event ->
@@ -93,10 +96,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     object : PortalRequestCloseTarget {
       override fun onPortalRequestCloseActionChanged(action: RequestCloseInputAction) {
         portalRequestCloseAction = action
-        portalBackCallback?.updateState(
-          canReceiveBack = action != RequestCloseInputAction.PASS_THROUGH,
-          currentAction = action,
-        )
+        reconcilePortalBackHandler()
       }
 
       override fun emitPortalRequestCloseIfEligible(): Boolean =
@@ -149,6 +149,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       overlayRoot = overlayRoot,
       portalBackDispatcher = portalBackDispatcher,
       portalBackCallback = portalBackCallback,
+      portalPredictiveBackInProgress = portalBackCallback?.isPredictiveBackInProgress == true,
       portalEscapeListener =
         portalUnhandledKeyEventListener.takeIf {
           portalEscapeListenerInstalled
@@ -533,6 +534,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
 
   private fun onRequestCloseStateChanged() {
     publishPortalRequestCloseState()
+    reconcilePortalBackHandler()
     updateRequestCloseHandling()
   }
 
@@ -633,7 +635,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       if (previousHost?.rootView !== resolvedHost?.rootView) {
         portalRequestCloseRegistration?.remove()
         portalRequestCloseRegistration = null
-        portalRequestCloseHandlerLifetimeStarted = false
         if (resolvedHost != null) {
           portalRequestCloseRegistration =
             PortalRequestCloseCoordinator.register(
@@ -651,12 +652,9 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
           )
       }
     }
-    installPortalRequestCloseHandlers()
+    ensurePortalEscapeListener()
     publishPortalRequestCloseState()
-    portalBackCallback?.updateState(
-      canReceiveBack = portalRequestCloseAction != RequestCloseInputAction.PASS_THROUGH,
-      currentAction = portalRequestCloseAction,
-    )
+    reconcilePortalBackHandler()
     updateRequestCloseHandling()
   }
 
@@ -667,7 +665,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     portalRequestCloseRegistration?.remove()
     portalRequestCloseRegistration = null
     portalRequestCloseAction = RequestCloseInputAction.PASS_THROUGH
-    portalRequestCloseHandlerLifetimeStarted = false
+    portalEscapeListenerLifetimeStarted = false
   }
 
   private fun portalHostsAreIdentical(
@@ -680,57 +678,101 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       first.rootView === second.rootView
   }
 
-  /**
-   * Portal handlers are installed lazily the first time a handler is present for a resolved host.
-   * From then on they have the structural lifetime of that host. Keeping the Back callback
-   * registered and changing only [OnBackPressedCallback.isEnabled] follows Android's predictive
-   * Back guidance and preserves dispatcher order across eligibility changes. The unhandled-key
-   * listener uses the same lifetime so a captured Escape sequence can finish predictably.
-   */
-  private fun installPortalRequestCloseHandlers() {
+  /** Keeps Escape installed after its first handler for the structural lifetime of this host. */
+  private fun ensurePortalEscapeListener() {
     val currentHost = portalRequestCloseHost
     if (currentHost == null || nativeOverlay || !isViewAttached) {
-      removePortalRequestCloseHandlers()
       return
     }
     if (currentHost.lifecycleOwner?.lifecycle?.currentState == Lifecycle.State.DESTROYED) return
 
     if (requestCloseHandlerPresent) {
-      portalRequestCloseHandlerLifetimeStarted = true
+      portalEscapeListenerLifetimeStarted = true
     }
-    if (!portalRequestCloseHandlerLifetimeStarted) return
+    if (!portalEscapeListenerLifetimeStarted || portalEscapeListenerInstalled) return
 
-    val dispatcher = currentHost.dispatcherOwner?.onBackPressedDispatcher
-    if (portalBackDispatcher !== dispatcher) {
-      removePortalBackHandler()
-    }
-    if (dispatcher != null && portalBackCallback == null) {
-      val callback =
-        RequestCloseBackCallback(
-          resolveAction = { portalRequestCloseAction },
-          executeAction = ::executePortalRequestCloseAction,
+    ViewCompat.addOnUnhandledKeyEventListener(this, portalUnhandledKeyEventListener)
+    portalEscapeListenerInstalled = true
+  }
+
+  /**
+   * Keeps one physical Back callback for one complete presentation. Eligibility changes only update
+   * [OnBackPressedCallback.isEnabled], preserving dispatcher order and predictive-Back selection
+   * until that presentation fully ends.
+   */
+  private fun reconcilePortalBackHandler() {
+    if (isReconcilingPortalBackHandler) return
+    isReconcilingPortalBackHandler = true
+    try {
+      val currentHost = portalRequestCloseHost
+      val dispatcher =
+        currentHost
+          ?.takeIf {
+            !nativeOverlay && isViewAttached
+          }
+          ?.dispatcherOwner
+          ?.onBackPressedDispatcher
+
+      if (portalBackDispatcher !== dispatcher) {
+        disposePortalBackHandlerImmediately()
+      }
+
+      val presentationActive = currentHost != null && host.isRequestClosePresentationActive
+      val callback = portalBackCallback
+      if (callback != null) {
+        if (!presentationActive) {
+          portalBackPresentationEnded = true
+        }
+
+        if (portalBackPresentationEnded) {
+          if (callback.isPredictiveBackInProgress) {
+            callback.updateState(
+              canReceiveBack = false,
+              currentAction = RequestCloseInputAction.CONSUME,
+            )
+            return
+          }
+          disposePortalBackHandlerImmediately()
+        } else {
+          callback.updateState(
+            canReceiveBack = portalRequestCloseAction != RequestCloseInputAction.PASS_THROUGH,
+            currentAction = portalRequestCloseAction,
+          )
+          return
+        }
+      }
+
+      if (dispatcher != null && presentationActive && requestCloseHandlerPresent) {
+        val callback =
+          RequestCloseBackCallback(
+            resolveAction = { portalRequestCloseAction },
+            executeAction = ::executePortalRequestCloseAction,
+            onPredictiveBackStateChanged = ::reconcilePortalBackHandler,
+          )
+        portalBackDispatcher = dispatcher
+        portalBackCallback = callback
+        portalBackPresentationEnded = false
+        // Registration is presentation-scoped, so manual registration plus isEnabled updates keep
+        // transient lifecycle and ownership changes from reordering this callback.
+        dispatcher.addCallback(callback)
+        callback.updateState(
+          canReceiveBack = portalRequestCloseAction != RequestCloseInputAction.PASS_THROUGH,
+          currentAction = portalRequestCloseAction,
         )
-      portalBackDispatcher = dispatcher
-      portalBackCallback = callback
-      dispatcher.addCallback(callback)
-      callback.updateState(
-        canReceiveBack = portalRequestCloseAction != RequestCloseInputAction.PASS_THROUGH,
-        currentAction = portalRequestCloseAction,
-      )
-    }
-
-    if (!portalEscapeListenerInstalled) {
-      ViewCompat.addOnUnhandledKeyEventListener(this, portalUnhandledKeyEventListener)
-      portalEscapeListenerInstalled = true
+      }
+    } finally {
+      isReconcilingPortalBackHandler = false
     }
   }
 
-  private fun removePortalBackHandler() {
-    val callback = portalBackCallback ?: return
+  /** Structural teardown bypasses presentation retention, including an active predictive Back. */
+  private fun disposePortalBackHandlerImmediately() {
+    val callback = portalBackCallback
     portalBackCallback = null
     portalBackDispatcher = null
-    callback.dispose()
-    callback.remove()
+    portalBackPresentationEnded = false
+    callback?.dispose()
+    callback?.remove()
   }
 
   private fun executePortalRequestCloseAction(action: RequestCloseInputAction) {
@@ -742,8 +784,15 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   }
 
   private fun removePortalRequestCloseHandlers() {
-    removePortalBackHandler()
-    removePortalEscapeListener()
+    val wasReconciling = isReconcilingPortalBackHandler
+    isReconcilingPortalBackHandler = true
+    try {
+      disposePortalBackHandlerImmediately()
+      removePortalEscapeListener()
+      portalEscapeListenerLifetimeStarted = false
+    } finally {
+      isReconcilingPortalBackHandler = wasReconciling
+    }
   }
 
   private fun removePortalEscapeListener() {
@@ -867,6 +916,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   override fun onHostPause() {
     isHostActive = false
     publishPortalRequestCloseState()
+    reconcilePortalBackHandler()
     updateRequestCloseHandling()
   }
 
@@ -916,6 +966,7 @@ internal class BottomSheetViewRequestCloseTestSnapshot(
   val overlayRoot: View?,
   val portalBackDispatcher: OnBackPressedDispatcher?,
   val portalBackCallback: OnBackPressedCallback?,
+  val portalPredictiveBackInProgress: Boolean,
   val portalEscapeListener: ViewCompat.OnUnhandledKeyEventListenerCompat?,
   val overlayBackCallback: OnBackPressedCallback?,
   val overlayPredictiveBackInProgress: Boolean,

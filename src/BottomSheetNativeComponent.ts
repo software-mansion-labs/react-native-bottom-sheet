@@ -19,8 +19,8 @@ export interface NativeProps extends ViewProps {
   modal: boolean;
   nativeOverlay?: boolean;
   // Android uses callback presence separately from current eligibility so a
-  // portal can install its native handlers lazily, then preserve their host
-  // registration order while the handler is temporarily removed.
+  // portal can keep Back registration stable for one presentation and Escape
+  // registration stable for the lifetime of its resolved host.
   requestCloseHandlerPresent: boolean;
   // Consulted natively only in native-overlay mode, where the detent cap is
   // computed from the overlay's real bounds and insets; inline sheets bake the

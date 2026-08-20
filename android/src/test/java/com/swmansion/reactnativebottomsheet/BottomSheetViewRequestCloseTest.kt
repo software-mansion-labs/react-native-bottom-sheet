@@ -81,11 +81,16 @@ class BottomSheetViewRequestCloseTest {
       val originalWindowCallback = activity.window.callback
       val listener = CountingBottomSheetListener()
       val sheet = openPortalSheet(activity, listener)
+      val indexChanges = listener.indexChanges.toList()
+      val settles = listener.settles.toList()
 
       assertSame(originalWindowCallback, activity.window.callback)
       assertPortalEscape(activity, expectedHandled = true)
 
       assertEquals(1, listener.requestCloseCount)
+      assertEquals(indexChanges, listener.indexChanges)
+      assertEquals(settles, listener.settles)
+      assertTrue(sheet.requestCloseTestSnapshot().isTargetOpen)
       assertSame(originalWindowCallback, activity.window.callback)
       sheet.destroy()
       assertSame(originalWindowCallback, activity.window.callback)
@@ -204,6 +209,52 @@ class BottomSheetViewRequestCloseTest {
   }
 
   @Test
+  fun `closed portal provider installs Back only when its first presentation opens`() {
+    withActivity<ComponentActivity> { activity ->
+      val listener = CountingBottomSheetListener()
+      val sheet =
+        BottomSheetView(activity).apply {
+          this.listener = listener
+          animateIn = false
+          modal = true
+          setRequestCloseHandlerPresent(true)
+          setDetents(
+            listOf(
+              mapOf("value" to 0.0, "kind" to "points", "programmatic" to false),
+              mapOf("value" to 300.0, "kind" to "points", "programmatic" to false),
+            )
+          )
+          setIndex(0)
+        }
+      activity.setContentView(sheet)
+      layoutPortal(sheet)
+
+      val closedSnapshot = sheet.requestCloseTestSnapshot()
+      assertFalse(closedSnapshot.isPresentationActive)
+      assertNull(closedSnapshot.portalBackDispatcher)
+      assertNull(closedSnapshot.portalBackCallback)
+      assertNotNull(closedSnapshot.portalEscapeListener)
+
+      var navigationCount = 0
+      activity.onBackPressedDispatcher.addCallback(
+        object : OnBackPressedCallback(true) {
+          override fun handleOnBackPressed() {
+            navigationCount++
+          }
+        }
+      )
+
+      sheet.setIndex(1)
+      assertNotNull(sheet.requestCloseTestSnapshot().portalBackCallback)
+      activity.onBackPressedDispatcher.onBackPressed()
+
+      assertEquals(0, navigationCount)
+      assertEquals(1, listener.requestCloseCount)
+      sheet.destroy()
+    }
+  }
+
+  @Test
   fun `handler presence starts a sticky lifetime without changing later callback priority`() {
     withActivity<ComponentActivity> { activity ->
       val originalWindowCallback = activity.window.callback
@@ -260,8 +311,11 @@ class BottomSheetViewRequestCloseTest {
       activity.setContentView(container)
       layoutPortal(sheet)
       val originalWindowCallback = activity.window.callback
+      val installedBackCallback =
+        requireNotNull(sheet.requestCloseTestSnapshot().portalBackCallback)
 
       owner.pause()
+      assertSame(installedBackCallback, sheet.requestCloseTestSnapshot().portalBackCallback)
       var navigationCount = 0
       val navigationCallback =
         object : OnBackPressedCallback(true) {
@@ -273,6 +327,7 @@ class BottomSheetViewRequestCloseTest {
       owner.resumeFromPause()
 
       assertSame(originalWindowCallback, activity.window.callback)
+      assertSame(installedBackCallback, sheet.requestCloseTestSnapshot().portalBackCallback)
       owner.onBackPressedDispatcher.onBackPressed()
       assertEquals(1, navigationCount)
       assertEquals(0, listener.requestCloseCount)
@@ -314,15 +369,20 @@ class BottomSheetViewRequestCloseTest {
   }
 
   @Test
-  fun `close and reopen preserve later Back callback priority and Escape registration`() {
+  fun `reversing a close before settle preserves later Back priority and callback identities`() {
     withActivity<ComponentActivity> { activity ->
       val listener = CountingBottomSheetListener()
       val sheet = openPortalSheet(activity, listener)
       val originalWindowCallback = activity.window.callback
+      val installedBackCallback =
+        requireNotNull(sheet.requestCloseTestSnapshot().portalBackCallback)
+      val installedEscapeListener =
+        requireNotNull(sheet.requestCloseTestSnapshot().portalEscapeListener)
 
       sheet.setIndex(0)
       assertFalse(sheet.requestCloseTestSnapshot().isTargetOpen)
       assertTrue(sheet.requestCloseTestSnapshot().isPresentationActive)
+      assertSame(installedBackCallback, sheet.requestCloseTestSnapshot().portalBackCallback)
       assertPortalEscape(activity, expectedHandled = true)
       assertEquals(0, listener.requestCloseCount)
       var navigationCount = 0
@@ -336,11 +396,165 @@ class BottomSheetViewRequestCloseTest {
       sheet.setIndex(1)
 
       assertTrue(sheet.requestCloseTestSnapshot().isTargetOpen)
+      assertSame(installedBackCallback, sheet.requestCloseTestSnapshot().portalBackCallback)
+      assertSame(installedEscapeListener, sheet.requestCloseTestSnapshot().portalEscapeListener)
       assertSame(originalWindowCallback, activity.window.callback)
       activity.onBackPressedDispatcher.onBackPressed()
       assertEquals(1, navigationCount)
       assertEquals(0, listener.requestCloseCount)
       navigationCallback.isEnabled = false
+      activity.onBackPressedDispatcher.onBackPressed()
+      assertEquals(1, listener.requestCloseCount)
+      sheet.destroy()
+    }
+  }
+
+  @Test
+  fun `fully closed portal releases Back and reopening registers a fresh callback above navigation`() {
+    withActivity<ComponentActivity> { activity ->
+      val listener = CountingBottomSheetListener()
+      val sheet = openPortalSheet(activity, listener)
+      val firstBackCallback = requireNotNull(sheet.requestCloseTestSnapshot().portalBackCallback)
+      val escapeListener = requireNotNull(sheet.requestCloseTestSnapshot().portalEscapeListener)
+
+      sheet.setIndex(0)
+      finishActiveAnimation(sheet)
+
+      val closedSnapshot = sheet.requestCloseTestSnapshot()
+      assertFalse(closedSnapshot.isPresentationActive)
+      assertNull(closedSnapshot.portalBackDispatcher)
+      assertNull(closedSnapshot.portalBackCallback)
+      assertSame(escapeListener, closedSnapshot.portalEscapeListener)
+
+      var navigationCount = 0
+      activity.onBackPressedDispatcher.addCallback(
+        object : OnBackPressedCallback(true) {
+          override fun handleOnBackPressed() {
+            navigationCount++
+          }
+        }
+      )
+
+      sheet.setIndex(1)
+      val reopenedBackCallback = requireNotNull(sheet.requestCloseTestSnapshot().portalBackCallback)
+      assertNotSame(firstBackCallback, reopenedBackCallback)
+      assertSame(escapeListener, sheet.requestCloseTestSnapshot().portalEscapeListener)
+
+      activity.onBackPressedDispatcher.onBackPressed()
+
+      assertEquals(0, navigationCount)
+      assertEquals(1, listener.requestCloseCount)
+      sheet.destroy()
+    }
+  }
+
+  @Test
+  fun `Back during a closing presentation is consumed without request or navigation`() {
+    withActivity<ComponentActivity> { activity ->
+      var navigationCount = 0
+      activity.onBackPressedDispatcher.addCallback(
+        object : OnBackPressedCallback(true) {
+          override fun handleOnBackPressed() {
+            navigationCount++
+          }
+        }
+      )
+      val listener = CountingBottomSheetListener()
+      val sheet = openPortalSheet(activity, listener)
+      val indexChanges = listener.indexChanges.toList()
+      val settles = listener.settles.toList()
+
+      sheet.setIndex(0)
+      assertTrue(sheet.requestCloseTestSnapshot().isPresentationActive)
+      activity.onBackPressedDispatcher.onBackPressed()
+
+      assertEquals(0, listener.requestCloseCount)
+      assertEquals(0, navigationCount)
+      assertEquals(indexChanges, listener.indexChanges)
+      assertEquals(settles, listener.settles)
+      assertFalse(sheet.requestCloseTestSnapshot().isTargetOpen)
+      sheet.destroy()
+    }
+  }
+
+  @Test
+  fun `predictive Back survives full close as consume until commit then releases navigation`() {
+    withActivity<ComponentActivity> { activity ->
+      var navigationCount = 0
+      activity.onBackPressedDispatcher.addCallback(
+        object : OnBackPressedCallback(true) {
+          override fun handleOnBackPressed() {
+            navigationCount++
+          }
+        }
+      )
+      val listener = CountingBottomSheetListener()
+      val sheet = openPortalSheet(activity, listener)
+      val callback = requireNotNull(sheet.requestCloseTestSnapshot().portalBackCallback)
+
+      activity.onBackPressedDispatcher.dispatchOnBackStarted(backEvent())
+      assertTrue(sheet.requestCloseTestSnapshot().portalPredictiveBackInProgress)
+      sheet.setIndex(0)
+      finishActiveAnimation(sheet)
+
+      val closedSnapshot = sheet.requestCloseTestSnapshot()
+      assertFalse(closedSnapshot.isPresentationActive)
+      assertSame(callback, closedSnapshot.portalBackCallback)
+      assertTrue(closedSnapshot.portalPredictiveBackInProgress)
+
+      activity.onBackPressedDispatcher.onBackPressed()
+
+      assertEquals(0, listener.requestCloseCount)
+      assertEquals(0, navigationCount)
+      assertNull(sheet.requestCloseTestSnapshot().portalBackCallback)
+
+      activity.onBackPressedDispatcher.onBackPressed()
+      assertEquals(1, navigationCount)
+      sheet.destroy()
+    }
+  }
+
+  @Test
+  fun `predictive Back retained through full close is removed on cancel`() {
+    withActivity<ComponentActivity> { activity ->
+      val listener = CountingBottomSheetListener()
+      val sheet = openPortalSheet(activity, listener)
+      val callback = requireNotNull(sheet.requestCloseTestSnapshot().portalBackCallback)
+
+      activity.onBackPressedDispatcher.dispatchOnBackStarted(backEvent())
+      sheet.setIndex(0)
+      finishActiveAnimation(sheet)
+      assertSame(callback, sheet.requestCloseTestSnapshot().portalBackCallback)
+
+      callback.handleOnBackCancelled()
+
+      assertNull(sheet.requestCloseTestSnapshot().portalBackCallback)
+      assertFalse(sheet.requestCloseTestSnapshot().portalPredictiveBackInProgress)
+      assertEquals(0, listener.requestCloseCount)
+      sheet.destroy()
+    }
+  }
+
+  @Test
+  fun `reopening during predictive Back replaces the ended callback only after cancel`() {
+    withActivity<ComponentActivity> { activity ->
+      val listener = CountingBottomSheetListener()
+      val sheet = openPortalSheet(activity, listener)
+      val endedCallback = requireNotNull(sheet.requestCloseTestSnapshot().portalBackCallback)
+
+      activity.onBackPressedDispatcher.dispatchOnBackStarted(backEvent())
+      sheet.setIndex(0)
+      finishActiveAnimation(sheet)
+      sheet.setIndex(1)
+
+      assertSame(endedCallback, sheet.requestCloseTestSnapshot().portalBackCallback)
+      assertTrue(sheet.requestCloseTestSnapshot().portalPredictiveBackInProgress)
+
+      endedCallback.handleOnBackCancelled()
+
+      val replacement = requireNotNull(sheet.requestCloseTestSnapshot().portalBackCallback)
+      assertNotSame(endedCallback, replacement)
+      assertFalse(sheet.requestCloseTestSnapshot().portalPredictiveBackInProgress)
       activity.onBackPressedDispatcher.onBackPressed()
       assertEquals(1, listener.requestCloseCount)
       sheet.destroy()
@@ -724,6 +938,30 @@ class BottomSheetViewRequestCloseTest {
   }
 
   @Test
+  fun `detach during predictive Back disposes once and a late cancel cannot reinstall`() {
+    withActivity<ComponentActivity> { activity ->
+      val root = FrameLayout(activity)
+      val listener = CountingBottomSheetListener()
+      val sheet = configuredOpenSheet(activity, listener)
+      root.addView(sheet)
+      activity.setContentView(root)
+      layoutPortal(sheet)
+      val callback = requireNotNull(sheet.requestCloseTestSnapshot().portalBackCallback)
+
+      activity.onBackPressedDispatcher.dispatchOnBackStarted(backEvent())
+      assertTrue(sheet.requestCloseTestSnapshot().portalPredictiveBackInProgress)
+      root.removeView(sheet)
+
+      assertNull(sheet.requestCloseTestSnapshot().portalBackCallback)
+      assertNull(sheet.requestCloseTestSnapshot().portalBackDispatcher)
+      callback.handleOnBackCancelled()
+      assertNull(sheet.requestCloseTestSnapshot().portalBackCallback)
+      assertEquals(0, listener.requestCloseCount)
+      sheet.destroy()
+    }
+  }
+
+  @Test
   fun `reparenting without a handler removes old registrations and stays lazy on the new host`() {
     val firstController = Robolectric.buildActivity(ComponentActivity::class.java).setup()
     val secondController = Robolectric.buildActivity(ComponentActivity::class.java).setup()
@@ -836,6 +1074,42 @@ class BottomSheetViewRequestCloseTest {
       firstOwner.onBackPressedDispatcher.onBackPressed()
       assertEquals(2, earlierListener.requestCloseCount)
       earlierSheet.destroy()
+    }
+  }
+
+  @Test
+  fun `dispatcher change during predictive Back replaces transport without late reinstallation`() {
+    withActivity<ComponentActivity> { activity ->
+      val firstOwner = MutableTestDispatcherOwner().apply { resume() }
+      val secondOwner = MutableTestDispatcherOwner().apply { resume() }
+      val container = FrameLayout(activity)
+      container.setViewTreeOnBackPressedDispatcherOwner(firstOwner)
+      container.setViewTreeLifecycleOwner(firstOwner)
+      val listener = CountingBottomSheetListener()
+      val sheet = configuredOpenSheet(activity, listener)
+      container.addView(sheet)
+      activity.setContentView(container)
+      layoutPortal(sheet)
+      val firstCallback = requireNotNull(sheet.requestCloseTestSnapshot().portalBackCallback)
+
+      firstOwner.onBackPressedDispatcher.dispatchOnBackStarted(backEvent())
+      container.setViewTreeOnBackPressedDispatcherOwner(secondOwner)
+      container.setViewTreeLifecycleOwner(secondOwner)
+      sheet.onWindowFocusChanged(true)
+
+      val replacement = requireNotNull(sheet.requestCloseTestSnapshot().portalBackCallback)
+      assertNotSame(firstCallback, replacement)
+      assertSame(
+        secondOwner.onBackPressedDispatcher,
+        sheet.requestCloseTestSnapshot().portalBackDispatcher,
+      )
+      assertFalse(sheet.requestCloseTestSnapshot().portalPredictiveBackInProgress)
+
+      firstCallback.handleOnBackCancelled()
+      assertSame(replacement, sheet.requestCloseTestSnapshot().portalBackCallback)
+      secondOwner.onBackPressedDispatcher.onBackPressed()
+      assertEquals(1, listener.requestCloseCount)
+      sheet.destroy()
     }
   }
 
@@ -976,6 +1250,10 @@ class BottomSheetViewRequestCloseTest {
       activity.setContentView(root)
       layoutPortal(lowerSheet)
       layoutPortal(upperSheet)
+      val lowerBackCallback =
+        requireNotNull(lowerSheet.requestCloseTestSnapshot().portalBackCallback)
+      val firstUpperBackCallback =
+        requireNotNull(upperSheet.requestCloseTestSnapshot().portalBackCallback)
 
       upperSheet.setIndex(0)
       upperSheet.setDetents(
@@ -986,6 +1264,8 @@ class BottomSheetViewRequestCloseTest {
       )
       assertFalse(upperSheet.requestCloseTestSnapshot().isTargetOpen)
       assertTrue(upperSheet.requestCloseTestSnapshot().isPresentationActive)
+      assertSame(firstUpperBackCallback, upperSheet.requestCloseTestSnapshot().portalBackCallback)
+      assertSame(lowerBackCallback, lowerSheet.requestCloseTestSnapshot().portalBackCallback)
       activity.onBackPressedDispatcher.onBackPressed()
       assertPortalEscape(activity, expectedHandled = true)
       assertEquals(0, lowerListener.requestCloseCount)
@@ -994,12 +1274,17 @@ class BottomSheetViewRequestCloseTest {
 
       finishActiveAnimation(upperSheet)
       assertFalse(upperSheet.requestCloseTestSnapshot().isPresentationActive)
+      assertNull(upperSheet.requestCloseTestSnapshot().portalBackCallback)
+      assertSame(lowerBackCallback, lowerSheet.requestCloseTestSnapshot().portalBackCallback)
       activity.onBackPressedDispatcher.onBackPressed()
       assertPortalEscape(activity, expectedHandled = true)
       assertEquals(2, lowerListener.requestCloseCount)
       assertEquals(0, navigationCount)
 
       upperSheet.setIndex(1)
+      val secondUpperBackCallback =
+        requireNotNull(upperSheet.requestCloseTestSnapshot().portalBackCallback)
+      assertNotSame(firstUpperBackCallback, secondUpperBackCallback)
       finishActiveAnimation(upperSheet)
       assertTrue(upperSheet.requestFocus())
       activity.onBackPressedDispatcher.onBackPressed()
@@ -1008,6 +1293,7 @@ class BottomSheetViewRequestCloseTest {
       assertEquals(2, upperListener.requestCloseCount)
 
       upperSheet.setIndex(0)
+      assertSame(secondUpperBackCallback, upperSheet.requestCloseTestSnapshot().portalBackCallback)
       assertTrue(lowerSheet.requestFocus())
       activity.onBackPressedDispatcher.onBackPressed()
       assertPortalEscape(activity, expectedHandled = true)
@@ -1100,6 +1386,8 @@ class BottomSheetViewRequestCloseTest {
       assertEquals(0, upperListener.requestCloseCount)
 
       upperSheet.setRequestCloseHandlerPresent(true)
+      val upperBackCallback =
+        requireNotNull(upperSheet.requestCloseTestSnapshot().portalBackCallback)
       activity.onBackPressedDispatcher.onBackPressed()
       assertPortalEscape(activity, expectedHandled = true)
       assertEquals(1, navigationCount)
@@ -1107,6 +1395,7 @@ class BottomSheetViewRequestCloseTest {
       assertEquals(2, upperListener.requestCloseCount)
 
       upperSheet.setRequestCloseHandlerPresent(false)
+      assertSame(upperBackCallback, upperSheet.requestCloseTestSnapshot().portalBackCallback)
       activity.onBackPressedDispatcher.onBackPressed()
       assertPortalEscape(activity, expectedHandled = false)
       assertEquals(2, navigationCount)
@@ -1114,6 +1403,7 @@ class BottomSheetViewRequestCloseTest {
       assertEquals(2, upperListener.requestCloseCount)
 
       upperSheet.setRequestCloseHandlerPresent(true)
+      assertSame(upperBackCallback, upperSheet.requestCloseTestSnapshot().portalBackCallback)
       activity.onBackPressedDispatcher.onBackPressed()
       assertEquals(0, lowerListener.requestCloseCount)
       assertEquals(3, upperListener.requestCloseCount)
