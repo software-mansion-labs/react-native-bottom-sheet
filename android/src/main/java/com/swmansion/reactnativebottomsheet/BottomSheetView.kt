@@ -486,17 +486,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
 
   // MARK: - Request close
 
-  /**
-   * Emits a controlled request only. Native input handling must never dismiss the dialog, select a
-   * detent, or mutate the sheet's target.
-   */
-  fun emitRequestCloseIfEligible(): Boolean =
-    if (nativeOverlay) {
-      emitNativeOverlayRequestCloseIfEligible()
-    } else {
-      emitPortalRequestCloseIfEligible()
-    }
-
   private fun emitPortalRequestCloseIfEligible(): Boolean {
     if (
       portalRequestCloseAction != RequestCloseInputAction.REQUEST_CLOSE ||
@@ -810,8 +799,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     if (nativeOverlay || overlayPresentationFailed || !modal || !isViewAttached) return false
     val portalRoot = portalRequestCloseHost?.rootView ?: return false
     if (portalRoot !== rootView) return false
-    return PortalRequestCloseCoordinator.dispatchEscape(portalRoot, event) ==
-      PortalEscapeDispatchResult.HANDLED
+    return PortalRequestCloseCoordinator.dispatchEscape(portalRoot, event)
   }
 
   private fun dispatchEscape(event: KeyEvent): Boolean {

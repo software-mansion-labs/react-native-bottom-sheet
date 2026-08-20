@@ -21,12 +21,6 @@ internal interface PortalRequestCloseTarget {
   fun emitPortalRequestCloseIfEligible(): Boolean
 }
 
-internal enum class PortalEscapeDispatchResult {
-  NO_OWNER,
-  OWNER_UNHANDLED,
-  HANDLED,
-}
-
 /**
  * Coordinates portal close-request ownership across every provider mounted in one Android root.
  *
@@ -116,10 +110,10 @@ internal object PortalRequestCloseCoordinator {
     registration.clearTargetReference()
   }
 
-  fun dispatchEscape(root: View, event: KeyEvent): PortalEscapeDispatchResult {
-    val rootState = statesByRoot[root] ?: return PortalEscapeDispatchResult.NO_OWNER
+  fun dispatchEscape(root: View, event: KeyEvent): Boolean {
+    val rootState = statesByRoot[root] ?: return false
     updateHandling(root, rootState)
-    if (statesByRoot[root] !== rootState) return PortalEscapeDispatchResult.NO_OWNER
+    if (statesByRoot[root] !== rootState) return false
 
     val ownerAtDispatch = rootState.owner
     val handled =
@@ -149,11 +143,7 @@ internal object PortalRequestCloseCoordinator {
       rootState.capturedEscapeOwner = null
     }
 
-    return when {
-      handled -> PortalEscapeDispatchResult.HANDLED
-      ownerAtDispatch != null -> PortalEscapeDispatchResult.OWNER_UNHANDLED
-      else -> PortalEscapeDispatchResult.NO_OWNER
-    }
+    return handled
   }
 
   /** Applies every transition in one direction: snapshot -> owner -> enabled transports. */

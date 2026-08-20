@@ -65,14 +65,8 @@ class PortalRequestCloseCoordinatorTest {
       try {
         assertFalse(lower.handlingEnabled)
         assertFalse(upper.handlingEnabled)
-        assertEquals(
-          PortalEscapeDispatchResult.OWNER_UNHANDLED,
-          PortalRequestCloseCoordinator.dispatchEscape(root, escapeDown(120L)),
-        )
-        assertEquals(
-          PortalEscapeDispatchResult.OWNER_UNHANDLED,
-          PortalRequestCloseCoordinator.dispatchEscape(root, escapeUp(120L)),
-        )
+        assertFalse(PortalRequestCloseCoordinator.dispatchEscape(root, escapeDown(120L)))
+        assertFalse(PortalRequestCloseCoordinator.dispatchEscape(root, escapeUp(120L)))
 
         upperRegistration.update(portalState(candidate = true, canEmit = true))
         assertTrue(upper.handlingEnabled)
@@ -310,29 +304,17 @@ class PortalRequestCloseCoordinatorTest {
       val upperRegistration = register(root, upper, candidate = true)
 
       try {
-        assertEquals(
-          PortalEscapeDispatchResult.HANDLED,
-          PortalRequestCloseCoordinator.dispatchEscape(root, escapeDown(170L)),
-        )
+        assertTrue(PortalRequestCloseCoordinator.dispatchEscape(root, escapeDown(170L)))
         upperRegistration.update(portalState(candidate = false))
         upperRegistration.update(portalState(candidate = true))
-        assertEquals(
-          PortalEscapeDispatchResult.HANDLED,
-          PortalRequestCloseCoordinator.dispatchEscape(root, escapeUp(170L)),
-        )
+        assertTrue(PortalRequestCloseCoordinator.dispatchEscape(root, escapeUp(170L)))
         assertEquals(0, lower.requestCount)
         assertEquals(0, upper.requestCount)
 
-        assertEquals(
-          PortalEscapeDispatchResult.HANDLED,
-          PortalRequestCloseCoordinator.dispatchEscape(root, escapeDown(180L)),
-        )
+        assertTrue(PortalRequestCloseCoordinator.dispatchEscape(root, escapeDown(180L)))
         upperRegistration.update(portalState(candidate = true, canEmit = false))
         upperRegistration.update(portalState(candidate = true, canEmit = true))
-        assertEquals(
-          PortalEscapeDispatchResult.HANDLED,
-          PortalRequestCloseCoordinator.dispatchEscape(root, escapeUp(180L)),
-        )
+        assertTrue(PortalRequestCloseCoordinator.dispatchEscape(root, escapeUp(180L)))
         assertEquals(0, upper.requestCount)
 
         assertHandledEscape(root, 190L)
@@ -384,14 +366,8 @@ class PortalRequestCloseCoordinatorTest {
     )
 
   private fun assertHandledEscape(root: FrameLayout, downTime: Long = 90L) {
-    assertEquals(
-      PortalEscapeDispatchResult.HANDLED,
-      PortalRequestCloseCoordinator.dispatchEscape(root, escapeDown(downTime)),
-    )
-    assertEquals(
-      PortalEscapeDispatchResult.HANDLED,
-      PortalRequestCloseCoordinator.dispatchEscape(root, escapeUp(downTime)),
-    )
+    assertTrue(PortalRequestCloseCoordinator.dispatchEscape(root, escapeDown(downTime)))
+    assertTrue(PortalRequestCloseCoordinator.dispatchEscape(root, escapeUp(downTime)))
   }
 
   private fun escapeDown(downTime: Long) =
