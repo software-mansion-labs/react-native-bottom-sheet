@@ -12,7 +12,7 @@ import { StyleSheet, View } from 'react-native';
 type PortalSnapshot = Array<[string, ReactNode]>;
 
 interface PortalContextType {
-  addPortal: (key: string, content: ReactNode) => void;
+  addPortal: (key: string, element: ReactNode) => void;
   removePortal: (key: string) => void;
   subscribe: (callback: () => void) => () => void;
   getSnapshot: () => PortalSnapshot;
@@ -28,9 +28,9 @@ const PortalHost = () => {
     context.getSnapshot
   );
 
-  return portals.map(([key, content]) => (
+  return portals.map(([key, element]) => (
     <View key={key} style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      {content}
+      {element}
     </View>
   ));
 };
