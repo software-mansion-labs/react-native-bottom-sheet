@@ -246,10 +246,6 @@ export const BottomSheet = (props: BottomSheetProps) => {
   const handleSettle = (event: { nativeEvent: { index: number } }) => {
     onSettle?.(event.nativeEvent.index);
   };
-  const handleRequestClose = () => {
-    onRequestClose?.();
-  };
-
   // The native sheet view, optionally wrapped (e.g. with
   // `Animated.createAnimatedComponent`) so a Reanimated worklet can handle
   // `onPositionChange` on the UI thread. Wrapping the leaf native view (rather
@@ -311,7 +307,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
           onIndexChange={handleIndexChange}
           onSettle={handleSettle}
           onPositionChange={onPositionChange}
-          onRequestClose={handleRequestClose}
+          onRequestClose={onRequestClose}
         >
           {surface != null && (
             <BottomSheetSurfaceNativeComponent
