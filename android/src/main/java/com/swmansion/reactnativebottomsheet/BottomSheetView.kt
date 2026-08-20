@@ -533,6 +533,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   }
 
   private fun onRequestCloseStateChanged() {
+    ensurePortalEscapeListener()
     publishPortalRequestCloseState()
     reconcilePortalBackHandler()
     updateRequestCloseHandling()
@@ -678,7 +679,10 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       first.rootView === second.rootView
   }
 
-  /** Keeps Escape installed after its first handler for the structural lifetime of this host. */
+  /**
+   * Starts Escape registration at the first active presentation with a handler, then keeps it
+   * stable for the structural lifetime of this resolved host.
+   */
   private fun ensurePortalEscapeListener() {
     val currentHost = portalRequestCloseHost
     if (currentHost == null || nativeOverlay || !isViewAttached) {
@@ -686,7 +690,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     }
     if (currentHost.lifecycleOwner?.lifecycle?.currentState == Lifecycle.State.DESTROYED) return
 
-    if (requestCloseHandlerPresent) {
+    if (requestCloseHandlerPresent && host.isRequestClosePresentationActive) {
       portalEscapeListenerLifetimeStarted = true
     }
     if (!portalEscapeListenerLifetimeStarted || portalEscapeListenerInstalled) return

@@ -209,7 +209,7 @@ class BottomSheetViewRequestCloseTest {
   }
 
   @Test
-  fun `closed portal provider installs Back only when its first presentation opens`() {
+  fun `closed portal provider installs Back and Escape when its first presentation opens`() {
     withActivity<ComponentActivity> { activity ->
       val listener = CountingBottomSheetListener()
       val sheet =
@@ -233,22 +233,17 @@ class BottomSheetViewRequestCloseTest {
       assertFalse(closedSnapshot.isPresentationActive)
       assertNull(closedSnapshot.portalBackDispatcher)
       assertNull(closedSnapshot.portalBackCallback)
-      assertNotNull(closedSnapshot.portalEscapeListener)
-
-      var navigationCount = 0
-      activity.onBackPressedDispatcher.addCallback(
-        object : OnBackPressedCallback(true) {
-          override fun handleOnBackPressed() {
-            navigationCount++
-          }
-        }
-      )
+      assertNull(closedSnapshot.portalEscapeListener)
+      assertPortalEscape(activity, expectedHandled = false)
+      assertEquals(0, listener.requestCloseCount)
 
       sheet.setIndex(1)
-      assertNotNull(sheet.requestCloseTestSnapshot().portalBackCallback)
-      activity.onBackPressedDispatcher.onBackPressed()
+      val openSnapshot = sheet.requestCloseTestSnapshot()
+      assertNotNull(openSnapshot.portalBackDispatcher)
+      assertNotNull(openSnapshot.portalBackCallback)
+      assertNotNull(openSnapshot.portalEscapeListener)
+      assertPortalEscape(activity, expectedHandled = true)
 
-      assertEquals(0, navigationCount)
       assertEquals(1, listener.requestCloseCount)
       sheet.destroy()
     }
@@ -263,6 +258,7 @@ class BottomSheetViewRequestCloseTest {
 
       assertSame(originalWindowCallback, activity.window.callback)
       assertNull(sheet.requestCloseTestSnapshot().portalBackCallback)
+      assertNull(sheet.requestCloseTestSnapshot().portalEscapeListener)
       sheet.setRequestCloseHandlerPresent(true)
       assertSame(originalWindowCallback, activity.window.callback)
       val installedSnapshot = sheet.requestCloseTestSnapshot()
@@ -339,7 +335,7 @@ class BottomSheetViewRequestCloseTest {
   }
 
   @Test
-  fun `Escape listener identity stays stable through transient eligibility changes`() {
+  fun `Escape listener identity stays stable through its host scoped lifetime`() {
     withActivity<ComponentActivity> { activity ->
       val owner = MutableTestDispatcherOwner().apply { resume() }
       val container = FrameLayout(activity)
@@ -352,16 +348,48 @@ class BottomSheetViewRequestCloseTest {
       layoutPortal(sheet)
       val registration = requireNotNull(sheet.requestCloseTestSnapshot().portalEscapeListener)
 
-      owner.pause()
-      assertSame(registration, sheet.requestCloseTestSnapshot().portalEscapeListener)
-      sheet.setIndex(0)
-      assertSame(registration, sheet.requestCloseTestSnapshot().portalEscapeListener)
       sheet.setRequestCloseHandlerPresent(false)
       assertSame(registration, sheet.requestCloseTestSnapshot().portalEscapeListener)
-
+      owner.pause()
+      assertSame(registration, sheet.requestCloseTestSnapshot().portalEscapeListener)
       owner.resumeFromPause()
-      sheet.setIndex(1)
+      assertSame(registration, sheet.requestCloseTestSnapshot().portalEscapeListener)
       sheet.setRequestCloseHandlerPresent(true)
+      assertSame(registration, sheet.requestCloseTestSnapshot().portalEscapeListener)
+
+      sheet.setIndex(0)
+      assertTrue(sheet.requestCloseTestSnapshot().isPresentationActive)
+      assertSame(registration, sheet.requestCloseTestSnapshot().portalEscapeListener)
+      finishActiveAnimation(sheet)
+      assertFalse(sheet.requestCloseTestSnapshot().isPresentationActive)
+      assertSame(registration, sheet.requestCloseTestSnapshot().portalEscapeListener)
+
+      sheet.setIndex(1)
+      assertSame(registration, sheet.requestCloseTestSnapshot().portalEscapeListener)
+      sheet.destroy()
+      assertNull(sheet.requestCloseTestSnapshot().portalEscapeListener)
+    }
+  }
+
+  @Config(sdk = [27, 35])
+  @Test
+  fun `captured Portal Escape up stays consumed after animated close settles`() {
+    withActivity<ComponentActivity> { activity ->
+      val listener = CountingBottomSheetListener()
+      val sheet = openPortalSheet(activity, listener)
+      val registration = requireNotNull(sheet.requestCloseTestSnapshot().portalEscapeListener)
+      val downTime = 128L
+
+      assertTrue(activity.dispatchKeyEvent(escapeDown(downTime)))
+      sheet.setIndex(0)
+      assertTrue(sheet.requestCloseTestSnapshot().isPresentationActive)
+      assertSame(registration, sheet.requestCloseTestSnapshot().portalEscapeListener)
+      finishActiveAnimation(sheet)
+      assertFalse(sheet.requestCloseTestSnapshot().isPresentationActive)
+      assertSame(registration, sheet.requestCloseTestSnapshot().portalEscapeListener)
+      assertTrue(activity.dispatchKeyEvent(escapeUp(downTime)))
+
+      assertEquals(0, listener.requestCloseCount)
       assertSame(registration, sheet.requestCloseTestSnapshot().portalEscapeListener)
       sheet.destroy()
       assertNull(sheet.requestCloseTestSnapshot().portalEscapeListener)
