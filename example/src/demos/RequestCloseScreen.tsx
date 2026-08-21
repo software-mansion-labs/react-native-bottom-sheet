@@ -1,10 +1,6 @@
-import { useEffect, useState } from 'react';
-import { Button, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useState } from 'react';
+import { Button, StyleSheet, Text, View } from 'react-native';
 import { ModalBottomSheet } from '@swmansion/react-native-bottom-sheet';
-import {
-  KeyboardController,
-  KeyboardEvents,
-} from 'react-native-keyboard-controller';
 
 import {
   DemoScreen,
@@ -22,20 +18,6 @@ export const RequestCloseScreen = () => {
   const [presentationMode, setPresentationMode] =
     useState<PresentationMode>('portal');
   const [requestCount, setRequestCount] = useState(0);
-
-  useEffect(() => {
-    const keyboardSubscription = KeyboardEvents.addListener(
-      'keyboardWillShow',
-      () => {
-        KeyboardController.dismiss({
-          animated: false,
-          keepFocus: true,
-        });
-      }
-    );
-
-    return () => keyboardSubscription.remove();
-  }, []);
 
   const openSheet = (presentation: PresentationMode, handler: HandlerMode) => {
     setPresentationMode(presentation);
@@ -72,45 +54,10 @@ export const RequestCloseScreen = () => {
               {presentationMode} · {handlerMode}
             </Text>
             <Text>onRequestClose calls: {requestCount}</Text>
-            <Text style={styles.helpText}>
-              Focus the input and type. Regular keys should reach it; Android
-              system Back should request a close when a callback is set. With a
-              callback, both presentations intercept Escape before this focused
-              input. Without one, both presentations leave Escape to normal key
-              routing, and nativeOverlay forwards Back to the Activity. This has
-              the modal effect of React Native Modal only when a callback is
-              provided; closing remains consumer-controlled.
-            </Text>
-            <TextInput
-              autoCorrect={false}
-              inputMode="none"
-              multiline
-              placeholder="Type here with an external keyboard."
-              spellCheck={false}
-              style={styles.input}
-              textAlignVertical="top"
-            />
-            <Text style={styles.helpText}>
-              The header button, scrim, and downward swipe still close the sheet
-              independently.
-            </Text>
           </View>
         </ModalBottomSheet>
       }
     >
-      <Text style={styles.helpText}>
-        Use the Android system Back gesture, navigation button, or emulator Back
-        control. With a callback and a physical keyboard, both Portal and
-        nativeOverlay give the sheet priority over the focused input. Portal
-        Escape is best effort after normal key dispatch while focus is outside;
-        nativeOverlay Escape is guaranteed while a callback is present. Without
-        a callback, both presentations leave Escape unclaimed, and nativeOverlay
-        forwards Back to the Activity. With a callback, both presentations keep
-        consuming close input during the closing animation without another
-        callback; after settle, input reaches the next portal or screen below.
-        If the software keyboard is visible, system Back dismisses it before
-        reaching the sheet. The request counter resets each time.
-      </Text>
       <View style={styles.statusCard}>
         <Text style={styles.statusTitle}>Current state</Text>
         <Text>presentation: {presentationMode}</Text>
@@ -120,13 +67,6 @@ export const RequestCloseScreen = () => {
       </View>
       <View style={styles.variantGroup}>
         <Text style={styles.variantTitle}>Portal</Text>
-        <Text style={styles.helpText}>
-          With a callback, physical Escape is intercepted before the focused
-          input, including while a visible close is settling. Without a callback
-          it stays in normal key routing and no lower portal receives a request
-          until settle. With focus outside the sheet it is handled only when
-          normal routing leaves it unhandled.
-        </Text>
         <View style={styles.controls}>
           <Button
             title="Open with closing callback"
@@ -144,11 +84,6 @@ export const RequestCloseScreen = () => {
       </View>
       <View style={styles.variantGroup}>
         <Text style={styles.variantTitle}>nativeOverlay</Text>
-        <Text style={styles.helpText}>
-          With a callback, the separate Android Dialog intercepts physical
-          Escape before the focused input. Without one, Escape follows normal
-          key routing and Back is forwarded to the Activity.
-        </Text>
         <View style={styles.controls}>
           <Button
             title="Open with closing callback"
@@ -197,18 +132,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 16,
     gap: 8,
-  },
-  helpText: {
-    fontSize: 15,
-    color: '#555',
-    lineHeight: 22,
-  },
-  input: {
-    minHeight: 72,
-    borderWidth: 1,
-    borderColor: '#c8cdd3',
-    borderRadius: 12,
-    padding: 12,
-    backgroundColor: '#f8fafc',
   },
 });
