@@ -18,10 +18,9 @@ export interface NativeProps extends ViewProps {
   animateContentHeight?: CodegenTypes.WithDefault<boolean, true>;
   modal: boolean;
   nativeOverlay?: boolean;
-  // Android uses callback presence separately from current eligibility so a
-  // portal can keep Back registration stable for one presentation and, after
-  // the first active presentation with a handler, Escape registration stable
-  // for the lifetime of its resolved host.
+  // Android-only signal that JS supplied `onRequestClose`. Native event-handler
+  // presence is not otherwise observable, so Android uses this to decide whether
+  // a modal should own Back and Escape close requests.
   requestCloseHandlerPresent: boolean;
   // Consulted natively only in native-overlay mode, where the detent cap is
   // computed from the overlay's real bounds and insets; inline sheets bake the

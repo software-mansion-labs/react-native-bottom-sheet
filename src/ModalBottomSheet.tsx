@@ -9,19 +9,20 @@ import {
 /** Props for the modal bottom-sheet variant rendered through the provider portal. */
 export interface ModalBottomSheetProps extends BottomSheetProps {
   /**
-   * Android only. Called when system Back or a committed predictive Back
-   * requests that an open sheet close. In portal mode, an unmodified physical
-   * Escape is intercepted before a focused descendant, so descendants cannot
-   * consume that sequence, or handled through an AndroidX fallback when focus
-   * is elsewhere and normal key routing leaves it unhandled. A portal without
-   * a handler leaves Escape unhandled. With `nativeOverlay`, providing this
-   * callback makes the dialog a modal close-input boundary. In both modes,
+   * Android only. Called when an Android system Back action (including a
+   * committed predictive Back gesture) or an unmodified physical Escape key
+   * press requests that an open sheet close. In portal mode, an unmodified
+   * physical Escape is intercepted before a focused descendant, so descendants
+   * cannot consume that sequence, or handled through an AndroidX fallback when
+   * focus is elsewhere and normal key routing leaves it unhandled. A portal
+   * without a handler leaves Escape unhandled. With `nativeOverlay`, providing
+   * this callback makes the dialog a modal close-input boundary. In both modes,
    * Back and Escape are consumed without another callback while a visible sheet
-   * is animating to a closed target; after settle, input reaches the next
-   * portal or Activity callback. Without a callback, Back is forwarded outside
-   * the active portal group or to the host Activity and Escape follows normal
-   * key routing, preserving the legacy behavior. Predictive gesture progress
-   * does not animate the sheet, and cancelling the gesture does not invoke the
+   * is animating to a closed target; after settle, input reaches the next portal
+   * or Activity callback. Without a callback, Back is forwarded outside the
+   * active portal group or to the host Activity and Escape follows normal key
+   * routing, preserving the legacy behavior. Predictive gesture progress does
+   * not animate the sheet, and cancelling the gesture does not invoke the
    * callback.
    *
    * Portals in the same Android root share native ownership. The most recently
