@@ -3,6 +3,7 @@
 package com.swmansion.reactnativebottomsheet
 
 import android.app.Activity
+import android.app.Dialog
 import android.content.Context
 import android.graphics.Color
 import android.os.Looper
@@ -43,6 +44,8 @@ import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.Implementation
+import org.robolectric.annotation.Implements
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
@@ -1815,7 +1818,7 @@ class BottomSheetViewRequestCloseTest {
   }
 
   @Test
-  fun `nativeOverlay presentation failure clears portal registration and captured Escape`() {
+  fun `nativeOverlay presentation failure restores portal registration and clears captured Escape`() {
     withActivity<ComponentActivity> { activity ->
       val reactContext = BridgeReactContext(activity.applicationContext)
       val themedContext = ThemedReactContext(reactContext, activity, "test", 1)
@@ -1829,9 +1832,38 @@ class BottomSheetViewRequestCloseTest {
       assertTrue(activity.dispatchKeyEvent(escapeDown(downTime)))
       sheet.setNativeOverlay(true)
 
-      assertNull(sheet.requestCloseTestSnapshot().portalEscapeListener)
+      assertNotNull(sheet.requestCloseTestSnapshot().portalEscapeListener)
       assertFalse(activity.dispatchKeyEvent(escapeUp(downTime)))
       assertEquals(0, listener.requestCloseCount)
+      assertEscape(activity::dispatchKeyEvent, expectedHandled = true)
+      assertEquals(1, listener.requestCloseCount)
+      sheet.destroy()
+      reactContext.onHostDestroy()
+    }
+  }
+
+  @Config(shadows = [ThrowingDialogShadow::class])
+  @Test
+  fun `nativeOverlay dialog show failure restores portal Escape handling`() {
+    withActivity<ComponentActivity> { activity ->
+      val reactContext = BridgeReactContext(activity.applicationContext)
+      reactContext.onHostResume(activity)
+      val themedContext = ThemedReactContext(reactContext, activity, "test", 1)
+      val listener = CountingBottomSheetListener()
+      val sheet = configuredOpenSheet(themedContext, listener)
+      sheet.eventDispatcher = NoOpEventDispatcher
+      activity.setContentView(sheet)
+      layoutPortal(sheet)
+
+      sheet.setNativeOverlay(true)
+      layoutPortal(sheet)
+
+      val snapshot = sheet.requestCloseTestSnapshot()
+      assertNull(snapshot.overlayDialog)
+      assertNull(snapshot.overlayRoot)
+      assertNotNull(snapshot.portalEscapeListener)
+      assertEscape(activity::dispatchKeyEvent, expectedHandled = true)
+      assertEquals(1, listener.requestCloseCount)
       sheet.destroy()
       reactContext.onHostDestroy()
     }
@@ -2551,6 +2583,11 @@ class BottomSheetViewRequestCloseTest {
       controller.close()
     }
   }
+}
+
+@Implements(Dialog::class)
+internal class ThrowingDialogShadow {
+  @Implementation protected fun show(): Nothing = throw RuntimeException("dialog show failed")
 }
 
 private data class NativeOverlayTestFixture(
