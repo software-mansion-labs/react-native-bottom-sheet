@@ -1,30 +1,29 @@
 package com.swmansion.reactnativebottomsheet
 
 import android.app.Activity
-import android.os.Looper
 import android.view.View
-import androidx.activity.BackEventCompat
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotSame
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
-import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
 class PortalRequestCloseControllerTest {
   @Test
-  fun `clear and dispose are idempotent and late predictive events cannot restore handlers`() {
+  fun `clear and dispose restore fallback without emitting late requests`() {
     withActivity<ComponentActivity> { activity ->
-      val portal = View(activity)
-      activity.setContentView(portal)
+      var fallbackCount = 0
       var requestCloseCount = 0
+      activity.onBackPressedDispatcher.addCallback(countingCallback { fallbackCount++ })
+      val portal = View(activity).apply { isFocusableInTouchMode = true }
+      activity.setContentView(portal)
+      assertTrue(portal.requestFocus())
       val controller =
         PortalRequestCloseController(
           view = portal,
@@ -36,79 +35,85 @@ class PortalRequestCloseControllerTest {
         )
 
       controller.update(inputState(), enabled = true)
-      val callbackBeforeClear = requireNotNull(controller.backCallback)
-      activity.onBackPressedDispatcher.dispatchOnBackStarted(backEvent())
+      activity.onBackPressedDispatcher.onBackPressed()
+      assertEquals(1, requestCloseCount)
 
       controller.clear()
-      controller.clear()
-      assertNull(controller.backCallback)
-      assertNull(controller.backDispatcher)
-      assertNull(controller.escapeListener)
-
-      callbackBeforeClear.handleOnBackCancelled()
-      callbackBeforeClear.handleOnBackPressed()
-      assertNull(controller.backCallback)
-      assertEquals(0, requestCloseCount)
+      activity.onBackPressedDispatcher.onBackPressed()
+      assertEquals(1, fallbackCount)
+      assertEquals(1, requestCloseCount)
 
       controller.update(inputState(), enabled = true)
-      val callbackBeforeDispose = requireNotNull(controller.backCallback)
-      assertNotSame(callbackBeforeClear, callbackBeforeDispose)
-      controller.scheduleHostSync()
-      activity.onBackPressedDispatcher.dispatchOnBackStarted(backEvent())
-
+      activity.onBackPressedDispatcher.onBackPressed()
       controller.dispose()
-      controller.dispose()
-      controller.clear()
-      callbackBeforeDispose.handleOnBackCancelled()
-      callbackBeforeDispose.handleOnBackPressed()
-      controller.update(inputState(), enabled = true)
-      controller.scheduleHostSync()
-      shadowOf(Looper.getMainLooper()).idle()
+      activity.onBackPressedDispatcher.onBackPressed()
 
-      assertNull(controller.backCallback)
-      assertNull(controller.backDispatcher)
-      assertNull(controller.escapeListener)
-      assertEquals(0, requestCloseCount)
+      assertEquals(2, fallbackCount)
+      assertEquals(2, requestCloseCount)
     }
   }
 
   @Test
-  fun `Escape listener installation itself is the sticky host lifetime`() {
+  fun `handler and presentation changes route Back and Escape observably`() {
     withActivity<ComponentActivity> { activity ->
-      val portal = View(activity)
+      var fallbackCount = 0
+      var requestCloseCount = 0
+      activity.onBackPressedDispatcher.addCallback(countingCallback { fallbackCount++ })
+      val portal = View(activity).apply { isFocusableInTouchMode = true }
       activity.setContentView(portal)
+      assertTrue(portal.requestFocus())
       val controller =
         PortalRequestCloseController(
           view = portal,
           currentActivity = { activity },
-          emitRequestClose = { true },
+          emitRequestClose = {
+            requestCloseCount++
+            true
+          },
         )
 
-      controller.update(inputState(hasHandler = false), enabled = true)
-      assertNull(controller.escapeListener)
+      controller.update(inputState(), enabled = true)
+      activity.onBackPressedDispatcher.onBackPressed()
 
-      controller.update(inputState(hasHandler = true), enabled = true)
-      val installedListener = requireNotNull(controller.escapeListener)
       controller.update(inputState(hasHandler = false), enabled = true)
-      assertSame(installedListener, controller.escapeListener)
+      activity.onBackPressedDispatcher.onBackPressed()
 
-      controller.clear()
-      assertNull(controller.escapeListener)
+      controller.update(
+        inputState(isPresentationActive = false, isTargetOpen = false),
+        enabled = true,
+      )
+      activity.onBackPressedDispatcher.onBackPressed()
+
+      controller.update(inputState(isTargetOpen = false), enabled = true)
+      activity.onBackPressedDispatcher.onBackPressed()
+
+      controller.update(inputState(), enabled = true)
+      activity.onBackPressedDispatcher.onBackPressed()
+
+      assertEquals(2, fallbackCount)
+      assertEquals(2, requestCloseCount)
       controller.dispose()
     }
   }
 
-  private fun inputState(hasHandler: Boolean = true) =
+  private fun inputState(
+    hasHandler: Boolean = true,
+    isPresentationActive: Boolean = true,
+    isTargetOpen: Boolean = true,
+  ) =
     RequestCloseInputState(
       isAttached = true,
       isActive = true,
       isModal = true,
       hasHandler = hasHandler,
-      isPresentationActive = true,
-      isTargetOpen = true,
+      isPresentationActive = isPresentationActive,
+      isTargetOpen = isTargetOpen,
     )
 
-  private fun backEvent() = BackEventCompat(0f, 0f, 0f, BackEventCompat.EDGE_LEFT)
+  private fun countingCallback(onBack: () -> Unit) =
+    object : OnBackPressedCallback(true) {
+      override fun handleOnBackPressed() = onBack()
+    }
 
   private inline fun <reified T : Activity> withActivity(block: (T) -> Unit) {
     val activityController = Robolectric.buildActivity(T::class.java).setup()

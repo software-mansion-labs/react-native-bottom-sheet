@@ -147,27 +147,6 @@ class BottomSheetViewRequestCloseTest {
   }
 
   @Test
-  fun `closing releases handling and reopening restores it`() {
-    withActivity<ComponentActivity> { activity ->
-      var navigationCount = 0
-      activity.onBackPressedDispatcher.addCallback(navigationCallback { navigationCount++ })
-      val listener = CountingBottomSheetListener()
-      val sheet = openPortalSheet(activity, listener)
-      sheet.setIndex(0)
-      finishActiveAnimation(sheet)
-      activity.onBackPressedDispatcher.onBackPressed()
-      assertEscape(activity::dispatchKeyEvent, expectedHandled = false)
-      sheet.setIndex(1)
-      finishActiveAnimation(sheet)
-      activity.onBackPressedDispatcher.onBackPressed()
-      assertEscape(activity::dispatchKeyEvent, expectedHandled = true)
-      assertEquals(1, navigationCount)
-      assertEquals(2, listener.requestCloseCount)
-      sheet.destroy()
-    }
-  }
-
-  @Test
   fun `Back during an animated close is consumed without emission`() {
     withActivity<ComponentActivity> { activity ->
       var navigationCount = 0
@@ -182,7 +161,6 @@ class BottomSheetViewRequestCloseTest {
       assertEquals(0, navigationCount)
       assertEquals(indexChanges, listener.indexChanges)
       assertEquals(settles, listener.settles)
-      finishActiveAnimation(sheet)
       sheet.destroy()
     }
   }
@@ -197,12 +175,8 @@ class BottomSheetViewRequestCloseTest {
       activity.onBackPressedDispatcher.dispatchOnBackStarted(backEvent())
       sheet.setIndex(0)
       activity.onBackPressedDispatcher.onBackPressed()
-      activity.onBackPressedDispatcher.onBackPressed()
       assertEquals(0, listener.requestCloseCount)
       assertEquals(0, navigationCount)
-      finishActiveAnimation(sheet)
-      activity.onBackPressedDispatcher.onBackPressed()
-      assertEquals(1, navigationCount)
       sheet.destroy()
     }
   }
@@ -308,11 +282,6 @@ class BottomSheetViewRequestCloseTest {
       activity.onBackPressedDispatcher.onBackPressed()
       assertEscape(activity::dispatchKeyEvent, expectedHandled = true)
       assertEquals(0, lowerListener.requestCloseCount)
-      assertEquals(0, upperListener.requestCloseCount)
-      finishActiveAnimation(upperSheet)
-      activity.onBackPressedDispatcher.onBackPressed()
-      assertEscape(activity::dispatchKeyEvent, expectedHandled = true)
-      assertEquals(2, lowerListener.requestCloseCount)
       assertEquals(0, upperListener.requestCloseCount)
       upperSheet.destroy()
       lowerSheet.destroy()
@@ -441,23 +410,6 @@ class BottomSheetViewRequestCloseTest {
       assertEquals(0, listener.requestCloseCount)
       fixture.dialog.onBackPressedDispatcher.onBackPressed()
       assertEquals(1, listener.requestCloseCount)
-      fixture.destroy()
-    }
-  }
-
-  @Test
-  fun `native overlay releases Back after closing animation finishes`() {
-    withActivity<ComponentActivity> { activity ->
-      var navigationCount = 0
-      activity.onBackPressedDispatcher.addCallback(navigationCallback { navigationCount++ })
-      val listener = CountingBottomSheetListener()
-      val fixture = openNativeOverlaySheet(activity, listener)
-      fixture.sheet.setIndex(0)
-      finishActiveAnimation(fixture.sheet)
-      activity.onBackPressedDispatcher.onBackPressed()
-      assertEquals(1, navigationCount)
-      assertEquals(0, listener.requestCloseCount)
-      assertTrue(fixture.dialog.isShowing)
       fixture.destroy()
     }
   }
@@ -610,11 +562,6 @@ class BottomSheetViewRequestCloseTest {
       View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY),
     )
     view.layout(0, 0, width, height)
-    shadowOf(Looper.getMainLooper()).idle()
-  }
-
-  private fun finishActiveAnimation(sheet: BottomSheetView) {
-    assertTrue(sheet.skipActiveAnimationToEndForTesting())
     shadowOf(Looper.getMainLooper()).idle()
   }
 

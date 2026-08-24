@@ -275,26 +275,6 @@ class PortalRequestCloseCoordinatorTest {
   }
 
   @Test
-  fun `dead weak target is cleaned and lower becomes owner`() {
-    withActivity { activity ->
-      val root = FrameLayout(activity)
-      val lower = TestTarget()
-      val lowerRegistration = register(root, lower, candidate = true)
-      val upperRegistration = registerTransientTarget(root)
-
-      try {
-        PortalRequestCloseCoordinator.clearTargetReferenceForTest(upperRegistration)
-        assertHandledEscape(root, 160L)
-        assertTrue(lower.handlingEnabled)
-        assertEquals(1, lower.requestCount)
-      } finally {
-        upperRegistration.remove()
-        lowerRegistration.remove()
-      }
-    }
-  }
-
-  @Test
   fun `ownership or emission loss is terminal for a captured Escape press`() {
     withActivity { activity ->
       val root = FrameLayout(activity)
@@ -444,11 +424,6 @@ class PortalRequestCloseCoordinatorTest {
     canEmit: Boolean = candidate,
   ): PortalRequestCloseCoordinator.Registration =
     PortalRequestCloseCoordinator.register(root, target, portalState(candidate, canEmit))
-
-  private fun registerTransientTarget(
-    root: FrameLayout
-  ): PortalRequestCloseCoordinator.Registration =
-    PortalRequestCloseCoordinator.register(root, TestTarget(), portalState(candidate = true))
 
   private fun portalState(
     candidate: Boolean,

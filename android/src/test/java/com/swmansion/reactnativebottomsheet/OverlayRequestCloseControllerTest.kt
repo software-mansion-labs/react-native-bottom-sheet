@@ -7,15 +7,12 @@ import android.os.Looper
 import android.view.KeyEvent
 import android.view.WindowManager
 import android.widget.FrameLayout
-import androidx.activity.BackEventCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.ComponentDialog
 import androidx.activity.OnBackPressedCallback
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotSame
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -27,123 +24,104 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35])
 class OverlayRequestCloseControllerTest {
   @Test
-  fun `unbind and dispose are idempotent and clear in-progress input`() {
+  fun `unbind and dispose leave the dialog fallback without emitting`() {
     withActivity<ComponentActivity> { activity ->
-      val dialog = shownDialog(activity)
       var requestCloseCount = 0
+      val controller = OverlayRequestCloseController {
+        requestCloseCount++
+        true
+      }
+      val boundDialog = shownDialog(activity)
+      controller.bind(boundDialog)
+      controller.update(inputState(), enabled = true, interactive = false)
+      boundDialog.onBackPressedDispatcher.onBackPressed()
+      dispatchEscape(boundDialog)
+      assertEquals(2, requestCloseCount)
+
+      controller.unbind()
+      dispatchEscape(boundDialog)
+      boundDialog.onBackPressedDispatcher.onBackPressed()
+      assertFalse(boundDialog.isShowing)
+      assertEquals(2, requestCloseCount)
+
+      val disposedDialog = shownDialog(activity)
+      controller.bind(disposedDialog)
+      controller.update(inputState(), enabled = true, interactive = false)
+      controller.dispose()
+      dispatchEscape(disposedDialog)
+      disposedDialog.onBackPressedDispatcher.onBackPressed()
+
+      assertFalse(disposedDialog.isShowing)
+      assertEquals(2, requestCloseCount)
+    }
+  }
+
+  @Test
+  fun `handler and presentation state control input routing and window flags`() {
+    withActivity<ComponentActivity> { activity ->
+      var fallbackCount = 0
+      var requestCloseCount = 0
+      activity.onBackPressedDispatcher.addCallback(countingCallback { fallbackCount++ })
+      val dialog = shownDialog(activity)
       val controller = OverlayRequestCloseController {
         requestCloseCount++
         true
       }
       controller.bind(dialog)
       controller.update(inputState(), enabled = true, interactive = false)
-      val callbackBeforeUnbind = requireNotNull(controller.backCallback)
-      dialog.onBackPressedDispatcher.dispatchOnBackStarted(backEvent())
-      assertTrue(controller.dispatchEscape(escapeDown(10L)))
-
-      controller.unbind()
-      controller.unbind()
-      assertNull(controller.backCallback)
-      callbackBeforeUnbind.handleOnBackCancelled()
-      callbackBeforeUnbind.handleOnBackPressed()
-      assertFalse(controller.dispatchEscape(escapeUp(10L)))
-      assertEquals(0, requestCloseCount)
-
-      controller.bind(dialog)
-      controller.update(inputState(), enabled = true, interactive = false)
-      val callbackBeforeDispose = requireNotNull(controller.backCallback)
-      assertNotSame(callbackBeforeUnbind, callbackBeforeDispose)
-      dialog.onBackPressedDispatcher.dispatchOnBackStarted(backEvent())
-
-      controller.dispose()
-      controller.dispose()
-      controller.unbind()
-      callbackBeforeDispose.handleOnBackCancelled()
-      callbackBeforeDispose.handleOnBackPressed()
-      controller.bind(dialog)
-      controller.update(inputState(), enabled = true, interactive = true)
-
-      assertNull(controller.backCallback)
-      assertEquals(0, requestCloseCount)
-      dialog.dismiss()
-    }
-  }
-
-  @Test
-  fun `focusability is reconciled from current window flags without a cache`() {
-    withActivity<ComponentActivity> { activity ->
-      val dialog = shownDialog(activity)
-      val controller = OverlayRequestCloseController { true }
-      controller.bind(dialog)
-      controller.update(inputState(), enabled = true, interactive = false)
       val window = requireNotNull(dialog.window)
 
+      assertTrue(window.hasFlag(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE))
       assertFalse(window.hasFlag(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE))
-      window.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
-      controller.update(inputState(), enabled = true, interactive = false)
-      assertFalse(window.hasFlag(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE))
+      dialog.onBackPressedDispatcher.onBackPressed()
+      dispatchEscape(dialog)
+
+      controller.update(inputState(hasHandler = false), enabled = true, interactive = false)
+      assertTrue(window.hasFlag(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE))
+      assertTrue(window.hasFlag(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE))
+      dialog.onBackPressedDispatcher.onBackPressed()
+      dispatchEscape(dialog)
 
       controller.update(
-        inputState(hasHandler = false),
+        inputState(isPresentationActive = false, isTargetOpen = false),
         enabled = true,
         interactive = false,
       )
       assertTrue(window.hasFlag(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE))
-      window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
-      controller.update(
-        inputState(hasHandler = false),
-        enabled = true,
-        interactive = false,
-      )
-      assertTrue(window.hasFlag(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE))
+      dispatchEscape(dialog)
+      dialog.onBackPressedDispatcher.onBackPressed()
 
+      assertFalse(dialog.isShowing)
+      assertEquals(1, fallbackCount)
+      assertEquals(2, requestCloseCount)
       controller.dispose()
-      dialog.dismiss()
     }
   }
 
   @Test
-  fun `Back pass-through resolves the Activity from the currently bound dialog only`() {
+  fun `Back pass-through follows the currently bound dialog activity`() {
     val firstActivityController = Robolectric.buildActivity(ComponentActivity::class.java).setup()
     val secondActivityController = Robolectric.buildActivity(ComponentActivity::class.java).setup()
     val firstActivity = firstActivityController.get()
     val secondActivity = secondActivityController.get()
     val firstDialog = shownDialog(firstActivity)
     val secondDialog = shownDialog(secondActivity)
-    var firstBackCount = 0
-    var secondBackCount = 0
-    firstActivity.onBackPressedDispatcher.addCallback(countingCallback { firstBackCount++ })
-    secondActivity.onBackPressedDispatcher.addCallback(countingCallback { secondBackCount++ })
+    var firstFallbackCount = 0
+    var secondFallbackCount = 0
+    firstActivity.onBackPressedDispatcher.addCallback(countingCallback { firstFallbackCount++ })
+    secondActivity.onBackPressedDispatcher.addCallback(countingCallback { secondFallbackCount++ })
     val controller = OverlayRequestCloseController { true }
     try {
       controller.bind(firstDialog)
-      controller.update(
-        inputState(hasHandler = false),
-        enabled = true,
-        interactive = false,
-      )
+      controller.update(inputState(hasHandler = false), enabled = true, interactive = false)
       firstDialog.onBackPressedDispatcher.onBackPressed()
-      assertEquals(1, firstBackCount)
-      assertEquals(0, secondBackCount)
 
-      val firstCallback = requireNotNull(controller.backCallback)
       controller.bind(secondDialog)
-      controller.update(
-        inputState(hasHandler = false),
-        enabled = true,
-        interactive = false,
-      )
+      controller.update(inputState(hasHandler = false), enabled = true, interactive = false)
       secondDialog.onBackPressedDispatcher.onBackPressed()
-      assertEquals(1, firstBackCount)
-      assertEquals(1, secondBackCount)
 
-      val secondCallback = requireNotNull(controller.backCallback)
-      controller.unbind()
-      firstCallback.handleOnBackPressed()
-      secondCallback.handleOnBackPressed()
-      assertEquals(1, firstBackCount)
-      assertEquals(1, secondBackCount)
-      assertNull(controller.backCallback)
+      assertEquals(1, firstFallbackCount)
+      assertEquals(1, secondFallbackCount)
     } finally {
       controller.dispose()
       firstDialog.dismiss()
@@ -160,14 +138,18 @@ class OverlayRequestCloseControllerTest {
       shadowOf(Looper.getMainLooper()).idle()
     }
 
-  private fun inputState(hasHandler: Boolean = true) =
+  private fun inputState(
+    hasHandler: Boolean = true,
+    isPresentationActive: Boolean = true,
+    isTargetOpen: Boolean = true,
+  ) =
     RequestCloseInputState(
       isAttached = true,
       isActive = true,
       isModal = true,
       hasHandler = hasHandler,
-      isPresentationActive = true,
-      isTargetOpen = true,
+      isPresentationActive = isPresentationActive,
+      isTargetOpen = isTargetOpen,
     )
 
   private fun countingCallback(onBack: () -> Unit) =
@@ -177,7 +159,11 @@ class OverlayRequestCloseControllerTest {
 
   private fun android.view.Window.hasFlag(flag: Int): Boolean = attributes.flags and flag != 0
 
-  private fun backEvent() = BackEventCompat(0f, 0f, 0f, BackEventCompat.EDGE_LEFT)
+  private fun dispatchEscape(dialog: ComponentDialog) {
+    val downTime = 10L
+    dialog.dispatchKeyEvent(escapeDown(downTime))
+    dialog.dispatchKeyEvent(escapeUp(downTime))
+  }
 
   private fun escapeDown(downTime: Long) =
     KeyEvent(downTime, downTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ESCAPE, 0)

@@ -16,8 +16,7 @@ internal class OverlayRequestCloseController(private val emitRequestClose: () ->
   private var disposed = false
   private val escapeDispatcher = EscapeRequestCloseDispatcher()
 
-  internal var backCallback: RequestCloseBackCallback? = null
-    private set
+  private var backCallback: RequestCloseBackCallback? = null
 
   fun bind(dialog: ComponentDialog) {
     if (disposed) return
@@ -55,7 +54,7 @@ internal class OverlayRequestCloseController(private val emitRequestClose: () ->
     refreshHandling()
   }
 
-  fun dispatchEscape(event: KeyEvent): Boolean {
+  private fun dispatchEscape(event: KeyEvent): Boolean {
     if (disposed || dialog == null) return false
     val hadCapturedPress = escapeDispatcher.hasCapturedPress
     val handled =

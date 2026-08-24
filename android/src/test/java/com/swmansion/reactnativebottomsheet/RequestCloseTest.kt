@@ -68,6 +68,32 @@ class RequestCloseTest {
   }
 
   @Test
+  fun `disposed predictive callback ignores late cancellation and commit`() {
+    val executed = mutableListOf<RequestCloseInputAction>()
+    var predictiveStateChanges = 0
+    val callback =
+      RequestCloseBackCallback(
+        resolveAction = { RequestCloseInputAction.REQUEST_CLOSE },
+        executeAction = executed::add,
+        onPredictiveBackStateChanged = { predictiveStateChanges++ },
+      )
+    callback.updateState(
+      canReceiveBack = true,
+      currentAction = RequestCloseInputAction.REQUEST_CLOSE,
+    )
+    callback.handleOnBackStarted(backEvent())
+    callback.dispose()
+    val stateChangesBeforeLateEvents = predictiveStateChanges
+
+    callback.handleOnBackCancelled()
+    callback.handleOnBackPressed()
+
+    assertTrue(executed.isEmpty())
+    assertFalse(callback.isPredictiveBackInProgress)
+    assertEquals(stateChangesBeforeLateEvents, predictiveStateChanges)
+  }
+
+  @Test
   fun `Escape uses shared consume and pass-through actions`() {
     val dispatcher = EscapeRequestCloseDispatcher()
     var emissionCount = 0

@@ -25,14 +25,9 @@ internal class PortalRequestCloseController(
   private var isReconcilingBackHandler = false
   private var escapeListenerInstalled = false
 
-  internal var backDispatcher: OnBackPressedDispatcher? = null
-    private set
+  private var backDispatcher: OnBackPressedDispatcher? = null
 
-  internal var backCallback: RequestCloseBackCallback? = null
-    private set
-
-  internal val escapeListener: ViewCompat.OnUnhandledKeyEventListenerCompat?
-    get() = unhandledKeyEventListener.takeIf { escapeListenerInstalled }
+  private var backCallback: RequestCloseBackCallback? = null
 
   private val lifecycleObserver: LifecycleEventObserver = LifecycleEventObserver { owner, event ->
     if (disposed || owner !== requestCloseHost?.lifecycleOwner) {

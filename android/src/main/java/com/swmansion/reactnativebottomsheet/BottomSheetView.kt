@@ -16,7 +16,6 @@ import android.view.ViewGroup
 import android.view.Window
 import android.view.WindowManager
 import androidx.activity.ComponentDialog
-import androidx.annotation.VisibleForTesting
 import androidx.core.view.WindowCompat
 import com.facebook.react.bridge.LifecycleEventListener
 import com.facebook.react.common.LifecycleState
@@ -107,12 +106,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       field = value
       overlayRoot?.eventDispatcher = value
     }
-
-  // Robolectric can leave a DynamicAnimation frame callback behind a future synthetic vsync when
-  // a whole test class runs, so tests need a deterministic way to complete the active animation.
-  @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-  internal fun skipActiveAnimationToEndForTesting(): Boolean =
-    host.skipActiveAnimationToEndForTesting()
 
   // MARK: - Child view management (routed to the host's sheet container)
 

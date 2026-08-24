@@ -76,6 +76,7 @@ internal class RequestCloseBackCallback(
   }
 
   override fun handleOnBackCancelled() {
+    if (disposed) return
     clearPinnedAction()
   }
 

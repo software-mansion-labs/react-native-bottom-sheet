@@ -2,7 +2,6 @@ package com.swmansion.reactnativebottomsheet
 
 import android.view.KeyEvent
 import android.view.View
-import androidx.annotation.VisibleForTesting
 import java.lang.ref.WeakReference
 import java.util.WeakHashMap
 
@@ -83,10 +82,6 @@ internal object PortalRequestCloseCoordinator {
       currentRootState.entries.remove(entry)
       updateHandling(currentRoot, currentRootState)
     }
-
-    fun clearTargetReference() {
-      entry.target.clear()
-    }
   }
 
   private val statesByRoot = WeakHashMap<View, RootState>()
@@ -102,12 +97,6 @@ internal object PortalRequestCloseCoordinator {
     rootState.entries.add(entry)
     updateHandling(root, rootState)
     return RegistrationImpl(entry, root)
-  }
-
-  @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-  internal fun clearTargetReferenceForTest(registration: Registration) {
-    require(registration is RegistrationImpl)
-    registration.clearTargetReference()
   }
 
   fun dispatchEscape(root: View, event: KeyEvent): Boolean {
