@@ -78,7 +78,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   init {
     pointerEvents = PointerEvents.BOX_NONE
     host.interactionListener = { interactive -> updateOverlayTouchability(interactive) }
-    host.requestCloseStateChangedListener = ::onRequestCloseStateChanged
+    host.requestCloseStateChangedListener = ::refreshRequestCloseControllers
     attachHostInline()
     // The overlay dialog's window is bound to the host activity, so we follow the
     // activity lifecycle: tear the window down before the activity is destroyed
@@ -168,7 +168,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   var modal: Boolean
     get() = host.modal
     set(value) {
-      if (value == host.modal) return
       host.modal = value
       refreshRequestCloseControllers()
     }
@@ -279,7 +278,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     if (activity == null || activity.isFinishing || activity.isDestroyed) {
       // Without an activity there is no window to host the dialog; stay inline.
       nativeOverlay = false
-      refreshRequestCloseControllers()
       return
     }
     (host.parent as? ViewGroup)?.removeView(host)
@@ -313,7 +311,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     try {
       dialog.show()
       dialog.window?.let { configureOverlayWindow(it, activity) }
-      refreshRequestCloseControllers()
     } catch (_: RuntimeException) {
       // Show failed (e.g. the activity went away mid-present). Dismiss so the
       // partially-created window can't leak, then fall back to inline.
@@ -325,22 +322,19 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       nativeOverlay = false
       (host.parent as? ViewGroup)?.removeView(host)
       attachHostInline()
-      refreshRequestCloseControllers()
     }
   }
 
   private fun dismissOverlay() {
-    val dialog = overlayDialog
     overlayRequestCloseController.unbind()
-    dialog?.let {
+    overlayDialog?.let { dialog ->
       (host.parent as? ViewGroup)?.removeView(host)
-      if (it.isShowing) it.dismiss()
+      if (dialog.isShowing) dialog.dismiss()
     }
     overlayDialog = null
     overlayRoot = null
     overlayInteractive = null
     attachHostInline()
-    refreshRequestCloseControllers()
   }
 
   private fun currentEventDispatcher(): EventDispatcher? =
@@ -364,9 +358,8 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     // until the sheet animates open. Keep the dialog window alpha at 0 while it
     // is non-interactive so Android's untrusted-touch occlusion check does not
     // treat the full-screen dialog as covering the IME.
-    window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
-    window.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
-    window.attributes = window.attributes.apply { alpha = 0f }
+    window.addFlags(NON_INTERACTIVE_FLAGS)
+    window.setOverlayWindowAlpha(interactive = false)
     window.setSoftInputMode(
       WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
         WindowManager.LayoutParams.SOFT_INPUT_STATE_UNCHANGED
@@ -430,6 +423,10 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     refreshRequestCloseControllers()
   }
 
+  private fun Window.setOverlayWindowAlpha(interactive: Boolean) {
+    attributes = attributes.apply { alpha = if (interactive) 1f else 0f }
+  }
+
   // MARK: - Request close
 
   private fun emitRequestClose(): Boolean {
@@ -455,8 +452,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       interactive = overlayInteractive == true,
     )
   }
-
-  private fun onRequestCloseStateChanged() = refreshRequestCloseControllers()
 
   // MARK: - Activity lifecycle
 
@@ -484,6 +479,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     // the host falls back to inline parenting in the meantime.
     if (overlayDialog != null) {
       dismissOverlay()
+      refreshRequestCloseControllers()
     }
   }
 
@@ -498,14 +494,16 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     themedReactContext?.removeLifecycleEventListener(this)
     host.interactionListener = null
     host.requestCloseStateChangedListener = null
-    val dialog = overlayDialog
-    dialog?.let {
-      if (it.isShowing) it.dismiss()
-    }
+    overlayDialog?.let { if (it.isShowing) it.dismiss() }
     overlayDialog = null
     overlayRoot = null
     overlayInteractive = null
     host.destroy()
+  }
+
+  private companion object {
+    const val NON_INTERACTIVE_FLAGS =
+      WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
   }
 }
 
