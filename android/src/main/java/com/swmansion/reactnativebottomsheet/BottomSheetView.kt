@@ -360,10 +360,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     // treat the full-screen dialog as covering the IME.
     window.addFlags(NON_INTERACTIVE_FLAGS)
     window.setOverlayWindowAlpha(interactive = false)
-    window.setSoftInputMode(
-      WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
-        WindowManager.LayoutParams.SOFT_INPUT_STATE_UNCHANGED
-    )
     window.setLayout(
       WindowManager.LayoutParams.MATCH_PARENT,
       WindowManager.LayoutParams.MATCH_PARENT,
