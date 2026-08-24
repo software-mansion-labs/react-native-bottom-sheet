@@ -189,17 +189,16 @@ class EscapeRoutingInstrumentedTest {
             )
             setIndex(1)
           }
+        child = EscapeRecordingView(activity, childEventCount, consumesEscape = true)
+        child.isFocusableInTouchMode = true
+        sheet.addSheetChild(child, 0)
         activity.setContentView(sheet)
         sheet.setNativeOverlay(true)
       }
 
       val instrumentation = InstrumentationRegistry.getInstrumentation()
       instrumentation.waitForIdleSync()
-      scenario.onActivity { activity ->
-        child = EscapeRecordingView(activity, childEventCount, consumesEscape = true)
-        child.isFocusableInTouchMode = true
-        val overlayRoot = requireNotNull(sheet.requestCloseTestSnapshot().overlayRoot) as ViewGroup
-        overlayRoot.addView(child, ViewGroup.LayoutParams(1, 1))
+      scenario.onActivity {
         assertTrue(child.requestFocus())
       }
       instrumentation.waitForIdleSync()

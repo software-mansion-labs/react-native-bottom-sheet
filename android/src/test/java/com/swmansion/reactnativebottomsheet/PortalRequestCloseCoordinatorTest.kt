@@ -336,6 +336,107 @@ class PortalRequestCloseCoordinatorTest {
     }
   }
 
+  @Test
+  fun `Escape emits only on terminal key-up`() {
+    withActivity { activity ->
+      val root = FrameLayout(activity)
+      val target = TestTarget()
+      val registration = register(root, target, candidate = true)
+
+      try {
+        assertTrue(PortalRequestCloseCoordinator.dispatchEscape(root, escapeDown(200L)))
+        assertEquals(0, target.requestCount)
+        assertTrue(PortalRequestCloseCoordinator.dispatchEscape(root, escapeUp(200L)))
+        assertEquals(1, target.requestCount)
+      } finally {
+        registration.remove()
+      }
+    }
+  }
+
+  @Test
+  fun `Escape rejects modifiers and repeats without duplicate emission`() {
+    withActivity { activity ->
+      val root = FrameLayout(activity)
+      val target = TestTarget()
+      val registration = register(root, target, candidate = true)
+
+      try {
+        assertFalse(
+          PortalRequestCloseCoordinator.dispatchEscape(
+            root,
+            escapeDown(210L, metaState = KeyEvent.META_SHIFT_ON),
+          )
+        )
+        assertFalse(
+          PortalRequestCloseCoordinator.dispatchEscape(
+            root,
+            escapeUp(210L, metaState = KeyEvent.META_SHIFT_ON),
+          )
+        )
+
+        assertTrue(PortalRequestCloseCoordinator.dispatchEscape(root, escapeDown(220L)))
+        assertTrue(
+          PortalRequestCloseCoordinator.dispatchEscape(root, escapeDown(220L, repeatCount = 1))
+        )
+        assertEquals(0, target.requestCount)
+        assertTrue(PortalRequestCloseCoordinator.dispatchEscape(root, escapeUp(220L)))
+        assertEquals(1, target.requestCount)
+
+        assertTrue(PortalRequestCloseCoordinator.dispatchEscape(root, escapeDown(230L)))
+        assertTrue(
+          PortalRequestCloseCoordinator.dispatchEscape(
+            root,
+            escapeUp(230L, metaState = KeyEvent.META_SHIFT_ON),
+          )
+        )
+        assertEquals(1, target.requestCount)
+      } finally {
+        registration.remove()
+      }
+    }
+  }
+
+  @Test
+  fun `new Escape down replaces an orphaned captured press`() {
+    withActivity { activity ->
+      val root = FrameLayout(activity)
+      val target = TestTarget()
+      val registration = register(root, target, candidate = true)
+
+      try {
+        assertTrue(PortalRequestCloseCoordinator.dispatchEscape(root, escapeDown(240L)))
+        assertTrue(PortalRequestCloseCoordinator.dispatchEscape(root, escapeDown(241L)))
+        assertTrue(PortalRequestCloseCoordinator.dispatchEscape(root, escapeUp(241L)))
+        assertEquals(1, target.requestCount)
+
+        assertTrue(PortalRequestCloseCoordinator.dispatchEscape(root, escapeDown(242L)))
+        assertTrue(PortalRequestCloseCoordinator.dispatchEscape(root, escapeUp(242L)))
+        assertEquals(2, target.requestCount)
+      } finally {
+        registration.remove()
+      }
+    }
+  }
+
+  @Test
+  fun `Escape key-up without a captured down is unhandled`() {
+    withActivity { activity ->
+      val root = FrameLayout(activity)
+      val target = TestTarget()
+      val registration = register(root, target, candidate = true)
+
+      try {
+        assertFalse(PortalRequestCloseCoordinator.dispatchEscape(root, escapeUp(250L)))
+        assertEquals(0, target.requestCount)
+        assertHandledEscape(root, 251L)
+        assertEquals(1, target.requestCount)
+      } finally {
+        registration.remove()
+      }
+    }
+  }
+
   private fun register(
     root: FrameLayout,
     target: TestTarget,
@@ -370,11 +471,48 @@ class PortalRequestCloseCoordinatorTest {
     assertTrue(PortalRequestCloseCoordinator.dispatchEscape(root, escapeUp(downTime)))
   }
 
-  private fun escapeDown(downTime: Long) =
-    KeyEvent(downTime, downTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ESCAPE, 0)
+  private fun escapeDown(
+    downTime: Long,
+    repeatCount: Int = 0,
+    metaState: Int = 0,
+  ) =
+    if (repeatCount == 0 && metaState == 0) {
+      KeyEvent(downTime, downTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ESCAPE, 0)
+    } else {
+      KeyEvent(
+        downTime,
+        downTime + repeatCount,
+        KeyEvent.ACTION_DOWN,
+        KeyEvent.KEYCODE_ESCAPE,
+        repeatCount,
+        metaState,
+        -1,
+        0,
+        0,
+        0,
+      )
+    }
 
-  private fun escapeUp(downTime: Long) =
-    KeyEvent(downTime, downTime + 1, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ESCAPE, 0)
+  private fun escapeUp(
+    downTime: Long,
+    metaState: Int = 0,
+  ) =
+    if (metaState == 0) {
+      KeyEvent(downTime, downTime + 1, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ESCAPE, 0)
+    } else {
+      KeyEvent(
+        downTime,
+        downTime + 2,
+        KeyEvent.ACTION_UP,
+        KeyEvent.KEYCODE_ESCAPE,
+        0,
+        metaState,
+        -1,
+        0,
+        0,
+        0,
+      )
+    }
 
   private fun withActivity(block: (Activity) -> Unit) {
     val controller = Robolectric.buildActivity(Activity::class.java).setup()

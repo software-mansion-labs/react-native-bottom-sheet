@@ -16,10 +16,7 @@ import android.view.ViewGroup
 import android.view.Window
 import android.view.WindowManager
 import androidx.activity.ComponentDialog
-import androidx.activity.OnBackPressedCallback
-import androidx.activity.OnBackPressedDispatcher
 import androidx.annotation.VisibleForTesting
-import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import com.facebook.react.bridge.LifecycleEventListener
 import com.facebook.react.common.LifecycleState
@@ -111,27 +108,8 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       overlayRoot?.eventDispatcher = value
     }
 
-  @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-  internal fun requestCloseTestSnapshot() =
-    BottomSheetViewRequestCloseTestSnapshot(
-      isTargetOpen = host.isRequestCloseTargetOpen,
-      isPresentationActive = host.isRequestClosePresentationActive,
-      overlayDialog = overlayDialog,
-      overlayRoot = overlayRoot,
-      portalBackDispatcher = portalRequestCloseController.backDispatcher,
-      portalBackCallback = portalRequestCloseController.backCallback,
-      portalPredictiveBackInProgress =
-        portalRequestCloseController.backCallback?.isPredictiveBackInProgress == true,
-      portalEscapeListener = portalRequestCloseController.escapeListener,
-      overlayBackCallback = overlayRequestCloseController.backCallback,
-      overlayPredictiveBackInProgress =
-        overlayRequestCloseController.backCallback?.isPredictiveBackInProgress == true,
-    )
-
-  @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-  internal fun updateOverlayInteractionForTesting(interactive: Boolean) =
-    updateOverlayTouchability(interactive)
-
+  // Robolectric can leave a DynamicAnimation frame callback behind a future synthetic vsync when
+  // a whole test class runs, so tests need a deterministic way to complete the active animation.
   @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
   internal fun skipActiveAnimationToEndForTesting(): Boolean =
     host.skipActiveAnimationToEndForTesting()
@@ -502,20 +480,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
   }
 }
-
-@VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-internal class BottomSheetViewRequestCloseTestSnapshot(
-  val isTargetOpen: Boolean,
-  val isPresentationActive: Boolean,
-  val overlayDialog: ComponentDialog?,
-  val overlayRoot: View?,
-  val portalBackDispatcher: OnBackPressedDispatcher?,
-  val portalBackCallback: OnBackPressedCallback?,
-  val portalPredictiveBackInProgress: Boolean,
-  val portalEscapeListener: ViewCompat.OnUnhandledKeyEventListenerCompat?,
-  val overlayBackCallback: OnBackPressedCallback?,
-  val overlayPredictiveBackInProgress: Boolean,
-)
 
 private class BottomSheetDialogRootView(context: ThemedReactContext) :
   ReactViewGroup(context), RootView {
