@@ -5,7 +5,6 @@ package com.swmansion.reactnativebottomsheet
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
-import android.content.DialogInterface
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.os.Build
@@ -16,15 +15,12 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.Window
 import android.view.WindowManager
-import androidx.activity.ComponentActivity
 import androidx.activity.ComponentDialog
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.OnBackPressedDispatcher
 import androidx.annotation.VisibleForTesting
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import com.facebook.react.bridge.LifecycleEventListener
 import com.facebook.react.common.LifecycleState
 import com.facebook.react.config.ReactFeatureFlags
@@ -60,48 +56,24 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   // Cached only while a dialog is present, so per-frame interaction callbacks
   // don't thrash the window flags.
   private var overlayInteractive: Boolean? = null
-  private var overlayFocusable: Boolean? = null
-  private var overlayBackCallback: RequestCloseBackCallback? = null
-  private var overlayHostBackDispatcher: OnBackPressedDispatcher? = null
 
   private var requestCloseHandlerPresent = false
   private var isViewAttached = false
   private var isHostActive = themedReactContext?.lifecycleState == LifecycleState.RESUMED
-
-  private var portalRequestCloseHost: PortalRequestCloseHost? = null
-  private var portalRequestCloseRegistration: PortalRequestCloseCoordinator.Registration? = null
-  private var portalRequestCloseAction = RequestCloseInputAction.PASS_THROUGH
-  private var portalBackDispatcher: OnBackPressedDispatcher? = null
-  private var portalBackCallback: RequestCloseBackCallback? = null
-  private var portalBackPresentationEnded = false
-  private var isReconcilingPortalBackHandler = false
-  private var portalEscapeListenerInstalled = false
-  private var portalEscapeListenerLifetimeStarted = false
-  private val nativeOverlayEscapeDispatcher = EscapeRequestCloseDispatcher()
-  private val portalLifecycleObserver: LifecycleEventObserver =
-    LifecycleEventObserver { owner, event ->
-      if (owner !== portalRequestCloseHost?.lifecycleOwner) return@LifecycleEventObserver
-      if (event == Lifecycle.Event.ON_DESTROY) {
-        owner.lifecycle.removeObserver(portalLifecycleObserver)
-      }
-      publishPortalRequestCloseState()
-      reconcilePortalBackHandler()
-    }
-  private val portalUnhandledKeyEventListener =
-    ViewCompat.OnUnhandledKeyEventListenerCompat { _, event ->
-      dispatchPortalEscape(event)
-    }
-  private val portalRequestCloseTarget =
-    object : PortalRequestCloseTarget {
-      override fun onPortalRequestCloseActionChanged(action: RequestCloseInputAction) {
-        portalRequestCloseAction = action
-        reconcilePortalBackHandler()
-      }
-
-      override fun emitPortalRequestCloseIfEligible(): Boolean =
-        this@BottomSheetView.emitPortalRequestCloseIfEligible()
-    }
-  private val syncPortalHostRunnable = Runnable { syncPortalRequestCloseHost() }
+  private val portalRequestCloseController =
+    PortalRequestCloseController(
+      view = this,
+      currentActivity = {
+        if (themedReactContext != null) {
+          themedReactContext.currentActivity
+        } else {
+          context.findActivity()
+        }
+      },
+      emitRequestClose = ::emitRequestClose,
+    )
+  private val overlayRequestCloseController =
+    OverlayRequestCloseController(emitRequestClose = ::emitRequestClose)
 
   init {
     pointerEvents = PointerEvents.BOX_NONE
@@ -146,15 +118,14 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       isPresentationActive = host.isRequestClosePresentationActive,
       overlayDialog = overlayDialog,
       overlayRoot = overlayRoot,
-      portalBackDispatcher = portalBackDispatcher,
-      portalBackCallback = portalBackCallback,
-      portalPredictiveBackInProgress = portalBackCallback?.isPredictiveBackInProgress == true,
-      portalEscapeListener =
-        portalUnhandledKeyEventListener.takeIf {
-          portalEscapeListenerInstalled
-        },
-      overlayBackCallback = overlayBackCallback,
-      overlayPredictiveBackInProgress = overlayBackCallback?.isPredictiveBackInProgress == true,
+      portalBackDispatcher = portalRequestCloseController.backDispatcher,
+      portalBackCallback = portalRequestCloseController.backCallback,
+      portalPredictiveBackInProgress =
+        portalRequestCloseController.backCallback?.isPredictiveBackInProgress == true,
+      portalEscapeListener = portalRequestCloseController.escapeListener,
+      overlayBackCallback = overlayRequestCloseController.backCallback,
+      overlayPredictiveBackInProgress =
+        overlayRequestCloseController.backCallback?.isPredictiveBackInProgress == true,
     )
 
   @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
@@ -199,7 +170,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     set(value) {
       if (value == host.modal) return
       host.modal = value
-      syncPortalRequestCloseHost()
+      refreshRequestCloseControllers()
     }
 
   var scrollableExpandNegotiation: Int
@@ -227,22 +198,19 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   fun setRequestCloseHandlerPresent(value: Boolean) {
     if (value == requestCloseHandlerPresent) return
     requestCloseHandlerPresent = value
-    syncPortalRequestCloseHost()
+    refreshRequestCloseControllers()
   }
 
   fun setNativeOverlay(value: Boolean) {
     if (value == nativeOverlay) return
     nativeOverlay = value
     if (value) {
-      // Presentation modes own separate Escape dispatchers. Clear the overlay dispatcher before
-      // creating its dialog; clearing the portal host below invalidates the root-owned sequence.
-      nativeOverlayEscapeDispatcher.clear()
-      clearPortalRequestCloseHost()
+      portalRequestCloseController.clear()
       presentOverlay()
     } else {
       dismissOverlay()
     }
-    syncPortalRequestCloseHost()
+    refreshRequestCloseControllers()
   }
 
   // MARK: - Inline vs overlay presentation
@@ -250,29 +218,27 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   override fun onAttachedToWindow() {
     super.onAttachedToWindow()
     isViewAttached = true
-    syncPortalRequestCloseHost()
-    post(syncPortalHostRunnable)
     overlayDialog?.let { dialog ->
-      installOverlayInputHandlers(dialog)
+      overlayRequestCloseController.bind(dialog)
     }
     if (nativeOverlay && overlayDialog == null) {
       presentOverlay()
     }
+    refreshRequestCloseControllers()
+    portalRequestCloseController.scheduleHostSync()
   }
 
   override fun onDetachedFromWindow() {
     isViewAttached = false
-    removeCallbacks(syncPortalHostRunnable)
-    clearPortalRequestCloseHost()
-    clearOverlayInputHandlers(overlayDialog)
-    nativeOverlayEscapeDispatcher.clear()
-    updateRequestCloseHandling()
+    portalRequestCloseController.clear()
+    overlayRequestCloseController.unbind()
+    refreshRequestCloseControllers()
     super.onDetachedFromWindow()
   }
 
   override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
     super.onWindowFocusChanged(hasWindowFocus)
-    syncPortalRequestCloseHost()
+    refreshRequestCloseControllers()
   }
 
   override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -280,7 +246,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     // modal boundary, so a focused descendant cannot consume the sequence first. The
     // OnUnhandledKeyEventListener remains only an outside-subtree fallback after normal dispatch
     // leaves Escape unhandled.
-    if (dispatchPortalEscape(event)) return true
+    if (portalRequestCloseController.dispatchEscape(event)) return true
     return super.dispatchKeyEvent(event)
   }
 
@@ -313,7 +279,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     if (activity == null || activity.isFinishing || activity.isDestroyed) {
       // Without an activity there is no window to host the dialog; stay inline.
       nativeOverlay = false
-      updateRequestCloseHandling()
+      refreshRequestCloseControllers()
       return
     }
     (host.parent as? ViewGroup)?.removeView(host)
@@ -341,35 +307,31 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     dialog.setCancelable(false)
     dialog.window?.let { configureOverlayWindow(it, activity) }
     overlayInteractive = null
-    overlayFocusable = null
     overlayRoot = root
     overlayDialog = dialog
-    overlayHostBackDispatcher = (activity as? ComponentActivity)?.onBackPressedDispatcher
-    installOverlayInputHandlers(dialog)
+    overlayRequestCloseController.bind(dialog)
     try {
       dialog.show()
       dialog.window?.let { configureOverlayWindow(it, activity) }
-      updateRequestCloseHandling()
+      refreshRequestCloseControllers()
     } catch (_: RuntimeException) {
       // Show failed (e.g. the activity went away mid-present). Dismiss so the
       // partially-created window can't leak, then fall back to inline.
-      clearOverlayInputHandlers(dialog)
+      overlayRequestCloseController.unbind()
       runCatching { if (dialog.isShowing) dialog.dismiss() }
       overlayDialog = null
       overlayRoot = null
       overlayInteractive = null
-      overlayFocusable = null
-      overlayHostBackDispatcher = null
       nativeOverlay = false
       (host.parent as? ViewGroup)?.removeView(host)
       attachHostInline()
-      updateRequestCloseHandling()
+      refreshRequestCloseControllers()
     }
   }
 
   private fun dismissOverlay() {
     val dialog = overlayDialog
-    clearOverlayInputHandlers(dialog)
+    overlayRequestCloseController.unbind()
     dialog?.let {
       (host.parent as? ViewGroup)?.removeView(host)
       if (it.isShowing) it.dismiss()
@@ -377,9 +339,8 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     overlayDialog = null
     overlayRoot = null
     overlayInteractive = null
-    overlayFocusable = null
     attachHostInline()
-    updateRequestCloseHandling()
+    refreshRequestCloseControllers()
   }
 
   private fun currentEventDispatcher(): EventDispatcher? =
@@ -405,7 +366,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     // treat the full-screen dialog as covering the IME.
     window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
     window.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
-    window.setOverlayWindowAlpha(interactive = false)
+    window.attributes = window.attributes.apply { alpha = 0f }
     window.setSoftInputMode(
       WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or
         WindowManager.LayoutParams.SOFT_INPUT_STATE_UNCHANGED
@@ -466,31 +427,10 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   private fun updateOverlayTouchability(interactive: Boolean) {
     if (interactive == overlayInteractive) return
     overlayInteractive = interactive
-    updateRequestCloseHandling()
-  }
-
-  private fun Window.setOverlayWindowAlpha(interactive: Boolean) {
-    attributes = attributes.apply { alpha = if (interactive) 1f else 0f }
+    refreshRequestCloseControllers()
   }
 
   // MARK: - Request close
-
-  private fun emitPortalRequestCloseIfEligible(): Boolean {
-    if (
-      portalRequestCloseAction != RequestCloseInputAction.REQUEST_CLOSE ||
-        currentPortalRequestCloseState().actionIfOwner != RequestCloseInputAction.REQUEST_CLOSE
-    ) {
-      return false
-    }
-    return emitRequestClose()
-  }
-
-  private fun emitNativeOverlayRequestCloseIfEligible(): Boolean {
-    if (currentNativeOverlayRequestCloseAction() != RequestCloseInputAction.REQUEST_CLOSE) {
-      return false
-    }
-    return emitRequestClose()
-  }
 
   private fun emitRequestClose(): Boolean {
     val currentListener = listener ?: return false
@@ -498,386 +438,25 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     return true
   }
 
-  private fun updateRequestCloseHandling() {
-    val action = currentNativeOverlayRequestCloseAction()
-    if (action != RequestCloseInputAction.REQUEST_CLOSE) {
-      nativeOverlayEscapeDispatcher.degradeCapturedRequestClose()
-    }
-    overlayBackCallback?.updateState(
-      canReceiveBack = overlayCanReceiveBack(),
-      currentAction = action,
-    )
-    updateOverlayWindowInputFlags()
-  }
-
-  private fun onRequestCloseStateChanged() {
-    ensurePortalEscapeListener()
-    publishPortalRequestCloseState()
-    reconcilePortalBackHandler()
-    updateRequestCloseHandling()
-  }
-
-  /** Whether the dialog can be the platform recipient for a new Back sequence. */
-  private fun overlayCanReceiveBack(): Boolean {
-    val lifecycleActive =
-      overlayDialog?.lifecycle?.currentState?.isAtLeast(Lifecycle.State.STARTED) == true
-    return nativeOverlay &&
-      isViewAttached &&
-      isHostActive &&
-      lifecycleActive &&
-      overlayDialog?.isShowing == true &&
-      host.isRequestClosePresentationActive
-  }
-
-  /**
-   * Modal close-input ownership is opt-in, like React Native Modal's `onRequestClose`. A handler
-   * keeps that boundary in place while the target finishes closing; without one, Back is forwarded
-   * to the host Activity and Escape stays in normal dialog key routing.
-   */
-  private fun overlayOwnsCloseInput(): Boolean =
-    currentNativeOverlayRequestCloseAction() != RequestCloseInputAction.PASS_THROUGH
-
-  private fun nativeOverlayRequestCloseInputState(): RequestCloseInputState {
-    val lifecycleActive =
-      overlayDialog?.lifecycle?.currentState?.isAtLeast(Lifecycle.State.STARTED) == true
-    return RequestCloseInputState(
-      isAttached = nativeOverlay && isViewAttached && overlayDialog?.isShowing == true,
-      isActive = isHostActive && lifecycleActive,
-      isModal = modal,
-      hasHandler = requestCloseHandlerPresent,
-      isPresentationActive = host.isRequestClosePresentationActive,
-      isTargetOpen = host.isRequestCloseTargetOpen,
-    )
-  }
-
-  private fun currentNativeOverlayRequestCloseAction(): RequestCloseInputAction =
-    resolveRequestCloseInputAction(nativeOverlayRequestCloseInputState())
-
-  private fun currentPortalRequestCloseState(): PortalRequestCloseState {
-    val currentHost = portalRequestCloseHost
-    val lifecycleActive =
-      currentHost?.lifecycleOwner?.lifecycle?.currentState?.isAtLeast(Lifecycle.State.RESUMED)
-        ?: isHostActive
-    val inputState =
+  private fun refreshRequestCloseControllers() {
+    val state =
       RequestCloseInputState(
-        isAttached =
-          isViewAttached &&
-            !nativeOverlay &&
-            currentHost != null &&
-            currentHost.rootView === rootView,
-        isActive = lifecycleActive,
+        isAttached = isViewAttached,
+        isActive = isHostActive,
         isModal = modal,
         hasHandler = requestCloseHandlerPresent,
         isPresentationActive = host.isRequestClosePresentationActive,
         isTargetOpen = host.isRequestCloseTargetOpen,
       )
-    val isOwnerCandidate =
-      isViewAttached &&
-        modal &&
-        !nativeOverlay &&
-        currentHost != null &&
-        currentHost.rootView === rootView &&
-        lifecycleActive &&
-        host.isRequestClosePresentationActive
-
-    return PortalRequestCloseState(
-      isOwnerCandidate = isOwnerCandidate,
-      actionIfOwner =
-        if (isOwnerCandidate) {
-          resolveRequestCloseInputAction(inputState)
-        } else {
-          RequestCloseInputAction.PASS_THROUGH
-        },
+    portalRequestCloseController.update(state, enabled = !nativeOverlay)
+    overlayRequestCloseController.update(
+      state = state,
+      enabled = nativeOverlay,
+      interactive = overlayInteractive == true,
     )
   }
 
-  private fun publishPortalRequestCloseState() {
-    portalRequestCloseRegistration?.update(currentPortalRequestCloseState())
-  }
-
-  private fun syncPortalRequestCloseHost() {
-    val currentActivity =
-      if (themedReactContext != null) themedReactContext.currentActivity else context.findActivity()
-    val resolvedHost = takeIf {
-      isViewAttached && modal && !nativeOverlay
-    }?.resolvePortalRequestCloseHost(currentActivity)
-    val previousHost = portalRequestCloseHost
-    if (!portalHostsAreIdentical(resolvedHost, previousHost)) {
-      removePortalRequestCloseHandlers()
-      previousHost?.lifecycleOwner?.lifecycle?.removeObserver(portalLifecycleObserver)
-      portalRequestCloseHost = resolvedHost
-      resolvedHost?.lifecycleOwner?.lifecycle?.addObserver(portalLifecycleObserver)
-
-      if (previousHost?.rootView !== resolvedHost?.rootView) {
-        portalRequestCloseRegistration?.remove()
-        portalRequestCloseRegistration = null
-        if (resolvedHost != null) {
-          portalRequestCloseRegistration =
-            PortalRequestCloseCoordinator.register(
-              resolvedHost.rootView,
-              portalRequestCloseTarget,
-              currentPortalRequestCloseState(),
-            )
-        }
-      } else if (resolvedHost != null && portalRequestCloseRegistration == null) {
-        portalRequestCloseRegistration =
-          PortalRequestCloseCoordinator.register(
-            resolvedHost.rootView,
-            portalRequestCloseTarget,
-            currentPortalRequestCloseState(),
-          )
-      }
-    }
-    ensurePortalEscapeListener()
-    publishPortalRequestCloseState()
-    reconcilePortalBackHandler()
-    updateRequestCloseHandling()
-  }
-
-  private fun clearPortalRequestCloseHost() {
-    removePortalRequestCloseHandlers()
-    portalRequestCloseHost?.lifecycleOwner?.lifecycle?.removeObserver(portalLifecycleObserver)
-    portalRequestCloseHost = null
-    portalRequestCloseRegistration?.remove()
-    portalRequestCloseRegistration = null
-    portalRequestCloseAction = RequestCloseInputAction.PASS_THROUGH
-    portalEscapeListenerLifetimeStarted = false
-  }
-
-  private fun portalHostsAreIdentical(
-    first: PortalRequestCloseHost?,
-    second: PortalRequestCloseHost?,
-  ): Boolean {
-    if (first == null || second == null) return first === second
-    return first.dispatcherOwner === second.dispatcherOwner &&
-      first.lifecycleOwner === second.lifecycleOwner &&
-      first.rootView === second.rootView
-  }
-
-  /**
-   * Starts Escape registration at the first active presentation with a handler, then keeps it
-   * stable for the structural lifetime of this resolved host.
-   */
-  private fun ensurePortalEscapeListener() {
-    val currentHost = portalRequestCloseHost
-    if (currentHost == null || nativeOverlay || !isViewAttached) {
-      return
-    }
-    if (currentHost.lifecycleOwner?.lifecycle?.currentState == Lifecycle.State.DESTROYED) return
-
-    if (requestCloseHandlerPresent && host.isRequestClosePresentationActive) {
-      portalEscapeListenerLifetimeStarted = true
-    }
-    if (!portalEscapeListenerLifetimeStarted || portalEscapeListenerInstalled) return
-
-    ViewCompat.addOnUnhandledKeyEventListener(this, portalUnhandledKeyEventListener)
-    portalEscapeListenerInstalled = true
-  }
-
-  /**
-   * Keeps one physical Back callback for one complete presentation. Eligibility changes only update
-   * [OnBackPressedCallback.isEnabled], preserving dispatcher order and predictive-Back selection
-   * until that presentation fully ends.
-   */
-  private fun reconcilePortalBackHandler() {
-    if (isReconcilingPortalBackHandler) return
-    isReconcilingPortalBackHandler = true
-    try {
-      val currentHost = portalRequestCloseHost
-      val dispatcher =
-        currentHost
-          ?.takeIf {
-            !nativeOverlay && isViewAttached
-          }
-          ?.dispatcherOwner
-          ?.onBackPressedDispatcher
-
-      if (portalBackDispatcher !== dispatcher) {
-        disposePortalBackHandlerImmediately()
-      }
-
-      val presentationActive = currentHost != null && host.isRequestClosePresentationActive
-      val callback = portalBackCallback
-      if (callback != null) {
-        if (!presentationActive) {
-          portalBackPresentationEnded = true
-        }
-
-        if (portalBackPresentationEnded) {
-          if (callback.isPredictiveBackInProgress) {
-            callback.updateState(
-              canReceiveBack = false,
-              currentAction = RequestCloseInputAction.CONSUME,
-            )
-            return
-          }
-          disposePortalBackHandlerImmediately()
-        } else {
-          callback.updateState(
-            canReceiveBack = portalRequestCloseAction != RequestCloseInputAction.PASS_THROUGH,
-            currentAction = portalRequestCloseAction,
-          )
-          return
-        }
-      }
-
-      if (dispatcher != null && presentationActive && requestCloseHandlerPresent) {
-        val callback =
-          RequestCloseBackCallback(
-            resolveAction = { portalRequestCloseAction },
-            executeAction = ::executePortalRequestCloseAction,
-            onPredictiveBackStateChanged = ::reconcilePortalBackHandler,
-          )
-        portalBackDispatcher = dispatcher
-        portalBackCallback = callback
-        portalBackPresentationEnded = false
-        // Registration is presentation-scoped, so manual registration plus isEnabled updates keep
-        // transient lifecycle and ownership changes from reordering this callback.
-        dispatcher.addCallback(callback)
-        callback.updateState(
-          canReceiveBack = portalRequestCloseAction != RequestCloseInputAction.PASS_THROUGH,
-          currentAction = portalRequestCloseAction,
-        )
-      }
-    } finally {
-      isReconcilingPortalBackHandler = false
-    }
-  }
-
-  /** Structural teardown bypasses presentation retention, including an active predictive Back. */
-  private fun disposePortalBackHandlerImmediately() {
-    val callback = portalBackCallback
-    portalBackCallback = null
-    portalBackDispatcher = null
-    portalBackPresentationEnded = false
-    callback?.dispose()
-    callback?.remove()
-  }
-
-  private fun executePortalRequestCloseAction(action: RequestCloseInputAction) {
-    when (action) {
-      RequestCloseInputAction.REQUEST_CLOSE -> emitPortalRequestCloseIfEligible()
-      RequestCloseInputAction.CONSUME,
-      RequestCloseInputAction.PASS_THROUGH -> Unit
-    }
-  }
-
-  private fun removePortalRequestCloseHandlers() {
-    val wasReconciling = isReconcilingPortalBackHandler
-    isReconcilingPortalBackHandler = true
-    try {
-      disposePortalBackHandlerImmediately()
-      removePortalEscapeListener()
-      portalEscapeListenerLifetimeStarted = false
-    } finally {
-      isReconcilingPortalBackHandler = wasReconciling
-    }
-  }
-
-  private fun removePortalEscapeListener() {
-    if (portalEscapeListenerInstalled) {
-      ViewCompat.removeOnUnhandledKeyEventListener(this, portalUnhandledKeyEventListener)
-      portalEscapeListenerInstalled = false
-    }
-  }
-
-  private fun dispatchPortalEscape(event: KeyEvent): Boolean {
-    if (nativeOverlay || !modal || !isViewAttached) return false
-    val portalRoot = portalRequestCloseHost?.rootView ?: return false
-    if (portalRoot !== rootView) return false
-    return PortalRequestCloseCoordinator.dispatchEscape(portalRoot, event)
-  }
-
-  private fun dispatchEscape(event: KeyEvent): Boolean {
-    val hadCapturedPress = nativeOverlayEscapeDispatcher.hasCapturedPress
-    val handled =
-      nativeOverlayEscapeDispatcher.dispatch(
-        event = event,
-        resolveInitialAction = ::currentNativeOverlayEscapeAction,
-        emitRequestCloseIfEligible = ::emitNativeOverlayRequestCloseIfEligible,
-      )
-
-    if (hadCapturedPress && !nativeOverlayEscapeDispatcher.hasCapturedPress) {
-      updateOverlayWindowInputFlags()
-    }
-    return handled
-  }
-
-  private fun currentNativeOverlayEscapeAction(): RequestCloseInputAction =
-    currentNativeOverlayRequestCloseAction()
-
-  /**
-   * Touchability stays coupled to the existing interaction/scrim state. Keyboard focusability is
-   * independently enabled for an eligible request, including when the configured scrim opacity is
-   * zero. A captured Escape and a pinned predictive-Back action keep focus until their terminal
-   * event. Returning false for every non-Escape event lets focused inputs keep normal key routing.
-   */
-  private fun updateOverlayWindowInputFlags() {
-    val window = overlayDialog?.window ?: return
-    val touchable = overlayInteractive == true
-    val ownsCloseInput = overlayOwnsCloseInput()
-    val focusable =
-      touchable ||
-        ownsCloseInput ||
-        nativeOverlayEscapeDispatcher.hasCapturedPress ||
-        overlayBackCallback?.isPredictiveBackInProgress == true
-
-    if (touchable) {
-      window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
-    } else {
-      window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
-    }
-
-    if (focusable != overlayFocusable) {
-      overlayFocusable = focusable
-      if (focusable) {
-        window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
-      } else {
-        window.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
-      }
-    }
-
-    window.setOverlayWindowAlpha(touchable || ownsCloseInput)
-  }
-
-  private fun clearOverlayInputHandlers(dialog: ComponentDialog?) {
-    dialog?.setOnKeyListener(null)
-    overlayBackCallback?.dispose()
-    overlayBackCallback?.remove()
-    overlayBackCallback = null
-    overlayHostBackDispatcher = null
-    nativeOverlayEscapeDispatcher.clear()
-  }
-
-  private fun installOverlayInputHandlers(dialog: ComponentDialog) {
-    if (overlayHostBackDispatcher == null) {
-      overlayHostBackDispatcher =
-        (dialog.context.findActivity() as? ComponentActivity)?.onBackPressedDispatcher
-    }
-    if (overlayBackCallback == null) {
-      val backCallback =
-        RequestCloseBackCallback(
-          resolveAction = ::currentNativeOverlayRequestCloseAction,
-          executeAction = ::executeNativeOverlayRequestCloseAction,
-          onPredictiveBackStateChanged = ::updateOverlayWindowInputFlags,
-        )
-      overlayBackCallback = backCallback
-      // The dialog is torn down explicitly, so keep one structural registration and vary only
-      // isEnabled. Lifecycle-aware registration would remove and re-add the callback, changing
-      // dispatcher order and predictive-Back selection across transient lifecycle updates.
-      dialog.onBackPressedDispatcher.addCallback(backCallback)
-    }
-    dialog.setOnKeyListener(DialogInterface.OnKeyListener { _, _, event -> dispatchEscape(event) })
-    updateRequestCloseHandling()
-  }
-
-  private fun executeNativeOverlayRequestCloseAction(action: RequestCloseInputAction) {
-    when (action) {
-      RequestCloseInputAction.REQUEST_CLOSE -> emitNativeOverlayRequestCloseIfEligible()
-      RequestCloseInputAction.CONSUME -> Unit
-      RequestCloseInputAction.PASS_THROUGH -> overlayHostBackDispatcher?.onBackPressed()
-    }
-  }
+  private fun onRequestCloseStateChanged() = refreshRequestCloseControllers()
 
   // MARK: - Activity lifecycle
 
@@ -888,21 +467,18 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     if (nativeOverlay && overlayDialog == null) {
       presentOverlay()
     }
-    syncPortalRequestCloseHost()
+    refreshRequestCloseControllers()
+    portalRequestCloseController.scheduleHostSync()
   }
 
   override fun onHostPause() {
     isHostActive = false
-    publishPortalRequestCloseState()
-    reconcilePortalBackHandler()
-    updateRequestCloseHandling()
+    refreshRequestCloseControllers()
   }
 
   override fun onHostDestroy() {
     isHostActive = false
-    removeCallbacks(syncPortalHostRunnable)
-    clearPortalRequestCloseHost()
-    updateRequestCloseHandling()
+    portalRequestCloseController.clear()
     // Dismiss before the activity's window token is destroyed to avoid a leaked
     // window. `nativeOverlay` is left intact so `onHostResume` can restore it;
     // the host falls back to inline parenting in the meantime.
@@ -917,21 +493,18 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     isViewAttached = false
     isHostActive = false
     requestCloseHandlerPresent = false
-    removeCallbacks(syncPortalHostRunnable)
-    clearPortalRequestCloseHost()
+    portalRequestCloseController.dispose()
+    overlayRequestCloseController.dispose()
     themedReactContext?.removeLifecycleEventListener(this)
     host.interactionListener = null
     host.requestCloseStateChangedListener = null
     val dialog = overlayDialog
-    clearOverlayInputHandlers(dialog)
     dialog?.let {
       if (it.isShowing) it.dismiss()
     }
     overlayDialog = null
     overlayRoot = null
     overlayInteractive = null
-    overlayFocusable = null
-    nativeOverlayEscapeDispatcher.clear()
     host.destroy()
   }
 }
