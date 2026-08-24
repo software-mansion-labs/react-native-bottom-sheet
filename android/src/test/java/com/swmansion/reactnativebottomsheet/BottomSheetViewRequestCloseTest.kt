@@ -1340,6 +1340,54 @@ class BottomSheetViewRequestCloseTest {
   }
 
   @Test
+  fun `upper duplicate zero detent retains Back and Escape ownership through closing animation`() {
+    withActivity<ComponentActivity> { activity ->
+      val root = FrameLayout(activity)
+      val lowerListener = CountingBottomSheetListener()
+      val upperListener = CountingBottomSheetListener()
+      val lowerSheet = configuredOpenSheet(activity, lowerListener)
+      val upperSheet =
+        configuredOpenSheet(activity, upperListener).apply {
+          setDetents(
+            listOf(
+              mapOf("value" to 0.0, "kind" to "points", "programmatic" to false),
+              mapOf("value" to 0.0, "kind" to "points", "programmatic" to false),
+              mapOf("value" to 300.0, "kind" to "points", "programmatic" to false),
+            )
+          )
+          setIndex(2)
+        }
+      root.addView(lowerSheet)
+      root.addView(upperSheet)
+      activity.setContentView(root)
+      layoutPortal(lowerSheet)
+      layoutPortal(upperSheet)
+
+      upperSheet.setIndex(1)
+
+      val closingSnapshot = upperSheet.requestCloseTestSnapshot()
+      assertFalse(closingSnapshot.isTargetOpen)
+      assertTrue(closingSnapshot.isPresentationActive)
+      activity.onBackPressedDispatcher.onBackPressed()
+      assertEscape(activity::dispatchKeyEvent, expectedHandled = true)
+      assertEquals(0, lowerListener.requestCloseCount)
+      assertEquals(0, upperListener.requestCloseCount)
+
+      finishActiveAnimation(upperSheet)
+
+      val closedSnapshot = upperSheet.requestCloseTestSnapshot()
+      assertFalse(closedSnapshot.isPresentationActive)
+      assertNull(closedSnapshot.portalBackCallback)
+      activity.onBackPressedDispatcher.onBackPressed()
+      assertEscape(activity::dispatchKeyEvent, expectedHandled = true)
+      assertEquals(2, lowerListener.requestCloseCount)
+      assertEquals(0, upperListener.requestCloseCount)
+      upperSheet.destroy()
+      lowerSheet.destroy()
+    }
+  }
+
+  @Test
   fun `upper content target moves ownership from unresolved zero to positive and back`() {
     withActivity<ComponentActivity> { activity ->
       val root = FrameLayout(activity)

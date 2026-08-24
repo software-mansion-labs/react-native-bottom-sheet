@@ -741,7 +741,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     get() = detentSpecs.firstOrNull { it.height > 0f }?.height ?: 0f
 
   private val isTargetingClosedDetent: Boolean
-    get() = closedIndex?.let { targetIndex == it } == true
+    get() = detentSpecs.getOrNull(targetIndex)?.height == 0f
 
   // Request emission follows the resolved target rather than the transient animated position.
   val isRequestCloseTargetOpen: Boolean
