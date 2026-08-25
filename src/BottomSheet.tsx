@@ -296,7 +296,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
           animateContentHeight={animateContentHeight}
           modal={modal}
           nativeOverlay={usesNativeOverlay}
-          requestCloseHandlerPresent={modal && hasRequestCloseHandler}
+          hasRequestCloseHandler={hasRequestCloseHandler}
           scrollableExpandNegotiation={
             SCROLLABLE_NEGOTIATION_LEVEL[resolvedExpandNegotiation]
           }

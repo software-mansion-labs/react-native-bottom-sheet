@@ -154,7 +154,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   private var pendingInitialContentDetentObserver: ViewTreeObserver? = null
   private var pendingInitialContentDetentPreDrawListener: ViewTreeObserver.OnPreDrawListener? = null
   private var pendingInitialContentDetentFrames = 0
-  private var detentResolutionReady = false
+  private var hasPerformedHostLayoutSinceAttach = false
   private val requestClosePresentationTracker = RequestClosePresentationTracker()
 
   private val contentHeightMarkerLayoutListener =
@@ -236,9 +236,9 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
       layoutSheetContainer(width, height)
     }
   }
-  private val resolveDetentsAfterAttach = Runnable {
-    if (isAttachedToWindow && !detentResolutionReady && width > 0 && height > 0) {
-      resolveHostLayout(width, height)
+  private val performHostLayoutAfterAttach = Runnable {
+    if (isAttachedToWindow && !hasPerformedHostLayoutSinceAttach && width > 0 && height > 0) {
+      performHostLayout(width, height)
     }
   }
 
@@ -255,18 +255,18 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
 
   override fun onAttachedToWindow() {
     super.onAttachedToWindow()
-    detentResolutionReady = false
+    hasPerformedHostLayoutSinceAttach = false
     notifyRequestCloseStateChanged()
     // Native geometry (cap, frame) is derived from the window; recompute on
     // (re)attach — including the inline<->overlay reparent — and ask for a
     // fresh insets pass. Fabric may assign unchanged bounds before attaching
     // the view, in which case Android does not owe us another onSizeChanged or
-    // onLayout callback. Schedule the same resolution pass explicitly so
+    // onLayout callback. Schedule the same host layout pass explicitly so
     // close-request eligibility cannot remain invalid after the attach.
     requestApplyInsets()
     recomputeNativeGeometry()
-    removeCallbacks(resolveDetentsAfterAttach)
-    post(resolveDetentsAfterAttach)
+    removeCallbacks(performHostLayoutAfterAttach)
+    post(performHostLayoutAfterAttach)
     // A re-attach gives us a fresh, live ViewTreeObserver; the previous one was
     // dropped on detach. Resume observing if the initial snap is still pending.
     if (pendingInitialContentDetentSnap) {
@@ -286,8 +286,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   }
 
   override fun onDetachedFromWindow() {
-    removeCallbacks(resolveDetentsAfterAttach)
-    detentResolutionReady = false
+    removeCallbacks(performHostLayoutAfterAttach)
+    hasPerformedHostLayoutSinceAttach = false
     notifyRequestCloseStateChanged()
     // Release the listener from the soon-to-be-replaced observer and clear our
     // references so a later re-attach registers on the new live observer.
@@ -301,16 +301,16 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     val h = bottom - top
     if (w <= 0 || h <= 0) return
 
-    resolveHostLayout(w, h)
+    performHostLayout(w, h)
   }
 
-  private fun resolveHostLayout(w: Int, h: Int) {
+  private fun performHostLayout(w: Int, h: Int) {
     // The cap depends on this view's window position (top-inset overlap),
     // which can change without a resize.
     recomputeNativeGeometry()
     refreshContentHeightMarker()
     refreshDetentsFromLayout()
-    detentResolutionReady = true
+    hasPerformedHostLayoutSinceAttach = true
     layoutSheetContainer(w, h)
 
     if (!hasLaidOut && detentSpecs.isNotEmpty()) {
@@ -742,27 +742,27 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   private val isTargetingClosedDetent: Boolean
     get() = detentSpecs.getOrNull(targetIndex)?.height == 0f
 
-  private val isRequestCloseHostReady: Boolean
+  private val isRequestCloseLayoutReady: Boolean
     get() =
-      detentResolutionReady &&
+      hasPerformedHostLayoutSinceAttach &&
         isAttachedToWindow &&
         width > 0 &&
         height > 0 &&
         !isInvalidContentDetentTarget(targetIndex)
 
-  private val isRequestCloseTargetDetentOpen: Boolean
+  private val isTargetDetentOpen: Boolean
     get() = detentSpecs.getOrNull(targetIndex)?.height?.let { it > 0f } == true
 
   // Request emission follows the resolved target rather than the transient animated position.
-  val isRequestCloseTargetOpen: Boolean
-    get() = isRequestCloseHostReady && isRequestCloseTargetDetentOpen
+  val isRequestCloseTargetResolvedAndOpen: Boolean
+    get() = isRequestCloseLayoutReady && isTargetDetentOpen
 
   /** Keeps the modal input boundary through a visible animated close. */
   val isRequestClosePresentationActive: Boolean
     get() =
       requestClosePresentationTracker.isPresentationActive(
-        isTargetOpen = isRequestCloseTargetDetentOpen,
-        isHostReady = isRequestCloseHostReady,
+        isTargetOpen = isTargetDetentOpen,
+        isHostReady = isRequestCloseLayoutReady,
       )
 
   private fun notifyRequestCloseStateChanged() {
@@ -1026,7 +1026,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
       hideScrim()
     }
     emitPosition()
-    requestClosePresentationTracker.onMovementFinished()
+    requestClosePresentationTracker.onAnimationFinished()
     notifyRequestCloseStateChanged()
     updateInteractionState()
     if (emitSettle) listener?.onSettle(index)
@@ -1656,7 +1656,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     velocityTracker = null
     removeCallbacks(sheetChildrenLayoutPass)
     sheetChildrenLayoutEnqueued = false
-    removeCallbacks(resolveDetentsAfterAttach)
+    removeCallbacks(performHostLayoutAfterAttach)
     nativeCapPx = Float.NaN
     lastAppliedMaxDetentHeight = Float.NaN
     lastGeometryStateWidth = 0
@@ -1669,7 +1669,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     rawDetentSpecs = emptyList()
     detentSpecs = emptyList()
     targetIndex = 0
-    detentResolutionReady = false
+    hasPerformedHostLayoutSinceAttach = false
     requestClosePresentationTracker.onHostDestroyed()
     notifyRequestCloseStateChanged()
     pendingIndex = null

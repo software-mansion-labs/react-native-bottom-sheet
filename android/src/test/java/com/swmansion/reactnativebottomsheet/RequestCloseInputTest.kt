@@ -12,7 +12,7 @@ import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
-class RequestCloseTest {
+class RequestCloseInputTest {
   @Test
   fun `resolver separates request consume and pass-through`() {
     assertEquals(
@@ -21,15 +21,15 @@ class RequestCloseTest {
     )
     assertEquals(
       RequestCloseInputAction.CONSUME,
-      resolveRequestCloseInputAction(inputState(isTargetOpen = false)),
+      resolveRequestCloseInputAction(inputState(isTargetResolvedAndOpen = false)),
     )
 
     listOf(
-        inputState(hasHandler = false),
-        inputState(isPresentationActive = false, isTargetOpen = false),
-        inputState(isActive = false),
+        inputState(hasRequestCloseHandler = false),
+        inputState(isPresentationActive = false, isTargetResolvedAndOpen = false),
+        inputState(isLifecycleActive = false),
         inputState(isAttached = false),
-        inputState(isModal = false),
+        inputState(isModal = false, hasRequestCloseHandler = true),
       )
       .forEach { state ->
         assertEquals(
@@ -421,19 +421,19 @@ class RequestCloseTest {
 
   private fun inputState(
     isAttached: Boolean = true,
-    isActive: Boolean = true,
+    isLifecycleActive: Boolean = true,
     isModal: Boolean = true,
-    hasHandler: Boolean = true,
+    hasRequestCloseHandler: Boolean = true,
     isPresentationActive: Boolean = true,
-    isTargetOpen: Boolean = true,
+    isTargetResolvedAndOpen: Boolean = true,
   ) =
     RequestCloseInputState(
       isAttached = isAttached,
-      isActive = isActive,
+      isLifecycleActive = isLifecycleActive,
       isModal = isModal,
-      hasHandler = hasHandler,
+      hasRequestCloseHandler = hasRequestCloseHandler,
       isPresentationActive = isPresentationActive,
-      isTargetOpen = isTargetOpen,
+      isTargetResolvedAndOpen = isTargetResolvedAndOpen,
     )
 
   private fun backEvent() = BackEventCompat(0f, 0f, 0f, BackEventCompat.EDGE_LEFT)

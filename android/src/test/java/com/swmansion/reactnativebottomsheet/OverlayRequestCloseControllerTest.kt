@@ -33,7 +33,7 @@ class OverlayRequestCloseControllerTest {
       }
       val boundDialog = shownDialog(activity)
       controller.bind(boundDialog)
-      controller.update(inputState(), enabled = true, interactive = false)
+      controller.update(inputState(), isOverlayModeEnabled = true, isSheetInteractive = false)
       boundDialog.onBackPressedDispatcher.onBackPressed()
       dispatchEscape(boundDialog)
       assertEquals(2, requestCloseCount)
@@ -46,7 +46,7 @@ class OverlayRequestCloseControllerTest {
 
       val disposedDialog = shownDialog(activity)
       controller.bind(disposedDialog)
-      controller.update(inputState(), enabled = true, interactive = false)
+      controller.update(inputState(), isOverlayModeEnabled = true, isSheetInteractive = false)
       controller.dispose()
       dispatchEscape(disposedDialog)
       disposedDialog.onBackPressedDispatcher.onBackPressed()
@@ -68,7 +68,7 @@ class OverlayRequestCloseControllerTest {
         true
       }
       controller.bind(dialog)
-      controller.update(inputState(), enabled = true, interactive = false)
+      controller.update(inputState(), isOverlayModeEnabled = true, isSheetInteractive = false)
       val window = requireNotNull(dialog.window)
 
       assertTrue(window.hasFlag(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE))
@@ -76,16 +76,20 @@ class OverlayRequestCloseControllerTest {
       dialog.onBackPressedDispatcher.onBackPressed()
       dispatchEscape(dialog)
 
-      controller.update(inputState(hasHandler = false), enabled = true, interactive = false)
+      controller.update(
+        inputState(hasRequestCloseHandler = false),
+        isOverlayModeEnabled = true,
+        isSheetInteractive = false,
+      )
       assertTrue(window.hasFlag(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE))
       assertTrue(window.hasFlag(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE))
       dialog.onBackPressedDispatcher.onBackPressed()
       dispatchEscape(dialog)
 
       controller.update(
-        inputState(isPresentationActive = false, isTargetOpen = false),
-        enabled = true,
-        interactive = false,
+        inputState(isPresentationActive = false, isTargetResolvedAndOpen = false),
+        isOverlayModeEnabled = true,
+        isSheetInteractive = false,
       )
       assertTrue(window.hasFlag(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE))
       dispatchEscape(dialog)
@@ -113,11 +117,19 @@ class OverlayRequestCloseControllerTest {
     val controller = OverlayRequestCloseController { true }
     try {
       controller.bind(firstDialog)
-      controller.update(inputState(hasHandler = false), enabled = true, interactive = false)
+      controller.update(
+        inputState(hasRequestCloseHandler = false),
+        isOverlayModeEnabled = true,
+        isSheetInteractive = false,
+      )
       firstDialog.onBackPressedDispatcher.onBackPressed()
 
       controller.bind(secondDialog)
-      controller.update(inputState(hasHandler = false), enabled = true, interactive = false)
+      controller.update(
+        inputState(hasRequestCloseHandler = false),
+        isOverlayModeEnabled = true,
+        isSheetInteractive = false,
+      )
       secondDialog.onBackPressedDispatcher.onBackPressed()
 
       assertEquals(1, firstFallbackCount)
@@ -139,17 +151,17 @@ class OverlayRequestCloseControllerTest {
     }
 
   private fun inputState(
-    hasHandler: Boolean = true,
+    hasRequestCloseHandler: Boolean = true,
     isPresentationActive: Boolean = true,
-    isTargetOpen: Boolean = true,
+    isTargetResolvedAndOpen: Boolean = true,
   ) =
     RequestCloseInputState(
       isAttached = true,
-      isActive = true,
+      isLifecycleActive = true,
       isModal = true,
-      hasHandler = hasHandler,
+      hasRequestCloseHandler = hasRequestCloseHandler,
       isPresentationActive = isPresentationActive,
-      isTargetOpen = isTargetOpen,
+      isTargetResolvedAndOpen = isTargetResolvedAndOpen,
     )
 
   private fun countingCallback(onBack: () -> Unit) =

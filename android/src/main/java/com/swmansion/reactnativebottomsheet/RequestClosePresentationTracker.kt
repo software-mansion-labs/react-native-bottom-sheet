@@ -21,7 +21,7 @@ internal class RequestClosePresentationTracker {
         (closingPresentationActive || visibleHeight > REQUEST_CLOSE_VISIBLE_EPSILON_PX)
   }
 
-  fun onMovementFinished() {
+  fun onAnimationFinished() {
     closingPresentationActive = false
   }
 

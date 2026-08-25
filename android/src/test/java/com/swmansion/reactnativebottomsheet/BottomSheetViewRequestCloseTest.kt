@@ -137,7 +137,7 @@ class BottomSheetViewRequestCloseTest {
       var navigationCount = 0
       activity.onBackPressedDispatcher.addCallback(navigationCallback { navigationCount++ })
       val listener = CountingBottomSheetListener()
-      val sheet = openPortalSheet(activity, listener, handlerPresent = false)
+      val sheet = openPortalSheet(activity, listener, hasRequestCloseHandler = false)
       activity.onBackPressedDispatcher.onBackPressed()
       assertEscape(activity::dispatchKeyEvent, expectedHandled = false)
       assertEquals(1, navigationCount)
@@ -388,7 +388,7 @@ class BottomSheetViewRequestCloseTest {
       var navigationCount = 0
       activity.onBackPressedDispatcher.addCallback(navigationCallback { navigationCount++ })
       val listener = CountingBottomSheetListener()
-      val fixture = openNativeOverlaySheet(activity, listener, handlerPresent = false)
+      val fixture = openNativeOverlaySheet(activity, listener, hasRequestCloseHandler = false)
       fixture.dialog.onBackPressedDispatcher.onBackPressed()
       assertEscape(fixture.dialog::dispatchKeyEvent, expectedHandled = false)
       assertEquals(1, navigationCount)
@@ -404,8 +404,8 @@ class BottomSheetViewRequestCloseTest {
       val listener = CountingBottomSheetListener()
       val fixture = openNativeOverlaySheet(activity, listener)
       fixture.dialog.onBackPressedDispatcher.dispatchOnBackStarted(backEvent())
-      fixture.sheet.setRequestCloseHandlerPresent(false)
-      fixture.sheet.setRequestCloseHandlerPresent(true)
+      fixture.sheet.setHasRequestCloseHandler(false)
+      fixture.sheet.setHasRequestCloseHandler(true)
       fixture.dialog.onBackPressedDispatcher.onBackPressed()
       assertEquals(0, listener.requestCloseCount)
       fixture.dialog.onBackPressedDispatcher.onBackPressed()
@@ -471,13 +471,13 @@ class BottomSheetViewRequestCloseTest {
   private fun configuredOpenSheet(
     context: Context,
     listener: CountingBottomSheetListener,
-    handlerPresent: Boolean = true,
+    hasRequestCloseHandler: Boolean = true,
   ) =
     BottomSheetView(context).apply {
       this.listener = listener
       animateIn = false
       modal = true
-      setRequestCloseHandlerPresent(handlerPresent)
+      setHasRequestCloseHandler(hasRequestCloseHandler)
       setDetents(
         listOf(
           mapOf("value" to 0.0, "kind" to "points", "programmatic" to false),
@@ -497,7 +497,7 @@ class BottomSheetViewRequestCloseTest {
       animateIn = false
       animateContentHeight = false
       modal = true
-      setRequestCloseHandlerPresent(true)
+      setHasRequestCloseHandler(true)
       addSheetChild(content, 0)
       setDetents(contentDetents())
       setIndex(1)
@@ -512,9 +512,9 @@ class BottomSheetViewRequestCloseTest {
   private fun openPortalSheet(
     activity: Activity,
     listener: CountingBottomSheetListener,
-    handlerPresent: Boolean = true,
+    hasRequestCloseHandler: Boolean = true,
   ) =
-    configuredOpenSheet(activity, listener, handlerPresent).also {
+    configuredOpenSheet(activity, listener, hasRequestCloseHandler).also {
       activity.setContentView(it)
       layoutPortal(it)
     }
@@ -522,7 +522,7 @@ class BottomSheetViewRequestCloseTest {
   private fun openNativeOverlaySheet(
     activity: ComponentActivity,
     listener: CountingBottomSheetListener,
-    handlerPresent: Boolean = true,
+    hasRequestCloseHandler: Boolean = true,
     configure: (BottomSheetView) -> Unit = {},
   ): NativeOverlayTestFixture {
     val reactContext = BridgeReactContext(activity.applicationContext)
@@ -531,7 +531,7 @@ class BottomSheetViewRequestCloseTest {
       configuredOpenSheet(
         ThemedReactContext(reactContext, activity, "test", 1),
         listener,
-        handlerPresent,
+        hasRequestCloseHandler,
       )
     sheet.setScrimColor(Color.BLACK)
     sheet.setScrimOpacities(listOf(0f, 1f))

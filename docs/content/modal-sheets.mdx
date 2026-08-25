@@ -74,10 +74,10 @@ can invoke the callback. A complete, unmodified physical-keyboard Escape press
 uses the same request path. The callback only reports the request: the consumer
 still decides whether and how to change the controlled target. This matches the
 modal effect of React Native `Modal`: close input is intercepted and reported
-instead of choosing a dismissal for the consumer. The Android transports are not
-intended to be identical event-for-event. In both presentation modes, a handler
-continues to consume close input without another callback while a visible sheet
-animates to a zero-height target.
+instead of choosing a dismissal for the consumer. The Android input-routing
+paths are not intended to be identical event-for-event. In both presentation
+modes, a handler continues to consume close input without another callback while
+a visible sheet animates to a zero-height target.
 
 Portal sheets that share the same Android `rootView` form one native ownership
 stack, including sheets rendered by independent `BottomSheetProvider` instances.
@@ -100,7 +100,7 @@ callback and unhandled-key listener are installed lazily only after
 across open/close, ownership, handler, pause/resume, and lifecycle-owner
 `DESTROYED` updates. Back changes only the callback's enabled state, following
 Android’s
-[predictive Back callback best practices](https://developer.android.com/guide/navigation/custom-back/predictive-back-gesture#callback-best-practices).
+[AndroidX `OnBackPressedCallback` best practices](https://developer.android.com/guide/navigation/custom-back/predictive-back-gesture#callback-best-practices).
 If ownership, the handler, the active lifecycle, or request eligibility is lost
 after a predictive gesture selects that callback but before commit, the commit
 is consumed without a callback. It is not re-dispatched to a new owner or
@@ -143,7 +143,7 @@ listener. A custom `Window.Callback` that consumes an event before delegating it
 to the view hierarchy can preempt both portal mechanisms. The library never
 replaces or restores the window callback.
 
-The input transport depends on how the sheet is presented. A portal sheet uses
+Close-input routing depends on how the sheet is presented. A portal sheet uses
 the nearest valid `OnBackPressedDispatcherOwner` published in its Android view
 tree, or a current host Activity that both owns the attached portal hierarchy
 and is not finishing or destroyed. Back is registered only when that dispatcher
@@ -154,8 +154,9 @@ target is open. A plain `Activity` does not implement
 `OnBackPressedDispatcherOwner`, so it supports local portal Escape but not
 portal Back; its external-focus Escape fallback follows the API limitations
 above. A portal whose structural host has never had `onRequestClose` adds only
-root membership, not a Back callback or key listener. A `nativeOverlay` has a
-separate window and therefore handles Back through its dialog dispatcher.
+root membership, not an AndroidX `OnBackPressedCallback` or key listener. A
+`nativeOverlay` has a separate window and therefore handles Back through its
+dialog dispatcher.
 
 Portal Escape handling is resolved independently from the Back dispatcher. Each
 listener is attached directly to its portal `BottomSheetView` and delegates to
@@ -174,8 +175,8 @@ qualifying membership below to handle new requests. `RESUMED` restores the
 portal's earlier structural position. A destroyed custom owner stays excluded
 and never falls back to a broader Activity lifecycle. Lifecycle-owner
 `DESTROYED` does not by itself mean that `BottomSheetView.destroy()` ran, so an
-already-installed transport remains present but disabled until structural
-integration ends.
+already-installed routing integration remains present but disabled until
+structural integration ends.
 
 Changing dispatcher or lifecycle host within the same root preserves membership
 position but replaces that host's platform integration. Detach, component
@@ -223,13 +224,13 @@ stays in normal key routing. A focused descendant can therefore receive the full
 Escape sequence. Forwarding goes directly to the Activity; it is not offered to
 another `nativeOverlay` dialog below.
 
-The dialog keeps one Back callback registered for its structural lifetime. A
-predictive gesture pins its complete action at start: request close, consume, or
-forward to that host Activity dispatcher. Adding a handler does not retarget an
-already-started forwarding action. If a request-close action loses the handler,
-modal state, active lifecycle, or open target before commit, that gesture
-finishes as a consumed no-op even if eligibility returns; the next Back uses the
-new state.
+The dialog keeps one AndroidX `OnBackPressedCallback` registered for its
+structural lifetime. A predictive gesture pins its complete action at start:
+request close, consume, or forward to that host Activity dispatcher. Adding a
+handler does not retarget an already-started forwarding action. If a
+request-close action loses the handler, modal state, active lifecycle, or open
+target before commit, that gesture finishes as a consumed no-op even if
+eligibility returns; the next Back uses the new state.
 
 When no active portal presentation owns the root, its stable callbacks are
 disabled and Back continues through the dispatcher. Predictive Back requests are

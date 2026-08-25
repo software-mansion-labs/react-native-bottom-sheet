@@ -12,11 +12,11 @@ internal enum class RequestCloseInputAction {
 
 internal data class RequestCloseInputState(
   val isAttached: Boolean,
-  val isActive: Boolean,
+  val isLifecycleActive: Boolean,
   val isModal: Boolean,
-  val hasHandler: Boolean,
+  val hasRequestCloseHandler: Boolean,
   val isPresentationActive: Boolean,
-  val isTargetOpen: Boolean,
+  val isTargetResolvedAndOpen: Boolean,
 )
 
 internal fun resolveRequestCloseInputAction(
@@ -24,14 +24,14 @@ internal fun resolveRequestCloseInputAction(
 ): RequestCloseInputAction {
   if (
     !state.isAttached ||
-      !state.isActive ||
+      !state.isLifecycleActive ||
       !state.isModal ||
-      !state.hasHandler ||
+      !state.hasRequestCloseHandler ||
       !state.isPresentationActive
   ) {
     return RequestCloseInputAction.PASS_THROUGH
   }
-  return if (state.isTargetOpen) {
+  return if (state.isTargetResolvedAndOpen) {
     RequestCloseInputAction.REQUEST_CLOSE
   } else {
     RequestCloseInputAction.CONSUME

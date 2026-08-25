@@ -17,32 +17,32 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35])
 class PortalRequestCloseCoordinatorTest {
   @Test
-  fun `newest owner candidate wins while non-candidates are skipped`() {
+  fun `newest routing owner candidate wins while non-candidates are skipped`() {
     withActivity { activity ->
       val root = FrameLayout(activity)
-      val lower = TestTarget()
-      val unresolvedUpper = TestTarget()
-      val zeroUpper = TestTarget()
-      val lowerRegistration = register(root, lower, candidate = true)
-      val unresolvedRegistration = register(root, unresolvedUpper, candidate = false)
-      val zeroRegistration = register(root, zeroUpper, candidate = false)
+      val lower = TestParticipant()
+      val unresolvedUpper = TestParticipant()
+      val zeroUpper = TestParticipant()
+      val lowerRegistration = register(root, lower, routingOwnerCandidate = true)
+      val unresolvedRegistration = register(root, unresolvedUpper, routingOwnerCandidate = false)
+      val zeroRegistration = register(root, zeroUpper, routingOwnerCandidate = false)
 
       try {
-        assertTrue(lower.handlingEnabled)
-        assertFalse(unresolvedUpper.handlingEnabled)
-        assertFalse(zeroUpper.handlingEnabled)
+        assertTrue(lower.isInputHandlingEnabled)
+        assertFalse(unresolvedUpper.isInputHandlingEnabled)
+        assertFalse(zeroUpper.isInputHandlingEnabled)
         assertHandledEscape(root)
         assertEquals(1, lower.requestCount)
 
-        zeroRegistration.update(portalState(candidate = true))
-        assertFalse(lower.handlingEnabled)
-        assertTrue(zeroUpper.handlingEnabled)
+        zeroRegistration.update(portalState(routingOwnerCandidate = true))
+        assertFalse(lower.isInputHandlingEnabled)
+        assertTrue(zeroUpper.isInputHandlingEnabled)
         assertHandledEscape(root, 100L)
         assertEquals(1, lower.requestCount)
         assertEquals(1, zeroUpper.requestCount)
 
-        zeroRegistration.update(portalState(candidate = false))
-        assertTrue(lower.handlingEnabled)
+        zeroRegistration.update(portalState(routingOwnerCandidate = false))
+        assertTrue(lower.isInputHandlingEnabled)
         assertHandledEscape(root, 110L)
         assertEquals(2, lower.requestCount)
       } finally {
@@ -54,30 +54,30 @@ class PortalRequestCloseCoordinatorTest {
   }
 
   @Test
-  fun `owner without a handler blocks lower and handler toggles do not reorder it`() {
+  fun `routing owner without a handler blocks lower and handler toggles do not reorder it`() {
     withActivity { activity ->
       val root = FrameLayout(activity)
-      val lower = TestTarget()
-      val upper = TestTarget()
-      val lowerRegistration = register(root, lower, candidate = true)
-      val upperRegistration = register(root, upper, candidate = true, canEmit = false)
+      val lower = TestParticipant()
+      val upper = TestParticipant()
+      val lowerRegistration = register(root, lower, routingOwnerCandidate = true)
+      val upperRegistration = register(root, upper, routingOwnerCandidate = true, canEmit = false)
 
       try {
-        assertFalse(lower.handlingEnabled)
-        assertFalse(upper.handlingEnabled)
+        assertFalse(lower.isInputHandlingEnabled)
+        assertFalse(upper.isInputHandlingEnabled)
         assertFalse(PortalRequestCloseCoordinator.dispatchEscape(root, escapeDown(120L)))
         assertFalse(PortalRequestCloseCoordinator.dispatchEscape(root, escapeUp(120L)))
 
-        upperRegistration.update(portalState(candidate = true, canEmit = true))
-        assertTrue(upper.handlingEnabled)
+        upperRegistration.update(portalState(routingOwnerCandidate = true, canEmit = true))
+        assertTrue(upper.isInputHandlingEnabled)
         assertHandledEscape(root, 130L)
         assertEquals(0, lower.requestCount)
         assertEquals(1, upper.requestCount)
 
-        upperRegistration.update(portalState(candidate = true, canEmit = false))
-        upperRegistration.update(portalState(candidate = true, canEmit = true))
-        assertTrue(upper.handlingEnabled)
-        assertFalse(lower.handlingEnabled)
+        upperRegistration.update(portalState(routingOwnerCandidate = true, canEmit = false))
+        upperRegistration.update(portalState(routingOwnerCandidate = true, canEmit = true))
+        assertTrue(upper.isInputHandlingEnabled)
+        assertFalse(lower.isInputHandlingEnabled)
       } finally {
         upperRegistration.remove()
         lowerRegistration.remove()
@@ -86,28 +86,28 @@ class PortalRequestCloseCoordinatorTest {
   }
 
   @Test
-  fun `consuming upper owner blocks lower without emitting`() {
+  fun `consuming upper routing owner blocks lower without emitting`() {
     withActivity { activity ->
       val root = FrameLayout(activity)
-      val lower = TestTarget()
-      val upper = TestTarget()
-      val lowerRegistration = register(root, lower, candidate = true)
+      val lower = TestParticipant()
+      val upper = TestParticipant()
+      val lowerRegistration = register(root, lower, routingOwnerCandidate = true)
       val upperRegistration =
         PortalRequestCloseCoordinator.register(
           root,
           upper,
-          portalState(candidate = true, action = RequestCloseInputAction.CONSUME),
+          portalState(routingOwnerCandidate = true, action = RequestCloseInputAction.CONSUME),
         )
 
       try {
-        assertFalse(lower.handlingEnabled)
+        assertFalse(lower.isInputHandlingEnabled)
         assertEquals(RequestCloseInputAction.CONSUME, upper.action)
         assertHandledEscape(root, 135L)
         assertEquals(0, lower.requestCount)
         assertEquals(0, upper.requestCount)
 
-        upperRegistration.update(portalState(candidate = false))
-        assertTrue(lower.handlingEnabled)
+        upperRegistration.update(portalState(routingOwnerCandidate = false))
+        assertTrue(lower.isInputHandlingEnabled)
         assertHandledEscape(root, 136L)
         assertEquals(1, lower.requestCount)
       } finally {
@@ -118,16 +118,24 @@ class PortalRequestCloseCoordinatorTest {
   }
 
   @Test
-  fun `same owner changes action without passing through`() {
+  fun `same routing owner changes action without passing through`() {
     withActivity { activity ->
       val root = FrameLayout(activity)
-      val target = TestTarget()
-      val registration = register(root, target, candidate = true)
+      val participant = TestParticipant()
+      val registration = register(root, participant, routingOwnerCandidate = true)
 
       try {
-        registration.update(portalState(candidate = true, action = RequestCloseInputAction.CONSUME))
         registration.update(
-          portalState(candidate = true, action = RequestCloseInputAction.REQUEST_CLOSE)
+          portalState(
+            routingOwnerCandidate = true,
+            action = RequestCloseInputAction.CONSUME,
+          )
+        )
+        registration.update(
+          portalState(
+            routingOwnerCandidate = true,
+            action = RequestCloseInputAction.REQUEST_CLOSE,
+          )
         )
 
         assertEquals(
@@ -136,10 +144,10 @@ class PortalRequestCloseCoordinatorTest {
             RequestCloseInputAction.CONSUME,
             RequestCloseInputAction.REQUEST_CLOSE,
           ),
-          target.actionChanges,
+          participant.actionChanges,
         )
-        assertEquals(listOf(true, true, true), target.handlingChanges)
-        assertTrue(target.handlingEnabled)
+        assertEquals(listOf(true, true, true), participant.inputHandlingChanges)
+        assertTrue(participant.isInputHandlingEnabled)
       } finally {
         registration.remove()
       }
@@ -150,25 +158,25 @@ class PortalRequestCloseCoordinatorTest {
   fun `inactive upper passes new requests lower and resume restores its position`() {
     withActivity { activity ->
       val root = FrameLayout(activity)
-      val lower = TestTarget()
-      val upper = TestTarget()
-      val lowerRegistration = register(root, lower, candidate = true)
-      val upperRegistration = register(root, upper, candidate = true)
+      val lower = TestParticipant()
+      val upper = TestParticipant()
+      val lowerRegistration = register(root, lower, routingOwnerCandidate = true)
+      val upperRegistration = register(root, upper, routingOwnerCandidate = true)
 
       try {
-        upperRegistration.update(portalState(candidate = false))
-        assertTrue(lower.handlingEnabled)
+        upperRegistration.update(portalState(routingOwnerCandidate = false))
+        assertTrue(lower.isInputHandlingEnabled)
         assertHandledEscape(root, 140L)
         assertEquals(1, lower.requestCount)
 
-        upperRegistration.update(portalState(candidate = true))
-        assertTrue(upper.handlingEnabled)
-        assertFalse(lower.handlingEnabled)
+        upperRegistration.update(portalState(routingOwnerCandidate = true))
+        assertTrue(upper.isInputHandlingEnabled)
+        assertFalse(lower.isInputHandlingEnabled)
         assertHandledEscape(root, 150L)
         assertEquals(1, upper.requestCount)
 
-        upperRegistration.update(portalState(candidate = false))
-        assertTrue(lower.handlingEnabled)
+        upperRegistration.update(portalState(routingOwnerCandidate = false))
+        assertTrue(lower.isInputHandlingEnabled)
       } finally {
         upperRegistration.remove()
         lowerRegistration.remove()
@@ -180,57 +188,59 @@ class PortalRequestCloseCoordinatorTest {
   fun `identical updates are no-ops and updates after remove are ignored`() {
     withActivity { activity ->
       val root = FrameLayout(activity)
-      val target = TestTarget()
-      val initialState = portalState(candidate = true)
-      val registration = PortalRequestCloseCoordinator.register(root, target, initialState)
+      val participant = TestParticipant()
+      val initialState = portalState(routingOwnerCandidate = true)
+      val registration = PortalRequestCloseCoordinator.register(root, participant, initialState)
 
-      assertEquals(listOf(true), target.handlingChanges)
+      assertEquals(listOf(true), participant.inputHandlingChanges)
       registration.update(initialState)
-      assertEquals(listOf(true), target.handlingChanges)
+      assertEquals(listOf(true), participant.inputHandlingChanges)
 
       registration.remove()
-      assertEquals(listOf(true, false), target.handlingChanges)
+      assertEquals(listOf(true, false), participant.inputHandlingChanges)
       registration.update(initialState)
       registration.remove()
-      assertEquals(listOf(true, false), target.handlingChanges)
+      assertEquals(listOf(true, false), participant.inputHandlingChanges)
     }
   }
 
   @Test
-  fun `initial enabled result is synchronous while initial disabled is not redundantly sent`() {
+  fun `initial action assignment is synchronous and pass-through is not redundantly reported`() {
     withActivity { activity ->
-      val enabledRoot = FrameLayout(activity)
-      val enabled = TestTarget()
-      val enabledRegistration = register(enabledRoot, enabled, candidate = true)
-      val disabledRoot = FrameLayout(activity)
-      val disabled = TestTarget()
-      val disabledRegistration = register(disabledRoot, disabled, candidate = false)
+      val requestCloseRoot = FrameLayout(activity)
+      val requestCloseParticipant = TestParticipant()
+      val requestCloseRegistration =
+        register(requestCloseRoot, requestCloseParticipant, routingOwnerCandidate = true)
+      val passThroughRoot = FrameLayout(activity)
+      val passThroughParticipant = TestParticipant()
+      val passThroughRegistration =
+        register(passThroughRoot, passThroughParticipant, routingOwnerCandidate = false)
 
       try {
-        assertEquals(listOf(true), enabled.handlingChanges)
-        assertTrue(enabled.handlingEnabled)
-        assertTrue(disabled.handlingChanges.isEmpty())
-        assertFalse(disabled.handlingEnabled)
+        assertEquals(listOf(true), requestCloseParticipant.inputHandlingChanges)
+        assertTrue(requestCloseParticipant.isInputHandlingEnabled)
+        assertTrue(passThroughParticipant.inputHandlingChanges.isEmpty())
+        assertFalse(passThroughParticipant.isInputHandlingEnabled)
       } finally {
-        disabledRegistration.remove()
-        enabledRegistration.remove()
+        passThroughRegistration.remove()
+        requestCloseRegistration.remove()
       }
     }
   }
 
   @Test
-  fun `owner transitions disable before enabling and remove disables before promoting lower`() {
+  fun `routing owner transitions disable before enabling and remove disables before promoting lower`() {
     withActivity { activity ->
       val root = FrameLayout(activity)
       val transitions = mutableListOf<String>()
-      val lower = TestTarget("lower", transitions)
-      val upper = TestTarget("upper", transitions)
-      val lowerRegistration = register(root, lower, candidate = true)
-      val upperRegistration = register(root, upper, candidate = false)
+      val lower = TestParticipant("lower", transitions)
+      val upper = TestParticipant("upper", transitions)
+      val lowerRegistration = register(root, lower, routingOwnerCandidate = true)
+      val upperRegistration = register(root, upper, routingOwnerCandidate = false)
 
       try {
         transitions.clear()
-        upperRegistration.update(portalState(candidate = true))
+        upperRegistration.update(portalState(routingOwnerCandidate = true))
         assertEquals(listOf("lower:false", "upper:true"), transitions)
 
         transitions.clear()
@@ -248,24 +258,24 @@ class PortalRequestCloseCoordinatorTest {
     withActivity { activity ->
       val firstRoot = FrameLayout(activity)
       val secondRoot = FrameLayout(activity)
-      val firstLower = TestTarget()
-      val migrating = TestTarget()
-      val isolated = TestTarget()
-      val firstRegistration = register(firstRoot, firstLower, candidate = true)
-      var migratingRegistration = register(firstRoot, migrating, candidate = true)
-      val isolatedRegistration = register(secondRoot, isolated, candidate = true)
+      val firstLower = TestParticipant()
+      val migrating = TestParticipant()
+      val isolated = TestParticipant()
+      val firstRegistration = register(firstRoot, firstLower, routingOwnerCandidate = true)
+      var migratingRegistration = register(firstRoot, migrating, routingOwnerCandidate = true)
+      val isolatedRegistration = register(secondRoot, isolated, routingOwnerCandidate = true)
 
       try {
-        assertTrue(migrating.handlingEnabled)
-        assertTrue(isolated.handlingEnabled)
+        assertTrue(migrating.isInputHandlingEnabled)
+        assertTrue(isolated.isInputHandlingEnabled)
 
         migratingRegistration.remove()
-        assertTrue(firstLower.handlingEnabled)
-        migratingRegistration = register(secondRoot, migrating, candidate = true)
-        assertTrue(migrating.handlingEnabled)
-        assertFalse(isolated.handlingEnabled)
-        assertTrue(firstLower.handlingEnabled)
-        assertEquals(listOf(true, false, true), migrating.handlingChanges)
+        assertTrue(firstLower.isInputHandlingEnabled)
+        migratingRegistration = register(secondRoot, migrating, routingOwnerCandidate = true)
+        assertTrue(migrating.isInputHandlingEnabled)
+        assertFalse(isolated.isInputHandlingEnabled)
+        assertTrue(firstLower.isInputHandlingEnabled)
+        assertEquals(listOf(true, false, true), migrating.inputHandlingChanges)
       } finally {
         migratingRegistration.remove()
         isolatedRegistration.remove()
@@ -275,25 +285,25 @@ class PortalRequestCloseCoordinatorTest {
   }
 
   @Test
-  fun `ownership or emission loss is terminal for a captured Escape press`() {
+  fun `routing ownership or emission loss is terminal for a captured Escape press`() {
     withActivity { activity ->
       val root = FrameLayout(activity)
-      val lower = TestTarget()
-      val upper = TestTarget()
-      val lowerRegistration = register(root, lower, candidate = true)
-      val upperRegistration = register(root, upper, candidate = true)
+      val lower = TestParticipant()
+      val upper = TestParticipant()
+      val lowerRegistration = register(root, lower, routingOwnerCandidate = true)
+      val upperRegistration = register(root, upper, routingOwnerCandidate = true)
 
       try {
         assertTrue(PortalRequestCloseCoordinator.dispatchEscape(root, escapeDown(170L)))
-        upperRegistration.update(portalState(candidate = false))
-        upperRegistration.update(portalState(candidate = true))
+        upperRegistration.update(portalState(routingOwnerCandidate = false))
+        upperRegistration.update(portalState(routingOwnerCandidate = true))
         assertTrue(PortalRequestCloseCoordinator.dispatchEscape(root, escapeUp(170L)))
         assertEquals(0, lower.requestCount)
         assertEquals(0, upper.requestCount)
 
         assertTrue(PortalRequestCloseCoordinator.dispatchEscape(root, escapeDown(180L)))
-        upperRegistration.update(portalState(candidate = true, canEmit = false))
-        upperRegistration.update(portalState(candidate = true, canEmit = true))
+        upperRegistration.update(portalState(routingOwnerCandidate = true, canEmit = false))
+        upperRegistration.update(portalState(routingOwnerCandidate = true, canEmit = true))
         assertTrue(PortalRequestCloseCoordinator.dispatchEscape(root, escapeUp(180L)))
         assertEquals(0, upper.requestCount)
 
@@ -307,33 +317,37 @@ class PortalRequestCloseCoordinatorTest {
   }
 
   @Test
-  fun `state rejects emission without owner candidacy`() {
+  fun `state rejects emission without routing owner candidacy`() {
     assertThrows(IllegalArgumentException::class.java) {
       PortalRequestCloseState(
-        isOwnerCandidate = false,
-        actionIfOwner = RequestCloseInputAction.REQUEST_CLOSE,
+        isRoutingOwnerCandidate = false,
+        actionIfRoutingOwner = RequestCloseInputAction.REQUEST_CLOSE,
       )
     }
   }
 
   private fun register(
     root: FrameLayout,
-    target: TestTarget,
-    candidate: Boolean,
-    canEmit: Boolean = candidate,
+    participant: TestParticipant,
+    routingOwnerCandidate: Boolean,
+    canEmit: Boolean = routingOwnerCandidate,
   ): PortalRequestCloseCoordinator.Registration =
-    PortalRequestCloseCoordinator.register(root, target, portalState(candidate, canEmit))
+    PortalRequestCloseCoordinator.register(
+      root,
+      participant,
+      portalState(routingOwnerCandidate, canEmit),
+    )
 
   private fun portalState(
-    candidate: Boolean,
-    canEmit: Boolean = candidate,
+    routingOwnerCandidate: Boolean,
+    canEmit: Boolean = routingOwnerCandidate,
     action: RequestCloseInputAction? = null,
   ) =
     PortalRequestCloseState(
-      isOwnerCandidate = candidate,
-      actionIfOwner =
+      isRoutingOwnerCandidate = routingOwnerCandidate,
+      actionIfRoutingOwner =
         action
-          ?: if (candidate && canEmit) {
+          ?: if (routingOwnerCandidate && canEmit) {
             RequestCloseInputAction.REQUEST_CLOSE
           } else {
             RequestCloseInputAction.PASS_THROUGH
@@ -361,27 +375,27 @@ class PortalRequestCloseCoordinatorTest {
   }
 }
 
-private class TestTarget(
+private class TestParticipant(
   private val name: String? = null,
   private val sharedTransitions: MutableList<String>? = null,
-) : PortalRequestCloseTarget {
+) : PortalRequestCloseParticipant {
   var action = RequestCloseInputAction.PASS_THROUGH
-  var handlingEnabled = false
+  var isInputHandlingEnabled = false
   var locallyEligible = true
   var requestCount = 0
   val actionChanges = mutableListOf<RequestCloseInputAction>()
-  val handlingChanges = mutableListOf<Boolean>()
+  val inputHandlingChanges = mutableListOf<Boolean>()
 
-  override fun onPortalRequestCloseActionChanged(action: RequestCloseInputAction) {
+  override fun onAssignedActionChanged(action: RequestCloseInputAction) {
     this.action = action
     actionChanges.add(action)
     val enabled = action != RequestCloseInputAction.PASS_THROUGH
-    handlingEnabled = enabled
-    handlingChanges.add(enabled)
+    isInputHandlingEnabled = enabled
+    inputHandlingChanges.add(enabled)
     if (name != null) sharedTransitions?.add("$name:$enabled")
   }
 
-  override fun emitPortalRequestCloseIfEligible(): Boolean {
+  override fun emitRequestCloseIfEligible(): Boolean {
     if (action != RequestCloseInputAction.REQUEST_CLOSE || !locallyEligible) return false
     requestCount++
     return true

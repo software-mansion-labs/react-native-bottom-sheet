@@ -21,7 +21,7 @@ export interface NativeProps extends ViewProps {
   // Android-only signal that JS supplied `onRequestClose`. Native event-handler
   // presence is not otherwise observable, so Android uses this to decide whether
   // a modal should own Back and Escape close requests.
-  requestCloseHandlerPresent: boolean;
+  hasRequestCloseHandler: boolean;
   // Consulted natively only in native-overlay mode, where the detent cap is
   // computed from the overlay's real bounds and insets; inline sheets bake the
   // flag into the JS-computed maxDetentHeight as before.

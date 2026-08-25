@@ -58,7 +58,7 @@ class RequestCloseAnimationInstrumentedTest {
               }
             animateIn = false
             modal = true
-            setRequestCloseHandlerPresent(true)
+            setHasRequestCloseHandler(true)
             setDetents(
               listOf(
                 mapOf("value" to 0.0, "kind" to "points", "programmatic" to false),

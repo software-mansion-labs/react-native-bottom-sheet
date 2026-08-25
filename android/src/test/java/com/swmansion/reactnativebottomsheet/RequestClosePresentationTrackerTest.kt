@@ -50,7 +50,7 @@ class RequestClosePresentationTrackerTest {
     val tracker = RequestClosePresentationTracker()
 
     listOf(
-        tracker::onMovementFinished,
+        tracker::onAnimationFinished,
         tracker::onNonAnimatedTransition,
         tracker::onInvalidTarget,
         tracker::onHostDestroyed,

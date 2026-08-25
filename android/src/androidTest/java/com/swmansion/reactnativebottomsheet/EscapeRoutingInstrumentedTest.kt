@@ -178,7 +178,7 @@ class EscapeRoutingInstrumentedTest {
             eventDispatcher = NoOpInstrumentedEventDispatcher
             animateIn = false
             modal = true
-            setRequestCloseHandlerPresent(false)
+            setHasRequestCloseHandler(false)
             setScrimColor(Color.BLACK)
             setScrimOpacities(listOf(0f, 1f))
             setDetents(
@@ -225,7 +225,7 @@ class EscapeRoutingInstrumentedTest {
       animateIn = false
       animateContentHeight = false
       modal = true
-      setRequestCloseHandlerPresent(true)
+      setHasRequestCloseHandler(true)
       addSheetChild(content, 0)
       setDetents(contentDetents())
       setIndex(1)
@@ -245,7 +245,7 @@ class EscapeRoutingInstrumentedTest {
       listener = CountingRequestCloseListener(requestCount)
       animateIn = false
       modal = true
-      setRequestCloseHandlerPresent(true)
+      setHasRequestCloseHandler(true)
       setDetents(
         listOf(
           mapOf("value" to 0.0, "kind" to "points", "programmatic" to false),

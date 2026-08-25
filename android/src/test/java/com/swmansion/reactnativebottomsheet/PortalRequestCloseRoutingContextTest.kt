@@ -25,17 +25,17 @@ import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
-class PortalRequestCloseHostTest {
+class PortalRequestCloseRoutingContextTest {
   @Test
   fun `ComponentActivity provides all portal owners`() {
     withActivity<ComponentActivity> { activity ->
       val portal = View(activity)
       activity.setContentView(portal)
 
-      val host = requireNotNull(portal.resolvePortalRequestCloseHost(activity))
+      val routingContext = requireNotNull(portal.resolvePortalRequestCloseRoutingContext(activity))
 
-      assertSame(activity, host.dispatcherOwner)
-      assertSame(activity, host.lifecycleOwner)
+      assertSame(activity, routingContext.dispatcherOwner)
+      assertSame(activity, routingContext.lifecycleOwner)
     }
   }
 
@@ -57,10 +57,10 @@ class PortalRequestCloseHostTest {
       outer.addView(inner)
       activity.setContentView(outer)
 
-      val host = requireNotNull(portal.resolvePortalRequestCloseHost(activity))
+      val routingContext = requireNotNull(portal.resolvePortalRequestCloseRoutingContext(activity))
 
-      assertSame(innerDispatcherOwner, host.dispatcherOwner)
-      assertSame(innerLifecycleOwner, host.lifecycleOwner)
+      assertSame(innerDispatcherOwner, routingContext.dispatcherOwner)
+      assertSame(innerLifecycleOwner, routingContext.lifecycleOwner)
     }
   }
 
@@ -74,10 +74,10 @@ class PortalRequestCloseHostTest {
       container.addView(portal)
       activity.setContentView(container)
 
-      val host = requireNotNull(portal.resolvePortalRequestCloseHost(activity))
+      val routingContext = requireNotNull(portal.resolvePortalRequestCloseRoutingContext(activity))
 
-      assertSame(owner, host.dispatcherOwner)
-      assertSame(owner, host.lifecycleOwner)
+      assertSame(owner, routingContext.dispatcherOwner)
+      assertSame(owner, routingContext.lifecycleOwner)
     }
   }
 
@@ -91,10 +91,10 @@ class PortalRequestCloseHostTest {
       container.addView(portal)
       activity.setContentView(container)
 
-      val host = requireNotNull(portal.resolvePortalRequestCloseHost(activity))
+      val routingContext = requireNotNull(portal.resolvePortalRequestCloseRoutingContext(activity))
 
-      assertSame(activity, host.dispatcherOwner)
-      assertSame(lifecycleOwner, host.lifecycleOwner)
+      assertSame(activity, routingContext.dispatcherOwner)
+      assertSame(lifecycleOwner, routingContext.lifecycleOwner)
     }
   }
 
@@ -108,10 +108,10 @@ class PortalRequestCloseHostTest {
       container.addView(portal)
       activity.setContentView(container)
 
-      val host = requireNotNull(portal.resolvePortalRequestCloseHost(activity))
+      val routingContext = requireNotNull(portal.resolvePortalRequestCloseRoutingContext(activity))
 
-      assertSame(owner, host.dispatcherOwner)
-      assertSame(owner, host.lifecycleOwner)
+      assertSame(owner, routingContext.dispatcherOwner)
+      assertSame(owner, routingContext.lifecycleOwner)
     }
   }
 
@@ -125,11 +125,11 @@ class PortalRequestCloseHostTest {
       container.addView(portal)
       activity.setContentView(container)
 
-      val host = requireNotNull(portal.resolvePortalRequestCloseHost(activity))
+      val routingContext = requireNotNull(portal.resolvePortalRequestCloseRoutingContext(activity))
 
-      assertSame(activity, host.dispatcherOwner)
-      assertSame(destroyedOwner, host.lifecycleOwner)
-      assertSame(Lifecycle.State.DESTROYED, host.lifecycleOwner?.lifecycle?.currentState)
+      assertSame(activity, routingContext.dispatcherOwner)
+      assertSame(destroyedOwner, routingContext.lifecycleOwner)
+      assertSame(Lifecycle.State.DESTROYED, routingContext.lifecycleOwner?.lifecycle?.currentState)
     }
   }
 
@@ -142,10 +142,11 @@ class PortalRequestCloseHostTest {
       dialog.show()
       shadowOf(Looper.getMainLooper()).idle()
       try {
-        val host = requireNotNull(portal.resolvePortalRequestCloseHost(activity))
+        val routingContext =
+          requireNotNull(portal.resolvePortalRequestCloseRoutingContext(activity))
 
-        assertSame(dialog, host.dispatcherOwner)
-        assertSame(dialog, host.lifecycleOwner)
+        assertSame(dialog, routingContext.dispatcherOwner)
+        assertSame(dialog, routingContext.lifecycleOwner)
       } finally {
         dialog.dismiss()
       }
@@ -167,10 +168,11 @@ class PortalRequestCloseHostTest {
       dialog.show()
       shadowOf(Looper.getMainLooper()).idle()
       try {
-        val host = requireNotNull(portal.resolvePortalRequestCloseHost(activity))
+        val routingContext =
+          requireNotNull(portal.resolvePortalRequestCloseRoutingContext(activity))
 
-        assertSame(dispatcherOwner, host.dispatcherOwner)
-        assertSame(lifecycleOwner, host.lifecycleOwner)
+        assertSame(dispatcherOwner, routingContext.dispatcherOwner)
+        assertSame(lifecycleOwner, routingContext.lifecycleOwner)
       } finally {
         dialog.dismiss()
       }
@@ -183,10 +185,10 @@ class PortalRequestCloseHostTest {
       val portal = View(activity)
       activity.setContentView(portal)
 
-      val host = requireNotNull(portal.resolvePortalRequestCloseHost(activity))
+      val routingContext = requireNotNull(portal.resolvePortalRequestCloseRoutingContext(activity))
 
-      assertNull(host.dispatcherOwner)
-      assertNull(host.lifecycleOwner)
+      assertNull(routingContext.dispatcherOwner)
+      assertNull(routingContext.lifecycleOwner)
     }
   }
 
@@ -200,10 +202,11 @@ class PortalRequestCloseHostTest {
       val portal = View(firstActivity)
       firstActivity.setContentView(portal)
 
-      val host = requireNotNull(portal.resolvePortalRequestCloseHost(secondActivity))
+      val routingContext =
+        requireNotNull(portal.resolvePortalRequestCloseRoutingContext(secondActivity))
 
-      assertNull(host.dispatcherOwner)
-      assertNull(host.lifecycleOwner)
+      assertNull(routingContext.dispatcherOwner)
+      assertNull(routingContext.lifecycleOwner)
     } finally {
       secondController.close()
       firstController.close()
@@ -211,21 +214,21 @@ class PortalRequestCloseHostTest {
   }
 
   @Test
-  fun `finishing ComponentActivity cannot provide any portal host element`() {
+  fun `finishing ComponentActivity cannot provide any routing-context owner`() {
     withActivity<ComponentActivity> { activity ->
       val portal = View(activity)
       activity.setContentView(portal)
       activity.finish()
 
-      val host = requireNotNull(portal.resolvePortalRequestCloseHost(activity))
+      val routingContext = requireNotNull(portal.resolvePortalRequestCloseRoutingContext(activity))
 
-      assertNull(host.dispatcherOwner)
-      assertNull(host.lifecycleOwner)
+      assertNull(routingContext.dispatcherOwner)
+      assertNull(routingContext.lifecycleOwner)
     }
   }
 
   @Test
-  fun `destroyed ComponentActivity fallback cannot provide any portal host element`() {
+  fun `destroyed ComponentActivity fallback cannot provide any routing-context owner`() {
     val portalController = Robolectric.buildActivity(Activity::class.java).setup()
     val staleController = Robolectric.buildActivity(ComponentActivity::class.java).setup()
     val staleActivity = staleController.get()
@@ -235,10 +238,11 @@ class PortalRequestCloseHostTest {
       val portal = View(portalController.get())
       portalController.get().setContentView(portal)
 
-      val host = requireNotNull(portal.resolvePortalRequestCloseHost(staleActivity))
+      val routingContext =
+        requireNotNull(portal.resolvePortalRequestCloseRoutingContext(staleActivity))
 
-      assertNull(host.dispatcherOwner)
-      assertNull(host.lifecycleOwner)
+      assertNull(routingContext.dispatcherOwner)
+      assertNull(routingContext.lifecycleOwner)
     } finally {
       staleController.close()
       portalController.close()
@@ -246,11 +250,11 @@ class PortalRequestCloseHostTest {
   }
 
   @Test
-  fun `detached portal has no request-close host`() {
+  fun `detached portal has no request-close routing context`() {
     withActivity<ComponentActivity> { activity ->
       val portal = View(activity)
 
-      assertNull(portal.resolvePortalRequestCloseHost(activity))
+      assertNull(portal.resolvePortalRequestCloseRoutingContext(activity))
     }
   }
 

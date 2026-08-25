@@ -11,8 +11,8 @@ import androidx.activity.findViewTreeOnBackPressedDispatcherOwner
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.findViewTreeLifecycleOwner
 
-/** The independently resolved Android owners used by a portal's close-request input handling. */
-internal data class PortalRequestCloseHost(
+/** The Android context used to route close-request input for an attached portal. */
+internal data class PortalRequestCloseRoutingContext(
   val dispatcherOwner: OnBackPressedDispatcherOwner?,
   val lifecycleOwner: LifecycleOwner?,
   val rootView: View,
@@ -24,9 +24,9 @@ internal data class PortalRequestCloseHost(
  * destroyed custom lifecycle owner is intentionally retained instead of falling back to a broader
  * Activity lifecycle.
  */
-internal fun View.resolvePortalRequestCloseHost(
+internal fun View.resolvePortalRequestCloseRoutingContext(
   currentActivity: Activity?
-): PortalRequestCloseHost? {
+): PortalRequestCloseRoutingContext? {
   if (!isAttachedToWindow) return null
 
   val validatedCurrentActivity = currentActivity?.takeIf(::isValidActivityOwner)
@@ -53,7 +53,7 @@ internal fun View.resolvePortalRequestCloseHost(
       else -> dispatcherOwner
     }
 
-  return PortalRequestCloseHost(dispatcherOwner, lifecycleOwner, rootView)
+  return PortalRequestCloseRoutingContext(dispatcherOwner, lifecycleOwner, rootView)
 }
 
 private fun View.isValidActivityOwner(activity: Activity): Boolean =

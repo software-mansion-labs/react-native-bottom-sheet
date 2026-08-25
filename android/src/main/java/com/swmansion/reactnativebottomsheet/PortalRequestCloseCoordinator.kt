@@ -6,26 +6,26 @@ import java.lang.ref.WeakReference
 import java.util.WeakHashMap
 
 internal data class PortalRequestCloseState(
-  val isOwnerCandidate: Boolean,
-  val actionIfOwner: RequestCloseInputAction,
+  val isRoutingOwnerCandidate: Boolean,
+  val actionIfRoutingOwner: RequestCloseInputAction,
 ) {
   init {
-    require(isOwnerCandidate || actionIfOwner == RequestCloseInputAction.PASS_THROUGH)
+    require(isRoutingOwnerCandidate || actionIfRoutingOwner == RequestCloseInputAction.PASS_THROUGH)
   }
 }
 
-internal interface PortalRequestCloseTarget {
-  fun onPortalRequestCloseActionChanged(action: RequestCloseInputAction)
+internal interface PortalRequestCloseParticipant {
+  fun onAssignedActionChanged(action: RequestCloseInputAction)
 
-  fun emitPortalRequestCloseIfEligible(): Boolean
+  fun emitRequestCloseIfEligible(): Boolean
 }
 
 /**
  * Coordinates portal close-request ownership across every provider mounted in one Android root.
  *
  * Membership order is structural: the newest registered portal is highest. State updates never move
- * an entry. The highest current owner candidate blocks every lower portal, even when it has no
- * request-close handler and therefore cannot emit a request itself.
+ * an entry. The highest current routing owner candidate blocks every lower portal, even when it has
+ * no `onRequestClose` handler and therefore cannot emit a request itself.
  */
 internal object PortalRequestCloseCoordinator {
   internal interface Registration {
@@ -35,20 +35,20 @@ internal object PortalRequestCloseCoordinator {
   }
 
   private class Entry(
-    target: PortalRequestCloseTarget,
+    participant: PortalRequestCloseParticipant,
     initialState: PortalRequestCloseState,
   ) {
-    val target = WeakReference(target)
+    val participant = WeakReference(participant)
     var state = initialState
     var isRegistered = true
-    var transportAction = RequestCloseInputAction.PASS_THROUGH
+    var assignedAction = RequestCloseInputAction.PASS_THROUGH
   }
 
   private class RootState {
     val entries = mutableListOf<Entry>()
     val escapeDispatcher = EscapeRequestCloseDispatcher()
-    var owner: Entry? = null
-    var capturedEscapeOwner: WeakReference<Entry>? = null
+    var routingOwner: Entry? = null
+    var capturedEscapeRoutingOwner: WeakReference<Entry>? = null
   }
 
   private class RegistrationImpl(
@@ -62,7 +62,7 @@ internal object PortalRequestCloseCoordinator {
       entry.state = state
       val currentRoot = rootReference.get() ?: return
       val currentRootState = statesByRoot[currentRoot] ?: return
-      updateHandling(currentRoot, currentRootState)
+      reconcileRoutingOwnership(currentRoot, currentRootState)
     }
 
     override fun remove() {
@@ -73,14 +73,14 @@ internal object PortalRequestCloseCoordinator {
       val currentRootState = currentRoot?.let(statesByRoot::get)
       currentRootState?.let(::degradeCapturedEscapeIfNeeded)
 
-      if (entry.transportAction != RequestCloseInputAction.PASS_THROUGH) {
-        entry.transportAction = RequestCloseInputAction.PASS_THROUGH
-        entry.target.get()?.onPortalRequestCloseActionChanged(RequestCloseInputAction.PASS_THROUGH)
+      if (entry.assignedAction != RequestCloseInputAction.PASS_THROUGH) {
+        entry.assignedAction = RequestCloseInputAction.PASS_THROUGH
+        entry.participant.get()?.onAssignedActionChanged(RequestCloseInputAction.PASS_THROUGH)
       }
 
       if (currentRoot == null || currentRootState == null) return
       currentRootState.entries.remove(entry)
-      updateHandling(currentRoot, currentRootState)
+      reconcileRoutingOwnership(currentRoot, currentRootState)
     }
   }
 
@@ -88,40 +88,41 @@ internal object PortalRequestCloseCoordinator {
 
   fun register(
     root: View,
-    target: PortalRequestCloseTarget,
+    participant: PortalRequestCloseParticipant,
     initialState: PortalRequestCloseState,
   ): Registration {
-    statesByRoot[root]?.let { updateHandling(root, it) }
+    statesByRoot[root]?.let { reconcileRoutingOwnership(root, it) }
     val rootState = statesByRoot.getOrPut(root, ::RootState)
-    val entry = Entry(target, initialState)
+    val entry = Entry(participant, initialState)
     rootState.entries.add(entry)
-    updateHandling(root, rootState)
+    reconcileRoutingOwnership(root, rootState)
     return RegistrationImpl(entry, root)
   }
 
   fun dispatchEscape(root: View, event: KeyEvent): Boolean {
     val rootState = statesByRoot[root] ?: return false
-    updateHandling(root, rootState)
+    reconcileRoutingOwnership(root, rootState)
     if (statesByRoot[root] !== rootState) return false
 
-    val ownerAtDispatch = rootState.owner
+    val routingOwnerAtDispatch = rootState.routingOwner
     val handled =
       rootState.escapeDispatcher.dispatch(
         event = event,
         resolveInitialAction = {
-          rootState.capturedEscapeOwner = ownerAtDispatch?.let(::WeakReference)
-          ownerAtDispatch?.takeIf { it.isRegistered }?.state?.actionIfOwner
+          rootState.capturedEscapeRoutingOwner = routingOwnerAtDispatch?.let(::WeakReference)
+          routingOwnerAtDispatch?.takeIf { it.isRegistered }?.state?.actionIfRoutingOwner
             ?: RequestCloseInputAction.PASS_THROUGH
         },
         emitRequestCloseIfEligible = {
-          val capturedOwner = rootState.capturedEscapeOwner?.get()
+          val capturedEscapeRoutingOwner = rootState.capturedEscapeRoutingOwner?.get()
           if (
-            capturedOwner != null &&
-              capturedOwner.isRegistered &&
-              rootState.owner === capturedOwner &&
-              capturedOwner.state.actionIfOwner == RequestCloseInputAction.REQUEST_CLOSE
+            capturedEscapeRoutingOwner != null &&
+              capturedEscapeRoutingOwner.isRegistered &&
+              rootState.routingOwner === capturedEscapeRoutingOwner &&
+              capturedEscapeRoutingOwner.state.actionIfRoutingOwner ==
+                RequestCloseInputAction.REQUEST_CLOSE
           ) {
-            capturedOwner.target.get()?.emitPortalRequestCloseIfEligible() == true
+            capturedEscapeRoutingOwner.participant.get()?.emitRequestCloseIfEligible() == true
           } else {
             false
           }
@@ -129,64 +130,67 @@ internal object PortalRequestCloseCoordinator {
       )
 
     if (!rootState.escapeDispatcher.hasCapturedPress) {
-      rootState.capturedEscapeOwner = null
+      rootState.capturedEscapeRoutingOwner = null
     }
 
     return handled
   }
 
-  /** Applies every transition in one direction: snapshot -> owner -> enabled transports. */
-  private fun updateHandling(root: View, rootState: RootState) {
-    removeDeadEntries(rootState)
+  /** Applies every transition in one direction: snapshot -> routing owner -> assigned actions. */
+  private fun reconcileRoutingOwnership(root: View, rootState: RootState) {
+    removeStaleEntries(rootState)
     if (rootState.entries.isEmpty()) {
       clearRootState(root, rootState)
       return
     }
 
-    val nextOwner =
+    val nextRoutingOwner =
       rootState.entries.asReversed().firstOrNull { entry ->
-        entry.isRegistered && entry.state.isOwnerCandidate
+        entry.isRegistered && entry.state.isRoutingOwnerCandidate
       }
-    rootState.owner = nextOwner
+    rootState.routingOwner = nextRoutingOwner
     degradeCapturedEscapeIfNeeded(rootState)
 
-    // Put stale owners into pass-through before activating the new owner's transport so two
-    // portal Back callbacks are never transiently eligible in the same root.
+    // Put stale owners into pass-through before assigning the new routing owner action so two
+    // portal OnBackPressedCallbacks are never transiently eligible in the same root.
     rootState.entries.forEach { entry ->
-      if (entry !== nextOwner && entry.transportAction != RequestCloseInputAction.PASS_THROUGH) {
-        entry.transportAction = RequestCloseInputAction.PASS_THROUGH
-        entry.target.get()?.onPortalRequestCloseActionChanged(RequestCloseInputAction.PASS_THROUGH)
+      if (
+        entry !== nextRoutingOwner && entry.assignedAction != RequestCloseInputAction.PASS_THROUGH
+      ) {
+        entry.assignedAction = RequestCloseInputAction.PASS_THROUGH
+        entry.participant.get()?.onAssignedActionChanged(RequestCloseInputAction.PASS_THROUGH)
       }
     }
 
-    nextOwner?.let { entry ->
-      val nextAction = entry.state.actionIfOwner
-      if (entry.transportAction != nextAction) {
-        entry.transportAction = nextAction
-        entry.target.get()?.onPortalRequestCloseActionChanged(nextAction)
+    nextRoutingOwner?.let { entry ->
+      val nextAction = entry.state.actionIfRoutingOwner
+      if (entry.assignedAction != nextAction) {
+        entry.assignedAction = nextAction
+        entry.participant.get()?.onAssignedActionChanged(nextAction)
       }
     }
   }
 
   private fun degradeCapturedEscapeIfNeeded(rootState: RootState) {
     if (!rootState.escapeDispatcher.hasCapturedPress) return
-    val capturedOwner = rootState.capturedEscapeOwner?.get()
+    val capturedEscapeRoutingOwner = rootState.capturedEscapeRoutingOwner?.get()
     if (
-      capturedOwner == null ||
-        !capturedOwner.isRegistered ||
-        rootState.owner !== capturedOwner ||
-        capturedOwner.state.actionIfOwner != RequestCloseInputAction.REQUEST_CLOSE
+      capturedEscapeRoutingOwner == null ||
+        !capturedEscapeRoutingOwner.isRegistered ||
+        rootState.routingOwner !== capturedEscapeRoutingOwner ||
+        capturedEscapeRoutingOwner.state.actionIfRoutingOwner !=
+          RequestCloseInputAction.REQUEST_CLOSE
     ) {
       rootState.escapeDispatcher.degradeCapturedRequestClose()
     }
   }
 
-  private fun removeDeadEntries(rootState: RootState) {
+  private fun removeStaleEntries(rootState: RootState) {
     rootState.entries.removeAll { entry ->
-      val isDead = !entry.isRegistered || entry.target.get() == null
+      val isDead = !entry.isRegistered || entry.participant.get() == null
       if (isDead) {
         entry.isRegistered = false
-        entry.transportAction = RequestCloseInputAction.PASS_THROUGH
+        entry.assignedAction = RequestCloseInputAction.PASS_THROUGH
       }
       isDead
     }
@@ -194,8 +198,8 @@ internal object PortalRequestCloseCoordinator {
 
   private fun clearRootState(root: View, rootState: RootState) {
     rootState.escapeDispatcher.clear()
-    rootState.capturedEscapeOwner = null
-    rootState.owner = null
+    rootState.capturedEscapeRoutingOwner = null
+    rootState.routingOwner = null
     if (statesByRoot[root] === rootState) {
       statesByRoot.remove(root)
     }

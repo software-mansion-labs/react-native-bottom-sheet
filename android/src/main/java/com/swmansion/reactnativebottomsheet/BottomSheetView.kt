@@ -53,9 +53,9 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   // don't thrash the window flags.
   private var overlayInteractive: Boolean? = null
 
-  private var requestCloseHandlerPresent = false
+  private var hasRequestCloseHandler = false
   private var isViewAttached = false
-  private var isHostActive = themedReactContext?.lifecycleState == LifecycleState.RESUMED
+  private var isReactHostResumed = themedReactContext?.lifecycleState == LifecycleState.RESUMED
   private val portalRequestCloseController =
     PortalRequestCloseController(
       view = this,
@@ -165,9 +165,9 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
 
   fun setScrimOpacities(values: List<Float>) = host.setScrimOpacities(values)
 
-  fun setRequestCloseHandlerPresent(value: Boolean) {
-    if (value == requestCloseHandlerPresent) return
-    requestCloseHandlerPresent = value
+  fun setHasRequestCloseHandler(value: Boolean) {
+    if (value == hasRequestCloseHandler) return
+    hasRequestCloseHandler = value
     refreshRequestCloseControllers()
   }
 
@@ -195,7 +195,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       presentOverlay()
     }
     refreshRequestCloseControllers()
-    portalRequestCloseController.scheduleHostSync()
+    portalRequestCloseController.scheduleRoutingContextSync()
   }
 
   override fun onDetachedFromWindow() {
@@ -406,40 +406,43 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     val state =
       RequestCloseInputState(
         isAttached = isViewAttached,
-        isActive = isHostActive,
+        isLifecycleActive = isReactHostResumed,
         isModal = modal,
-        hasHandler = requestCloseHandlerPresent,
+        hasRequestCloseHandler = hasRequestCloseHandler,
         isPresentationActive = host.isRequestClosePresentationActive,
-        isTargetOpen = host.isRequestCloseTargetOpen,
+        isTargetResolvedAndOpen = host.isRequestCloseTargetResolvedAndOpen,
       )
-    portalRequestCloseController.update(state, enabled = !nativeOverlay)
+    portalRequestCloseController.update(
+      state,
+      isPortalModeEnabled = modal && !nativeOverlay,
+    )
     overlayRequestCloseController.update(
       state = state,
-      enabled = nativeOverlay,
-      interactive = overlayInteractive == true,
+      isOverlayModeEnabled = nativeOverlay,
+      isSheetInteractive = overlayInteractive == true,
     )
   }
 
   // MARK: - Activity lifecycle
 
   override fun onHostResume() {
-    isHostActive = true
+    isReactHostResumed = true
     // Restore the overlay if it was torn down while the activity was gone but the
     // sheet should still be presented above it.
     if (nativeOverlay && overlayDialog == null) {
       presentOverlay()
     }
     refreshRequestCloseControllers()
-    portalRequestCloseController.scheduleHostSync()
+    portalRequestCloseController.scheduleRoutingContextSync()
   }
 
   override fun onHostPause() {
-    isHostActive = false
+    isReactHostResumed = false
     refreshRequestCloseControllers()
   }
 
   override fun onHostDestroy() {
-    isHostActive = false
+    isReactHostResumed = false
     portalRequestCloseController.clear()
     // Dismiss before the activity's window token is destroyed to avoid a leaked
     // window. `nativeOverlay` is left intact so `onHostResume` can restore it;
@@ -454,8 +457,8 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
 
   fun destroy() {
     isViewAttached = false
-    isHostActive = false
-    requestCloseHandlerPresent = false
+    isReactHostResumed = false
+    hasRequestCloseHandler = false
     portalRequestCloseController.dispose()
     overlayRequestCloseController.dispose()
     themedReactContext?.removeLifecycleEventListener(this)
