@@ -7,7 +7,17 @@ import androidx.activity.ComponentActivity
 import androidx.activity.ComponentDialog
 import androidx.lifecycle.Lifecycle
 
-/** Owns the dialog input routing for Back and Escape close requests. */
+/**
+ * Owns request-close input routing for the overlay dialog and coordinates the dialog window input
+ * state required for safe routing and pass-through.
+ *
+ * Touchability follows the sheet's interaction state. Focusability also depends on close-input
+ * ownership and any Back or Escape sequence already in progress, while input-related alpha keeps
+ * the window visible whenever the sheet is interactive or owns close input. Keeping these decisions
+ * here lets the controller reconcile the window flags and alpha atomically. [BottomSheetView]
+ * establishes a safe initial window state while configuring the dialog; this controller owns its
+ * dynamic input state once the dialog is bound and shown.
+ */
 internal class OverlayRequestCloseController(private val emitRequestClose: () -> Boolean) {
   private var inputState = INACTIVE_INPUT_STATE
   private var isOverlayModeEnabled = false
