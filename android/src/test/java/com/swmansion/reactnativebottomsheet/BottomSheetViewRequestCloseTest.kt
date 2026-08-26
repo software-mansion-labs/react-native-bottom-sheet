@@ -10,6 +10,7 @@ import android.os.Looper
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.FrameLayout
 import androidx.activity.BackEventCompat
 import androidx.activity.ComponentActivity
@@ -383,12 +384,22 @@ class BottomSheetViewRequestCloseTest {
   }
 
   @Test
-  fun `native overlay without a handler forwards Back and does not claim Escape`() {
+  fun `open native overlay without a handler is interactive and passes close input through`() {
     withActivity<ComponentActivity> { activity ->
       var navigationCount = 0
       activity.onBackPressedDispatcher.addCallback(navigationCallback { navigationCount++ })
       val listener = CountingBottomSheetListener()
       val fixture = openNativeOverlaySheet(activity, listener, hasRequestCloseHandler = false)
+      val windowAttributes = requireNotNull(fixture.dialog.window).attributes
+      assertEquals(
+        0,
+        windowAttributes.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+      )
+      assertEquals(
+        0,
+        windowAttributes.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+      )
+      assertEquals(1f, windowAttributes.alpha)
       fixture.dialog.onBackPressedDispatcher.onBackPressed()
       assertEscape(fixture.dialog::dispatchKeyEvent, expectedHandled = false)
       assertEquals(1, navigationCount)

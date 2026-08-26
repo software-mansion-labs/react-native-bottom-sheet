@@ -282,6 +282,11 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     try {
       dialog.show()
       dialog.window?.let { configureOverlayWindow(it, activity) }
+      // The host may already be interactive when an open inline sheet is moved into this dialog,
+      // so no interaction-listener transition is guaranteed after show(). Reapply the current
+      // state after the final window configuration resets the dialog to its safe initial flags.
+      overlayInteractive = host.isInteractive
+      refreshRequestCloseControllers()
     } catch (_: RuntimeException) {
       // Show failed (e.g. the activity went away mid-present). Dismiss so the
       // partially-created window can't leak, then fall back to inline.

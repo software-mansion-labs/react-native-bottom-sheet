@@ -7,6 +7,8 @@ import android.graphics.Color
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
+import android.view.WindowManager
 import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.test.core.app.ActivityScenario
@@ -19,6 +21,8 @@ import com.facebook.react.uimanager.events.BatchEventDispatchedListener
 import com.facebook.react.uimanager.events.Event
 import com.facebook.react.uimanager.events.EventDispatcher
 import com.facebook.react.uimanager.events.EventDispatcherListener
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -191,6 +195,12 @@ class EscapeRoutingInstrumentedTest {
           }
         child = EscapeRecordingView(activity, childEventCount, consumesEscape = true)
         child.isFocusableInTouchMode = true
+        child.layoutParams = FrameLayout.LayoutParams(1, 1)
+        // Fabric normally supplies measured child bounds; this direct native fixture must do so.
+        child.measure(
+          View.MeasureSpec.makeMeasureSpec(1, View.MeasureSpec.EXACTLY),
+          View.MeasureSpec.makeMeasureSpec(1, View.MeasureSpec.EXACTLY),
+        )
         sheet.addSheetChild(child, 0)
         activity.setContentView(sheet)
         sheet.setNativeOverlay(true)
@@ -198,10 +208,7 @@ class EscapeRoutingInstrumentedTest {
 
       val instrumentation = InstrumentationRegistry.getInstrumentation()
       instrumentation.waitForIdleSync()
-      scenario.onActivity {
-        assertTrue(child.requestFocus())
-      }
-      instrumentation.waitForIdleSync()
+      awaitFocusedWindow(scenario, child)
       instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_ESCAPE)
       instrumentation.waitForIdleSync()
 
@@ -212,6 +219,50 @@ class EscapeRoutingInstrumentedTest {
         sheet.destroy()
         reactContext.onHostDestroy()
       }
+    }
+  }
+
+  private fun awaitFocusedWindow(
+    scenario: ActivityScenario<ComponentActivity>,
+    child: View,
+  ) {
+    val focusReady = CountDownLatch(1)
+    lateinit var focusObserver: ViewTreeObserver
+    lateinit var windowFocusListener: ViewTreeObserver.OnWindowFocusChangeListener
+
+    scenario.onActivity {
+      val signalIfReady = {
+        if (child.isFocused && child.hasWindowFocus()) {
+          focusReady.countDown()
+        }
+      }
+      child.onFocusChangeListener = View.OnFocusChangeListener { _, _ -> signalIfReady() }
+      windowFocusListener = ViewTreeObserver.OnWindowFocusChangeListener { _ -> signalIfReady() }
+      focusObserver = child.viewTreeObserver
+      focusObserver.addOnWindowFocusChangeListener(windowFocusListener)
+      val focused = child.requestFocus()
+      val windowFlags = (child.rootView.layoutParams as? WindowManager.LayoutParams)?.flags
+      assertTrue(
+        "requestFocus failed: attached=${child.isAttachedToWindow}, shown=${child.isShown}, " +
+          "focusable=${child.isFocusable}, touchMode=${child.isFocusableInTouchMode}, " +
+          "size=${child.width}x${child.height}, windowFocus=${child.hasWindowFocus()}, " +
+          "windowFlags=$windowFlags",
+        focused,
+      )
+      signalIfReady()
+    }
+
+    assertTrue(
+      "Timed out waiting for the overlay child to gain focus and window focus",
+      focusReady.await(5, TimeUnit.SECONDS),
+    )
+    scenario.onActivity {
+      child.onFocusChangeListener = null
+      if (focusObserver.isAlive) {
+        focusObserver.removeOnWindowFocusChangeListener(windowFocusListener)
+      }
+      assertTrue(child.isFocused)
+      assertTrue(child.hasWindowFocus())
     }
   }
 

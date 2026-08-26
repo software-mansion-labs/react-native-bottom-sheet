@@ -1771,8 +1771,11 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     invalidate()
   }
 
+  internal val isInteractive: Boolean
+    get() = modal && (activeAnimation != null || isPanning || isScrimVisible())
+
   private fun updateInteractionState() {
-    val interactive = modal && (activeAnimation != null || isPanning || isScrimVisible())
+    val interactive = isInteractive
     pointerEvents = if (interactive) PointerEvents.AUTO else PointerEvents.BOX_NONE
     interactionListener?.invoke(interactive)
   }
