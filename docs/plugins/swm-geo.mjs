@@ -2,8 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const ORGANIZATION_ID = 'https://swmansion.com/#organization';
-const SECTION_NAMES = { docs: 'Documentation' };
-const ACRONYMS = { api: 'API', ui: 'UI' };
+const ACRONYMS = { api: 'API', ui: 'UI', sdk: 'SDK', ios: 'iOS' };
 
 const titleCase = (segment) =>
   segment
@@ -12,10 +11,9 @@ const titleCase = (segment) =>
     .join(' ');
 
 const sectionOf = (relative) => {
-  const parts = relative.split('/').filter(Boolean);
-  if (SECTION_NAMES[parts[0]]) return SECTION_NAMES[parts[0]];
-  if (parts.length < 2) return 'Pages';
-  return titleCase(parts[0]);
+  const dir = relative.split('/').filter(Boolean).slice(0, -1);
+  if (dir[0] === 'docs') dir.shift();
+  return dir.length === 0 ? 'Documentation' : dir.map(titleCase).join(' / ');
 };
 
 const decode = (value) =>
@@ -103,13 +101,9 @@ function buildLlmsTxt({ siteConfig, routesPaths, readPage }) {
   const lines = [`# ${title}`];
   if (tagline) lines.push('', `> ${tagline}`);
 
-  // Documentation first, the rest alphabetically, loose pages last.
   const order = [
     ...(grouped.has('Documentation') ? ['Documentation'] : []),
-    ...[...grouped.keys()]
-      .filter((section) => section !== 'Documentation' && section !== 'Pages')
-      .sort(),
-    ...(grouped.has('Pages') ? ['Pages'] : []),
+    ...[...grouped.keys()].filter((s) => s !== 'Documentation').sort(),
   ];
 
   for (const section of order) {
