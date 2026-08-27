@@ -40,7 +40,7 @@ class PortalRequestCloseControllerTest {
           },
         )
 
-      controller.update(inputState(), isPortalModeEnabled = true)
+      controller.update(inputState(), usesPortalPresentation = true)
       activity.onBackPressedDispatcher.onBackPressed()
       assertEquals(1, requestCloseCount)
 
@@ -49,7 +49,7 @@ class PortalRequestCloseControllerTest {
       assertEquals(1, fallbackCount)
       assertEquals(1, requestCloseCount)
 
-      controller.update(inputState(), isPortalModeEnabled = true)
+      controller.update(inputState(), usesPortalPresentation = true)
       activity.onBackPressedDispatcher.onBackPressed()
       controller.dispose()
       activity.onBackPressedDispatcher.onBackPressed()
@@ -80,13 +80,13 @@ class PortalRequestCloseControllerTest {
         )
       portal.dispatchEscape = controller::dispatchEscape
 
-      controller.update(inputState(), isPortalModeEnabled = true)
+      controller.update(inputState(), usesPortalPresentation = true)
       activity.onBackPressedDispatcher.onBackPressed()
       assertEquals(1, requestCloseCount)
       assertEscape(activity::dispatchKeyEvent, expectedHandled = true)
       assertEquals(2, requestCloseCount)
 
-      controller.update(inputState(hasRequestCloseHandler = false), isPortalModeEnabled = true)
+      controller.update(inputState(hasRequestCloseHandler = false), usesPortalPresentation = true)
       activity.onBackPressedDispatcher.onBackPressed()
       assertEquals(1, fallbackCount)
       assertEscape(activity::dispatchKeyEvent, expectedHandled = false)
@@ -94,19 +94,19 @@ class PortalRequestCloseControllerTest {
 
       controller.update(
         inputState(isPresentationActive = false, isTargetResolvedAndOpen = false),
-        isPortalModeEnabled = true,
+        usesPortalPresentation = true,
       )
       activity.onBackPressedDispatcher.onBackPressed()
       assertEquals(2, fallbackCount)
       assertEscape(activity::dispatchKeyEvent, expectedHandled = false)
       assertEquals(2, requestCloseCount)
 
-      controller.update(inputState(isTargetResolvedAndOpen = false), isPortalModeEnabled = true)
+      controller.update(inputState(isTargetResolvedAndOpen = false), usesPortalPresentation = true)
       activity.onBackPressedDispatcher.onBackPressed()
       assertEscape(activity::dispatchKeyEvent, expectedHandled = true)
       assertEquals(2, requestCloseCount)
 
-      controller.update(inputState(), isPortalModeEnabled = true)
+      controller.update(inputState(), usesPortalPresentation = true)
       activity.onBackPressedDispatcher.onBackPressed()
       assertEquals(3, requestCloseCount)
       assertEscape(activity::dispatchKeyEvent, expectedHandled = true)

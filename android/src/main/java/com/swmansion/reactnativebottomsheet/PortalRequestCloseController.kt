@@ -15,7 +15,7 @@ internal class PortalRequestCloseController(
   private val emitRequestClose: () -> Boolean,
 ) : PortalRequestCloseParticipant {
   private var inputState = INACTIVE_INPUT_STATE
-  private var isPortalModeEnabled = false
+  private var usesPortalPresentation = false
   private var disposed = false
 
   private var requestCloseRoutingContext: PortalRequestCloseRoutingContext? = null
@@ -49,11 +49,11 @@ internal class PortalRequestCloseController(
   /** Updates the immutable input snapshot and reconciles the portal routing context. */
   fun update(
     state: RequestCloseInputState,
-    isPortalModeEnabled: Boolean,
+    usesPortalPresentation: Boolean,
   ) {
     if (disposed) return
     inputState = state
-    this.isPortalModeEnabled = isPortalModeEnabled
+    this.usesPortalPresentation = usesPortalPresentation
     syncRoutingContext()
   }
 
@@ -65,7 +65,7 @@ internal class PortalRequestCloseController(
   }
 
   fun dispatchEscape(event: KeyEvent): Boolean {
-    if (disposed || !isPortalModeEnabled || !inputState.isModal || !inputState.isAttached)
+    if (disposed || !usesPortalPresentation || !inputState.isModal || !inputState.isAttached)
       return false
     val portalRoot = requestCloseRoutingContext?.rootView ?: return false
     if (portalRoot !== view.rootView) return false
@@ -74,7 +74,7 @@ internal class PortalRequestCloseController(
 
   /** Removes every routing-context effect. A later [update] may resolve a new context. */
   fun clear() {
-    isPortalModeEnabled = false
+    usesPortalPresentation = false
     view.removeCallbacks(syncRoutingContextRunnable)
     clearRoutingContext()
   }
@@ -83,7 +83,7 @@ internal class PortalRequestCloseController(
   fun dispose() {
     if (disposed) return
     disposed = true
-    isPortalModeEnabled = false
+    usesPortalPresentation = false
     view.removeCallbacks(syncRoutingContextRunnable)
     clearRoutingContext()
   }
@@ -109,7 +109,7 @@ internal class PortalRequestCloseController(
     if (disposed) return
     val resolvedRoutingContext =
       view
-        .takeIf { isPortalModeEnabled && inputState.isAttached && inputState.isModal }
+        .takeIf { usesPortalPresentation && inputState.isAttached && inputState.isModal }
         ?.resolvePortalRequestCloseRoutingContext(currentActivity())
     val previousRoutingContext = requestCloseRoutingContext
     if (!routingContextsAreIdentical(resolvedRoutingContext, previousRoutingContext)) {
@@ -159,7 +159,7 @@ internal class PortalRequestCloseController(
     val effectiveInputState =
       inputState.copy(
         isAttached =
-          isPortalModeEnabled &&
+          usesPortalPresentation &&
             inputState.isAttached &&
             currentRoutingContext != null &&
             currentRoutingContext.rootView === view.rootView,
@@ -190,7 +190,7 @@ internal class PortalRequestCloseController(
     val currentRoutingContext = requestCloseRoutingContext
     if (
       currentRoutingContext == null ||
-        !isPortalModeEnabled ||
+        !usesPortalPresentation ||
         !inputState.isAttached ||
         currentRoutingContext.lifecycleOwner?.lifecycle?.currentState == Lifecycle.State.DESTROYED
     ) {
@@ -216,7 +216,7 @@ internal class PortalRequestCloseController(
       val currentRoutingContext = requestCloseRoutingContext
       val dispatcher =
         currentRoutingContext
-          ?.takeIf { isPortalModeEnabled && inputState.isAttached }
+          ?.takeIf { usesPortalPresentation && inputState.isAttached }
           ?.dispatcherOwner
           ?.onBackPressedDispatcher
 

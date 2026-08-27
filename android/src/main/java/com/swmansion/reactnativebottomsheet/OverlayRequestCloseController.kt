@@ -20,7 +20,7 @@ import androidx.lifecycle.Lifecycle
  */
 internal class OverlayRequestCloseController(private val emitRequestClose: () -> Boolean) {
   private var inputState = INACTIVE_INPUT_STATE
-  private var isOverlayModeEnabled = false
+  private var usesOverlayDialog = false
   private var isSheetInteractive = false
   private var dialog: ComponentDialog? = null
   private var disposed = false
@@ -54,12 +54,12 @@ internal class OverlayRequestCloseController(private val emitRequestClose: () ->
 
   fun update(
     state: RequestCloseInputState,
-    isOverlayModeEnabled: Boolean,
+    usesOverlayDialog: Boolean,
     isSheetInteractive: Boolean,
   ) {
     if (disposed) return
     inputState = state
-    this.isOverlayModeEnabled = isOverlayModeEnabled
+    this.usesOverlayDialog = usesOverlayDialog
     this.isSheetInteractive = isSheetInteractive
     reconcileInputHandling()
   }
@@ -104,8 +104,7 @@ internal class OverlayRequestCloseController(private val emitRequestClose: () ->
     val isLifecycleActive =
       currentDialog?.lifecycle?.currentState?.isAtLeast(Lifecycle.State.STARTED) == true
     return inputState.copy(
-      isAttached =
-        isOverlayModeEnabled && inputState.isAttached && currentDialog?.isShowing == true,
+      isAttached = usesOverlayDialog && inputState.isAttached && currentDialog?.isShowing == true,
       isLifecycleActive = inputState.isLifecycleActive && isLifecycleActive,
     )
   }

@@ -418,12 +418,12 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
         isTargetResolvedAndOpen = host.isRequestCloseTargetResolvedAndOpen,
       )
     portalRequestCloseController.update(
-      state,
-      isPortalModeEnabled = modal && !nativeOverlay,
+      state = state,
+      usesPortalPresentation = modal && !nativeOverlay,
     )
     overlayRequestCloseController.update(
       state = state,
-      isOverlayModeEnabled = nativeOverlay,
+      usesOverlayDialog = nativeOverlay,
       isSheetInteractive = overlayInteractive == true,
     )
   }

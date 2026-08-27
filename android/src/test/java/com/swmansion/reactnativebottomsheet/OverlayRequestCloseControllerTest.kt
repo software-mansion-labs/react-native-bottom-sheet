@@ -33,7 +33,7 @@ class OverlayRequestCloseControllerTest {
       }
       val boundDialog = shownDialog(activity)
       controller.bind(boundDialog)
-      controller.update(inputState(), isOverlayModeEnabled = true, isSheetInteractive = false)
+      controller.update(inputState(), usesOverlayDialog = true, isSheetInteractive = false)
       boundDialog.onBackPressedDispatcher.onBackPressed()
       dispatchEscape(boundDialog)
       assertEquals(2, requestCloseCount)
@@ -46,7 +46,7 @@ class OverlayRequestCloseControllerTest {
 
       val disposedDialog = shownDialog(activity)
       controller.bind(disposedDialog)
-      controller.update(inputState(), isOverlayModeEnabled = true, isSheetInteractive = false)
+      controller.update(inputState(), usesOverlayDialog = true, isSheetInteractive = false)
       controller.dispose()
       dispatchEscape(disposedDialog)
       disposedDialog.onBackPressedDispatcher.onBackPressed()
@@ -68,7 +68,7 @@ class OverlayRequestCloseControllerTest {
         true
       }
       controller.bind(dialog)
-      controller.update(inputState(), isOverlayModeEnabled = true, isSheetInteractive = false)
+      controller.update(inputState(), usesOverlayDialog = true, isSheetInteractive = false)
       val window = requireNotNull(dialog.window)
 
       assertTrue(window.hasFlag(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE))
@@ -78,7 +78,7 @@ class OverlayRequestCloseControllerTest {
 
       controller.update(
         inputState(hasRequestCloseHandler = false),
-        isOverlayModeEnabled = true,
+        usesOverlayDialog = true,
         isSheetInteractive = false,
       )
       assertTrue(window.hasFlag(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE))
@@ -88,7 +88,7 @@ class OverlayRequestCloseControllerTest {
 
       controller.update(
         inputState(isPresentationActive = false, isTargetResolvedAndOpen = false),
-        isOverlayModeEnabled = true,
+        usesOverlayDialog = true,
         isSheetInteractive = false,
       )
       assertTrue(window.hasFlag(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE))
@@ -119,7 +119,7 @@ class OverlayRequestCloseControllerTest {
       controller.bind(firstDialog)
       controller.update(
         inputState(hasRequestCloseHandler = false),
-        isOverlayModeEnabled = true,
+        usesOverlayDialog = true,
         isSheetInteractive = false,
       )
       firstDialog.onBackPressedDispatcher.onBackPressed()
@@ -127,7 +127,7 @@ class OverlayRequestCloseControllerTest {
       controller.bind(secondDialog)
       controller.update(
         inputState(hasRequestCloseHandler = false),
-        isOverlayModeEnabled = true,
+        usesOverlayDialog = true,
         isSheetInteractive = false,
       )
       secondDialog.onBackPressedDispatcher.onBackPressed()
