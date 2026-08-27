@@ -236,7 +236,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
       layoutSheetContainer(width, height)
     }
   }
-  private val performHostLayoutAfterAttach = Runnable {
+  private val ensureHostLayoutAfterAttach = Runnable {
     if (isAttachedToWindow && !hasPerformedHostLayoutSinceAttach && width > 0 && height > 0) {
       performHostLayout(width, height)
     }
@@ -265,8 +265,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     // close-request eligibility cannot remain invalid after the attach.
     requestApplyInsets()
     recomputeNativeGeometry()
-    removeCallbacks(performHostLayoutAfterAttach)
-    post(performHostLayoutAfterAttach)
+    removeCallbacks(ensureHostLayoutAfterAttach)
+    post(ensureHostLayoutAfterAttach)
     // A re-attach gives us a fresh, live ViewTreeObserver; the previous one was
     // dropped on detach. Resume observing if the initial snap is still pending.
     if (pendingInitialContentDetentSnap) {
@@ -286,7 +286,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   }
 
   override fun onDetachedFromWindow() {
-    removeCallbacks(performHostLayoutAfterAttach)
+    removeCallbacks(ensureHostLayoutAfterAttach)
     hasPerformedHostLayoutSinceAttach = false
     notifyRequestCloseStateChanged()
     // Release the listener from the soon-to-be-replaced observer and clear our
@@ -1656,7 +1656,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     velocityTracker = null
     removeCallbacks(sheetChildrenLayoutPass)
     sheetChildrenLayoutEnqueued = false
-    removeCallbacks(performHostLayoutAfterAttach)
+    removeCallbacks(ensureHostLayoutAfterAttach)
     nativeCapPx = Float.NaN
     lastAppliedMaxDetentHeight = Float.NaN
     lastGeometryStateWidth = 0
