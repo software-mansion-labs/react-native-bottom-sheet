@@ -87,7 +87,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
    */
   var interactionListener: ((Boolean) -> Unit)? = null
 
-  /** Notifies the presentation coordinator when close-input ownership or emission can change. */
+  /** Invoked when host state can change close-input ownership or request emission. */
   var requestCloseStateChangedListener: (() -> Unit)? = null
     set(value) {
       field = value
