@@ -761,8 +761,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   val isRequestClosePresentationActive: Boolean
     get() =
       requestClosePresentationTracker.isPresentationActive(
-        isTargetOpen = isTargetDetentOpen,
-        isHostReady = isRequestCloseLayoutReady,
+        isTargetDetentOpen = isTargetDetentOpen,
+        isRequestCloseLayoutReady = isRequestCloseLayoutReady,
       )
 
   private fun notifyRequestCloseStateChanged() {

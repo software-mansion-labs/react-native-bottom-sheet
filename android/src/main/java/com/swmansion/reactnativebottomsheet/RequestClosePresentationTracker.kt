@@ -32,7 +32,7 @@ internal class RequestClosePresentationTracker {
   }
 
   fun isPresentationActive(
-    isTargetOpen: Boolean,
-    isHostReady: Boolean,
-  ): Boolean = isHostReady && (isTargetOpen || closingPresentationActive)
+    isTargetDetentOpen: Boolean,
+    isRequestCloseLayoutReady: Boolean,
+  ): Boolean = isRequestCloseLayoutReady && (isTargetDetentOpen || closingPresentationActive)
 }
