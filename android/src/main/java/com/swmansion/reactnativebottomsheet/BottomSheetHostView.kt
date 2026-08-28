@@ -991,7 +991,19 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
           if (canceled) {
             return@addEndListener
           }
-          finishSpringAnimation(this, index, emitSettle)
+          activeAnimation = null
+          activeAnimationEmitsSettle = false
+          suppressScrimForClosingTarget = false
+          scrimPinnedFull = false
+          if (closedIndex == index) {
+            sheetContainer.translationY = translationY(index)
+            hideScrim()
+          }
+          emitPosition()
+          requestClosePresentationTracker.onTransitionSettled()
+          notifyRequestCloseStateChanged()
+          updateInteractionState()
+          if (emitSettle) listener?.onSettle(index)
         }
       }
 
@@ -1009,27 +1021,6 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     // known to the caller. onSettle remains the signal for movement end.
     if (emitIndexChange) listener?.onIndexChange(index)
     spring.start()
-  }
-
-  private fun finishSpringAnimation(
-    animation: SpringAnimation,
-    index: Int,
-    emitSettle: Boolean,
-  ) {
-    if (activeAnimation !== animation) return
-    activeAnimation = null
-    activeAnimationEmitsSettle = false
-    suppressScrimForClosingTarget = false
-    scrimPinnedFull = false
-    sheetContainer.translationY = translationY(index)
-    if (closedIndex == index) {
-      hideScrim()
-    }
-    emitPosition()
-    requestClosePresentationTracker.onTransitionSettled()
-    notifyRequestCloseStateChanged()
-    updateInteractionState()
-    if (emitSettle) listener?.onSettle(index)
   }
 
   private fun bestSnapIndex(currentHeight: Float, velocity: Float, includeIndex: Int? = null): Int {
