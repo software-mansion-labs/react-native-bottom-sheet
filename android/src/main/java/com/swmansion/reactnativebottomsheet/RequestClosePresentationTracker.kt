@@ -21,19 +21,13 @@ internal class RequestClosePresentationTracker {
         (closingPresentationActive || visibleHeight > REQUEST_CLOSE_VISIBLE_EPSILON_PX)
   }
 
-  fun onAnimationFinished() {
-    closingPresentationActive = false
-  }
+  fun onTransitionSettled() = resetClosingPresentation()
 
-  fun onNonAnimatedTransition() {
-    closingPresentationActive = false
-  }
+  fun onInvalidTarget() = resetClosingPresentation()
 
-  fun onInvalidTarget() {
-    closingPresentationActive = false
-  }
+  fun onHostDestroyed() = resetClosingPresentation()
 
-  fun onHostDestroyed() {
+  private fun resetClosingPresentation() {
     closingPresentationActive = false
   }
 

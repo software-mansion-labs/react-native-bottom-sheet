@@ -340,7 +340,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
         emitPosition()
         snapToIndex(targetIndex, 0f, emitIndexChange = false, emitSettle = true)
       } else {
-        requestClosePresentationTracker.onNonAnimatedTransition()
+        requestClosePresentationTracker.onTransitionSettled()
         sheetContainer.translationY = translationY(targetIndex)
         emitPosition()
         notifyRequestCloseStateChanged()
@@ -352,7 +352,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
       notifyRequestCloseStateChanged()
       return
     }
-    requestClosePresentationTracker.onNonAnimatedTransition()
+    requestClosePresentationTracker.onTransitionSettled()
     sheetContainer.translationY = translationY(targetIndex)
     updateShadowState(sheetContainer.translationY)
     notifyRequestCloseStateChanged()
@@ -578,11 +578,11 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
           val shouldAnimateHeight = shouldAnimateContentHeight(targetIndex)
           if (kotlin.math.abs(targetHeight - currentVisibleHeight) <= 0.5f) {
             // No meaningful change.
-            requestClosePresentationTracker.onNonAnimatedTransition()
+            requestClosePresentationTracker.onTransitionSettled()
             sheetContainer.translationY = targetTy
             emitPosition()
           } else if (!shouldAnimateHeight) {
-            requestClosePresentationTracker.onNonAnimatedTransition()
+            requestClosePresentationTracker.onTransitionSettled()
             sheetContainer.translationY = targetTy
             emitPosition()
           } else {
@@ -1026,7 +1026,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
       hideScrim()
     }
     emitPosition()
-    requestClosePresentationTracker.onAnimationFinished()
+    requestClosePresentationTracker.onTransitionSettled()
     notifyRequestCloseStateChanged()
     updateInteractionState()
     if (emitSettle) listener?.onSettle(index)

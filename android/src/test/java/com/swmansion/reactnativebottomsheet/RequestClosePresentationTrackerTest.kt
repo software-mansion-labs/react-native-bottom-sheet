@@ -46,12 +46,11 @@ class RequestClosePresentationTrackerTest {
   }
 
   @Test
-  fun `movement completion and terminal transitions reset ownership`() {
+  fun `settled transition and terminal conditions reset ownership`() {
     val tracker = RequestClosePresentationTracker()
 
     listOf(
-        tracker::onAnimationFinished,
-        tracker::onNonAnimatedTransition,
+        tracker::onTransitionSettled,
         tracker::onInvalidTarget,
         tracker::onHostDestroyed,
       )
