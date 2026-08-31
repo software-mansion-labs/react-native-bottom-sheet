@@ -262,8 +262,19 @@ export const BottomSheet = (props: BottomSheetProps) => {
     <View
       style={StyleSheet.absoluteFill}
       pointerEvents={modal ? (isSheetClosed ? 'none' : 'auto') : 'box-none'}
+      // Keep both ancestor wrappers real native views (Android): this outer
+      // one toggles pointerEvents ('none' <-> 'auto') on open/close, which is
+      // exactly the prop change that forces Fabric to unflatten it and emit
+      // the reparenting batch that can miss the Create mutation. The content
+      // views below the native view already pin collapsable={false}; the
+      // ancestors were the remaining flattenable gap. See issue #78.
+      collapsable={false}
     >
-      <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+      <View
+        pointerEvents="box-none"
+        style={StyleSheet.absoluteFill}
+        collapsable={false}
+      >
         <NativeView
           pointerEvents="box-none"
           style={[
