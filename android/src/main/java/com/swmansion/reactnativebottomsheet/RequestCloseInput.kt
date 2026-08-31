@@ -4,12 +4,25 @@ import android.view.KeyEvent
 import androidx.activity.BackEventCompat
 import androidx.activity.OnBackPressedCallback
 
+/**
+ * Result of routing Back/Escape input:
+ * - [REQUEST_CLOSE] consumes the input and emits the request-close callback.
+ * - [CONSUME] maintains the modal boundary without emitting the callback.
+ * - [PASS_THROUGH] passes handling beyond the sheet.
+ */
 internal enum class RequestCloseInputAction {
   REQUEST_CLOSE,
   CONSUME,
   PASS_THROUGH,
 }
 
+/**
+ * Snapshot used to decide how the sheet handles Back/Escape input.
+ *
+ * [isTargetResolvedAndOpen] determines whether a close request may be emitted. In contrast,
+ * [isPresentationActive] also remains true while a visible sheet animates to a closed target, so
+ * the modal boundary is maintained until settle.
+ */
 internal data class RequestCloseInputState(
   val isAttached: Boolean,
   val isLifecycleActive: Boolean,

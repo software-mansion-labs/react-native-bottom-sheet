@@ -11,7 +11,6 @@ import androidx.activity.findViewTreeOnBackPressedDispatcherOwner
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.findViewTreeLifecycleOwner
 
-/** The Android context used to route close-request input for an attached portal. */
 internal data class PortalRequestCloseRoutingContext(
   val dispatcherOwner: OnBackPressedDispatcherOwner?,
   val lifecycleOwner: LifecycleOwner?,

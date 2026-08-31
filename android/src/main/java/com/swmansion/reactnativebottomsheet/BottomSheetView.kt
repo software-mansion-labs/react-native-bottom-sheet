@@ -388,7 +388,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     }
   }
 
-  /** Keeps touch pass-through tied only to the existing sheet/scrim interaction state. */
   private fun updateOverlayTouchability(interactive: Boolean) {
     if (interactive == overlayInteractive) return
     overlayInteractive = interactive
@@ -401,6 +400,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
 
   // MARK: - Request close
 
+  /** Shared native-to-JS path for Back/Escape requests from portal and `nativeOverlay` modes. */
   private fun emitRequestClose(): Boolean {
     val currentListener = listener ?: return false
     currentListener.onRequestClose()

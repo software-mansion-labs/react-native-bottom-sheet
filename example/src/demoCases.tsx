@@ -73,7 +73,7 @@ export const DEMO_CASES: DemoCase[] = [
   },
   {
     key: 'portal-request-close-stack',
-    title: 'Portal close-request stack',
+    title: 'Portal close requests',
     href: '/portal-request-close-stack',
   },
   {

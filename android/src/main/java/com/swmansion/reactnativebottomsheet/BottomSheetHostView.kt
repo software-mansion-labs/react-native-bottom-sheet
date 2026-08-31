@@ -87,7 +87,10 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
    */
   var interactionListener: ((Boolean) -> Unit)? = null
 
-  /** Invoked when host state can change close-input ownership or request emission. */
+  /**
+   * Invokes the callback immediately when assigned and whenever later host state can change
+   * request-close qualification.
+   */
   var requestCloseStateChangedListener: (() -> Unit)? = null
     set(value) {
       field = value

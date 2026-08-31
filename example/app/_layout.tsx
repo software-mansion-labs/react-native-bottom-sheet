@@ -64,7 +64,7 @@ export default function RootLayout() {
             <Stack.Screen
               name="portal-request-close-stack"
               options={{
-                title: 'Portal close-request stack',
+                title: 'Portal close requests',
                 headerShown: false,
               }}
             />

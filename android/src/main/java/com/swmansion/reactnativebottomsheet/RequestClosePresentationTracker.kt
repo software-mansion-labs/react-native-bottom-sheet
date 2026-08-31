@@ -3,11 +3,11 @@ package com.swmansion.reactnativebottomsheet
 private const val REQUEST_CLOSE_VISIBLE_EPSILON_PX = 0.5f
 
 /**
- * Tracks whether a visibly closing sheet still owns close-request input.
+ * Tracks whether a visibly closing sheet still owns Back/Escape input.
  *
- * A close request is emitted from the target detent, while ownership also has to cover the
- * animation that takes a visible sheet to a closed target. Keeping that lifecycle here avoids
- * scattering the transition rules across layout and animation paths in the host.
+ * Request-close eligibility follows the target detent, but a visible sheet animating toward a
+ * closed target must retain input ownership until the transition settles. Centralizing that
+ * lifecycle here keeps layout and animation paths consistent.
  */
 internal class RequestClosePresentationTracker {
   private var closingPresentationActive = false

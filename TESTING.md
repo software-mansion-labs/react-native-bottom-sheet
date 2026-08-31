@@ -4,20 +4,31 @@
 
 Install JDK 17 and make it available to Gradle.
 
-Generate the native example project and run the Android unit tests with:
+Prepare the native example project and run all Android JVM tests with:
 
 ```sh
 bun run test:android
 ```
 
-Tests belong in `android/src/test`. Pure Kotlin tests can use JUnit directly.
-Tests that need Android framework behavior should use the AndroidX test runner
-and Robolectric. `BottomSheetViewRequestCloseTest` runs on API 35 by default.
-The focused `ViewCompat` input-routing scenarios run on API 27 and 35, while the
-compat fallback scenarios run only on API 27. The portal routing-context and
-coordinator tests run on API 35 because they do not exercise version-specific
-behavior.
+This runs `test:android:prepare` followed by the Gradle unit-test task. Tests
+belong in `android/src/test`. Pure Kotlin behavior can use JUnit directly; tests
+that need Android framework behavior should use the AndroidX test runner and
+Robolectric.
 
-Set an explicit `@Config(sdk = [...])` on new Robolectric test classes. This
-keeps their intended Android coverage visible and prevents them from
+Every Robolectric test class must declare an explicit `@Config(sdk = [...])`.
+This keeps its intended Android coverage visible and prevents it from
 accidentally inheriting the module's target SDK.
+
+## Android instrumentation tests
+
+Prepare the native project, verify that the instrumentation APK compiles, and
+then run it on a connected emulator or device:
+
+```sh
+bun run test:android:prepare
+bun run test:android:instrumented:assemble
+bun run test:android:instrumented
+```
+
+Instrumentation tests belong in `android/src/androidTest`. Prefer JVM or
+Robolectric coverage when Android framework behavior can be reproduced there.

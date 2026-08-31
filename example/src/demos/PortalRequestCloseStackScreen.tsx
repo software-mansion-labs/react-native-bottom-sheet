@@ -29,7 +29,7 @@ const StackStatus = ({
   expectedOwner,
 }: StackStatusProps) => (
   <View style={styles.statusCard}>
-    <Text style={styles.statusTitle}>Native portal ownership</Text>
+    <Text style={styles.statusTitle}>Portal request routing</Text>
     <Text>
       A index: {aIndex} · requests: {aRequestCount}
     </Text>
@@ -38,7 +38,7 @@ const StackStatus = ({
       {' · '}requests: {bRequestCount}
     </Text>
     {bMounted && <Text>B last settled index: {bSettledIndex}</Text>}
-    <Text>expected structural input owner: {expectedOwner}</Text>
+    <Text>expected routing owner: {expectedOwner}</Text>
   </View>
 );
 
@@ -111,7 +111,7 @@ export const PortalRequestCloseStackScreen = () => {
 
   return (
     <DemoScreen
-      title="Portal close-request stack"
+      title="Portal close requests"
       sheet={
         <>
           <ModalBottomSheet
@@ -130,8 +130,10 @@ export const PortalRequestCloseStackScreen = () => {
             <View style={styles.sheetContent}>
               <Text style={styles.sheetLabel}>A · mounted first and open</Text>
               <Text style={styles.helpText}>
-                Focus this input, then change B's content height. Escape should
-                stay out of the focused child and follow the native owner.
+                Keep this input focused while changing B's content height.
+                Escape should follow the expected routing owner rather than the
+                sheet containing the focused input, provided the owner has an
+                onRequestClose handler.
               </Text>
               <TextInput
                 style={styles.input}
@@ -200,15 +202,12 @@ export const PortalRequestCloseStackScreen = () => {
       }
     >
       <Text style={styles.helpText}>
-        A starts open. Mounting B targets a `content` detent that is initially
-        unresolved and then resolves to zero, so Back/Escape still request A.
-        Give B positive content and the next request goes only to B; return it
-        to zero and ownership returns to A without changing native membership
-        order. With B open but its handler omitted, it blocks lower portal
-        callbacks: Back falls through and Escape remains unhandled. When B
-        animates from positive content to index 0, the status keeps B as the
-        structural owner until `onSettle`; with a handler, repeated Back/Escape
-        is consumed without another request during that interval.
+        An unresolved or zero-height B is skipped, so Back/Escape still request
+        A. Once B has positive content, it is the active top portal and receives
+        the request. Without a handler, B blocks A's callback while Back falls
+        through and Escape remains unhandled. During a visible close, B remains
+        the routing owner until `onSettle`; further Back/Escape input is
+        consumed without another request.
       </Text>
       {status}
       <View style={styles.controls}>

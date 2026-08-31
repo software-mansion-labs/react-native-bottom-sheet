@@ -6,13 +6,23 @@ import org.junit.Test
 
 class RequestClosePresentationTrackerTest {
   @Test
-  fun `visible closing animation owns close input`() {
+  fun `visible closing animation owns Back and Escape input`() {
     val tracker = RequestClosePresentationTracker()
 
     tracker.onAnimationStarted(isTargetOpen = false, visibleHeight = 1f)
 
-    assertTrue(tracker.isPresentationActive(isTargetOpen = false, isHostReady = true))
-    assertFalse(tracker.isPresentationActive(isTargetOpen = false, isHostReady = false))
+    assertTrue(
+      tracker.isPresentationActive(
+        isTargetDetentOpen = false,
+        isRequestCloseLayoutReady = true,
+      )
+    )
+    assertFalse(
+      tracker.isPresentationActive(
+        isTargetDetentOpen = false,
+        isRequestCloseLayoutReady = false,
+      )
+    )
   }
 
   @Test
@@ -22,7 +32,12 @@ class RequestClosePresentationTrackerTest {
 
     tracker.onAnimationStarted(isTargetOpen = false, visibleHeight = 0f)
 
-    assertTrue(tracker.isPresentationActive(isTargetOpen = false, isHostReady = true))
+    assertTrue(
+      tracker.isPresentationActive(
+        isTargetDetentOpen = false,
+        isRequestCloseLayoutReady = true,
+      )
+    )
   }
 
   @Test
@@ -31,7 +46,12 @@ class RequestClosePresentationTrackerTest {
 
     tracker.onAnimationStarted(isTargetOpen = false, visibleHeight = 0f)
 
-    assertFalse(tracker.isPresentationActive(isTargetOpen = false, isHostReady = true))
+    assertFalse(
+      tracker.isPresentationActive(
+        isTargetDetentOpen = false,
+        isRequestCloseLayoutReady = true,
+      )
+    )
   }
 
   @Test
@@ -41,8 +61,18 @@ class RequestClosePresentationTrackerTest {
 
     tracker.onAnimationStarted(isTargetOpen = true, visibleHeight = 80f)
 
-    assertTrue(tracker.isPresentationActive(isTargetOpen = true, isHostReady = true))
-    assertFalse(tracker.isPresentationActive(isTargetOpen = false, isHostReady = true))
+    assertTrue(
+      tracker.isPresentationActive(
+        isTargetDetentOpen = true,
+        isRequestCloseLayoutReady = true,
+      )
+    )
+    assertFalse(
+      tracker.isPresentationActive(
+        isTargetDetentOpen = false,
+        isRequestCloseLayoutReady = true,
+      )
+    )
   }
 
   @Test
@@ -57,7 +87,12 @@ class RequestClosePresentationTrackerTest {
       .forEach { reset ->
         tracker.onAnimationStarted(isTargetOpen = false, visibleHeight = 120f)
         reset()
-        assertFalse(tracker.isPresentationActive(isTargetOpen = false, isHostReady = true))
+        assertFalse(
+          tracker.isPresentationActive(
+            isTargetDetentOpen = false,
+            isRequestCloseLayoutReady = true,
+          )
+        )
       }
   }
 }

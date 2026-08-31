@@ -136,7 +136,6 @@ internal object PortalRequestCloseCoordinator {
     return handled
   }
 
-  /** Applies every transition in one direction: snapshot -> routing owner -> assigned actions. */
   private fun reconcileRoutingOwnership(root: View, rootState: RootState) {
     removeStaleEntries(rootState)
     if (rootState.entries.isEmpty()) {

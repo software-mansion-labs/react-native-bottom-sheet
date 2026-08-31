@@ -8,7 +8,7 @@ import androidx.core.view.ViewCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 
-/** Owns the portal input routing for close requests for one [BottomSheetView]. */
+/** Owns request-close routing for one portal [BottomSheetView]. */
 internal class PortalRequestCloseController(
   private val view: View,
   private val currentActivity: () -> Activity?,
@@ -46,7 +46,6 @@ internal class PortalRequestCloseController(
 
   private val syncRoutingContextRunnable = Runnable { syncRoutingContext() }
 
-  /** Updates the immutable input snapshot and reconciles the portal routing context. */
   fun update(
     state: RequestCloseInputState,
     usesPortalPresentation: Boolean,
@@ -57,7 +56,6 @@ internal class PortalRequestCloseController(
     syncRoutingContext()
   }
 
-  /** Re-resolves the routing context after Android has completed an attachment/layout turn. */
   fun scheduleRoutingContextSync() {
     if (disposed) return
     view.removeCallbacks(syncRoutingContextRunnable)
@@ -72,14 +70,12 @@ internal class PortalRequestCloseController(
     return PortalRequestCloseCoordinator.dispatchEscape(portalRoot, event)
   }
 
-  /** Removes every routing-context effect. A later [update] may resolve a new context. */
   fun clear() {
     usesPortalPresentation = false
     view.removeCallbacks(syncRoutingContextRunnable)
     clearRoutingContext()
   }
 
-  /** Terminal, idempotent cleanup. */
   fun dispose() {
     if (disposed) return
     disposed = true
