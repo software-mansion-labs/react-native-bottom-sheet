@@ -12,7 +12,7 @@ import androidx.lifecycle.Lifecycle
  * from the same state snapshot.
  */
 internal class OverlayRequestCloseController(private val emitRequestClose: () -> Boolean) {
-  private var inputState = INACTIVE_INPUT_STATE
+  private var inputState = RequestCloseInputState.INACTIVE
   private var usesOverlayDialog = false
   private var isSheetInteractive = false
   private var dialog: ComponentDialog? = null
@@ -165,17 +165,5 @@ internal class OverlayRequestCloseController(private val emitRequestClose: () ->
     callback?.dispose()
     callback?.remove()
     escapeDispatcher.clear()
-  }
-
-  private companion object {
-    val INACTIVE_INPUT_STATE =
-      RequestCloseInputState(
-        isAttached = false,
-        isLifecycleActive = false,
-        isModal = false,
-        hasRequestCloseHandler = false,
-        isPresentationActive = false,
-        isTargetResolvedAndOpen = false,
-      )
   }
 }

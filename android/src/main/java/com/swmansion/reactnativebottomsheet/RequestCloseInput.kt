@@ -30,7 +30,19 @@ internal data class RequestCloseInputState(
   val hasRequestCloseHandler: Boolean,
   val isPresentationActive: Boolean,
   val isTargetResolvedAndOpen: Boolean,
-)
+) {
+  companion object {
+    val INACTIVE =
+      RequestCloseInputState(
+        isAttached = false,
+        isLifecycleActive = false,
+        isModal = false,
+        hasRequestCloseHandler = false,
+        isPresentationActive = false,
+        isTargetResolvedAndOpen = false,
+      )
+  }
+}
 
 internal fun resolveRequestCloseInputAction(
   state: RequestCloseInputState

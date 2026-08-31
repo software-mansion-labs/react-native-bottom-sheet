@@ -14,7 +14,7 @@ internal class PortalRequestCloseController(
   private val currentActivity: () -> Activity?,
   private val emitRequestClose: () -> Boolean,
 ) : PortalRequestCloseParticipant {
-  private var inputState = INACTIVE_INPUT_STATE
+  private var inputState = RequestCloseInputState.INACTIVE
   private var usesPortalPresentation = false
   private var disposed = false
 
@@ -318,17 +318,5 @@ internal class PortalRequestCloseController(
     return first.dispatcherOwner === second.dispatcherOwner &&
       first.lifecycleOwner === second.lifecycleOwner &&
       first.rootView === second.rootView
-  }
-
-  private companion object {
-    val INACTIVE_INPUT_STATE =
-      RequestCloseInputState(
-        isAttached = false,
-        isLifecycleActive = false,
-        isModal = false,
-        hasRequestCloseHandler = false,
-        isPresentationActive = false,
-        isTargetResolvedAndOpen = false,
-      )
   }
 }
