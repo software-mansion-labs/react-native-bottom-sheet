@@ -62,7 +62,6 @@ jobs:
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 36
-          system-image-api-level: 35
           arch: x86_64
           enable-hw-keyboard: true
           script: bun run test:android:instrumented
