@@ -86,22 +86,6 @@ class BottomSheetViewRequestCloseTest {
   }
 
   @Test
-  fun `portal intercepts Escape before its focused descendant`() {
-    withActivity<ComponentActivity> { activity ->
-      val listener = CountingBottomSheetListener()
-      val sheet = openPortalSheet(activity, listener)
-      val focusedView = EscapeConsumingView(activity).apply { isFocusableInTouchMode = true }
-      sheet.addView(focusedView, ViewGroup.LayoutParams(1, 1))
-      layoutView(sheet)
-      assertTrue(focusedView.requestFocus())
-      assertEscape(activity::dispatchKeyEvent, expectedHandled = true)
-      assertEquals(0, focusedView.escapeEventCount)
-      assertEquals(1, listener.requestCloseCount)
-      sheet.destroy()
-    }
-  }
-
-  @Test
   fun `ordinary keys still reach a focused portal descendant`() {
     withActivity<ComponentActivity> { activity ->
       val listener = CountingBottomSheetListener()

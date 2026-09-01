@@ -24,6 +24,35 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35])
 class OverlayRequestCloseControllerTest {
   @Test
+  fun `handler restoration does not reactivate an in-progress Escape press`() {
+    withActivity<ComponentActivity> { activity ->
+      var requestCloseCount = 0
+      val controller = OverlayRequestCloseController {
+        requestCloseCount++
+        true
+      }
+      val dialog = shownDialog(activity)
+      controller.bind(dialog)
+      controller.update(inputState(), usesOverlayDialog = true, isSheetInteractive = false)
+
+      assertTrue(dialog.dispatchKeyEvent(escapeDown(10L)))
+      controller.update(
+        inputState(hasRequestCloseHandler = false),
+        usesOverlayDialog = true,
+        isSheetInteractive = false,
+      )
+      controller.update(inputState(), usesOverlayDialog = true, isSheetInteractive = false)
+
+      assertTrue(dialog.dispatchKeyEvent(escapeUp(10L)))
+      assertEquals(0, requestCloseCount)
+
+      dispatchEscape(dialog)
+      assertEquals(1, requestCloseCount)
+      controller.dispose()
+    }
+  }
+
+  @Test
   fun `unbind and dispose leave the dialog fallback without emitting`() {
     withActivity<ComponentActivity> { activity ->
       var requestCloseCount = 0
