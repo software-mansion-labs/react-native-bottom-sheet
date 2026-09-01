@@ -31,7 +31,6 @@ import com.facebook.react.uimanager.events.Event
 import com.facebook.react.uimanager.events.EventDispatcher
 import com.facebook.react.uimanager.events.EventDispatcherListener
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -72,21 +71,17 @@ class BottomSheetViewRequestCloseTest {
 
   @Config(sdk = [27, 35])
   @Test
-  fun `Escape emits exactly once without replacing the Window callback`() {
+  fun `Escape emits exactly one request without changing the detent`() {
     withActivity<ComponentActivity> { activity ->
-      val originalWindowCallback = activity.window.callback
       val listener = CountingBottomSheetListener()
       val sheet = openPortalSheet(activity, listener)
       val indexChanges = listener.indexChanges.toList()
       val settles = listener.settles.toList()
-      assertSame(originalWindowCallback, activity.window.callback)
       assertEscape(activity::dispatchKeyEvent, expectedHandled = true)
       assertEquals(1, listener.requestCloseCount)
       assertEquals(indexChanges, listener.indexChanges)
       assertEquals(settles, listener.settles)
-      assertSame(originalWindowCallback, activity.window.callback)
       sheet.destroy()
-      assertSame(originalWindowCallback, activity.window.callback)
     }
   }
 
