@@ -1,4 +1,4 @@
-package com.swmansion.reactnativebottomsheet
+package com.swmansion.reactnativebottomsheet.requestclose
 
 import android.view.KeyEvent
 import androidx.activity.BackEventCompat

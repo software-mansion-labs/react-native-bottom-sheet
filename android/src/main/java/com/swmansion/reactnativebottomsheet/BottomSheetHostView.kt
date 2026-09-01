@@ -26,6 +26,7 @@ import com.facebook.react.uimanager.PointerEvents
 import com.facebook.react.uimanager.RootView
 import com.facebook.react.uimanager.StateWrapper
 import com.facebook.react.views.view.ReactViewGroup
+import com.swmansion.reactnativebottomsheet.requestclose.RequestClosePresentationTracker
 import kotlin.math.abs
 import kotlin.math.roundToInt
 

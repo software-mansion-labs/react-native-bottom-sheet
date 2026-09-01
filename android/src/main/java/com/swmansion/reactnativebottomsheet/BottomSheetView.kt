@@ -29,6 +29,10 @@ import com.facebook.react.uimanager.ThemedReactContext
 import com.facebook.react.uimanager.UIManagerHelper
 import com.facebook.react.uimanager.events.EventDispatcher
 import com.facebook.react.views.view.ReactViewGroup
+import com.swmansion.reactnativebottomsheet.requestclose.OverlayRequestCloseController
+import com.swmansion.reactnativebottomsheet.requestclose.PortalRequestCloseController
+import com.swmansion.reactnativebottomsheet.requestclose.RequestCloseInputState
+import com.swmansion.reactnativebottomsheet.requestclose.findActivity
 
 /**
  * Fabric-mounted bottom-sheet view. It is a thin coordinator around a single [BottomSheetHostView]

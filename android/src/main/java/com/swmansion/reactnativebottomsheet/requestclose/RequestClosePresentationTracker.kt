@@ -1,4 +1,4 @@
-package com.swmansion.reactnativebottomsheet
+package com.swmansion.reactnativebottomsheet.requestclose
 
 private const val REQUEST_CLOSE_VISIBLE_EPSILON_PX = 0.5f
 

@@ -1,4 +1,4 @@
-package com.swmansion.reactnativebottomsheet
+package com.swmansion.reactnativebottomsheet.requestclose
 
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

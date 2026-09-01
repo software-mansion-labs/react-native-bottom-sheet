@@ -1,6 +1,6 @@
 @file:Suppress("DEPRECATION")
 
-package com.swmansion.reactnativebottomsheet
+package com.swmansion.reactnativebottomsheet.requestclose
 
 import android.app.Activity
 import android.os.Looper
