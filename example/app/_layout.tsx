@@ -62,13 +62,6 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
-              name="portal-request-close-stack"
-              options={{
-                title: 'Portal close requests',
-                headerShown: false,
-              }}
-            />
-            <Stack.Screen
               name="modal-scroll-view"
               options={{ title: 'Modal with ScrollView', headerShown: false }}
             />
