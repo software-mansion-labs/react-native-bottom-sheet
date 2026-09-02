@@ -26,7 +26,7 @@ import com.facebook.react.uimanager.PointerEvents
 import com.facebook.react.uimanager.RootView
 import com.facebook.react.uimanager.StateWrapper
 import com.facebook.react.views.view.ReactViewGroup
-import com.swmansion.reactnativebottomsheet.requestclose.RequestClosePresentationTracker
+import com.swmansion.reactnativebottomsheet.closerequest.CloseRequestPresentationTracker
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -58,7 +58,7 @@ interface BottomSheetViewListener {
 
   fun onPositionChange(position: Double, index: Double)
 
-  fun onRequestClose()
+  fun onCloseRequest()
 }
 
 class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScrollingParent3 {
@@ -89,10 +89,10 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   var interactionListener: ((Boolean) -> Unit)? = null
 
   /**
-   * Invokes the callback immediately when assigned and whenever later host state can change
-   * request-close qualification.
+   * Invokes the callback immediately when assigned and whenever later host state can change close
+   * request qualification.
    */
-  var requestCloseStateChangedListener: (() -> Unit)? = null
+  var closeRequestStateChangedListener: (() -> Unit)? = null
     set(value) {
       field = value
       value?.invoke()
@@ -159,7 +159,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   private var pendingInitialContentDetentPreDrawListener: ViewTreeObserver.OnPreDrawListener? = null
   private var pendingInitialContentDetentFrames = 0
   private var hasPerformedHostLayoutSinceAttach = false
-  private val requestClosePresentationTracker = RequestClosePresentationTracker()
+  private val closeRequestPresentationTracker = CloseRequestPresentationTracker()
 
   private val contentHeightMarkerLayoutListener =
     View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
@@ -260,13 +260,13 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   override fun onAttachedToWindow() {
     super.onAttachedToWindow()
     hasPerformedHostLayoutSinceAttach = false
-    notifyRequestCloseStateChanged()
+    notifyCloseRequestStateChanged()
     // Native geometry (cap, frame) is derived from the window; recompute on
     // (re)attach — including the inline<->overlay reparent — and ask for a
     // fresh insets pass. Fabric may assign unchanged bounds before attaching
     // the view, in which case Android does not owe us another onSizeChanged or
     // onLayout callback. Schedule the same host layout pass explicitly so
-    // close-request eligibility cannot remain invalid after the attach.
+    // close request eligibility cannot remain invalid after the attach.
     requestApplyInsets()
     recomputeNativeGeometry()
     removeCallbacks(ensureHostLayoutAfterAttach)
@@ -292,7 +292,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   override fun onDetachedFromWindow() {
     removeCallbacks(ensureHostLayoutAfterAttach)
     hasPerformedHostLayoutSinceAttach = false
-    notifyRequestCloseStateChanged()
+    notifyCloseRequestStateChanged()
     // Release the listener from the soon-to-be-replaced observer and clear our
     // references so a later re-attach registers on the new live observer.
     removePendingInitialContentDetentObserver()
@@ -328,7 +328,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
         pendingInitialContentDetentSnap = true
         sheetContainer.translationY = resolvedMaxDetentHeight(h)
         emitPosition()
-        notifyRequestCloseStateChanged()
+        notifyCloseRequestStateChanged()
         observePendingInitialContentDetent()
         return
       }
@@ -344,22 +344,22 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
         emitPosition()
         snapToIndex(targetIndex, 0f, emitIndexChange = false, emitSettle = true)
       } else {
-        requestClosePresentationTracker.onTransitionSettled()
+        closeRequestPresentationTracker.onTransitionSettled()
         sheetContainer.translationY = translationY(targetIndex)
         emitPosition()
-        notifyRequestCloseStateChanged()
+        notifyCloseRequestStateChanged()
       }
       return
     }
 
     if (activeAnimation != null || isPanning) {
-      notifyRequestCloseStateChanged()
+      notifyCloseRequestStateChanged()
       return
     }
-    requestClosePresentationTracker.onTransitionSettled()
+    closeRequestPresentationTracker.onTransitionSettled()
     sheetContainer.translationY = translationY(targetIndex)
     updateShadowState(sheetContainer.translationY)
-    notifyRequestCloseStateChanged()
+    notifyCloseRequestStateChanged()
   }
 
   override fun dispatchDraw(canvas: Canvas) {
@@ -421,7 +421,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     if (!hasLaidOut) {
       pendingIndex = newIndex
       targetIndex = newIndex
-      notifyRequestCloseStateChanged()
+      notifyCloseRequestStateChanged()
       return
     }
 
@@ -432,7 +432,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
       // already resolvable) or keep waiting for the content to measure.
       targetIndex = newIndex.coerceIn(0, detentSpecs.size - 1)
       if (!trySnapPendingInitialContentDetent()) {
-        notifyRequestCloseStateChanged()
+        notifyCloseRequestStateChanged()
         observePendingInitialContentDetent()
       }
       return
@@ -513,8 +513,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
       activeDragDetentSpecs = null
     }
     if (hasLaidOut && isInvalidContentDetentTarget(targetIndex)) {
-      requestClosePresentationTracker.onInvalidTarget()
-      notifyRequestCloseStateChanged()
+      closeRequestPresentationTracker.onInvalidTarget()
+      notifyCloseRequestStateChanged()
       updateScrim()
       return
     }
@@ -524,7 +524,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
       if (trySnapPendingInitialContentDetent()) {
         return
       }
-      notifyRequestCloseStateChanged()
+      notifyCloseRequestStateChanged()
       updateScrim()
       return
     }
@@ -582,11 +582,11 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
           val shouldAnimateHeight = shouldAnimateContentHeight(targetIndex)
           if (kotlin.math.abs(targetHeight - currentVisibleHeight) <= 0.5f) {
             // No meaningful change.
-            requestClosePresentationTracker.onTransitionSettled()
+            closeRequestPresentationTracker.onTransitionSettled()
             sheetContainer.translationY = targetTy
             emitPosition()
           } else if (!shouldAnimateHeight) {
-            requestClosePresentationTracker.onTransitionSettled()
+            closeRequestPresentationTracker.onTransitionSettled()
             sheetContainer.translationY = targetTy
             emitPosition()
           } else {
@@ -611,7 +611,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     }
 
     requestLayout()
-    notifyRequestCloseStateChanged()
+    notifyCloseRequestStateChanged()
     updateScrim()
   }
 
@@ -746,7 +746,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   private val isTargetingClosedDetent: Boolean
     get() = detentSpecs.getOrNull(targetIndex)?.height == 0f
 
-  private val isRequestCloseLayoutReady: Boolean
+  private val isCloseRequestLayoutReady: Boolean
     get() =
       hasPerformedHostLayoutSinceAttach &&
         isAttachedToWindow &&
@@ -758,19 +758,19 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     get() = detentSpecs.getOrNull(targetIndex)?.height?.let { it > 0f } == true
 
   // Request emission follows the resolved target rather than the transient animated position.
-  val isRequestCloseTargetResolvedAndOpen: Boolean
-    get() = isRequestCloseLayoutReady && isTargetDetentOpen
+  val isCloseRequestTargetResolvedAndOpen: Boolean
+    get() = isCloseRequestLayoutReady && isTargetDetentOpen
 
   /** Keeps the modal input boundary through a visible animated close. */
-  val isRequestClosePresentationActive: Boolean
+  val isCloseRequestPresentationActive: Boolean
     get() =
-      requestClosePresentationTracker.isPresentationActive(
+      closeRequestPresentationTracker.isPresentationActive(
         isTargetDetentOpen = isTargetDetentOpen,
-        isRequestCloseLayoutReady = isRequestCloseLayoutReady,
+        isCloseRequestLayoutReady = isCloseRequestLayoutReady,
       )
 
-  private fun notifyRequestCloseStateChanged() {
-    requestCloseStateChangedListener?.invoke()
+  private fun notifyCloseRequestStateChanged() {
+    closeRequestStateChangedListener?.invoke()
   }
 
   private fun snapCandidateIndices(includeIndex: Int? = null): List<Int> {
@@ -1004,8 +1004,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
             hideScrim()
           }
           emitPosition()
-          requestClosePresentationTracker.onTransitionSettled()
-          notifyRequestCloseStateChanged()
+          closeRequestPresentationTracker.onTransitionSettled()
+          notifyCloseRequestStateChanged()
           updateInteractionState()
           if (emitSettle) listener?.onSettle(index)
         }
@@ -1013,13 +1013,13 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
 
     activeAnimation = spring
     val visibleHeight = resolvedMaxDetentHeight() - currentTy
-    requestClosePresentationTracker.onAnimationStarted(
+    closeRequestPresentationTracker.onAnimationStarted(
       isTargetOpen = !isTargetingClosedDetent,
       visibleHeight = visibleHeight,
     )
     // Publish only after the replacement spring is assigned. Re-anchoring a close must not create
     // a transient pass-through window between canceling the old animation and starting the new.
-    notifyRequestCloseStateChanged()
+    notifyCloseRequestStateChanged()
     // Report the index change as soon as the snap is committed, not when it
     // finishes: targetIndex is already set, and a programmatic snap's start is
     // known to the caller. onSettle remains the signal for movement end.
@@ -1665,8 +1665,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     detentSpecs = emptyList()
     targetIndex = 0
     hasPerformedHostLayoutSinceAttach = false
-    requestClosePresentationTracker.onHostDestroyed()
-    notifyRequestCloseStateChanged()
+    closeRequestPresentationTracker.onHostDestroyed()
+    notifyCloseRequestStateChanged()
     pendingIndex = null
     hasLaidOut = false
     isPanning = false
@@ -1684,7 +1684,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     sheetContainer.removeAllViews()
     stateWrapper = null
     lastShadowOffsetY = Float.NaN
-    requestCloseStateChangedListener = null
+    closeRequestStateChangedListener = null
     listener = null
   }
 

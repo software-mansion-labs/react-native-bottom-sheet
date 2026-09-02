@@ -68,7 +68,7 @@ To keep the scrim deepening across every detent, pass one value per detent:
 
 ## Android close requests
 
-`onRequestClose` is **Android only**. Android system Back, a committed
+`onCloseRequest` is **Android only**. Android system Back, a committed
 predictive Back gesture, and a complete, unmodified physical-keyboard Escape
 press use the same close request callback. The callback reports the request but
 does not change the controlled `index`, choose a detent, or dismiss the sheet.
@@ -83,7 +83,7 @@ const [index, setIndex] = useState(1);
   detents={[0, 400]}
   index={index}
   onIndexChange={setIndex}
-  onRequestClose={() => setIndex(0)}
+  onCloseRequest={() => setIndex(0)}
 >
   {/* content */}
 </ModalBottomSheet>;
@@ -111,7 +111,7 @@ initially unresolved, already settled at zero height, or closed without a
 visible animation is skipped. A portal that is visibly animating closed remains
 active until settle, so a lower portal is not promoted early.
 
-An active top portal without `onRequestClose` still blocks callbacks on lower
+An active top portal without `onCloseRequest` still blocks callbacks on lower
 portals. Back continues beyond the portal group, while Escape remains available
 to normal key handling. `nativeOverlay` is hosted in a separate window and does
 not participate in portal ordering. With a handler it forms the same modal
@@ -135,7 +135,7 @@ unmount it or change its detents if the close request should make it disappear.
 
 Portal Escape handling is reliable while focus is inside the portal tree. When
 focus is elsewhere, a focused view can consume Escape first, so external-focus
-Escape is best effort. Use `nativeOverlay` with `onRequestClose` when Escape
+Escape is best effort. Use `nativeOverlay` with `onCloseRequest` when Escape
 must be owned by a separate window.
 
 On Android API 24–27, the external-focus fallback is supported for standard

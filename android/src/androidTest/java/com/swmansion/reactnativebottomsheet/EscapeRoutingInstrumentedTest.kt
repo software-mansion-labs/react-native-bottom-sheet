@@ -178,11 +178,11 @@ class EscapeRoutingInstrumentedTest {
         val themedContext = ThemedReactContext(reactContext, activity, "test", 1)
         sheet =
           BottomSheetView(themedContext).apply {
-            listener = CountingRequestCloseListener(requestCount)
+            listener = CountingCloseRequestListener(requestCount)
             eventDispatcher = NoOpInstrumentedEventDispatcher
             animateIn = false
             modal = true
-            setHasRequestCloseHandler(false)
+            setHasCloseRequestHandler(false)
             setScrimColor(Color.BLACK)
             setScrimOpacities(listOf(0f, 1f))
             setDetents(
@@ -272,11 +272,11 @@ class EscapeRoutingInstrumentedTest {
     content: MutableContentHeightView,
   ) =
     BottomSheetView(context).apply {
-      listener = CountingRequestCloseListener(requestCount)
+      listener = CountingCloseRequestListener(requestCount)
       animateIn = false
       animateContentHeight = false
       modal = true
-      setHasRequestCloseHandler(true)
+      setHasCloseRequestHandler(true)
       addSheetChild(content, 0)
       setDetents(contentDetents())
       setIndex(1)
@@ -293,10 +293,10 @@ class EscapeRoutingInstrumentedTest {
     requestCount: AtomicInteger,
   ) =
     BottomSheetView(context).apply {
-      listener = CountingRequestCloseListener(requestCount)
+      listener = CountingCloseRequestListener(requestCount)
       animateIn = false
       modal = true
-      setHasRequestCloseHandler(true)
+      setHasCloseRequestHandler(true)
       setDetents(
         listOf(
           mapOf("value" to 0.0, "kind" to "points", "programmatic" to false),
@@ -348,7 +348,7 @@ private class EscapeRecordingView(
   }
 }
 
-private class CountingRequestCloseListener(private val requestCount: AtomicInteger) :
+private class CountingCloseRequestListener(private val requestCount: AtomicInteger) :
   BottomSheetViewListener {
   override fun onIndexChange(index: Int) = Unit
 
@@ -356,7 +356,7 @@ private class CountingRequestCloseListener(private val requestCount: AtomicInteg
 
   override fun onPositionChange(position: Double, index: Double) = Unit
 
-  override fun onRequestClose() {
+  override fun onCloseRequest() {
     requestCount.incrementAndGet()
   }
 }

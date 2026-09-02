@@ -1,4 +1,4 @@
-package com.swmansion.reactnativebottomsheet.requestclose
+package com.swmansion.reactnativebottomsheet.closerequest
 
 import android.content.DialogInterface
 import android.view.KeyEvent
@@ -11,15 +11,15 @@ import androidx.lifecycle.Lifecycle
  * Atomically computes overlay-dialog Back/Escape routing, touchability, focusability, and alpha
  * from the same state snapshot.
  */
-internal class OverlayRequestCloseController(private val emitRequestClose: () -> Boolean) {
-  private var inputState = RequestCloseInputState.INACTIVE
+internal class OverlayCloseRequestController(private val emitCloseRequest: () -> Boolean) {
+  private var inputState = CloseRequestInputState.INACTIVE
   private var usesOverlayDialog = false
   private var isSheetInteractive = false
   private var dialog: ComponentDialog? = null
   private var disposed = false
-  private val escapeDispatcher = EscapeRequestCloseDispatcher()
+  private val escapeDispatcher = EscapeCloseRequestDispatcher()
 
-  private var backCallback: RequestCloseBackCallback? = null
+  private var backCallback: CloseRequestBackCallback? = null
 
   fun bind(dialog: ComponentDialog) {
     if (disposed) return
@@ -29,7 +29,7 @@ internal class OverlayRequestCloseController(private val emitRequestClose: () ->
     }
     if (backCallback == null) {
       val callback =
-        RequestCloseBackCallback(
+        CloseRequestBackCallback(
           resolveAction = ::currentAction,
           executeAction = ::executeBackAction,
           onPredictiveBackStateChanged = ::updateWindowInputFlags,
@@ -46,7 +46,7 @@ internal class OverlayRequestCloseController(private val emitRequestClose: () ->
   }
 
   fun update(
-    state: RequestCloseInputState,
+    state: CloseRequestInputState,
     usesOverlayDialog: Boolean,
     isSheetInteractive: Boolean,
   ) {
@@ -64,7 +64,7 @@ internal class OverlayRequestCloseController(private val emitRequestClose: () ->
       escapeDispatcher.dispatch(
         event = event,
         resolveInitialAction = ::currentAction,
-        emitRequestCloseIfEligible = ::emitRequestCloseIfEligible,
+        emitCloseRequestIfEligible = ::emitCloseRequestIfEligible,
       )
 
     if (hadCapturedPress && !escapeDispatcher.hasCapturedPress) {
@@ -82,8 +82,8 @@ internal class OverlayRequestCloseController(private val emitRequestClose: () ->
   private fun reconcileInputHandling() {
     if (disposed) return
     val action = currentAction()
-    if (action != RequestCloseInputAction.REQUEST_CLOSE) {
-      escapeDispatcher.degradeCapturedRequestClose()
+    if (action != CloseRequestInputAction.EMIT_CLOSE_REQUEST) {
+      escapeDispatcher.degradeCapturedCloseRequest()
     }
     backCallback?.updateState(
       canReceiveBack = canReceiveBack(),
@@ -92,7 +92,7 @@ internal class OverlayRequestCloseController(private val emitRequestClose: () ->
     updateWindowInputFlags()
   }
 
-  private fun effectiveInputState(): RequestCloseInputState {
+  private fun effectiveInputState(): CloseRequestInputState {
     val currentDialog = dialog
     val isLifecycleActive =
       currentDialog?.lifecycle?.currentState?.isAtLeast(Lifecycle.State.STARTED) == true
@@ -102,24 +102,24 @@ internal class OverlayRequestCloseController(private val emitRequestClose: () ->
     )
   }
 
-  private fun currentAction(): RequestCloseInputAction =
-    resolveRequestCloseInputAction(effectiveInputState())
+  private fun currentAction(): CloseRequestInputAction =
+    resolveCloseRequestInputAction(effectiveInputState())
 
   private fun canReceiveBack(): Boolean {
     val state = effectiveInputState()
     return state.isAttached && state.isLifecycleActive && state.isPresentationActive
   }
 
-  private fun emitRequestCloseIfEligible(): Boolean {
-    if (disposed || currentAction() != RequestCloseInputAction.REQUEST_CLOSE) return false
-    return emitRequestClose()
+  private fun emitCloseRequestIfEligible(): Boolean {
+    if (disposed || currentAction() != CloseRequestInputAction.EMIT_CLOSE_REQUEST) return false
+    return emitCloseRequest()
   }
 
-  private fun executeBackAction(action: RequestCloseInputAction) {
+  private fun executeBackAction(action: CloseRequestInputAction) {
     when (action) {
-      RequestCloseInputAction.REQUEST_CLOSE -> emitRequestCloseIfEligible()
-      RequestCloseInputAction.CONSUME -> Unit
-      RequestCloseInputAction.PASS_THROUGH ->
+      CloseRequestInputAction.EMIT_CLOSE_REQUEST -> emitCloseRequestIfEligible()
+      CloseRequestInputAction.CONSUME -> Unit
+      CloseRequestInputAction.PASS_THROUGH ->
         (dialog?.context?.findActivity() as? ComponentActivity)
           ?.onBackPressedDispatcher
           ?.onBackPressed()
@@ -129,7 +129,7 @@ internal class OverlayRequestCloseController(private val emitRequestClose: () ->
   private fun updateWindowInputFlags() {
     val window = dialog?.window ?: return
     val touchable = isSheetInteractive
-    val ownsCloseInput = currentAction() != RequestCloseInputAction.PASS_THROUGH
+    val ownsCloseInput = currentAction() != CloseRequestInputAction.PASS_THROUGH
     val focusable =
       touchable ||
         ownsCloseInput ||

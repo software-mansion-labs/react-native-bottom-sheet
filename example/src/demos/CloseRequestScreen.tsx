@@ -12,7 +12,7 @@ import {
 type HandlerMode = 'close' | 'no-op' | 'omitted';
 type PresentationMode = 'portal' | 'nativeOverlay';
 
-export const RequestCloseScreen = () => {
+export const CloseRequestScreen = () => {
   const [index, setIndex] = useState(0);
   const [handlerMode, setHandlerMode] = useState<HandlerMode>('close');
   const [presentationMode, setPresentationMode] =
@@ -26,7 +26,7 @@ export const RequestCloseScreen = () => {
     setIndex(1);
   };
 
-  const handleRequestClose = () => {
+  const handleCloseRequest = () => {
     setRequestCount((count) => count + 1);
     if (handlerMode === 'close') {
       setIndex(0);
@@ -42,8 +42,8 @@ export const RequestCloseScreen = () => {
           index={index}
           nativeOverlay={presentationMode === 'nativeOverlay'}
           onIndexChange={setIndex}
-          onRequestClose={
-            handlerMode === 'omitted' ? undefined : handleRequestClose
+          onCloseRequest={
+            handlerMode === 'omitted' ? undefined : handleCloseRequest
           }
           scrimColor={MODAL_SCRIM_COLOR}
           surface={<SheetBackground style={StyleSheet.absoluteFill} />}
@@ -53,7 +53,7 @@ export const RequestCloseScreen = () => {
             <Text style={styles.stateTitle}>
               {presentationMode} · {handlerMode}
             </Text>
-            <Text>onRequestClose calls: {requestCount}</Text>
+            <Text>onCloseRequest calls: {requestCount}</Text>
           </View>
         </ModalBottomSheet>
       }
@@ -63,7 +63,7 @@ export const RequestCloseScreen = () => {
         <Text>presentation: {presentationMode}</Text>
         <Text>callback: {handlerMode}</Text>
         <Text>index: {index}</Text>
-        <Text>onRequestClose calls: {requestCount}</Text>
+        <Text>onCloseRequest calls: {requestCount}</Text>
       </View>
       <View style={styles.variantGroup}>
         <Text style={styles.variantTitle}>Portal</Text>

@@ -1,6 +1,6 @@
 @file:Suppress("DEPRECATION")
 
-package com.swmansion.reactnativebottomsheet.requestclose
+package com.swmansion.reactnativebottomsheet.closerequest
 
 import android.app.Activity
 import android.os.Looper
@@ -22,13 +22,13 @@ import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
-class OverlayRequestCloseControllerTest {
+class OverlayCloseRequestControllerTest {
   @Test
   fun `handler restoration does not reactivate an in-progress Escape press`() {
     withActivity<ComponentActivity> { activity ->
-      var requestCloseCount = 0
-      val controller = OverlayRequestCloseController {
-        requestCloseCount++
+      var closeRequestCount = 0
+      val controller = OverlayCloseRequestController {
+        closeRequestCount++
         true
       }
       val dialog = shownDialog(activity)
@@ -37,17 +37,17 @@ class OverlayRequestCloseControllerTest {
 
       assertTrue(dialog.dispatchKeyEvent(escapeDown(10L)))
       controller.update(
-        inputState(hasRequestCloseHandler = false),
+        inputState(hasCloseRequestHandler = false),
         usesOverlayDialog = true,
         isSheetInteractive = false,
       )
       controller.update(inputState(), usesOverlayDialog = true, isSheetInteractive = false)
 
       assertTrue(dialog.dispatchKeyEvent(escapeUp(10L)))
-      assertEquals(0, requestCloseCount)
+      assertEquals(0, closeRequestCount)
 
       dispatchEscape(dialog)
-      assertEquals(1, requestCloseCount)
+      assertEquals(1, closeRequestCount)
       controller.dispose()
     }
   }
@@ -55,9 +55,9 @@ class OverlayRequestCloseControllerTest {
   @Test
   fun `unbind and dispose leave the dialog fallback without emitting`() {
     withActivity<ComponentActivity> { activity ->
-      var requestCloseCount = 0
-      val controller = OverlayRequestCloseController {
-        requestCloseCount++
+      var closeRequestCount = 0
+      val controller = OverlayCloseRequestController {
+        closeRequestCount++
         true
       }
       val boundDialog = shownDialog(activity)
@@ -65,13 +65,13 @@ class OverlayRequestCloseControllerTest {
       controller.update(inputState(), usesOverlayDialog = true, isSheetInteractive = false)
       boundDialog.onBackPressedDispatcher.onBackPressed()
       dispatchEscape(boundDialog)
-      assertEquals(2, requestCloseCount)
+      assertEquals(2, closeRequestCount)
 
       controller.unbind()
       dispatchEscape(boundDialog)
       boundDialog.onBackPressedDispatcher.onBackPressed()
       assertFalse(boundDialog.isShowing)
-      assertEquals(2, requestCloseCount)
+      assertEquals(2, closeRequestCount)
 
       val disposedDialog = shownDialog(activity)
       controller.bind(disposedDialog)
@@ -81,7 +81,7 @@ class OverlayRequestCloseControllerTest {
       disposedDialog.onBackPressedDispatcher.onBackPressed()
 
       assertFalse(disposedDialog.isShowing)
-      assertEquals(2, requestCloseCount)
+      assertEquals(2, closeRequestCount)
     }
   }
 
@@ -89,11 +89,11 @@ class OverlayRequestCloseControllerTest {
   fun `handler and presentation state control input routing and window flags`() {
     withActivity<ComponentActivity> { activity ->
       var fallbackCount = 0
-      var requestCloseCount = 0
+      var closeRequestCount = 0
       activity.onBackPressedDispatcher.addCallback(countingCallback { fallbackCount++ })
       val dialog = shownDialog(activity)
-      val controller = OverlayRequestCloseController {
-        requestCloseCount++
+      val controller = OverlayCloseRequestController {
+        closeRequestCount++
         true
       }
       controller.bind(dialog)
@@ -106,7 +106,7 @@ class OverlayRequestCloseControllerTest {
       dispatchEscape(dialog)
 
       controller.update(
-        inputState(hasRequestCloseHandler = false),
+        inputState(hasCloseRequestHandler = false),
         usesOverlayDialog = true,
         isSheetInteractive = false,
       )
@@ -126,7 +126,7 @@ class OverlayRequestCloseControllerTest {
 
       assertFalse(dialog.isShowing)
       assertEquals(1, fallbackCount)
-      assertEquals(2, requestCloseCount)
+      assertEquals(2, closeRequestCount)
       controller.dispose()
     }
   }
@@ -143,11 +143,11 @@ class OverlayRequestCloseControllerTest {
     var secondFallbackCount = 0
     firstActivity.onBackPressedDispatcher.addCallback(countingCallback { firstFallbackCount++ })
     secondActivity.onBackPressedDispatcher.addCallback(countingCallback { secondFallbackCount++ })
-    val controller = OverlayRequestCloseController { true }
+    val controller = OverlayCloseRequestController { true }
     try {
       controller.bind(firstDialog)
       controller.update(
-        inputState(hasRequestCloseHandler = false),
+        inputState(hasCloseRequestHandler = false),
         usesOverlayDialog = true,
         isSheetInteractive = false,
       )
@@ -155,7 +155,7 @@ class OverlayRequestCloseControllerTest {
 
       controller.bind(secondDialog)
       controller.update(
-        inputState(hasRequestCloseHandler = false),
+        inputState(hasCloseRequestHandler = false),
         usesOverlayDialog = true,
         isSheetInteractive = false,
       )
@@ -180,15 +180,15 @@ class OverlayRequestCloseControllerTest {
     }
 
   private fun inputState(
-    hasRequestCloseHandler: Boolean = true,
+    hasCloseRequestHandler: Boolean = true,
     isPresentationActive: Boolean = true,
     isTargetResolvedAndOpen: Boolean = true,
   ) =
-    RequestCloseInputState(
+    CloseRequestInputState(
       isAttached = true,
       isLifecycleActive = true,
       isModal = true,
-      hasRequestCloseHandler = hasRequestCloseHandler,
+      hasCloseRequestHandler = hasCloseRequestHandler,
       isPresentationActive = isPresentationActive,
       isTargetResolvedAndOpen = isTargetResolvedAndOpen,
     )

@@ -18,7 +18,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
-class RequestCloseAnimationInstrumentedTest {
+class CloseRequestAnimationInstrumentedTest {
   @Before
   fun useLocalReactNativeFeatureFlags() {
     ReactNativeFeatureFlagsForTests.setUp()
@@ -52,13 +52,13 @@ class RequestCloseAnimationInstrumentedTest {
 
                 override fun onPositionChange(position: Double, index: Double) = Unit
 
-                override fun onRequestClose() {
+                override fun onCloseRequest() {
                   requestCount.incrementAndGet()
                 }
               }
             animateIn = false
             modal = true
-            setHasRequestCloseHandler(true)
+            setHasCloseRequestHandler(true)
             setDetents(
               listOf(
                 mapOf("value" to 0.0, "kind" to "points", "programmatic" to false),

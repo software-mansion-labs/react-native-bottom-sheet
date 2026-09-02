@@ -1,4 +1,4 @@
-package com.swmansion.reactnativebottomsheet.requestclose
+package com.swmansion.reactnativebottomsheet.closerequest
 
 import android.app.Activity
 import android.view.KeyEvent
@@ -15,7 +15,7 @@ import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
-class PortalRequestCloseCoordinatorTest {
+class PortalCloseRequestCoordinatorTest {
   @Test
   fun `newest routing owner candidate wins while non-candidates are skipped`() {
     withActivity { activity ->
@@ -65,8 +65,8 @@ class PortalRequestCloseCoordinatorTest {
       try {
         assertFalse(lower.isInputHandlingEnabled)
         assertFalse(upper.isInputHandlingEnabled)
-        assertFalse(PortalRequestCloseCoordinator.dispatchEscape(root, escapeDown(120L)))
-        assertFalse(PortalRequestCloseCoordinator.dispatchEscape(root, escapeUp(120L)))
+        assertFalse(PortalCloseRequestCoordinator.dispatchEscape(root, escapeDown(120L)))
+        assertFalse(PortalCloseRequestCoordinator.dispatchEscape(root, escapeUp(120L)))
 
         upperRegistration.update(portalState(routingOwnerCandidate = true, canEmit = true))
         assertTrue(upper.isInputHandlingEnabled)
@@ -93,15 +93,15 @@ class PortalRequestCloseCoordinatorTest {
       val upper = TestParticipant()
       val lowerRegistration = register(root, lower, routingOwnerCandidate = true)
       val upperRegistration =
-        PortalRequestCloseCoordinator.register(
+        PortalCloseRequestCoordinator.register(
           root,
           upper,
-          portalState(routingOwnerCandidate = true, action = RequestCloseInputAction.CONSUME),
+          portalState(routingOwnerCandidate = true, action = CloseRequestInputAction.CONSUME),
         )
 
       try {
         assertFalse(lower.isInputHandlingEnabled)
-        assertEquals(RequestCloseInputAction.CONSUME, upper.action)
+        assertEquals(CloseRequestInputAction.CONSUME, upper.action)
         assertHandledEscape(root, 135L)
         assertEquals(0, lower.requestCount)
         assertEquals(0, upper.requestCount)
@@ -128,21 +128,21 @@ class PortalRequestCloseCoordinatorTest {
         registration.update(
           portalState(
             routingOwnerCandidate = true,
-            action = RequestCloseInputAction.CONSUME,
+            action = CloseRequestInputAction.CONSUME,
           )
         )
         registration.update(
           portalState(
             routingOwnerCandidate = true,
-            action = RequestCloseInputAction.REQUEST_CLOSE,
+            action = CloseRequestInputAction.EMIT_CLOSE_REQUEST,
           )
         )
 
         assertEquals(
           listOf(
-            RequestCloseInputAction.REQUEST_CLOSE,
-            RequestCloseInputAction.CONSUME,
-            RequestCloseInputAction.REQUEST_CLOSE,
+            CloseRequestInputAction.EMIT_CLOSE_REQUEST,
+            CloseRequestInputAction.CONSUME,
+            CloseRequestInputAction.EMIT_CLOSE_REQUEST,
           ),
           participant.actionChanges,
         )
@@ -190,7 +190,7 @@ class PortalRequestCloseCoordinatorTest {
       val root = FrameLayout(activity)
       val participant = TestParticipant()
       val initialState = portalState(routingOwnerCandidate = true)
-      val registration = PortalRequestCloseCoordinator.register(root, participant, initialState)
+      val registration = PortalCloseRequestCoordinator.register(root, participant, initialState)
 
       assertEquals(listOf(true), participant.inputHandlingChanges)
       registration.update(initialState)
@@ -207,23 +207,23 @@ class PortalRequestCloseCoordinatorTest {
   @Test
   fun `initial action assignment is synchronous and pass-through is not redundantly reported`() {
     withActivity { activity ->
-      val requestCloseRoot = FrameLayout(activity)
-      val requestCloseParticipant = TestParticipant()
-      val requestCloseRegistration =
-        register(requestCloseRoot, requestCloseParticipant, routingOwnerCandidate = true)
+      val closeRequestRoot = FrameLayout(activity)
+      val closeRequestParticipant = TestParticipant()
+      val closeRequestRegistration =
+        register(closeRequestRoot, closeRequestParticipant, routingOwnerCandidate = true)
       val passThroughRoot = FrameLayout(activity)
       val passThroughParticipant = TestParticipant()
       val passThroughRegistration =
         register(passThroughRoot, passThroughParticipant, routingOwnerCandidate = false)
 
       try {
-        assertEquals(listOf(true), requestCloseParticipant.inputHandlingChanges)
-        assertTrue(requestCloseParticipant.isInputHandlingEnabled)
+        assertEquals(listOf(true), closeRequestParticipant.inputHandlingChanges)
+        assertTrue(closeRequestParticipant.isInputHandlingEnabled)
         assertTrue(passThroughParticipant.inputHandlingChanges.isEmpty())
         assertFalse(passThroughParticipant.isInputHandlingEnabled)
       } finally {
         passThroughRegistration.remove()
-        requestCloseRegistration.remove()
+        closeRequestRegistration.remove()
       }
     }
   }
@@ -294,17 +294,17 @@ class PortalRequestCloseCoordinatorTest {
       val upperRegistration = register(root, upper, routingOwnerCandidate = true)
 
       try {
-        assertTrue(PortalRequestCloseCoordinator.dispatchEscape(root, escapeDown(170L)))
+        assertTrue(PortalCloseRequestCoordinator.dispatchEscape(root, escapeDown(170L)))
         upperRegistration.update(portalState(routingOwnerCandidate = false))
         upperRegistration.update(portalState(routingOwnerCandidate = true))
-        assertTrue(PortalRequestCloseCoordinator.dispatchEscape(root, escapeUp(170L)))
+        assertTrue(PortalCloseRequestCoordinator.dispatchEscape(root, escapeUp(170L)))
         assertEquals(0, lower.requestCount)
         assertEquals(0, upper.requestCount)
 
-        assertTrue(PortalRequestCloseCoordinator.dispatchEscape(root, escapeDown(180L)))
+        assertTrue(PortalCloseRequestCoordinator.dispatchEscape(root, escapeDown(180L)))
         upperRegistration.update(portalState(routingOwnerCandidate = true, canEmit = false))
         upperRegistration.update(portalState(routingOwnerCandidate = true, canEmit = true))
-        assertTrue(PortalRequestCloseCoordinator.dispatchEscape(root, escapeUp(180L)))
+        assertTrue(PortalCloseRequestCoordinator.dispatchEscape(root, escapeUp(180L)))
         assertEquals(0, upper.requestCount)
 
         assertHandledEscape(root, 190L)
@@ -319,9 +319,9 @@ class PortalRequestCloseCoordinatorTest {
   @Test
   fun `state rejects emission without routing owner candidacy`() {
     assertThrows(IllegalArgumentException::class.java) {
-      PortalRequestCloseState(
+      PortalCloseRequestState(
         isRoutingOwnerCandidate = false,
-        actionIfRoutingOwner = RequestCloseInputAction.REQUEST_CLOSE,
+        actionIfRoutingOwner = CloseRequestInputAction.EMIT_CLOSE_REQUEST,
       )
     }
   }
@@ -331,8 +331,8 @@ class PortalRequestCloseCoordinatorTest {
     participant: TestParticipant,
     routingOwnerCandidate: Boolean,
     canEmit: Boolean = routingOwnerCandidate,
-  ): PortalRequestCloseCoordinator.Registration =
-    PortalRequestCloseCoordinator.register(
+  ): PortalCloseRequestCoordinator.Registration =
+    PortalCloseRequestCoordinator.register(
       root,
       participant,
       portalState(routingOwnerCandidate, canEmit),
@@ -341,22 +341,22 @@ class PortalRequestCloseCoordinatorTest {
   private fun portalState(
     routingOwnerCandidate: Boolean,
     canEmit: Boolean = routingOwnerCandidate,
-    action: RequestCloseInputAction? = null,
+    action: CloseRequestInputAction? = null,
   ) =
-    PortalRequestCloseState(
+    PortalCloseRequestState(
       isRoutingOwnerCandidate = routingOwnerCandidate,
       actionIfRoutingOwner =
         action
           ?: if (routingOwnerCandidate && canEmit) {
-            RequestCloseInputAction.REQUEST_CLOSE
+            CloseRequestInputAction.EMIT_CLOSE_REQUEST
           } else {
-            RequestCloseInputAction.PASS_THROUGH
+            CloseRequestInputAction.PASS_THROUGH
           },
     )
 
   private fun assertHandledEscape(root: FrameLayout, downTime: Long = 90L) {
-    assertTrue(PortalRequestCloseCoordinator.dispatchEscape(root, escapeDown(downTime)))
-    assertTrue(PortalRequestCloseCoordinator.dispatchEscape(root, escapeUp(downTime)))
+    assertTrue(PortalCloseRequestCoordinator.dispatchEscape(root, escapeDown(downTime)))
+    assertTrue(PortalCloseRequestCoordinator.dispatchEscape(root, escapeUp(downTime)))
   }
 
   private fun escapeDown(downTime: Long) =
@@ -378,25 +378,25 @@ class PortalRequestCloseCoordinatorTest {
 private class TestParticipant(
   private val name: String? = null,
   private val sharedTransitions: MutableList<String>? = null,
-) : PortalRequestCloseParticipant {
-  var action = RequestCloseInputAction.PASS_THROUGH
+) : PortalCloseRequestParticipant {
+  var action = CloseRequestInputAction.PASS_THROUGH
   var isInputHandlingEnabled = false
   var locallyEligible = true
   var requestCount = 0
-  val actionChanges = mutableListOf<RequestCloseInputAction>()
+  val actionChanges = mutableListOf<CloseRequestInputAction>()
   val inputHandlingChanges = mutableListOf<Boolean>()
 
-  override fun onAssignedActionChanged(action: RequestCloseInputAction) {
+  override fun onAssignedActionChanged(action: CloseRequestInputAction) {
     this.action = action
     actionChanges.add(action)
-    val enabled = action != RequestCloseInputAction.PASS_THROUGH
+    val enabled = action != CloseRequestInputAction.PASS_THROUGH
     isInputHandlingEnabled = enabled
     inputHandlingChanges.add(enabled)
     if (name != null) sharedTransitions?.add("$name:$enabled")
   }
 
-  override fun emitRequestCloseIfEligible(): Boolean {
-    if (action != RequestCloseInputAction.REQUEST_CLOSE || !locallyEligible) return false
+  override fun emitCloseRequestIfEligible(): Boolean {
+    if (action != CloseRequestInputAction.EMIT_CLOSE_REQUEST || !locallyEligible) return false
     requestCount++
     return true
   }

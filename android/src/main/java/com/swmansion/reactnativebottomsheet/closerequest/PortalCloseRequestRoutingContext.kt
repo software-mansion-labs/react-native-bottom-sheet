@@ -1,4 +1,4 @@
-package com.swmansion.reactnativebottomsheet.requestclose
+package com.swmansion.reactnativebottomsheet.closerequest
 
 import android.app.Activity
 import android.content.Context
@@ -11,7 +11,7 @@ import androidx.activity.findViewTreeOnBackPressedDispatcherOwner
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.findViewTreeLifecycleOwner
 
-internal data class PortalRequestCloseRoutingContext(
+internal data class PortalCloseRequestRoutingContext(
   val dispatcherOwner: OnBackPressedDispatcherOwner?,
   val lifecycleOwner: LifecycleOwner?,
   val rootView: View,
@@ -23,9 +23,9 @@ internal data class PortalRequestCloseRoutingContext(
  * destroyed custom lifecycle owner is intentionally retained instead of falling back to a broader
  * Activity lifecycle.
  */
-internal fun View.resolvePortalRequestCloseRoutingContext(
+internal fun View.resolvePortalCloseRequestRoutingContext(
   currentActivity: Activity?
-): PortalRequestCloseRoutingContext? {
+): PortalCloseRequestRoutingContext? {
   if (!isAttachedToWindow) return null
 
   val validatedCurrentActivity = currentActivity?.takeIf(::isValidActivityOwner)
@@ -52,7 +52,7 @@ internal fun View.resolvePortalRequestCloseRoutingContext(
       else -> dispatcherOwner
     }
 
-  return PortalRequestCloseRoutingContext(dispatcherOwner, lifecycleOwner, rootView)
+  return PortalCloseRequestRoutingContext(dispatcherOwner, lifecycleOwner, rootView)
 }
 
 private fun View.isValidActivityOwner(activity: Activity): Boolean =

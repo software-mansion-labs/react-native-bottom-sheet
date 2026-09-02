@@ -18,10 +18,10 @@ export interface NativeProps extends ViewProps {
   animateContentHeight?: CodegenTypes.WithDefault<boolean, true>;
   modal: boolean;
   nativeOverlay?: boolean;
-  // Android-only signal that JS supplied `onRequestClose`. Native event-handler
+  // Android-only signal that JS supplied `onCloseRequest`. Native event-handler
   // presence is not otherwise observable, so Android uses this to decide whether
   // a modal should own Back/Escape input.
-  hasRequestCloseHandler: boolean;
+  hasCloseRequestHandler: boolean;
   // Consulted natively only in native-overlay mode, where the detent cap is
   // computed from the overlay's real bounds and insets; inline sheets bake the
   // flag into the JS-computed maxDetentHeight as before.
@@ -39,7 +39,7 @@ export interface NativeProps extends ViewProps {
   onPositionChange?: CodegenTypes.DirectEventHandler<
     Readonly<{ position: CodegenTypes.Double; index: CodegenTypes.Double }>
   >;
-  onRequestClose?: CodegenTypes.DirectEventHandler<null>;
+  onCloseRequest?: CodegenTypes.DirectEventHandler<null>;
 }
 
 export default codegenNativeComponent<NativeProps>('BottomSheetView');

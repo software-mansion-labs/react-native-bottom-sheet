@@ -1,15 +1,15 @@
-package com.swmansion.reactnativebottomsheet.requestclose
+package com.swmansion.reactnativebottomsheet.closerequest
 
-private const val REQUEST_CLOSE_VISIBLE_EPSILON_PX = 0.5f
+private const val CLOSE_REQUEST_VISIBLE_EPSILON_PX = 0.5f
 
 /**
  * Tracks whether a visibly closing sheet still owns Back/Escape input.
  *
- * Request-close eligibility follows the target detent, but a visible sheet animating toward a
+ * Close request eligibility follows the target detent, but a visible sheet animating toward a
  * closed target must retain input ownership until the transition settles. Centralizing that
  * lifecycle here keeps layout and animation paths consistent.
  */
-internal class RequestClosePresentationTracker {
+internal class CloseRequestPresentationTracker {
   private var closingPresentationActive = false
 
   fun onAnimationStarted(
@@ -18,7 +18,7 @@ internal class RequestClosePresentationTracker {
   ) {
     closingPresentationActive =
       !isTargetOpen &&
-        (closingPresentationActive || visibleHeight > REQUEST_CLOSE_VISIBLE_EPSILON_PX)
+        (closingPresentationActive || visibleHeight > CLOSE_REQUEST_VISIBLE_EPSILON_PX)
   }
 
   fun onTransitionSettled() = resetClosingPresentation()
@@ -33,6 +33,6 @@ internal class RequestClosePresentationTracker {
 
   fun isPresentationActive(
     isTargetDetentOpen: Boolean,
-    isRequestCloseLayoutReady: Boolean,
-  ): Boolean = isRequestCloseLayoutReady && (isTargetDetentOpen || closingPresentationActive)
+    isCloseRequestLayoutReady: Boolean,
+  ): Boolean = isCloseRequestLayoutReady && (isTargetDetentOpen || closingPresentationActive)
 }

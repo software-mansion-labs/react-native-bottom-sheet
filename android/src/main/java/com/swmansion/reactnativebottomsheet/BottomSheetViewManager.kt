@@ -53,8 +53,8 @@ class BottomSheetViewManager :
           dispatchEvent(view, "topPositionChange", event)
         }
 
-        override fun onRequestClose() {
-          dispatchEvent(view, "topRequestClose", Arguments.createMap())
+        override fun onCloseRequest() {
+          dispatchEvent(view, "topCloseRequest", Arguments.createMap())
         }
       }
     return view
@@ -98,7 +98,7 @@ class BottomSheetViewManager :
       "topIndexChange" to mapOf("registrationName" to "onIndexChange"),
       "topSettle" to mapOf("registrationName" to "onSettle"),
       "topPositionChange" to mapOf("registrationName" to "onPositionChange"),
-      "topRequestClose" to mapOf("registrationName" to "onRequestClose"),
+      "topCloseRequest" to mapOf("registrationName" to "onCloseRequest"),
     )
   }
 
@@ -144,9 +144,9 @@ class BottomSheetViewManager :
     view.setNativeOverlay(value)
   }
 
-  @ReactProp(name = "hasRequestCloseHandler")
-  override fun setHasRequestCloseHandler(view: BottomSheetView, value: Boolean) {
-    view.setHasRequestCloseHandler(value)
+  @ReactProp(name = "hasCloseRequestHandler")
+  override fun setHasCloseRequestHandler(view: BottomSheetView, value: Boolean) {
+    view.setHasCloseRequestHandler(value)
   }
 
   @ReactProp(name = "extendUnderStatusBar")

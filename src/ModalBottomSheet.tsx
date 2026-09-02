@@ -16,7 +16,7 @@ export interface ModalBottomSheetProps extends BottomSheetProps {
    * close it. While a visible sheet is animating to a closed target, further
    * Back/Escape input is consumed without another callback until settle.
    */
-  onRequestClose?: () => void;
+  onCloseRequest?: () => void;
   /**
    * Present the sheet in a native overlay above everything—including native
    * modal screens (e.g. a React Navigation native-stack `presentation: "modal"`)

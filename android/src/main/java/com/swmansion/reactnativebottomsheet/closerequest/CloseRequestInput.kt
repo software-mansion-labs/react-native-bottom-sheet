@@ -1,4 +1,4 @@
-package com.swmansion.reactnativebottomsheet.requestclose
+package com.swmansion.reactnativebottomsheet.closerequest
 
 import android.view.KeyEvent
 import androidx.activity.BackEventCompat
@@ -6,12 +6,12 @@ import androidx.activity.OnBackPressedCallback
 
 /**
  * Result of routing Back/Escape input:
- * - [REQUEST_CLOSE] consumes the input and emits the request-close callback.
+ * - [EMIT_CLOSE_REQUEST] consumes the input and emits the close request callback.
  * - [CONSUME] maintains the modal boundary without emitting the callback.
  * - [PASS_THROUGH] passes handling beyond the sheet.
  */
-internal enum class RequestCloseInputAction {
-  REQUEST_CLOSE,
+internal enum class CloseRequestInputAction {
+  EMIT_CLOSE_REQUEST,
   CONSUME,
   PASS_THROUGH,
 }
@@ -23,54 +23,54 @@ internal enum class RequestCloseInputAction {
  * [isPresentationActive] also remains true while a visible sheet animates to a closed target, so
  * the modal boundary is maintained until settle.
  */
-internal data class RequestCloseInputState(
+internal data class CloseRequestInputState(
   val isAttached: Boolean,
   val isLifecycleActive: Boolean,
   val isModal: Boolean,
-  val hasRequestCloseHandler: Boolean,
+  val hasCloseRequestHandler: Boolean,
   val isPresentationActive: Boolean,
   val isTargetResolvedAndOpen: Boolean,
 ) {
   companion object {
     val INACTIVE =
-      RequestCloseInputState(
+      CloseRequestInputState(
         isAttached = false,
         isLifecycleActive = false,
         isModal = false,
-        hasRequestCloseHandler = false,
+        hasCloseRequestHandler = false,
         isPresentationActive = false,
         isTargetResolvedAndOpen = false,
       )
   }
 }
 
-internal fun resolveRequestCloseInputAction(
-  state: RequestCloseInputState
-): RequestCloseInputAction {
+internal fun resolveCloseRequestInputAction(
+  state: CloseRequestInputState
+): CloseRequestInputAction {
   if (
     !state.isAttached ||
       !state.isLifecycleActive ||
       !state.isModal ||
-      !state.hasRequestCloseHandler ||
+      !state.hasCloseRequestHandler ||
       !state.isPresentationActive
   ) {
-    return RequestCloseInputAction.PASS_THROUGH
+    return CloseRequestInputAction.PASS_THROUGH
   }
   return if (state.isTargetResolvedAndOpen) {
-    RequestCloseInputAction.REQUEST_CLOSE
+    CloseRequestInputAction.EMIT_CLOSE_REQUEST
   } else {
-    RequestCloseInputAction.CONSUME
+    CloseRequestInputAction.CONSUME
   }
 }
 
 /** Pins one complete Back action at predictive-gesture start and never retargets its commit. */
-internal class RequestCloseBackCallback(
-  private val resolveAction: () -> RequestCloseInputAction,
-  private val executeAction: (RequestCloseInputAction) -> Unit,
+internal class CloseRequestBackCallback(
+  private val resolveAction: () -> CloseRequestInputAction,
+  private val executeAction: (CloseRequestInputAction) -> Unit,
   private val onPredictiveBackStateChanged: () -> Unit = {},
 ) : OnBackPressedCallback(false) {
   private var canReceiveBack = false
-  private var pinnedAction: RequestCloseInputAction? = null
+  private var pinnedAction: CloseRequestInputAction? = null
   private var disposed = false
 
   var isPredictiveBackInProgress = false
@@ -78,16 +78,16 @@ internal class RequestCloseBackCallback(
 
   fun updateState(
     canReceiveBack: Boolean,
-    currentAction: RequestCloseInputAction,
+    currentAction: CloseRequestInputAction,
   ) {
     if (disposed) return
     this.canReceiveBack = canReceiveBack
     if (
       isPredictiveBackInProgress &&
-        pinnedAction == RequestCloseInputAction.REQUEST_CLOSE &&
-        currentAction != RequestCloseInputAction.REQUEST_CLOSE
+        pinnedAction == CloseRequestInputAction.EMIT_CLOSE_REQUEST &&
+        currentAction != CloseRequestInputAction.EMIT_CLOSE_REQUEST
     ) {
-      pinnedAction = RequestCloseInputAction.CONSUME
+      pinnedAction = CloseRequestInputAction.CONSUME
     }
     isEnabled = canReceiveBack || isPredictiveBackInProgress
   }
@@ -135,21 +135,21 @@ internal class RequestCloseBackCallback(
  * Tracks the current Escape sequence from its initial down through its terminal up. Android may
  * start a new sequence without delivering the preceding up, so every initial down replaces the
  * unfinished sequence. Repeats preserve the initial action, and an up always finishes the current
- * sequence without relying on event identity or down time. A request-close action can only degrade
+ * sequence without relying on event identity or down time. A close request action can only degrade
  * to consume, so eligibility returning during the same press never reactivates emission.
  */
-internal class EscapeRequestCloseDispatcher {
-  private var sequenceAction: RequestCloseInputAction? = null
+internal class EscapeCloseRequestDispatcher {
+  private var sequenceAction: CloseRequestInputAction? = null
 
   val hasCapturedPress: Boolean
     get() =
-      sequenceAction == RequestCloseInputAction.REQUEST_CLOSE ||
-        sequenceAction == RequestCloseInputAction.CONSUME
+      sequenceAction == CloseRequestInputAction.EMIT_CLOSE_REQUEST ||
+        sequenceAction == CloseRequestInputAction.CONSUME
 
   fun dispatch(
     event: KeyEvent,
-    resolveInitialAction: () -> RequestCloseInputAction,
-    emitRequestCloseIfEligible: () -> Boolean,
+    resolveInitialAction: () -> CloseRequestInputAction,
+    emitCloseRequestIfEligible: () -> Boolean,
   ): Boolean {
     if (event.keyCode != KeyEvent.KEYCODE_ESCAPE) return false
 
@@ -160,7 +160,7 @@ internal class EscapeRequestCloseDispatcher {
             if (event.hasNoModifiers()) {
               resolveInitialAction()
             } else {
-              RequestCloseInputAction.PASS_THROUGH
+              CloseRequestInputAction.PASS_THROUGH
             }
         }
         hasCapturedPress
@@ -169,22 +169,22 @@ internal class EscapeRequestCloseDispatcher {
         val completedAction = sequenceAction
         sequenceAction = null
         if (
-          completedAction == RequestCloseInputAction.REQUEST_CLOSE &&
+          completedAction == CloseRequestInputAction.EMIT_CLOSE_REQUEST &&
             !event.isCanceled &&
             event.hasNoModifiers()
         ) {
-          emitRequestCloseIfEligible()
+          emitCloseRequestIfEligible()
         }
-        completedAction == RequestCloseInputAction.REQUEST_CLOSE ||
-          completedAction == RequestCloseInputAction.CONSUME
+        completedAction == CloseRequestInputAction.EMIT_CLOSE_REQUEST ||
+          completedAction == CloseRequestInputAction.CONSUME
       }
       else -> false
     }
   }
 
-  fun degradeCapturedRequestClose() {
-    if (sequenceAction == RequestCloseInputAction.REQUEST_CLOSE) {
-      sequenceAction = RequestCloseInputAction.CONSUME
+  fun degradeCapturedCloseRequest() {
+    if (sequenceAction == CloseRequestInputAction.EMIT_CLOSE_REQUEST) {
+      sequenceAction = CloseRequestInputAction.CONSUME
     }
   }
 

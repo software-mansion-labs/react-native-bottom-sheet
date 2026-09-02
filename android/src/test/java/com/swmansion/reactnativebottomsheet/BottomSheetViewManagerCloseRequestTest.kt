@@ -33,14 +33,14 @@ import org.robolectric.annotation.Implements
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35], shadows = [TestArgumentsShadow::class, TestUIManagerHelperShadow::class])
-class BottomSheetViewManagerRequestCloseTest {
+class BottomSheetViewManagerCloseRequestTest {
   @Before
   fun useLocalReactNativeFeatureFlags() {
     ReactNativeFeatureFlagsForTests.setUp()
   }
 
   @Test
-  fun `Back emits one topRequestClose mapped to onRequestClose through the manager bridge`() {
+  fun `Back emits one topCloseRequest mapped to onCloseRequest through the manager bridge`() {
     withActivity<ComponentActivity> { activity ->
       val eventDispatcher = RecordingEventDispatcher()
       TestUIManagerHelperShadow.eventDispatcher = eventDispatcher
@@ -53,7 +53,7 @@ class BottomSheetViewManagerRequestCloseTest {
         BottomSheetViewManagerDelegate<BottomSheetView, BottomSheetViewManager>(manager)
 
       delegate.setProperty(sheet, "modal", true)
-      delegate.setProperty(sheet, "hasRequestCloseHandler", true)
+      delegate.setProperty(sheet, "hasCloseRequestHandler", true)
       manager.setAnimateIn(sheet, false)
       manager.setDetents(
         sheet,
@@ -70,10 +70,10 @@ class BottomSheetViewManagerRequestCloseTest {
 
       activity.onBackPressedDispatcher.onBackPressed()
 
-      assertEquals(listOf("topRequestClose"), eventDispatcher.eventNames)
+      assertEquals(listOf("topCloseRequest"), eventDispatcher.eventNames)
       assertEquals(
-        "onRequestClose",
-        manager.exportedCustomDirectEventTypeConstants["topRequestClose"]
+        "onCloseRequest",
+        manager.exportedCustomDirectEventTypeConstants["topCloseRequest"]
           ?.let { it as Map<*, *> }
           ?.get("registrationName"),
       )

@@ -1,4 +1,4 @@
-package com.swmansion.reactnativebottomsheet.requestclose
+package com.swmansion.reactnativebottomsheet.closerequest
 
 import android.view.KeyEvent
 import androidx.activity.BackEventCompat
@@ -12,74 +12,74 @@ import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
-class RequestCloseInputTest {
+class CloseRequestInputTest {
   @Test
   fun `resolver separates request consume and pass-through`() {
     assertEquals(
-      RequestCloseInputAction.REQUEST_CLOSE,
-      resolveRequestCloseInputAction(inputState()),
+      CloseRequestInputAction.EMIT_CLOSE_REQUEST,
+      resolveCloseRequestInputAction(inputState()),
     )
     assertEquals(
-      RequestCloseInputAction.CONSUME,
-      resolveRequestCloseInputAction(inputState(isTargetResolvedAndOpen = false)),
+      CloseRequestInputAction.CONSUME,
+      resolveCloseRequestInputAction(inputState(isTargetResolvedAndOpen = false)),
     )
 
     listOf(
-        inputState(hasRequestCloseHandler = false),
+        inputState(hasCloseRequestHandler = false),
         inputState(isPresentationActive = false, isTargetResolvedAndOpen = false),
         inputState(isLifecycleActive = false),
         inputState(isAttached = false),
-        inputState(isModal = false, hasRequestCloseHandler = true),
+        inputState(isModal = false, hasCloseRequestHandler = true),
       )
       .forEach { state ->
         assertEquals(
-          RequestCloseInputAction.PASS_THROUGH,
-          resolveRequestCloseInputAction(state),
+          CloseRequestInputAction.PASS_THROUGH,
+          resolveCloseRequestInputAction(state),
         )
       }
   }
 
   @Test
   fun `predictive request can only degrade within one Back sequence`() {
-    var action = RequestCloseInputAction.REQUEST_CLOSE
-    val executed = mutableListOf<RequestCloseInputAction>()
+    var action = CloseRequestInputAction.EMIT_CLOSE_REQUEST
+    val executed = mutableListOf<CloseRequestInputAction>()
     val callback =
-      RequestCloseBackCallback(
+      CloseRequestBackCallback(
         resolveAction = { action },
         executeAction = executed::add,
       )
     callback.updateState(canReceiveBack = true, currentAction = action)
 
     callback.handleOnBackStarted(backEvent())
-    action = RequestCloseInputAction.CONSUME
+    action = CloseRequestInputAction.CONSUME
     callback.updateState(canReceiveBack = true, currentAction = action)
-    action = RequestCloseInputAction.REQUEST_CLOSE
+    action = CloseRequestInputAction.EMIT_CLOSE_REQUEST
     callback.updateState(canReceiveBack = true, currentAction = action)
     callback.handleOnBackPressed()
 
-    assertEquals(listOf(RequestCloseInputAction.CONSUME), executed)
+    assertEquals(listOf(CloseRequestInputAction.CONSUME), executed)
     assertFalse(callback.isPredictiveBackInProgress)
 
     callback.handleOnBackPressed()
     assertEquals(
-      listOf(RequestCloseInputAction.CONSUME, RequestCloseInputAction.REQUEST_CLOSE),
+      listOf(CloseRequestInputAction.CONSUME, CloseRequestInputAction.EMIT_CLOSE_REQUEST),
       executed,
     )
   }
 
   @Test
   fun `disposed predictive callback ignores late cancellation and commit`() {
-    val executed = mutableListOf<RequestCloseInputAction>()
+    val executed = mutableListOf<CloseRequestInputAction>()
     var predictiveStateChanges = 0
     val callback =
-      RequestCloseBackCallback(
-        resolveAction = { RequestCloseInputAction.REQUEST_CLOSE },
+      CloseRequestBackCallback(
+        resolveAction = { CloseRequestInputAction.EMIT_CLOSE_REQUEST },
         executeAction = executed::add,
         onPredictiveBackStateChanged = { predictiveStateChanges++ },
       )
     callback.updateState(
       canReceiveBack = true,
-      currentAction = RequestCloseInputAction.REQUEST_CLOSE,
+      currentAction = CloseRequestInputAction.EMIT_CLOSE_REQUEST,
     )
     callback.handleOnBackStarted(backEvent())
     callback.dispose()
@@ -95,23 +95,23 @@ class RequestCloseInputTest {
 
   @Test
   fun `predictive Back cancellation clears its pinned action without executing it`() {
-    val executed = mutableListOf<RequestCloseInputAction>()
+    val executed = mutableListOf<CloseRequestInputAction>()
     var predictiveStateChanges = 0
     val callback =
-      RequestCloseBackCallback(
-        resolveAction = { RequestCloseInputAction.REQUEST_CLOSE },
+      CloseRequestBackCallback(
+        resolveAction = { CloseRequestInputAction.EMIT_CLOSE_REQUEST },
         executeAction = executed::add,
         onPredictiveBackStateChanged = { predictiveStateChanges++ },
       )
     callback.updateState(
       canReceiveBack = true,
-      currentAction = RequestCloseInputAction.REQUEST_CLOSE,
+      currentAction = CloseRequestInputAction.EMIT_CLOSE_REQUEST,
     )
 
     callback.handleOnBackStarted(backEvent())
     callback.updateState(
       canReceiveBack = false,
-      currentAction = RequestCloseInputAction.REQUEST_CLOSE,
+      currentAction = CloseRequestInputAction.EMIT_CLOSE_REQUEST,
     )
     callback.handleOnBackCancelled()
 
@@ -123,51 +123,51 @@ class RequestCloseInputTest {
 
   @Test
   fun `predictive pass-through stays pinned until commit before later Back can request close`() {
-    var action = RequestCloseInputAction.PASS_THROUGH
-    val executed = mutableListOf<RequestCloseInputAction>()
+    var action = CloseRequestInputAction.PASS_THROUGH
+    val executed = mutableListOf<CloseRequestInputAction>()
     val callback =
-      RequestCloseBackCallback(
+      CloseRequestBackCallback(
         resolveAction = { action },
         executeAction = executed::add,
       )
     callback.updateState(canReceiveBack = true, currentAction = action)
 
     callback.handleOnBackStarted(backEvent())
-    action = RequestCloseInputAction.REQUEST_CLOSE
+    action = CloseRequestInputAction.EMIT_CLOSE_REQUEST
     callback.updateState(canReceiveBack = true, currentAction = action)
     callback.handleOnBackPressed()
 
-    assertEquals(listOf(RequestCloseInputAction.PASS_THROUGH), executed)
+    assertEquals(listOf(CloseRequestInputAction.PASS_THROUGH), executed)
     assertFalse(callback.isPredictiveBackInProgress)
 
     callback.handleOnBackPressed()
     assertEquals(
-      listOf(RequestCloseInputAction.PASS_THROUGH, RequestCloseInputAction.REQUEST_CLOSE),
+      listOf(CloseRequestInputAction.PASS_THROUGH, CloseRequestInputAction.EMIT_CLOSE_REQUEST),
       executed,
     )
   }
 
   @Test
   fun `Escape uses shared consume and pass-through actions`() {
-    val dispatcher = EscapeRequestCloseDispatcher()
+    val dispatcher = EscapeCloseRequestDispatcher()
     var emissionCount = 0
 
     assertTrue(
       dispatcher.dispatch(
         event = escapeDown(10L),
-        resolveInitialAction = { RequestCloseInputAction.REQUEST_CLOSE },
-        emitRequestCloseIfEligible = {
+        resolveInitialAction = { CloseRequestInputAction.EMIT_CLOSE_REQUEST },
+        emitCloseRequestIfEligible = {
           emissionCount++
           true
         },
       )
     )
-    dispatcher.degradeCapturedRequestClose()
+    dispatcher.degradeCapturedCloseRequest()
     assertTrue(
       dispatcher.dispatch(
         event = escapeUp(10L),
-        resolveInitialAction = { RequestCloseInputAction.REQUEST_CLOSE },
-        emitRequestCloseIfEligible = {
+        resolveInitialAction = { CloseRequestInputAction.EMIT_CLOSE_REQUEST },
+        emitCloseRequestIfEligible = {
           emissionCount++
           true
         },
@@ -178,8 +178,8 @@ class RequestCloseInputTest {
     assertFalse(
       dispatcher.dispatch(
         event = escapeDown(20L),
-        resolveInitialAction = { RequestCloseInputAction.PASS_THROUGH },
-        emitRequestCloseIfEligible = {
+        resolveInitialAction = { CloseRequestInputAction.PASS_THROUGH },
+        emitCloseRequestIfEligible = {
           emissionCount++
           true
         },
@@ -188,8 +188,8 @@ class RequestCloseInputTest {
     assertFalse(
       dispatcher.dispatch(
         event = escapeUp(20L),
-        resolveInitialAction = { RequestCloseInputAction.REQUEST_CLOSE },
-        emitRequestCloseIfEligible = {
+        resolveInitialAction = { CloseRequestInputAction.EMIT_CLOSE_REQUEST },
+        emitCloseRequestIfEligible = {
           emissionCount++
           true
         },
@@ -200,14 +200,14 @@ class RequestCloseInputTest {
 
   @Test
   fun `Escape emits only on terminal key-up`() {
-    val dispatcher = EscapeRequestCloseDispatcher()
+    val dispatcher = EscapeCloseRequestDispatcher()
     var emissionCount = 0
 
     assertTrue(
       dispatcher.dispatch(
         event = escapeDown(200L),
-        resolveInitialAction = { RequestCloseInputAction.REQUEST_CLOSE },
-        emitRequestCloseIfEligible = {
+        resolveInitialAction = { CloseRequestInputAction.EMIT_CLOSE_REQUEST },
+        emitCloseRequestIfEligible = {
           emissionCount++
           true
         },
@@ -217,8 +217,8 @@ class RequestCloseInputTest {
     assertTrue(
       dispatcher.dispatch(
         event = escapeUp(200L),
-        resolveInitialAction = { RequestCloseInputAction.REQUEST_CLOSE },
-        emitRequestCloseIfEligible = {
+        resolveInitialAction = { CloseRequestInputAction.EMIT_CLOSE_REQUEST },
+        emitCloseRequestIfEligible = {
           emissionCount++
           true
         },
@@ -229,9 +229,9 @@ class RequestCloseInputTest {
 
   @Test
   fun `Escape rejects modifiers and repeats without duplicate emission`() {
-    val dispatcher = EscapeRequestCloseDispatcher()
+    val dispatcher = EscapeCloseRequestDispatcher()
     var emissionCount = 0
-    val emitRequestClose = {
+    val emitCloseRequest = {
       emissionCount++
       true
     }
@@ -239,38 +239,38 @@ class RequestCloseInputTest {
     assertFalse(
       dispatcher.dispatch(
         event = escapeDown(210L, metaState = KeyEvent.META_SHIFT_ON),
-        resolveInitialAction = { RequestCloseInputAction.REQUEST_CLOSE },
-        emitRequestCloseIfEligible = emitRequestClose,
+        resolveInitialAction = { CloseRequestInputAction.EMIT_CLOSE_REQUEST },
+        emitCloseRequestIfEligible = emitCloseRequest,
       )
     )
     assertFalse(
       dispatcher.dispatch(
         event = escapeUp(210L, metaState = KeyEvent.META_SHIFT_ON),
-        resolveInitialAction = { RequestCloseInputAction.REQUEST_CLOSE },
-        emitRequestCloseIfEligible = emitRequestClose,
+        resolveInitialAction = { CloseRequestInputAction.EMIT_CLOSE_REQUEST },
+        emitCloseRequestIfEligible = emitCloseRequest,
       )
     )
 
     assertTrue(
       dispatcher.dispatch(
         event = escapeDown(220L),
-        resolveInitialAction = { RequestCloseInputAction.REQUEST_CLOSE },
-        emitRequestCloseIfEligible = emitRequestClose,
+        resolveInitialAction = { CloseRequestInputAction.EMIT_CLOSE_REQUEST },
+        emitCloseRequestIfEligible = emitCloseRequest,
       )
     )
     assertTrue(
       dispatcher.dispatch(
         event = escapeDown(220L, repeatCount = 1),
-        resolveInitialAction = { RequestCloseInputAction.REQUEST_CLOSE },
-        emitRequestCloseIfEligible = emitRequestClose,
+        resolveInitialAction = { CloseRequestInputAction.EMIT_CLOSE_REQUEST },
+        emitCloseRequestIfEligible = emitCloseRequest,
       )
     )
     assertEquals(0, emissionCount)
     assertTrue(
       dispatcher.dispatch(
         event = escapeUp(220L),
-        resolveInitialAction = { RequestCloseInputAction.REQUEST_CLOSE },
-        emitRequestCloseIfEligible = emitRequestClose,
+        resolveInitialAction = { CloseRequestInputAction.EMIT_CLOSE_REQUEST },
+        emitCloseRequestIfEligible = emitCloseRequest,
       )
     )
     assertEquals(1, emissionCount)
@@ -278,15 +278,15 @@ class RequestCloseInputTest {
     assertTrue(
       dispatcher.dispatch(
         event = escapeDown(230L),
-        resolveInitialAction = { RequestCloseInputAction.REQUEST_CLOSE },
-        emitRequestCloseIfEligible = emitRequestClose,
+        resolveInitialAction = { CloseRequestInputAction.EMIT_CLOSE_REQUEST },
+        emitCloseRequestIfEligible = emitCloseRequest,
       )
     )
     assertTrue(
       dispatcher.dispatch(
         event = escapeUp(230L, metaState = KeyEvent.META_SHIFT_ON),
-        resolveInitialAction = { RequestCloseInputAction.REQUEST_CLOSE },
-        emitRequestCloseIfEligible = emitRequestClose,
+        resolveInitialAction = { CloseRequestInputAction.EMIT_CLOSE_REQUEST },
+        emitCloseRequestIfEligible = emitCloseRequest,
       )
     )
     assertEquals(1, emissionCount)
@@ -294,9 +294,9 @@ class RequestCloseInputTest {
 
   @Test
   fun `new Escape down replaces an orphaned captured press`() {
-    val dispatcher = EscapeRequestCloseDispatcher()
+    val dispatcher = EscapeCloseRequestDispatcher()
     var emissionCount = 0
-    val emitRequestClose = {
+    val emitCloseRequest = {
       emissionCount++
       true
     }
@@ -304,22 +304,22 @@ class RequestCloseInputTest {
     assertTrue(
       dispatcher.dispatch(
         event = escapeDown(240L),
-        resolveInitialAction = { RequestCloseInputAction.REQUEST_CLOSE },
-        emitRequestCloseIfEligible = emitRequestClose,
+        resolveInitialAction = { CloseRequestInputAction.EMIT_CLOSE_REQUEST },
+        emitCloseRequestIfEligible = emitCloseRequest,
       )
     )
     assertTrue(
       dispatcher.dispatch(
         event = escapeDown(241L),
-        resolveInitialAction = { RequestCloseInputAction.REQUEST_CLOSE },
-        emitRequestCloseIfEligible = emitRequestClose,
+        resolveInitialAction = { CloseRequestInputAction.EMIT_CLOSE_REQUEST },
+        emitCloseRequestIfEligible = emitCloseRequest,
       )
     )
     assertTrue(
       dispatcher.dispatch(
         event = escapeUp(241L),
-        resolveInitialAction = { RequestCloseInputAction.REQUEST_CLOSE },
-        emitRequestCloseIfEligible = emitRequestClose,
+        resolveInitialAction = { CloseRequestInputAction.EMIT_CLOSE_REQUEST },
+        emitCloseRequestIfEligible = emitCloseRequest,
       )
     )
     assertEquals(1, emissionCount)
@@ -327,15 +327,15 @@ class RequestCloseInputTest {
     assertTrue(
       dispatcher.dispatch(
         event = escapeDown(242L),
-        resolveInitialAction = { RequestCloseInputAction.REQUEST_CLOSE },
-        emitRequestCloseIfEligible = emitRequestClose,
+        resolveInitialAction = { CloseRequestInputAction.EMIT_CLOSE_REQUEST },
+        emitCloseRequestIfEligible = emitCloseRequest,
       )
     )
     assertTrue(
       dispatcher.dispatch(
         event = escapeUp(242L),
-        resolveInitialAction = { RequestCloseInputAction.REQUEST_CLOSE },
-        emitRequestCloseIfEligible = emitRequestClose,
+        resolveInitialAction = { CloseRequestInputAction.EMIT_CLOSE_REQUEST },
+        emitCloseRequestIfEligible = emitCloseRequest,
       )
     )
     assertEquals(2, emissionCount)
@@ -343,9 +343,9 @@ class RequestCloseInputTest {
 
   @Test
   fun `Escape key-up without a captured down is unhandled`() {
-    val dispatcher = EscapeRequestCloseDispatcher()
+    val dispatcher = EscapeCloseRequestDispatcher()
     var emissionCount = 0
-    val emitRequestClose = {
+    val emitCloseRequest = {
       emissionCount++
       true
     }
@@ -353,23 +353,23 @@ class RequestCloseInputTest {
     assertFalse(
       dispatcher.dispatch(
         event = escapeUp(250L),
-        resolveInitialAction = { RequestCloseInputAction.REQUEST_CLOSE },
-        emitRequestCloseIfEligible = emitRequestClose,
+        resolveInitialAction = { CloseRequestInputAction.EMIT_CLOSE_REQUEST },
+        emitCloseRequestIfEligible = emitCloseRequest,
       )
     )
     assertEquals(0, emissionCount)
     assertTrue(
       dispatcher.dispatch(
         event = escapeDown(251L),
-        resolveInitialAction = { RequestCloseInputAction.REQUEST_CLOSE },
-        emitRequestCloseIfEligible = emitRequestClose,
+        resolveInitialAction = { CloseRequestInputAction.EMIT_CLOSE_REQUEST },
+        emitCloseRequestIfEligible = emitCloseRequest,
       )
     )
     assertTrue(
       dispatcher.dispatch(
         event = escapeUp(251L),
-        resolveInitialAction = { RequestCloseInputAction.REQUEST_CLOSE },
-        emitRequestCloseIfEligible = emitRequestClose,
+        resolveInitialAction = { CloseRequestInputAction.EMIT_CLOSE_REQUEST },
+        emitCloseRequestIfEligible = emitCloseRequest,
       )
     )
     assertEquals(1, emissionCount)
@@ -377,9 +377,9 @@ class RequestCloseInputTest {
 
   @Test
   fun `cancelled Escape key-up consumes and clears the captured press without emitting`() {
-    val dispatcher = EscapeRequestCloseDispatcher()
+    val dispatcher = EscapeCloseRequestDispatcher()
     var emissionCount = 0
-    val emitRequestClose = {
+    val emitCloseRequest = {
       emissionCount++
       true
     }
@@ -387,16 +387,16 @@ class RequestCloseInputTest {
     assertTrue(
       dispatcher.dispatch(
         event = escapeDown(260L),
-        resolveInitialAction = { RequestCloseInputAction.REQUEST_CLOSE },
-        emitRequestCloseIfEligible = emitRequestClose,
+        resolveInitialAction = { CloseRequestInputAction.EMIT_CLOSE_REQUEST },
+        emitCloseRequestIfEligible = emitCloseRequest,
       )
     )
     assertTrue(dispatcher.hasCapturedPress)
     assertTrue(
       dispatcher.dispatch(
         event = escapeUp(260L, flags = KeyEvent.FLAG_CANCELED),
-        resolveInitialAction = { RequestCloseInputAction.REQUEST_CLOSE },
-        emitRequestCloseIfEligible = emitRequestClose,
+        resolveInitialAction = { CloseRequestInputAction.EMIT_CLOSE_REQUEST },
+        emitCloseRequestIfEligible = emitCloseRequest,
       )
     )
     assertEquals(0, emissionCount)
@@ -405,15 +405,15 @@ class RequestCloseInputTest {
     assertTrue(
       dispatcher.dispatch(
         event = escapeDown(261L),
-        resolveInitialAction = { RequestCloseInputAction.REQUEST_CLOSE },
-        emitRequestCloseIfEligible = emitRequestClose,
+        resolveInitialAction = { CloseRequestInputAction.EMIT_CLOSE_REQUEST },
+        emitCloseRequestIfEligible = emitCloseRequest,
       )
     )
     assertTrue(
       dispatcher.dispatch(
         event = escapeUp(261L),
-        resolveInitialAction = { RequestCloseInputAction.REQUEST_CLOSE },
-        emitRequestCloseIfEligible = emitRequestClose,
+        resolveInitialAction = { CloseRequestInputAction.EMIT_CLOSE_REQUEST },
+        emitCloseRequestIfEligible = emitCloseRequest,
       )
     )
     assertEquals(1, emissionCount)
@@ -423,15 +423,15 @@ class RequestCloseInputTest {
     isAttached: Boolean = true,
     isLifecycleActive: Boolean = true,
     isModal: Boolean = true,
-    hasRequestCloseHandler: Boolean = true,
+    hasCloseRequestHandler: Boolean = true,
     isPresentationActive: Boolean = true,
     isTargetResolvedAndOpen: Boolean = true,
   ) =
-    RequestCloseInputState(
+    CloseRequestInputState(
       isAttached = isAttached,
       isLifecycleActive = isLifecycleActive,
       isModal = isModal,
-      hasRequestCloseHandler = hasRequestCloseHandler,
+      hasCloseRequestHandler = hasCloseRequestHandler,
       isPresentationActive = isPresentationActive,
       isTargetResolvedAndOpen = isTargetResolvedAndOpen,
     )

@@ -1,4 +1,4 @@
-package com.swmansion.reactnativebottomsheet.requestclose
+package com.swmansion.reactnativebottomsheet.closerequest
 
 import android.app.Activity
 import android.content.Context
@@ -18,36 +18,36 @@ import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
-class PortalRequestCloseControllerTest {
+class PortalCloseRequestControllerTest {
   private var nextEscapeDownTime = 1_000L
 
   @Test
   fun `clear and dispose restore fallback without emitting late requests`() {
     withActivity<ComponentActivity> { activity ->
       var fallbackCount = 0
-      var requestCloseCount = 0
+      var closeRequestCount = 0
       activity.onBackPressedDispatcher.addCallback(countingCallback { fallbackCount++ })
       val portal = View(activity).apply { isFocusableInTouchMode = true }
       activity.setContentView(portal)
       assertTrue(portal.requestFocus())
       val controller =
-        PortalRequestCloseController(
+        PortalCloseRequestController(
           view = portal,
           currentActivity = { activity },
-          emitRequestClose = {
-            requestCloseCount++
+          emitCloseRequest = {
+            closeRequestCount++
             true
           },
         )
 
       controller.update(inputState(), usesPortalPresentation = true)
       activity.onBackPressedDispatcher.onBackPressed()
-      assertEquals(1, requestCloseCount)
+      assertEquals(1, closeRequestCount)
 
       controller.clear()
       activity.onBackPressedDispatcher.onBackPressed()
       assertEquals(1, fallbackCount)
-      assertEquals(1, requestCloseCount)
+      assertEquals(1, closeRequestCount)
 
       controller.update(inputState(), usesPortalPresentation = true)
       activity.onBackPressedDispatcher.onBackPressed()
@@ -55,7 +55,7 @@ class PortalRequestCloseControllerTest {
       activity.onBackPressedDispatcher.onBackPressed()
 
       assertEquals(2, fallbackCount)
-      assertEquals(2, requestCloseCount)
+      assertEquals(2, closeRequestCount)
     }
   }
 
@@ -63,18 +63,18 @@ class PortalRequestCloseControllerTest {
   fun `handler and presentation changes route Back and Escape observably`() {
     withActivity<ComponentActivity> { activity ->
       var fallbackCount = 0
-      var requestCloseCount = 0
+      var closeRequestCount = 0
       activity.onBackPressedDispatcher.addCallback(countingCallback { fallbackCount++ })
       val portal = EscapeDispatchingView(activity).apply { isFocusableInTouchMode = true }
       activity.setContentView(portal)
       layoutView(portal)
       assertTrue(portal.requestFocus())
       val controller =
-        PortalRequestCloseController(
+        PortalCloseRequestController(
           view = portal,
           currentActivity = { activity },
-          emitRequestClose = {
-            requestCloseCount++
+          emitCloseRequest = {
+            closeRequestCount++
             true
           },
         )
@@ -82,15 +82,15 @@ class PortalRequestCloseControllerTest {
 
       controller.update(inputState(), usesPortalPresentation = true)
       activity.onBackPressedDispatcher.onBackPressed()
-      assertEquals(1, requestCloseCount)
+      assertEquals(1, closeRequestCount)
       assertEscape(activity::dispatchKeyEvent, expectedHandled = true)
-      assertEquals(2, requestCloseCount)
+      assertEquals(2, closeRequestCount)
 
-      controller.update(inputState(hasRequestCloseHandler = false), usesPortalPresentation = true)
+      controller.update(inputState(hasCloseRequestHandler = false), usesPortalPresentation = true)
       activity.onBackPressedDispatcher.onBackPressed()
       assertEquals(1, fallbackCount)
       assertEscape(activity::dispatchKeyEvent, expectedHandled = false)
-      assertEquals(2, requestCloseCount)
+      assertEquals(2, closeRequestCount)
 
       controller.update(
         inputState(isPresentationActive = false, isTargetResolvedAndOpen = false),
@@ -99,34 +99,34 @@ class PortalRequestCloseControllerTest {
       activity.onBackPressedDispatcher.onBackPressed()
       assertEquals(2, fallbackCount)
       assertEscape(activity::dispatchKeyEvent, expectedHandled = false)
-      assertEquals(2, requestCloseCount)
+      assertEquals(2, closeRequestCount)
 
       controller.update(inputState(isTargetResolvedAndOpen = false), usesPortalPresentation = true)
       activity.onBackPressedDispatcher.onBackPressed()
       assertEscape(activity::dispatchKeyEvent, expectedHandled = true)
-      assertEquals(2, requestCloseCount)
+      assertEquals(2, closeRequestCount)
 
       controller.update(inputState(), usesPortalPresentation = true)
       activity.onBackPressedDispatcher.onBackPressed()
-      assertEquals(3, requestCloseCount)
+      assertEquals(3, closeRequestCount)
       assertEscape(activity::dispatchKeyEvent, expectedHandled = true)
 
       assertEquals(2, fallbackCount)
-      assertEquals(4, requestCloseCount)
+      assertEquals(4, closeRequestCount)
       controller.dispose()
     }
   }
 
   private fun inputState(
-    hasRequestCloseHandler: Boolean = true,
+    hasCloseRequestHandler: Boolean = true,
     isPresentationActive: Boolean = true,
     isTargetResolvedAndOpen: Boolean = true,
   ) =
-    RequestCloseInputState(
+    CloseRequestInputState(
       isAttached = true,
       isLifecycleActive = true,
       isModal = true,
-      hasRequestCloseHandler = hasRequestCloseHandler,
+      hasCloseRequestHandler = hasCloseRequestHandler,
       isPresentationActive = isPresentationActive,
       isTargetResolvedAndOpen = isTargetResolvedAndOpen,
     )
