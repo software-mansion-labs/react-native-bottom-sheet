@@ -8,6 +8,7 @@ const sidebars: SidebarsConfig = {
     'inline-sheets',
     'modal-sheets',
     'surface',
+    'detached-sheets',
     'keyboard-handling',
     'scrollable-negotiation',
     'detents-and-index',

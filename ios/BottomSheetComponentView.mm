@@ -140,6 +140,14 @@ using namespace facebook::react;
     [_sheetView setExtendUnderStatusBar:newViewProps.extendUnderStatusBar];
   }
 
+  // Always set (like detents): an oldProps diff misses on a recycled instance
+  // whose retained props still hold the previous sheet's values. The Swift
+  // setters no-op on an unchanged value, so redundant sets are cheap.
+  [_sheetView setBottomInset:newViewProps.bottomInset];
+  [_sheetView setCornerRadius:newViewProps.cornerRadius];
+  [_sheetView setBorderCurveContinuous:
+                  newViewProps.borderCurve == BottomSheetViewBorderCurve::Continuous];
+
   if (newViewProps.scrollableExpandNegotiation != oldViewProps.scrollableExpandNegotiation) {
     _sheetView.scrollableExpandNegotiation = newViewProps.scrollableExpandNegotiation;
   }
