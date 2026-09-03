@@ -1,4 +1,5 @@
-@file:Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+// BridgeReactContext is required by the legacy-architecture test fixture.
+@file:Suppress("DEPRECATION")
 
 package com.swmansion.reactnativebottomsheet
 
@@ -151,5 +152,5 @@ private class RecordingEventDispatcher : EventDispatcher {
 
   override fun removeBatchEventDispatchedListener(listener: BatchEventDispatchedListener) = Unit
 
-  @Suppress("DEPRECATION") override fun onCatalystInstanceDestroyed() = Unit
+  @Suppress("OVERRIDE_DEPRECATION") override fun onCatalystInstanceDestroyed() = Unit
 }

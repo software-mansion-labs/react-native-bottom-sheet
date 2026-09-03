@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.swmansion.reactnativebottomsheet.closerequest
 
 import android.app.Activity

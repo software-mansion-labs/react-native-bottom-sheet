@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
-
 package com.swmansion.reactnativebottomsheet
 
 import androidx.activity.ComponentActivity
