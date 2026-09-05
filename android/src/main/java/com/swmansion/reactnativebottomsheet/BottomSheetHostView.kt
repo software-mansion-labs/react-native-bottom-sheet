@@ -1188,7 +1188,9 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
           scrimPressed = false
           scrimTouchActive = false
           activePointerId = MotionEvent.INVALID_POINTER_ID
-          if (shouldDismiss && closeIndex != null) {
+          // A close already targeting this detent owns the dismissal: restarting it
+          // would emit a second index change and drop the running spring's velocity.
+          if (shouldDismiss && closeIndex != null && closeIndex != targetIndex) {
             snapToIndex(closeIndex, 0f)
           }
           return true
