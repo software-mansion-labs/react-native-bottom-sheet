@@ -148,6 +148,14 @@ using namespace facebook::react;
     _sheetView.scrollableCollapseNegotiation = newViewProps.scrollableCollapseNegotiation;
   }
 
+  if (newViewProps.releaseProjection != oldViewProps.releaseProjection) {
+    _sheetView.releaseProjection = newViewProps.releaseProjection;
+  }
+
+  if (newViewProps.settleDuration != oldViewProps.settleDuration) {
+    _sheetView.settleDuration = newViewProps.settleDuration;
+  }
+
   if (newViewProps.scrimColor != oldViewProps.scrimColor) {
     [_sheetView setScrimColor:RCTUIColorFromSharedColor(newViewProps.scrimColor)];
   }

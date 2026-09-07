@@ -119,6 +119,29 @@ export const validateIndex = (index: number, detentCount: number) => {
   }
 };
 
+/**
+ * Validates the release/settle tuning props. Both are durations in seconds, so a
+ * negative value has no meaning: a negative projection would resolve a release
+ * against the detent it was moving away from, and a negative duration would
+ * produce a spring with no solution.
+ */
+export const validateReleaseTuning = (
+  releaseProjection: number,
+  settleDuration: number
+) => {
+  if (!Number.isFinite(releaseProjection) || releaseProjection < 0) {
+    throw new Error(
+      `Invalid bottom sheet releaseProjection: received ${String(releaseProjection)}. Expected a finite, non-negative number of seconds.`
+    );
+  }
+
+  if (!Number.isFinite(settleDuration) || settleDuration < 0) {
+    throw new Error(
+      `Invalid bottom sheet settleDuration: received ${String(settleDuration)}. Expected a finite, non-negative number of seconds.`
+    );
+  }
+};
+
 const VELOCITY_THRESHOLD = 800;
 
 export const findSnapTarget = (

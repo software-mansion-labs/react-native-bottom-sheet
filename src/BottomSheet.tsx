@@ -12,6 +12,7 @@ import {
   isNormalizedDetentClosed,
   normalizeDetent,
   validateIndex,
+  validateReleaseTuning,
 } from './bottomSheetUtils';
 export type { Detent, DetentValue } from './bottomSheetUtils';
 export { programmatic } from './bottomSheetUtils';
@@ -145,6 +146,32 @@ export interface BottomSheetProps {
   scrollableNegotiation?: ScrollableNegotiation;
   /** @deprecated Use `scrollableNegotiation="none"` instead. */
   disableScrollableNegotiation?: boolean;
+  /**
+   * Seconds of release velocity projected onto the sheet's position before the
+   * detent a drag release resolves to is chosen.
+   *
+   * A release is otherwise resolved on where the gesture stopped, so a short but
+   * deliberate flick toward a detent does not reach it unless it also travelled
+   * past the midpoint to it. Projecting the release forward lets that momentum
+   * count. Useful when detents sit close together and the sheet should follow
+   * intent rather than distance; typical values are 0.1-0.25.
+   *
+   * Releases faster than the flick threshold still move one detent along in the
+   * gesture's direction regardless of this value.
+   *
+   * @default 0 (no projection)
+   */
+  releaseProjection?: number;
+  /**
+   * Seconds the spring that carries the sheet to a resolved detent takes to
+   * settle.
+   *
+   * The spring is critically damped, so this is also its stiffness: a longer
+   * duration is a softer settle, and it never overshoots at any value.
+   *
+   * @default 0.45 on iOS; on Android, the platform's own spring default
+   */
+  settleDuration?: number;
 }
 
 type ModalOnlyBottomSheetProps = {
@@ -201,6 +228,8 @@ export const BottomSheet = (props: BottomSheetProps) => {
     disableScrollableNegotiation,
     scrimColor,
     scrimOpacities,
+    releaseProjection = 0,
+    settleDuration = 0,
   } = props as BottomSheetInternalProps;
   const resolvedScrollableNegotiation =
     scrollableNegotiation ??
@@ -228,6 +257,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
   // current native cap whenever detents are refreshed. Point detents retain
   // their requested height; native layout clamps both kinds to that cap.
   validateIndex(index, detents.length);
+  validateReleaseTuning(releaseProjection, settleDuration);
   const normalizedDetents = detents.map(normalizeDetent);
 
   const selectedNormalizedDetent = normalizedDetents[index]!;
@@ -303,6 +333,8 @@ export const BottomSheet = (props: BottomSheetProps) => {
           scrollableCollapseNegotiation={
             SCROLLABLE_NEGOTIATION_LEVEL[resolvedCollapseNegotiation]
           }
+          releaseProjection={releaseProjection}
+          settleDuration={settleDuration}
           scrimColor={scrimColor}
           scrimOpacities={resolvedScrimOpacities}
           onIndexChange={handleIndexChange}
