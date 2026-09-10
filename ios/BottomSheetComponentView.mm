@@ -72,7 +72,7 @@ using namespace facebook::react;
 - (instancetype)initWithFrame:(CGRect)frame
 {
   if (self = [super initWithFrame:frame]) {
-    static const auto defaultProps = std::make_shared<const BottomSheetViewProps>();
+    const auto &defaultProps = BottomSheetViewShadowNode::defaultSharedProps();
     _props = defaultProps;
     _needsIndexSyncAfterRecycle = NO;
     _nativeOverlay = NO;
