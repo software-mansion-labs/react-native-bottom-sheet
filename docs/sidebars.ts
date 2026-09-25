@@ -11,6 +11,7 @@ const sidebars: SidebarsConfig = {
     'keyboard-handling',
     'scrollable-negotiation',
     'detents-and-index',
+    'release-and-settle',
     'position-tracking',
   ],
 };

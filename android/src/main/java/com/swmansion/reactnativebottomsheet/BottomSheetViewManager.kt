@@ -164,6 +164,16 @@ class BottomSheetViewManager :
     view.scrollableCollapseNegotiation = value
   }
 
+  @ReactProp(name = "releaseProjection")
+  override fun setReleaseProjection(view: BottomSheetView, value: Double) {
+    view.releaseProjection = value.toFloat()
+  }
+
+  @ReactProp(name = "settleDuration")
+  override fun setSettleDuration(view: BottomSheetView, value: Double) {
+    view.settleDuration = value.toFloat()
+  }
+
   @ReactProp(name = "scrimColor", customType = "Color")
   override fun setScrimColor(view: BottomSheetView, scrimColor: Int?) {
     view.setScrimColor(scrimColor)

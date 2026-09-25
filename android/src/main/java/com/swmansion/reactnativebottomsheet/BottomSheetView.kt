@@ -159,6 +159,18 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       host.scrollableCollapseNegotiation = value
     }
 
+  var releaseProjection: Float
+    get() = host.releaseProjection
+    set(value) {
+      host.releaseProjection = value
+    }
+
+  var settleDuration: Float
+    get() = host.settleDuration
+    set(value) {
+      host.settleDuration = value
+    }
+
   var extendUnderStatusBar: Boolean
     get() = host.extendUnderStatusBar
     set(value) {
