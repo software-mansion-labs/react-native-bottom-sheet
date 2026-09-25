@@ -7,6 +7,7 @@ export type CaseKey =
   | 'native-overlay-keyboard-input'
   | 'close-request'
   | 'modal-scroll-view'
+  | 'draggable-grabber'
   | 'modal-flat-list'
   | 'keyboard-content-detent'
   | 'keyboard-aware-list'
@@ -74,6 +75,11 @@ export const DEMO_CASES: DemoCase[] = [
     key: 'modal-scroll-view',
     title: 'Modal with ScrollView',
     href: '/modal-scroll-view',
+  },
+  {
+    key: 'draggable-grabber',
+    title: 'Draggable grabber',
+    href: '/draggable-grabber',
   },
   {
     key: 'modal-flat-list',

@@ -3,6 +3,7 @@ package com.swmansion.reactnativebottomsheet
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.view.MotionEvent
 import android.view.VelocityTracker
@@ -23,8 +24,11 @@ import androidx.dynamicanimation.animation.SpringAnimation
 import androidx.dynamicanimation.animation.SpringForce
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.uimanager.PointerEvents
+import com.facebook.react.uimanager.ReactPointerEventsView
 import com.facebook.react.uimanager.RootView
 import com.facebook.react.uimanager.StateWrapper
+import com.facebook.react.views.scroll.ReactHorizontalScrollView
+import com.facebook.react.views.scroll.ReactScrollView
 import com.facebook.react.views.view.ReactViewGroup
 import com.swmansion.reactnativebottomsheet.closerequest.CloseRequestPresentationTracker
 import kotlin.math.abs
@@ -139,6 +143,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   private var velocityTracker: VelocityTracker? = null
   private val density = context.resources.displayMetrics.density
   private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+  private val hitTestInverseMatrix = Matrix()
+  private val hitTestPoint = FloatArray(2)
   private val nestedScrollingParentHelper = NestedScrollingParentHelper(this)
 
   // Touch tracking
@@ -1591,30 +1597,84 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     ) {
       return null
     }
-    return findScrollableAtPoint(sheetContainer, containerX, containerY)
+    return (findScrollableAtPoint(sheetContainer, containerX, containerY) as? TouchHit.Scrollable)
+      ?.view
   }
 
-  private fun findScrollableAtPoint(view: View, x: Float, y: Float): View? {
-    if (!view.isShown) return null
+  private sealed interface TouchHit {
+    /** Nothing here takes the touch; views underneath may. */
+    object Miss : TouchHit
 
-    if (view is ViewGroup) {
+    /** A non-scrollable view takes the touch, shielding views underneath. */
+    object Blocked : TouchHit
+
+    class Scrollable(val view: View) : TouchHit
+  }
+
+  // Mirrors RN's TouchTargetHelper: the topmost child that can take the touch
+  // (per pointerEvents) wins, and the result is the nearest vertically
+  // scrollable ancestor of that target. A view drawn over a scrollable (e.g. an
+  // absolutely positioned header) therefore shields it.
+  private fun findScrollableAtPoint(view: View, x: Float, y: Float): TouchHit {
+    if (!view.isShown) return TouchHit.Miss
+
+    var pointerEvents =
+      when (view) {
+        is ReactPointerEventsView -> view.pointerEvents
+        // RN scroll views expose pointerEvents without implementing ReactPointerEventsView.
+        is ReactScrollView -> view.pointerEvents
+        is ReactHorizontalScrollView -> view.pointerEvents
+        else -> PointerEvents.AUTO
+      }
+    if (!view.isEnabled) {
+      pointerEvents =
+        when (pointerEvents) {
+          PointerEvents.AUTO -> PointerEvents.BOX_NONE
+          PointerEvents.BOX_ONLY -> PointerEvents.NONE
+          else -> pointerEvents
+        }
+    }
+    if (pointerEvents == PointerEvents.NONE) return TouchHit.Miss
+
+    var childBlocked = false
+    if (view is ViewGroup && pointerEvents != PointerEvents.BOX_ONLY) {
       for (i in view.childCount - 1 downTo 0) {
         val child = view.getChildAt(i)
-        val childX = x - child.left - child.translationX
-        val childY = y - child.top - child.translationY
+        // Transform-aware, like TouchTargetHelper.getChildPoint: the child's
+        // matrix carries translation, scale and rotation around its pivot.
+        var childX = x + view.scrollX - child.left
+        var childY = y + view.scrollY - child.top
+        val childMatrix = child.matrix
+        if (!childMatrix.isIdentity) {
+          childMatrix.invert(hitTestInverseMatrix)
+          hitTestPoint[0] = childX
+          hitTestPoint[1] = childY
+          hitTestInverseMatrix.mapPoints(hitTestPoint)
+          childX = hitTestPoint[0]
+          childY = hitTestPoint[1]
+        }
         if (childX < 0f || childX >= child.width || childY < 0f || childY >= child.height) {
           continue
         }
-        findScrollableAtPoint(child, childX, childY)?.let {
-          return it
+        when (val hit = findScrollableAtPoint(child, childX, childY)) {
+          is TouchHit.Scrollable -> return hit
+          TouchHit.Blocked -> {
+            childBlocked = true
+            break
+          }
+          TouchHit.Miss -> Unit
         }
       }
     }
 
     if (isVerticallyScrollable(view)) {
-      return view
+      return TouchHit.Scrollable(view)
     }
-    return null
+    return if (childBlocked || pointerEvents != PointerEvents.BOX_NONE) {
+      TouchHit.Blocked
+    } else {
+      TouchHit.Miss
+    }
   }
 
   private fun isVerticallyScrollable(view: View): Boolean {

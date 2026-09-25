@@ -66,6 +66,10 @@ export default function RootLayout() {
               options={{ title: 'Modal with ScrollView', headerShown: false }}
             />
             <Stack.Screen
+              name="draggable-grabber"
+              options={{ title: 'Draggable grabber', headerShown: false }}
+            />
+            <Stack.Screen
               name="modal-flat-list"
               options={{ title: 'Modal with FlatList', headerShown: false }}
             />
