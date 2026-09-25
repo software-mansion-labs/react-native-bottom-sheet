@@ -6,6 +6,7 @@ export type CaseKey =
   | 'native-overlay-full-height-list'
   | 'native-overlay-keyboard-input'
   | 'close-request'
+  | 'portal-accessibility-stack'
   | 'modal-scroll-view'
   | 'modal-flat-list'
   | 'keyboard-content-detent'
@@ -69,6 +70,11 @@ export const DEMO_CASES: DemoCase[] = [
     key: 'close-request',
     title: 'Android close requests',
     href: '/close-request',
+  },
+  {
+    key: 'portal-accessibility-stack',
+    title: 'Portal accessibility stack',
+    href: '/portal-accessibility-stack',
   },
   {
     key: 'modal-scroll-view',

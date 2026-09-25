@@ -31,7 +31,10 @@ import com.facebook.react.uimanager.events.BatchEventDispatchedListener
 import com.facebook.react.uimanager.events.Event
 import com.facebook.react.uimanager.events.EventDispatcher
 import com.facebook.react.uimanager.events.EventDispatcherListener
+import com.swmansion.reactnativebottomsheet.presentation.TestReactRoot
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -173,7 +176,7 @@ class BottomSheetViewCloseRequestTest {
       val listener = CountingBottomSheetListener()
       val sheet = configuredOpenSheet(activity, listener)
       container.addView(sheet)
-      activity.setContentView(container)
+      activity.setReactContentView(container)
       layoutPortal(sheet)
       owner.onBackPressedDispatcher.onBackPressed()
       assertEscape(activity::dispatchKeyEvent, expectedHandled = true)
@@ -195,7 +198,7 @@ class BottomSheetViewCloseRequestTest {
       var navigationCount = 0
       activity.onBackPressedDispatcher.addCallback(navigationCallback { navigationCount++ })
       val root = FrameLayout(activity)
-      activity.setContentView(root)
+      activity.setReactContentView(root)
       val listener = CountingBottomSheetListener()
       val sheet = configuredOpenSheet(activity, listener)
       root.addView(sheet)
@@ -215,22 +218,43 @@ class BottomSheetViewCloseRequestTest {
   }
 
   @Test
-  fun `most recently attached portal receives Back and Escape`() {
+  fun `visually highest portal receives Back and Escape regardless of registration order`() {
     withActivity<ComponentActivity> { activity ->
+      var hostBackCount = 0
+      activity.onBackPressedDispatcher.addCallback(navigationCallback { hostBackCount++ })
       val root = FrameLayout(activity)
       val lowerListener = CountingBottomSheetListener()
       val upperListener = CountingBottomSheetListener()
       val lowerSheet = configuredOpenSheet(activity, lowerListener)
       val upperSheet = configuredOpenSheet(activity, upperListener)
+      lowerSheet.setDetents(
+        listOf(
+          mapOf("value" to 0.0, "kind" to "points", "programmatic" to true),
+          mapOf("value" to 300.0, "kind" to "points", "programmatic" to false),
+        )
+      )
+      lowerSheet.elevation = 10f
       root.addView(lowerSheet)
       root.addView(upperSheet)
-      activity.setContentView(root)
+      activity.setReactContentView(root)
       layoutPortal(lowerSheet)
       layoutPortal(upperSheet)
       activity.onBackPressedDispatcher.onBackPressed()
       assertEscape(activity::dispatchKeyEvent, expectedHandled = true)
-      assertEquals(0, lowerListener.closeRequestCount)
-      assertEquals(2, upperListener.closeRequestCount)
+      assertEquals(2, lowerListener.closeRequestCount)
+      assertEquals(0, upperListener.closeRequestCount)
+      lowerSheet.setDetents(
+        listOf(mapOf("value" to 300.0, "kind" to "points", "programmatic" to false))
+      )
+      activity.onBackPressedDispatcher.onBackPressed()
+      assertEscape(activity::dispatchKeyEvent, expectedHandled = true)
+      assertEquals(4, lowerListener.closeRequestCount)
+      assertEquals(0, upperListener.closeRequestCount)
+      lowerSheet.setHasCloseRequestHandler(false)
+      activity.onBackPressedDispatcher.onBackPressed()
+      assertEscape(activity::dispatchKeyEvent, expectedHandled = false)
+      assertEquals(1, hostBackCount)
+      assertEquals(0, upperListener.closeRequestCount)
       upperSheet.destroy()
       lowerSheet.destroy()
     }
@@ -256,7 +280,7 @@ class BottomSheetViewCloseRequestTest {
         }
       root.addView(lowerSheet)
       root.addView(upperSheet)
-      activity.setContentView(root)
+      activity.setReactContentView(root)
       layoutPortal(lowerSheet)
       layoutPortal(upperSheet)
       upperSheet.setIndex(1)
@@ -280,7 +304,7 @@ class BottomSheetViewCloseRequestTest {
       val upperSheet = configuredContentSheet(activity, upperListener, upperContent)
       root.addView(lowerSheet)
       root.addView(upperSheet)
-      activity.setContentView(root)
+      activity.setReactContentView(root)
       layoutView(root)
       lowerSheet.isFocusableInTouchMode = true
       assertTrue(lowerSheet.requestFocus())
@@ -311,8 +335,10 @@ class BottomSheetViewCloseRequestTest {
   }
 
   @Test
-  fun `inactive upper sheet passes requests lower and resumes ownership`() {
+  fun `paused input lifecycle does not change the visibly Top presentation`() {
     withActivity<ComponentActivity> { activity ->
+      var hostBackCount = 0
+      activity.onBackPressedDispatcher.addCallback(navigationCallback { hostBackCount++ })
       val upperOwner = MutableTestDispatcherOwner().apply { resume() }
       val root = FrameLayout(activity)
       val upperContainer = FrameLayout(activity)
@@ -325,19 +351,20 @@ class BottomSheetViewCloseRequestTest {
       root.addView(lowerSheet)
       upperContainer.addView(upperSheet)
       root.addView(upperContainer)
-      activity.setContentView(root)
+      activity.setReactContentView(root)
       layoutView(root)
       lowerSheet.isFocusableInTouchMode = true
       assertTrue(lowerSheet.requestFocus())
       upperOwner.pause()
       activity.onBackPressedDispatcher.onBackPressed()
-      assertEscape(activity::dispatchKeyEvent, expectedHandled = true)
-      assertEquals(2, lowerListener.closeRequestCount)
+      assertEscape(activity::dispatchKeyEvent, expectedHandled = false)
+      assertEquals(1, hostBackCount)
+      assertEquals(0, lowerListener.closeRequestCount)
       assertEquals(0, upperListener.closeRequestCount)
       upperOwner.resumeFromPause()
       upperOwner.onBackPressedDispatcher.onBackPressed()
       assertEscape(activity::dispatchKeyEvent, expectedHandled = true)
-      assertEquals(2, lowerListener.closeRequestCount)
+      assertEquals(0, lowerListener.closeRequestCount)
       assertEquals(2, upperListener.closeRequestCount)
       upperSheet.destroy()
       lowerSheet.destroy()
@@ -434,7 +461,7 @@ class BottomSheetViewCloseRequestTest {
       val listener = CountingBottomSheetListener()
       val sheet = configuredOpenSheet(themedContext, listener)
       sheet.eventDispatcher = NoOpEventDispatcher
-      activity.setContentView(sheet)
+      activity.setReactContentView(sheet)
       layoutPortal(sheet)
       sheet.onHostResume()
       sheet.setNativeOverlay(true)
@@ -466,13 +493,41 @@ class BottomSheetViewCloseRequestTest {
       val listener = CountingBottomSheetListener()
       val sheet = configuredOpenSheet(themedContext, listener)
       sheet.eventDispatcher = NoOpEventDispatcher
-      activity.setContentView(sheet)
+      activity.setReactContentView(sheet)
       layoutPortal(sheet)
       sheet.setNativeOverlay(true)
       layoutPortal(sheet)
       assertEscape(activity::dispatchKeyEvent, expectedHandled = true)
       assertEquals(1, listener.closeRequestCount)
       sheet.destroy()
+      reactContext.onHostDestroy()
+    }
+  }
+
+  @Test
+  fun `destroy is idempotent and a late host resume cannot recreate the overlay`() {
+    withActivity<ComponentActivity> { activity ->
+      val reactContext = BridgeReactContext(activity.applicationContext)
+      reactContext.onHostResume(activity)
+      val themedContext = ThemedReactContext(reactContext, activity, "test", 1)
+      val sheet = configuredOpenSheet(themedContext, CountingBottomSheetListener())
+      sheet.eventDispatcher = NoOpEventDispatcher
+      activity.setReactContentView(sheet)
+      layoutPortal(sheet)
+      sheet.onHostResume()
+      sheet.setNativeOverlay(true)
+      shadowOf(Looper.getMainLooper()).idle()
+      val dialog = requireNotNull(ShadowDialog.getLatestDialog()) as ComponentDialog
+      assertTrue(dialog.isShowing)
+
+      sheet.destroy()
+      sheet.destroy()
+      assertFalse(dialog.isShowing)
+      sheet.onHostResume()
+      shadowOf(Looper.getMainLooper()).idle()
+
+      assertSame(dialog, ShadowDialog.getLatestDialog())
+      assertFalse(dialog.isShowing)
       reactContext.onHostDestroy()
     }
   }
@@ -524,7 +579,7 @@ class BottomSheetViewCloseRequestTest {
     hasCloseRequestHandler: Boolean = true,
   ) =
     configuredOpenSheet(activity, listener, hasCloseRequestHandler).also {
-      activity.setContentView(it)
+      activity.setReactContentView(it)
       layoutPortal(it)
     }
 
@@ -546,7 +601,7 @@ class BottomSheetViewCloseRequestTest {
     sheet.setScrimOpacities(listOf(0f, 1f))
     configure(sheet)
     sheet.eventDispatcher = NoOpEventDispatcher
-    activity.setContentView(sheet)
+    activity.setReactContentView(sheet)
     layoutPortal(sheet)
     sheet.setNativeOverlay(true)
     shadowOf(Looper.getMainLooper()).idle()
@@ -555,6 +610,10 @@ class BottomSheetViewCloseRequestTest {
     // The test context resumed before BottomSheetView registered its lifecycle listener.
     sheet.onHostResume()
     return NativeOverlayTestFixture(sheet, dialog, reactContext)
+  }
+
+  private fun Activity.setReactContentView(content: View) {
+    setContentView(TestReactRoot(this).apply { addView(content) })
   }
 
   private fun layoutPortal(sheet: BottomSheetView) {

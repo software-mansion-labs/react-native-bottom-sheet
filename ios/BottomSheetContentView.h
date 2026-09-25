@@ -1,5 +1,7 @@
 #import <UIKit/UIKit.h>
 
+#import "BottomSheetPresentationOwnership.h"
+
 NS_ASSUME_NONNULL_BEGIN
 
 @class BottomSheetContentView;
@@ -11,6 +13,10 @@ NS_ASSUME_NONNULL_BEGIN
       didChangePosition:(CGFloat)position
                   index:(CGFloat)index;
 - (void)bottomSheetView:(BottomSheetContentView *)view didReportError:(NSString *)message;
+- (void)bottomSheetView:(BottomSheetContentView *)view
+    didChangePresentationActive:(BOOL)presentationActive;
+- (BottomSheetPresentationEscapeRoute)voiceOverEscapeRouteForBottomSheetView:
+    (BottomSheetContentView *)view;
 // Fired after each layout pass with fresh native geometry, so the component
 // layer can push the content wrapper's target size (and, in overlay mode, the
 // sheet frame) into the shadow tree.
@@ -27,6 +33,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) NSInteger scrollableCollapseNegotiation;
 @property (nonatomic, readonly) UIView *sheetContainer;
 @property (nonatomic, readonly) BOOL isModalAccessibilityActive;
+@property (nonatomic, readonly, getter=isPresentationActive) BOOL presentationActive;
 
 - (void)setDetents:(NSArray<NSDictionary *> *)raw;
 // Whether full-height detents may extend under the status bar; feeds the

@@ -23,6 +23,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run lint
       - run: bun run typecheck
+      - run: bun run test:js
       - run: bun run prepare
       - uses: actions/setup-java@v5
         with:
@@ -71,3 +72,36 @@ jobs:
           arch: x86_64
           enable-hw-keyboard: true
           script: bun run test:android:instrumented
+  ios-native-tests:
+    name: iOS native tests
+    needs: check
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+      IOS_TEST_RUNTIME_IDENTIFIER: com.apple.CoreSimulator.SimRuntime.iOS-18-5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - run: bun install --frozen-lockfile
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+      - name: Run iOS native tests
+        run: bun run test:ios:native
+      - name: Upload iOS native failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-native-test-results
+          path: |
+            .bundle/ios-native-results/*.log
+            .bundle/ios-native-results/*.xcresult
+          include-hidden-files: true
+          if-no-files-found: warn

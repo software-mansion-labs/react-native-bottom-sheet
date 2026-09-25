@@ -1,33 +1,42 @@
-package com.swmansion.reactnativebottomsheet.closerequest
+package com.swmansion.reactnativebottomsheet.presentation
 
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class CloseRequestPresentationTrackerTest {
+class PresentationLifecycleTrackerTest {
   @Test
-  fun `visible closing animation owns Back and Escape input`() {
-    val tracker = CloseRequestPresentationTracker()
+  fun `open target becomes Active as soon as layout is ready`() {
+    val tracker = PresentationLifecycleTracker()
+
+    assertFalse(tracker.isPresentationActive(isTargetDetentOpen = true, isLayoutReady = false))
+    assertTrue(tracker.isPresentationActive(isTargetDetentOpen = true, isLayoutReady = true))
+    assertFalse(tracker.isPresentationActive(isTargetDetentOpen = false, isLayoutReady = true))
+  }
+
+  @Test
+  fun `visible closing animation stays Active while layout is ready`() {
+    val tracker = PresentationLifecycleTracker()
 
     tracker.onAnimationStarted(isTargetOpen = false, visibleHeight = 1f)
 
     assertTrue(
       tracker.isPresentationActive(
         isTargetDetentOpen = false,
-        isCloseRequestLayoutReady = true,
+        isLayoutReady = true,
       )
     )
     assertFalse(
       tracker.isPresentationActive(
         isTargetDetentOpen = false,
-        isCloseRequestLayoutReady = false,
+        isLayoutReady = false,
       )
     )
   }
 
   @Test
-  fun `reanchoring a closing animation retains ownership`() {
-    val tracker = CloseRequestPresentationTracker()
+  fun `reanchoring a closing animation retains Active state`() {
+    val tracker = PresentationLifecycleTracker()
     tracker.onAnimationStarted(isTargetOpen = false, visibleHeight = 120f)
 
     tracker.onAnimationStarted(isTargetOpen = false, visibleHeight = 0f)
@@ -35,28 +44,28 @@ class CloseRequestPresentationTrackerTest {
     assertTrue(
       tracker.isPresentationActive(
         isTargetDetentOpen = false,
-        isCloseRequestLayoutReady = true,
+        isLayoutReady = true,
       )
     )
   }
 
   @Test
-  fun `closing animation beginning at zero does not claim input`() {
-    val tracker = CloseRequestPresentationTracker()
+  fun `closing animation beginning at zero does not become Active`() {
+    val tracker = PresentationLifecycleTracker()
 
     tracker.onAnimationStarted(isTargetOpen = false, visibleHeight = 0f)
 
     assertFalse(
       tracker.isPresentationActive(
         isTargetDetentOpen = false,
-        isCloseRequestLayoutReady = true,
+        isLayoutReady = true,
       )
     )
   }
 
   @Test
-  fun `retargeting to an open detent clears closing ownership`() {
-    val tracker = CloseRequestPresentationTracker()
+  fun `retargeting to an open detent clears closing Active state`() {
+    val tracker = PresentationLifecycleTracker()
     tracker.onAnimationStarted(isTargetOpen = false, visibleHeight = 120f)
 
     tracker.onAnimationStarted(isTargetOpen = true, visibleHeight = 80f)
@@ -64,20 +73,20 @@ class CloseRequestPresentationTrackerTest {
     assertTrue(
       tracker.isPresentationActive(
         isTargetDetentOpen = true,
-        isCloseRequestLayoutReady = true,
+        isLayoutReady = true,
       )
     )
     assertFalse(
       tracker.isPresentationActive(
         isTargetDetentOpen = false,
-        isCloseRequestLayoutReady = true,
+        isLayoutReady = true,
       )
     )
   }
 
   @Test
-  fun `settled transition and terminal conditions reset ownership`() {
-    val tracker = CloseRequestPresentationTracker()
+  fun `settled transition and terminal conditions reset Active state`() {
+    val tracker = PresentationLifecycleTracker()
 
     listOf(
         tracker::onTransitionSettled,
@@ -90,7 +99,7 @@ class CloseRequestPresentationTrackerTest {
         assertFalse(
           tracker.isPresentationActive(
             isTargetDetentOpen = false,
-            isCloseRequestLayoutReady = true,
+            isLayoutReady = true,
           )
         )
       }

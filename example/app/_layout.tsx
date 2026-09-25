@@ -62,6 +62,13 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
+              name="portal-accessibility-stack"
+              options={{
+                title: 'Portal accessibility stack',
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
               name="modal-scroll-view"
               options={{ title: 'Modal with ScrollView', headerShown: false }}
             />

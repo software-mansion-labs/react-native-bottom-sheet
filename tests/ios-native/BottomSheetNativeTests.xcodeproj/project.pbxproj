@@ -1,0 +1,570 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		12A133888A8A8D5B3FA13700 /* libPods-BottomSheetNativeTestHost.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C577E0CAB61E0CDA09F92FA3 /* libPods-BottomSheetNativeTestHost.a */; };
+		921B9A83D98CFE5148ED6483 /* libPods-BottomSheetNativeTests.a in Frameworks */ = {isa = PBXBuildFile; fileRef = CADF3CD6D1B7A344694F886D /* libPods-BottomSheetNativeTests.a */; };
+		A20000000000000000000001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000001 /* AppDelegate.swift */; };
+		A20000000000000000000002 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000003 /* PrivacyInfo.xcprivacy */; };
+		A20000000000000000000003 /* BottomSheetHostingViewLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000004 /* BottomSheetHostingViewLifecycleTests.swift */; };
+		A20000000000000000000004 /* BottomSheetHostFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000005 /* BottomSheetHostFixture.swift */; };
+		A20000000000000000000005 /* BottomSheetEventRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000006 /* BottomSheetEventRecorder.swift */; };
+		A20000000000000000000006 /* BottomSheetPresentationOwnershipTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000009 /* BottomSheetPresentationOwnershipTests.mm */; };
+		A20000000000000000000007 /* BottomSheetAccessibleDismissalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000010 /* BottomSheetAccessibleDismissalTests.swift */; };
+		A20000000000000000000008 /* BottomSheetNativeOverlayAccessibilityTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000011 /* BottomSheetNativeOverlayAccessibilityTests.mm */; };
+		A20000000000000000000009 /* BottomSheetPresentationEscapeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000012 /* BottomSheetPresentationEscapeTests.swift */; };
+		A20000000000000000000010 /* BottomSheetPresentationModalIsolationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000013 /* BottomSheetPresentationModalIsolationTests.swift */; };
+		A20000000000000000000011 /* BottomSheetTestComponentFactory.mm in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000014 /* BottomSheetTestComponentFactory.mm */; };
+		A20000000000000000000012 /* BottomSheetPresentationModalIsolationControllerTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000017 /* BottomSheetPresentationModalIsolationControllerTests.mm */; };
+		A20000000000000000000013 /* BottomSheetPresentationLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000018 /* BottomSheetPresentationLifecycleTests.swift */; };
+		A20000000000000000000014 /* BottomSheetPresentationModeIntegrationTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000019 /* BottomSheetPresentationModeIntegrationTests.mm */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A40000000000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A50000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A10000000000000000000001;
+			remoteInfo = BottomSheetNativeTestHost;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		391E4746F2AB9B2BF6060445 /* Pods-BottomSheetNativeTestHost.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-BottomSheetNativeTestHost.debug.xcconfig"; path = "Target Support Files/Pods-BottomSheetNativeTestHost/Pods-BottomSheetNativeTestHost.debug.xcconfig"; sourceTree = "<group>"; };
+		589B357FD4D75F0978CA1DC5 /* Pods-BottomSheetNativeTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-BottomSheetNativeTests.release.xcconfig"; path = "Target Support Files/Pods-BottomSheetNativeTests/Pods-BottomSheetNativeTests.release.xcconfig"; sourceTree = "<group>"; };
+		8765A1F8E4FE9FDADEFD3190 /* Pods-BottomSheetNativeTestHost.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-BottomSheetNativeTestHost.release.xcconfig"; path = "Target Support Files/Pods-BottomSheetNativeTestHost/Pods-BottomSheetNativeTestHost.release.xcconfig"; sourceTree = "<group>"; };
+		A30000000000000000000001 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		A30000000000000000000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A30000000000000000000003 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		A30000000000000000000004 /* BottomSheetHostingViewLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottomSheetHostingViewLifecycleTests.swift; sourceTree = "<group>"; };
+		A30000000000000000000005 /* BottomSheetHostFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottomSheetHostFixture.swift; sourceTree = "<group>"; };
+		A30000000000000000000006 /* BottomSheetEventRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottomSheetEventRecorder.swift; sourceTree = "<group>"; };
+		A30000000000000000000007 /* BottomSheetNativeTestHost.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BottomSheetNativeTestHost.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A30000000000000000000008 /* BottomSheetNativeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BottomSheetNativeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A30000000000000000000009 /* BottomSheetPresentationOwnershipTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = BottomSheetPresentationOwnershipTests.mm; sourceTree = "<group>"; };
+		A30000000000000000000010 /* BottomSheetAccessibleDismissalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottomSheetAccessibleDismissalTests.swift; sourceTree = "<group>"; };
+		A30000000000000000000011 /* BottomSheetNativeOverlayAccessibilityTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = BottomSheetNativeOverlayAccessibilityTests.mm; sourceTree = "<group>"; };
+		A30000000000000000000012 /* BottomSheetPresentationEscapeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottomSheetPresentationEscapeTests.swift; sourceTree = "<group>"; };
+		A30000000000000000000013 /* BottomSheetPresentationModalIsolationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottomSheetPresentationModalIsolationTests.swift; sourceTree = "<group>"; };
+		A30000000000000000000014 /* BottomSheetTestComponentFactory.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = BottomSheetTestComponentFactory.mm; sourceTree = "<group>"; };
+		A30000000000000000000015 /* BottomSheetTestComponentFactory.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BottomSheetTestComponentFactory.h; sourceTree = "<group>"; };
+		A30000000000000000000016 /* BottomSheetNativeTests-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "BottomSheetNativeTests-Bridging-Header.h"; sourceTree = "<group>"; };
+		A30000000000000000000017 /* BottomSheetPresentationModalIsolationControllerTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = BottomSheetPresentationModalIsolationControllerTests.mm; sourceTree = "<group>"; };
+		A30000000000000000000018 /* BottomSheetPresentationLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottomSheetPresentationLifecycleTests.swift; sourceTree = "<group>"; };
+		A30000000000000000000019 /* BottomSheetPresentationModeIntegrationTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = BottomSheetPresentationModeIntegrationTests.mm; sourceTree = "<group>"; };
+		C577E0CAB61E0CDA09F92FA3 /* libPods-BottomSheetNativeTestHost.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-BottomSheetNativeTestHost.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		CADF3CD6D1B7A344694F886D /* libPods-BottomSheetNativeTests.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-BottomSheetNativeTests.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		D58BA040A6195B33CF4A612C /* Pods-BottomSheetNativeTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-BottomSheetNativeTests.debug.xcconfig"; path = "Target Support Files/Pods-BottomSheetNativeTests/Pods-BottomSheetNativeTests.debug.xcconfig"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A60000000000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				12A133888A8A8D5B3FA13700 /* libPods-BottomSheetNativeTestHost.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A60000000000000000000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				921B9A83D98CFE5148ED6483 /* libPods-BottomSheetNativeTests.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		2C845E3C5440A8DD537588AB /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				C577E0CAB61E0CDA09F92FA3 /* libPods-BottomSheetNativeTestHost.a */,
+				CADF3CD6D1B7A344694F886D /* libPods-BottomSheetNativeTests.a */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		348E88DB94742C690B443680 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				391E4746F2AB9B2BF6060445 /* Pods-BottomSheetNativeTestHost.debug.xcconfig */,
+				8765A1F8E4FE9FDADEFD3190 /* Pods-BottomSheetNativeTestHost.release.xcconfig */,
+				D58BA040A6195B33CF4A612C /* Pods-BottomSheetNativeTests.debug.xcconfig */,
+				589B357FD4D75F0978CA1DC5 /* Pods-BottomSheetNativeTests.release.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
+			sourceTree = "<group>";
+		};
+		A70000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				A70000000000000000000003 /* Host */,
+				A70000000000000000000004 /* Tests */,
+				A30000000000000000000003 /* PrivacyInfo.xcprivacy */,
+				A70000000000000000000002 /* Products */,
+				348E88DB94742C690B443680 /* Pods */,
+				2C845E3C5440A8DD537588AB /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		A70000000000000000000002 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A30000000000000000000007 /* BottomSheetNativeTestHost.app */,
+				A30000000000000000000008 /* BottomSheetNativeTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A70000000000000000000003 /* Host */ = {
+			isa = PBXGroup;
+			children = (
+				A30000000000000000000001 /* AppDelegate.swift */,
+				A30000000000000000000002 /* Info.plist */,
+			);
+			path = Host;
+			sourceTree = "<group>";
+		};
+		A70000000000000000000004 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				A30000000000000000000004 /* BottomSheetHostingViewLifecycleTests.swift */,
+				A30000000000000000000009 /* BottomSheetPresentationOwnershipTests.mm */,
+				A30000000000000000000010 /* BottomSheetAccessibleDismissalTests.swift */,
+				A30000000000000000000011 /* BottomSheetNativeOverlayAccessibilityTests.mm */,
+				A30000000000000000000012 /* BottomSheetPresentationEscapeTests.swift */,
+				A30000000000000000000013 /* BottomSheetPresentationModalIsolationTests.swift */,
+				A30000000000000000000017 /* BottomSheetPresentationModalIsolationControllerTests.mm */,
+				A30000000000000000000018 /* BottomSheetPresentationLifecycleTests.swift */,
+				A30000000000000000000019 /* BottomSheetPresentationModeIntegrationTests.mm */,
+				A70000000000000000000005 /* Support */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		A70000000000000000000005 /* Support */ = {
+			isa = PBXGroup;
+			children = (
+				A30000000000000000000005 /* BottomSheetHostFixture.swift */,
+				A30000000000000000000006 /* BottomSheetEventRecorder.swift */,
+				A30000000000000000000014 /* BottomSheetTestComponentFactory.mm */,
+				A30000000000000000000015 /* BottomSheetTestComponentFactory.h */,
+				A30000000000000000000016 /* BottomSheetNativeTests-Bridging-Header.h */,
+			);
+			path = Support;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A10000000000000000000001 /* BottomSheetNativeTestHost */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AB0000000000000000000001 /* Build configuration list for PBXNativeTarget "BottomSheetNativeTestHost" */;
+			buildPhases = (
+				4CEF77436D43AA52388A56EB /* [CP] Check Pods Manifest.lock */,
+				A80000000000000000000001 /* Sources */,
+				A60000000000000000000001 /* Frameworks */,
+				A90000000000000000000001 /* Resources */,
+				E06F91B998175430DFD53FFC /* [CP] Embed Pods Frameworks */,
+				53BF5CFFC2FFFAE23DBF4A9B /* [CP] Copy Pods Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = BottomSheetNativeTestHost;
+			productName = BottomSheetNativeTestHost;
+			productReference = A30000000000000000000007 /* BottomSheetNativeTestHost.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A10000000000000000000002 /* BottomSheetNativeTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AB0000000000000000000002 /* Build configuration list for PBXNativeTarget "BottomSheetNativeTests" */;
+			buildPhases = (
+				09E3B903E2073B253A381FB1 /* [CP] Check Pods Manifest.lock */,
+				A80000000000000000000002 /* Sources */,
+				A60000000000000000000002 /* Frameworks */,
+				A90000000000000000000002 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AA0000000000000000000001 /* PBXTargetDependency */,
+			);
+			name = BottomSheetNativeTests;
+			productName = BottomSheetNativeTests;
+			productReference = A30000000000000000000008 /* BottomSheetNativeTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A50000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastSwiftUpdateCheck = 1640;
+				LastUpgradeCheck = 1640;
+			};
+			buildConfigurationList = AB0000000000000000000003 /* Build configuration list for PBXProject "BottomSheetNativeTests" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A70000000000000000000001;
+			productRefGroup = A70000000000000000000002 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A10000000000000000000001 /* BottomSheetNativeTestHost */,
+				A10000000000000000000002 /* BottomSheetNativeTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A90000000000000000000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A20000000000000000000002 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A90000000000000000000002 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		09E3B903E2073B253A381FB1 /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-BottomSheetNativeTests-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		4CEF77436D43AA52388A56EB /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-BottomSheetNativeTestHost-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		53BF5CFFC2FFFAE23DBF4A9B /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-BottomSheetNativeTestHost/Pods-BottomSheetNativeTestHost-resources.sh",
+				"${PODS_CONFIGURATION_BUILD_DIR}/React-Core/React-Core_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/React-cxxreact/React-cxxreact_privacy.bundle",
+			);
+			name = "[CP] Copy Pods Resources";
+			outputPaths = (
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-Core_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-cxxreact_privacy.bundle",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-BottomSheetNativeTestHost/Pods-BottomSheetNativeTestHost-resources.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		E06F91B998175430DFD53FFC /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-BottomSheetNativeTestHost/Pods-BottomSheetNativeTestHost-frameworks.sh",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/React-Core-prebuilt/React.framework/React",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ReactNativeDependencies/ReactNativeDependencies.framework/ReactNativeDependencies",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermesvm.framework/hermesvm",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputPaths = (
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/React.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ReactNativeDependencies.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermesvm.framework",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-BottomSheetNativeTestHost/Pods-BottomSheetNativeTestHost-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A80000000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A20000000000000000000001 /* AppDelegate.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A80000000000000000000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A20000000000000000000003 /* BottomSheetHostingViewLifecycleTests.swift in Sources */,
+				A20000000000000000000004 /* BottomSheetHostFixture.swift in Sources */,
+				A20000000000000000000005 /* BottomSheetEventRecorder.swift in Sources */,
+				A20000000000000000000006 /* BottomSheetPresentationOwnershipTests.mm in Sources */,
+				A20000000000000000000007 /* BottomSheetAccessibleDismissalTests.swift in Sources */,
+				A20000000000000000000008 /* BottomSheetNativeOverlayAccessibilityTests.mm in Sources */,
+				A20000000000000000000009 /* BottomSheetPresentationEscapeTests.swift in Sources */,
+				A20000000000000000000010 /* BottomSheetPresentationModalIsolationTests.swift in Sources */,
+				A20000000000000000000011 /* BottomSheetTestComponentFactory.mm in Sources */,
+				A20000000000000000000012 /* BottomSheetPresentationModalIsolationControllerTests.mm in Sources */,
+				A20000000000000000000013 /* BottomSheetPresentationLifecycleTests.swift in Sources */,
+				A20000000000000000000014 /* BottomSheetPresentationModeIntegrationTests.mm in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		AA0000000000000000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A10000000000000000000001 /* BottomSheetNativeTestHost */;
+			targetProxy = A40000000000000000000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		AC0000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 391E4746F2AB9B2BF6060445 /* Pods-BottomSheetNativeTestHost.debug.xcconfig */;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Host/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.swmansion.BottomSheetNativeTestHost;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		AC0000000000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 8765A1F8E4FE9FDADEFD3190 /* Pods-BottomSheetNativeTestHost.release.xcconfig */;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Host/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.swmansion.BottomSheetNativeTestHost;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		AC0000000000000000000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = D58BA040A6195B33CF4A612C /* Pods-BottomSheetNativeTests.debug.xcconfig */;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"$(PODS_CONFIGURATION_BUILD_DIR)/ReactNativeBottomSheet/Swift Compatibility Header\"",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.swmansion.BottomSheetNativeTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_OBJC_BRIDGING_HEADER = "Tests/Support/BottomSheetNativeTests-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BottomSheetNativeTestHost.app/BottomSheetNativeTestHost";
+			};
+			name = Debug;
+		};
+		AC0000000000000000000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 589B357FD4D75F0978CA1DC5 /* Pods-BottomSheetNativeTests.release.xcconfig */;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"$(PODS_CONFIGURATION_BUILD_DIR)/ReactNativeBottomSheet/Swift Compatibility Header\"",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.swmansion.BottomSheetNativeTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_OBJC_BRIDGING_HEADER = "Tests/Support/BottomSheetNativeTests-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/BottomSheetNativeTestHost.app/BottomSheetNativeTestHost";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		AC0000000000000000000005 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				ONLY_ACTIVE_ARCH = YES;
+				OTHER_CFLAGS = (
+					"$(inherited)",
+					"-DRCT_REMOVE_LEGACY_ARCH=1",
+				);
+				OTHER_CPLUSPLUSFLAGS = (
+					"$(inherited)",
+					"-DRCT_REMOVE_LEGACY_ARCH=1",
+				);
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REACT_NATIVE_PATH = "${PODS_ROOT}/../../../node_modules/react-native";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG";
+				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				USE_HERMES = true;
+			};
+			name = Debug;
+		};
+		AC0000000000000000000006 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				OTHER_CFLAGS = (
+					"$(inherited)",
+					"-DRCT_REMOVE_LEGACY_ARCH=1",
+				);
+				OTHER_CPLUSPLUSFLAGS = (
+					"$(inherited)",
+					"-DRCT_REMOVE_LEGACY_ARCH=1",
+				);
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REACT_NATIVE_PATH = "${PODS_ROOT}/../../../node_modules/react-native";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				USE_HERMES = true;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		AB0000000000000000000001 /* Build configuration list for PBXNativeTarget "BottomSheetNativeTestHost" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AC0000000000000000000001 /* Debug */,
+				AC0000000000000000000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AB0000000000000000000002 /* Build configuration list for PBXNativeTarget "BottomSheetNativeTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AC0000000000000000000003 /* Debug */,
+				AC0000000000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AB0000000000000000000003 /* Build configuration list for PBXProject "BottomSheetNativeTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AC0000000000000000000005 /* Debug */,
+				AC0000000000000000000006 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A50000000000000000000001 /* Project object */;
+}
