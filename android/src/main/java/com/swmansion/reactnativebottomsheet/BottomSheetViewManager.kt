@@ -121,7 +121,14 @@ class BottomSheetViewManager :
 
   @ReactProp(name = "index")
   override fun setIndex(view: BottomSheetView, index: Int) {
-    view.setIndex(index)
+    // Props within an update arrive in no particular order, so apply the index after the update's
+    // detents, as iOS does. Otherwise an index that targets a newly added detent is dropped.
+    view.pendingIndex = index
+  }
+
+  override fun onAfterUpdateTransaction(view: BottomSheetView) {
+    super.onAfterUpdateTransaction(view)
+    view.applyPendingIndex()
   }
 
   @ReactProp(name = "animateIn")

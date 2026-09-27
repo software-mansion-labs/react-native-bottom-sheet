@@ -15,6 +15,7 @@ import com.facebook.react.bridge.JavaOnlyMap
 import com.facebook.react.bridge.ReactContext
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.internal.featureflags.ReactNativeFeatureFlagsForTests
+import com.facebook.react.uimanager.ReactStylesDiffMap
 import com.facebook.react.uimanager.ThemedReactContext
 import com.facebook.react.uimanager.UIManagerHelper
 import com.facebook.react.uimanager.events.BatchEventDispatchedListener
@@ -63,7 +64,8 @@ class BottomSheetViewManagerCloseRequestTest {
           JavaOnlyMap.of("value", 300.0, "kind", "points", "programmatic", false),
         ),
       )
-      manager.setIndex(sheet, 1)
+      // The manager applies index at the end of a props update.
+      manager.updateProperties(sheet, ReactStylesDiffMap(JavaOnlyMap.of("index", 1.0)))
       activity.setContentView(sheet)
       layout(sheet)
       reactContext.onHostResume(activity)

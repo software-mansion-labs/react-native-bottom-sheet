@@ -128,6 +128,15 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
 
   fun setIndex(newIndex: Int) = host.setIndex(newIndex)
 
+  /** Set by the view manager and applied once its whole props update has been processed. */
+  internal var pendingIndex: Int? = null
+
+  internal fun applyPendingIndex() {
+    val index = pendingIndex ?: return
+    pendingIndex = null
+    setIndex(index)
+  }
+
   var animateIn: Boolean
     get() = host.animateIn
     set(value) {
