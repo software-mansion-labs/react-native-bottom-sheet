@@ -33,6 +33,7 @@
     },
     "plugins": [
       "expo-router",
+      "./plugins/withIosSceneLifecycle",
       ["./plugins/withAndroidAppName", "React Native Bottom Sheet"]
     ]
   }
