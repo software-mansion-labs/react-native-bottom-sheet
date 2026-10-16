@@ -1,5 +1,7 @@
 #import "BottomSheetComponentView.h"
 #import "BottomSheetContentView.h"
+#import "BottomSheetPresentationOwnership.h"
+#import "BottomSheetPortalMountingObserver.h"
 #import "BottomSheetSurfaceComponentView.h"
 #import "../common/cpp/react/renderer/components/ReactNativeBottomSheetSpec/BottomSheetStateHelper.h"
 #import "../common/cpp/react/renderer/components/ReactNativeBottomSheetSpec/ComponentDescriptors.h"
@@ -7,6 +9,7 @@
 #import <React/RCTAssert.h>
 #import <React/RCTConversions.h>
 #import <React/RCTFabricComponentsPlugins.h>
+#import <React/RCTMountingTransactionObserving.h>
 #import <React/RCTSurfaceTouchHandler.h>
 #import <react/renderer/components/ReactNativeBottomSheetSpec/EventEmitters.h>
 #import <react/renderer/components/ReactNativeBottomSheetSpec/Props.h>
@@ -16,9 +19,10 @@ using namespace facebook::react;
 
 /// Full-window container hosting the sheet in native-overlay mode. It is added
 /// directly to the host `UIWindow` (above any modal presented in that window)
-/// and forwards hit-testing to its single subview—the sheet—so touches outside
-/// the sheet and its scrim fall through to the content underneath.
+/// and forwards hit-testing to the sheet, then blocks its inactive background
+/// for the complete Active window-modal presentation.
 @interface BottomSheetOverlayContainerView : UIView
+@property (nonatomic) BOOL blocksBackgroundTouches;
 @end
 
 @implementation BottomSheetOverlayContainerView
@@ -28,9 +32,8 @@ using namespace facebook::react;
   if (!self.isUserInteractionEnabled || self.isHidden || self.alpha < 0.01) {
     return nil;
   }
-  // Bypass UIKit's strict containment policy and hit-test subviews directly: the
-  // sheet's own hitTest returns nil outside the sheet/scrim, which is how a tap
-  // on empty space passes through to whatever sits below the overlay.
+  // Preserve the sheet's content/scrim hit recipients even when its bounds
+  // differ from this container during reanchoring.
   for (UIView *subview in [self.subviews reverseObjectEnumerator]) {
     CGPoint convertedPoint = [subview convertPoint:point fromView:self];
     UIView *hit = [subview hitTest:convertedPoint withEvent:event];
@@ -38,7 +41,8 @@ using namespace facebook::react;
       return hit;
     }
   }
-  return nil;
+  // Modality does not depend on whether the scrim can handle or dismiss a tap.
+  return self.blocksBackgroundTouches && CGRectContainsPoint(self.bounds, point) ? self : nil;
 }
 
 - (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent *)event
@@ -48,11 +52,12 @@ using namespace facebook::react;
 
 @end
 
-@interface BottomSheetComponentView () <BottomSheetContentViewDelegate>
+@interface BottomSheetComponentView () <BottomSheetContentViewDelegate, RCTMountingTransactionObserving>
 @end
 
 @implementation BottomSheetComponentView {
   BottomSheetContentView *_sheetView;
+  BottomSheetPresentationController *_presentationController;
   State::Shared _sheetState;
   float _lastContentOffsetY;
   BOOL _needsIndexSyncAfterRecycle;
@@ -62,6 +67,9 @@ using namespace facebook::react;
   RCTSurfaceTouchHandler *_overlayTouchHandler;
   CGSize _lastGeometryFrameSize;
   CGFloat _lastGeometryInset;
+  BOOL _presentationMountTransactionOpen;
+  NSUInteger _presentationLifecycleGeneration;
+  __weak BottomSheetPortalMountingObserver *_portalMountingObserver;
 }
 
 + (ComponentDescriptorProvider)componentDescriptorProvider
@@ -81,12 +89,15 @@ using namespace facebook::react;
     _sheetView.delegate = self;
     _sheetView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     self.contentView = _sheetView;
+    _presentationController =
+        [[BottomSheetPresentationController alloc] initWithAnchor:_sheetView];
   }
   return self;
 }
 
 - (void)updateProps:(const Props::Shared &)props oldProps:(const Props::Shared &)oldProps
 {
+  [_presentationController beginHierarchyMutation];
   const auto &newViewProps = static_cast<const BottomSheetViewProps &>(*props);
   const auto &oldViewProps = static_cast<const BottomSheetViewProps &>(*_props);
 
@@ -161,6 +172,8 @@ using namespace facebook::react;
   }
 
   [super updateProps:props oldProps:oldProps];
+  [self reconcilePresentationOwnership];
+  [_presentationController endHierarchyMutation];
 }
 
 - (void)updateState:(const State::Shared &)state oldState:(const State::Shared &)oldState
@@ -196,17 +209,50 @@ using namespace facebook::react;
       // running snap against the slot's geometry. Defer one runloop turn: if
       // the window is back by then (the mid-commit case), presentation is left
       // untouched; if the view genuinely left the window, tear down as before.
+      NSUInteger lifecycleGeneration = _presentationLifecycleGeneration;
       __weak __typeof(self) weakSelf = self;
       dispatch_async(dispatch_get_main_queue(), ^{
         __typeof(self) strongSelf = weakSelf;
-        if (strongSelf != nil && strongSelf.window == nil) {
+        if (strongSelf != nil &&
+            strongSelf->_presentationLifecycleGeneration == lifecycleGeneration &&
+            strongSelf.window == nil) {
           [strongSelf updateOverlayPresentation];
         }
       });
     } else {
       [self updateOverlayPresentation];
+      return;
     }
   }
+  [self reconcilePresentationOwnership];
+}
+
+#pragma mark - RCTMountingTransactionObserving
+
+- (void)mountingTransactionWillMount:(const facebook::react::MountingTransaction &)transaction
+                withSurfaceTelemetry:(const facebook::react::SurfaceTelemetry &)surfaceTelemetry
+{
+  if (!_presentationMountTransactionOpen) {
+    _presentationMountTransactionOpen = YES;
+    [_presentationController beginHierarchyMutation];
+  }
+  _portalMountingObserver = BottomSheetPortalObserverForView(self);
+  [_portalMountingObserver willMount:transaction];
+}
+
+- (void)mountingTransactionDidMount:(const facebook::react::MountingTransaction &)transaction
+               withSurfaceTelemetry:(const facebook::react::SurfaceTelemetry &)surfaceTelemetry
+{
+  if (_portalMountingObserver == nil) {
+    _portalMountingObserver = BottomSheetPortalObserverForView(self);
+  }
+  [_portalMountingObserver didMount:transaction owner:self];
+  [self reconcilePresentationOwnership];
+  if (!_presentationMountTransactionOpen) {
+    return;
+  }
+  _presentationMountTransactionOpen = NO;
+  [_presentationController endHierarchyMutation];
 }
 
 /// Reconciles where the sheet view is parented with the current `nativeOverlay`
@@ -214,12 +260,15 @@ using namespace facebook::react;
 /// the host window when on, restored as our own `contentView` when off.
 - (void)updateOverlayPresentation
 {
+  [_presentationController beginHierarchyMutation];
   UIWindow *window = self.window;
 
   if (!_nativeOverlay) {
     if (_overlayContainer != nil) {
       [self restoreInlinePresentation];
     }
+    [self reconcilePresentationOwnership];
+    [_presentationController endHierarchyMutation];
     return;
   }
 
@@ -255,12 +304,13 @@ using namespace facebook::react;
       [self attachOverlayTouchHandler];
     }
     [self pushNativeGeometry];
-    [self updateOverlayAccessibilityState];
   } else {
     if (_overlayContainer != nil) {
       [self restoreInlinePresentation];
     }
   }
+  [self reconcilePresentationOwnership];
+  [_presentationController endHierarchyMutation];
 }
 
 - (void)attachOverlayTouchHandler
@@ -278,11 +328,6 @@ using namespace facebook::react;
   if (attachedView != nil) {
     [_overlayTouchHandler detachFromView:attachedView];
   }
-}
-
-- (void)updateOverlayAccessibilityState
-{
-  _overlayContainer.accessibilityViewIsModal = _nativeOverlay && _sheetView.isModalAccessibilityActive;
 }
 
 /// Pushes the current natively measured geometry into the shadow tree: the
@@ -334,12 +379,14 @@ using namespace facebook::react;
 - (void)restoreInlinePresentation
 {
   if (_overlayContainer != nil) {
-    _overlayContainer.accessibilityViewIsModal = NO;
     [self detachOverlayTouchHandler];
     [_overlayContainer removeFromSuperview];
   }
   self.contentView = nil;
   self.contentView = _sheetView;
+  _sheetView.frame = self.bounds;
+  [_sheetView setNeedsLayout];
+  [_sheetView layoutIfNeeded];
   _overlayContainer = nil;
 }
 
@@ -400,18 +447,28 @@ using namespace facebook::react;
   // remains to be applied here.
   float contentOffsetY = static_cast<float>(view.currentContentOffsetY);
   if (contentOffsetY == _lastContentOffsetY) {
-    [self updateOverlayAccessibilityState];
     return;
   }
   _lastContentOffsetY = contentOffsetY;
 
   [self pushStateSnapshot];
-  [self updateOverlayAccessibilityState];
 }
 
 - (void)bottomSheetView:(BottomSheetContentView *)view didReportError:(NSString *)message
 {
   RCTFatal([NSError errorWithDomain:RCTErrorDomain code:0 userInfo:@{NSLocalizedDescriptionKey : message}]);
+}
+
+- (void)bottomSheetView:(BottomSheetContentView *)view
+    didChangePresentationActive:(BOOL)presentationActive
+{
+  [self reconcilePresentationOwnership];
+}
+
+- (BottomSheetPresentationEscapeRoute)voiceOverEscapeRouteForBottomSheetView:
+    (BottomSheetContentView *)view
+{
+  return [_presentationController routeForVoiceOverEscape];
 }
 
 - (void)bottomSheetViewDidLayout:(BottomSheetContentView *)view
@@ -421,6 +478,7 @@ using namespace facebook::react;
 
 - (void)prepareForRecycle
 {
+  [self tearDownPresentationLifecycle];
   [super prepareForRecycle];
   // Restore inline parenting after the base class resets Fabric view state so a
   // reused instance starts from the default presentation.
@@ -428,14 +486,71 @@ using namespace facebook::react;
   _extendUnderStatusBar = NO;
   [self restoreInlinePresentation];
   _needsIndexSyncAfterRecycle = YES;
-  [_sheetView resetSheetState];
   // `_extendUnderStatusBar` is the diff baseline for the prop, so the hosting
   // view has to be reset with it or a recycled sheet keeps the previous flag.
   [_sheetView setExtendUnderStatusBar:NO];
+  _presentationController =
+      [[BottomSheetPresentationController alloc] initWithAnchor:_sheetView];
   _sheetState.reset();
   _lastContentOffsetY = 0;
   _lastGeometryFrameSize = CGSizeZero;
   _lastGeometryInset = -1;
+}
+
+- (void)invalidate
+{
+  [self tearDownPresentationLifecycle];
+  [super invalidate];
+}
+
+- (void)dealloc
+{
+  [self tearDownPresentationLifecycle];
+}
+
+- (void)tearDownPresentationLifecycle
+{
+  [_portalMountingObserver withdrawOwner:self];
+  _portalMountingObserver = nil;
+  _presentationLifecycleGeneration++;
+  _presentationMountTransactionOpen = NO;
+  [_presentationController invalidate];
+  [_sheetView resetSheetState];
+  [self detachOverlayTouchHandler];
+  [_overlayContainer removeFromSuperview];
+  if (_sheetView.superview == _overlayContainer) {
+    [_sheetView removeFromSuperview];
+  }
+  _overlayTouchHandler = nil;
+  _overlayContainer = nil;
+}
+
+- (void)reconcilePresentationOwnership
+{
+  _overlayContainer.blocksBackgroundTouches =
+      _nativeOverlay && _sheetView.modal && _sheetView.isPresentationActive;
+  BottomSheetPresentationMode mode = _nativeOverlay
+      ? BottomSheetPresentationModeNativeOverlay
+      : BottomSheetPresentationModePortal;
+  [_presentationController updateModal:_sheetView.modal
+                                active:_sheetView.isPresentationActive
+                                  mode:mode];
+}
+
+- (UIView *)portalNativeOwnerForBottomSheetView:(BottomSheetContentView *)view
+{
+  if (view != _sheetView || view.delegate != self) {
+    return nil;
+  }
+  if (view.superview == self && self.contentView == view) {
+    return self;
+  }
+  UIWindow *window = self.window;
+  if (_nativeOverlay && window != nil && self.contentView == nil &&
+      _overlayContainer.superview == window && view.superview == _overlayContainer) {
+    return self;
+  }
+  return nil;
 }
 
 @end

@@ -49,7 +49,7 @@ class EscapeRoutingInstrumentedTest {
         val child = EscapeRecordingView(activity, childEventCount, consumesEscape = true)
         child.isFocusableInTouchMode = true
         sheet.addView(child, ViewGroup.LayoutParams(1, 1))
-        activity.setContentView(sheet)
+        activity.setInstrumentedReactContentView(sheet)
         assertTrue(child.requestFocus())
       }
 
@@ -82,7 +82,7 @@ class EscapeRoutingInstrumentedTest {
           ),
         )
         root.addView(sibling, FrameLayout.LayoutParams(100, 100))
-        activity.setContentView(root)
+        activity.setInstrumentedReactContentView(root)
         assertTrue(sibling.requestFocus())
       }
 
@@ -120,7 +120,7 @@ class EscapeRoutingInstrumentedTest {
             FrameLayout.LayoutParams.MATCH_PARENT,
           ),
         )
-        activity.setContentView(root)
+        activity.setInstrumentedReactContentView(root)
         assertTrue(lowerChild.requestFocus())
 
         upperContent = MutableContentHeightView(activity)

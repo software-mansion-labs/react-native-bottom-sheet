@@ -8,6 +8,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.swmansion.reactnativebottomsheet.closerequest.CloseRequestInputState
 import com.swmansion.reactnativebottomsheet.closerequest.OverlayCloseRequestController
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -21,6 +23,7 @@ class ReactActivityBackRoutingInstrumentedTest {
   fun nativeOverlayBackWithoutHandlerEntersReactNativeOnceAndLeavesDialogVisible() {
     RecordingReactActivityDelegate.backEntryCount.set(0)
     val closeRequestCount = AtomicInteger()
+    val dialogWindowFocused = CountDownLatch(1)
     lateinit var controller: OverlayCloseRequestController
     lateinit var dialog: ComponentDialog
 
@@ -33,7 +36,12 @@ class ReactActivityBackRoutingInstrumentedTest {
         dialog =
           ComponentDialog(activity).also {
             it.setContentView(FrameLayout(activity))
+            val decorView = requireNotNull(it.window).decorView
+            decorView.viewTreeObserver.addOnWindowFocusChangeListener { hasFocus ->
+              if (hasFocus) dialogWindowFocused.countDown()
+            }
             it.show()
+            if (decorView.hasWindowFocus()) dialogWindowFocused.countDown()
           }
         controller.bind(dialog)
         controller.update(
@@ -52,6 +60,10 @@ class ReactActivityBackRoutingInstrumentedTest {
 
       val instrumentation = InstrumentationRegistry.getInstrumentation()
       instrumentation.waitForIdleSync()
+      assertTrue(
+        "Dialog window did not receive focus before system Back",
+        dialogWindowFocused.await(5, TimeUnit.SECONDS),
+      )
       instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
       instrumentation.waitForIdleSync()
 

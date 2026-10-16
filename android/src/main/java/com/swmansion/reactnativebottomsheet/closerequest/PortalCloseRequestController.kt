@@ -7,6 +7,9 @@ import androidx.activity.OnBackPressedDispatcher
 import androidx.core.view.ViewCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.swmansion.reactnativebottomsheet.presentation.PortalPresentationAssignment
+import com.swmansion.reactnativebottomsheet.presentation.PortalPresentationContext
+import com.swmansion.reactnativebottomsheet.presentation.PortalPresentationCoordinator
 
 /** Owns close request routing for one portal [BottomSheetView]. */
 internal class PortalCloseRequestController(
@@ -19,7 +22,8 @@ internal class PortalCloseRequestController(
   private var disposed = false
 
   private var closeRequestRoutingContext: PortalCloseRequestRoutingContext? = null
-  private var closeRequestRegistration: PortalCloseRequestCoordinator.Registration? = null
+  private var presentationContext: PortalPresentationContext? = null
+  private var presentationAssignment = PortalPresentationAssignment.NONE
   private var assignedCloseRequestAction = CloseRequestInputAction.PASS_THROUGH
   private var hasBackCallbackPresentationEnded = false
   private var isReconcilingBackCallback = false
@@ -44,8 +48,6 @@ internal class PortalCloseRequestController(
     dispatchEscape(event)
   }
 
-  private val syncRoutingContextRunnable = Runnable { syncRoutingContext() }
-
   fun update(
     state: CloseRequestInputState,
     usesPortalPresentation: Boolean,
@@ -56,23 +58,34 @@ internal class PortalCloseRequestController(
     syncRoutingContext()
   }
 
-  fun scheduleRoutingContextSync() {
+  fun onPresentationChanged(
+    context: PortalPresentationContext?,
+    assignment: PortalPresentationAssignment,
+  ) {
     if (disposed) return
-    view.removeCallbacks(syncRoutingContextRunnable)
-    view.post(syncRoutingContextRunnable)
+    if (
+      context?.windowRoot !== presentationContext?.windowRoot ||
+        assignment == PortalPresentationAssignment.NONE
+    ) {
+      presentationContext?.windowRoot?.let { PortalCloseRequestCoordinator.release(it, this) }
+    }
+    presentationContext = context
+    presentationAssignment = assignment
+    syncRoutingContext()
   }
 
   fun dispatchEscape(event: KeyEvent): Boolean {
     if (disposed || !usesPortalPresentation || !inputState.isModal || !inputState.isAttached)
       return false
-    val portalRoot = closeRequestRoutingContext?.rootView ?: return false
-    if (portalRoot !== view.rootView) return false
+    val context = presentationContext ?: return false
+    val portalRoot = context.windowRoot
+    if (context.windowRoot !== view.rootView) return false
+    PortalPresentationCoordinator.reconcile(portalRoot)
     return PortalCloseRequestCoordinator.dispatchEscape(portalRoot, event)
   }
 
   fun clear() {
     usesPortalPresentation = false
-    view.removeCallbacks(syncRoutingContextRunnable)
     clearRoutingContext()
   }
 
@@ -80,7 +93,6 @@ internal class PortalCloseRequestController(
     if (disposed) return
     disposed = true
     usesPortalPresentation = false
-    view.removeCallbacks(syncRoutingContextRunnable)
     clearRoutingContext()
   }
 
@@ -94,7 +106,7 @@ internal class PortalCloseRequestController(
     if (
       disposed ||
         assignedCloseRequestAction != CloseRequestInputAction.EMIT_CLOSE_REQUEST ||
-        currentPortalState().actionIfRoutingOwner != CloseRequestInputAction.EMIT_CLOSE_REQUEST
+        currentPortalAction() != CloseRequestInputAction.EMIT_CLOSE_REQUEST
     ) {
       return false
     }
@@ -105,7 +117,12 @@ internal class PortalCloseRequestController(
     if (disposed) return
     val resolvedRoutingContext =
       view
-        .takeIf { usesPortalPresentation && inputState.isAttached && inputState.isModal }
+        .takeIf {
+          usesPortalPresentation &&
+            inputState.isAttached &&
+            inputState.isModal &&
+            presentationContext != null
+        }
         ?.resolvePortalCloseRequestRoutingContext(currentActivity())
     val previousRoutingContext = closeRequestRoutingContext
     if (!routingContextsAreIdentical(resolvedRoutingContext, previousRoutingContext)) {
@@ -113,26 +130,6 @@ internal class PortalCloseRequestController(
       previousRoutingContext?.lifecycleOwner?.lifecycle?.removeObserver(lifecycleObserver)
       closeRequestRoutingContext = resolvedRoutingContext
       resolvedRoutingContext?.lifecycleOwner?.lifecycle?.addObserver(lifecycleObserver)
-
-      if (previousRoutingContext?.rootView !== resolvedRoutingContext?.rootView) {
-        closeRequestRegistration?.remove()
-        closeRequestRegistration = null
-        if (resolvedRoutingContext != null) {
-          closeRequestRegistration =
-            PortalCloseRequestCoordinator.register(
-              resolvedRoutingContext.rootView,
-              this,
-              currentPortalState(),
-            )
-        }
-      } else if (resolvedRoutingContext != null && closeRequestRegistration == null) {
-        closeRequestRegistration =
-          PortalCloseRequestCoordinator.register(
-            resolvedRoutingContext.rootView,
-            this,
-            currentPortalState(),
-          )
-      }
     }
     reconcileInputHandling()
   }
@@ -140,11 +137,17 @@ internal class PortalCloseRequestController(
   private fun reconcileInputHandling() {
     if (disposed) return
     ensureEscapeListener()
-    closeRequestRegistration?.update(currentPortalState())
+    presentationContext?.windowRoot?.let { windowRoot ->
+      if (presentationAssignment != PortalPresentationAssignment.NONE) {
+        PortalCloseRequestCoordinator.assign(windowRoot, this, currentPortalAction())
+      } else {
+        PortalCloseRequestCoordinator.release(windowRoot, this)
+      }
+    }
     reconcileBackCallback()
   }
 
-  private fun currentPortalState(): PortalCloseRequestState {
+  private fun currentPortalAction(): CloseRequestInputAction {
     val currentRoutingContext = closeRequestRoutingContext
     val isLifecycleActive =
       currentRoutingContext
@@ -158,24 +161,10 @@ internal class PortalCloseRequestController(
           usesPortalPresentation &&
             inputState.isAttached &&
             currentRoutingContext != null &&
-            currentRoutingContext.rootView === view.rootView,
+            currentRoutingContext.windowRoot === view.rootView,
         isLifecycleActive = isLifecycleActive,
       )
-    val isRoutingOwnerCandidate =
-      effectiveInputState.isAttached &&
-        effectiveInputState.isModal &&
-        effectiveInputState.isLifecycleActive &&
-        effectiveInputState.isPresentationActive
-
-    return PortalCloseRequestState(
-      isRoutingOwnerCandidate = isRoutingOwnerCandidate,
-      actionIfRoutingOwner =
-        if (isRoutingOwnerCandidate) {
-          resolveCloseRequestInputAction(effectiveInputState)
-        } else {
-          CloseRequestInputAction.PASS_THROUGH
-        },
-    )
+    return resolveCloseRequestInputAction(effectiveInputState)
   }
 
   /**
@@ -279,8 +268,9 @@ internal class PortalCloseRequestController(
       removeInputHandlers()
       closeRequestRoutingContext?.lifecycleOwner?.lifecycle?.removeObserver(lifecycleObserver)
       closeRequestRoutingContext = null
-      closeRequestRegistration?.remove()
-      closeRequestRegistration = null
+      presentationContext?.windowRoot?.let { PortalCloseRequestCoordinator.release(it, this) }
+      presentationContext = null
+      presentationAssignment = PortalPresentationAssignment.NONE
       assignedCloseRequestAction = CloseRequestInputAction.PASS_THROUGH
     } finally {
       isReconcilingBackCallback = wasReconciling
@@ -317,6 +307,6 @@ internal class PortalCloseRequestController(
     if (first == null || second == null) return first === second
     return first.dispatcherOwner === second.dispatcherOwner &&
       first.lifecycleOwner === second.lifecycleOwner &&
-      first.rootView === second.rootView
+      first.windowRoot === second.windowRoot
   }
 }

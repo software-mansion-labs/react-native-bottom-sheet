@@ -18,6 +18,17 @@ export default function RootLayout() {
           >
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen
+              name="portal-composed-contexts"
+              options={{
+                title: 'RN Modal + local contexts',
+                headerShown: true,
+              }}
+            />
+            <Stack.Screen
+              name="portal-local-contexts"
+              options={{ title: 'Local portal contexts', headerShown: true }}
+            />
+            <Stack.Screen
               name="basic-modal"
               options={{ title: 'Basic modal', headerShown: false }}
             />
@@ -58,6 +69,13 @@ export default function RootLayout() {
               name="close-request"
               options={{
                 title: 'Android close requests',
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="portal-accessibility-stack"
+              options={{
+                title: 'Portal accessibility stack',
                 headerShown: false,
               }}
             />

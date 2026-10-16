@@ -65,7 +65,7 @@ class CloseRequestAnimationInstrumentedTest {
             )
             setIndex(1)
           }
-        activity.setContentView(sheet)
+        activity.setInstrumentedReactContentView(sheet)
       }
 
       val instrumentation = InstrumentationRegistry.getInstrumentation()

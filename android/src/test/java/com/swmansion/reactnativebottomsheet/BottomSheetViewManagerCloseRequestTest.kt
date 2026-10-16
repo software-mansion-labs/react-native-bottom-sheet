@@ -22,6 +22,7 @@ import com.facebook.react.uimanager.events.Event
 import com.facebook.react.uimanager.events.EventDispatcher
 import com.facebook.react.uimanager.events.EventDispatcherListener
 import com.facebook.react.viewmanagers.BottomSheetViewManagerDelegate
+import com.swmansion.reactnativebottomsheet.presentation.TestReactRoot
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -64,7 +65,7 @@ class BottomSheetViewManagerCloseRequestTest {
         ),
       )
       manager.setIndex(sheet, 1)
-      activity.setContentView(sheet)
+      activity.setContentView(TestReactRoot(activity).apply { addView(sheet) })
       layout(sheet)
       reactContext.onHostResume(activity)
       eventDispatcher.eventNames.clear()

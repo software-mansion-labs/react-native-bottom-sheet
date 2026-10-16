@@ -8,6 +8,8 @@ import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.swmansion.reactnativebottomsheet.presentation.PortalPresentationController
+import com.swmansion.reactnativebottomsheet.presentation.TestReactRoot
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -28,7 +30,7 @@ class PortalCloseRequestControllerTest {
       var closeRequestCount = 0
       activity.onBackPressedDispatcher.addCallback(countingCallback { fallbackCount++ })
       val portal = View(activity).apply { isFocusableInTouchMode = true }
-      activity.setContentView(portal)
+      activity.setContentView(TestReactRoot(activity).apply { addView(portal) })
       assertTrue(portal.requestFocus())
       val controller =
         PortalCloseRequestController(
@@ -40,17 +42,22 @@ class PortalCloseRequestControllerTest {
           },
         )
 
+      val presentation = PortalPresentationController(portal, controller::onPresentationChanged)
       controller.update(inputState(), usesPortalPresentation = true)
+      presentation.update(isPortal = true, isActive = true)
       activity.onBackPressedDispatcher.onBackPressed()
       assertEquals(1, closeRequestCount)
 
+      presentation.clear()
       controller.clear()
       activity.onBackPressedDispatcher.onBackPressed()
       assertEquals(1, fallbackCount)
       assertEquals(1, closeRequestCount)
 
       controller.update(inputState(), usesPortalPresentation = true)
+      presentation.update(isPortal = true, isActive = true)
       activity.onBackPressedDispatcher.onBackPressed()
+      presentation.dispose()
       controller.dispose()
       activity.onBackPressedDispatcher.onBackPressed()
 
@@ -66,7 +73,7 @@ class PortalCloseRequestControllerTest {
       var closeRequestCount = 0
       activity.onBackPressedDispatcher.addCallback(countingCallback { fallbackCount++ })
       val portal = EscapeDispatchingView(activity).apply { isFocusableInTouchMode = true }
-      activity.setContentView(portal)
+      activity.setContentView(TestReactRoot(activity).apply { addView(portal) })
       layoutView(portal)
       assertTrue(portal.requestFocus())
       val controller =
@@ -80,7 +87,9 @@ class PortalCloseRequestControllerTest {
         )
       portal.dispatchEscape = controller::dispatchEscape
 
+      val presentation = PortalPresentationController(portal, controller::onPresentationChanged)
       controller.update(inputState(), usesPortalPresentation = true)
+      presentation.update(isPortal = true, isActive = true)
       activity.onBackPressedDispatcher.onBackPressed()
       assertEquals(1, closeRequestCount)
       assertEscape(activity::dispatchKeyEvent, expectedHandled = true)
@@ -107,12 +116,14 @@ class PortalCloseRequestControllerTest {
       assertEquals(2, closeRequestCount)
 
       controller.update(inputState(), usesPortalPresentation = true)
+      presentation.update(isPortal = true, isActive = true)
       activity.onBackPressedDispatcher.onBackPressed()
       assertEquals(3, closeRequestCount)
       assertEscape(activity::dispatchKeyEvent, expectedHandled = true)
 
       assertEquals(2, fallbackCount)
       assertEquals(4, closeRequestCount)
+      presentation.dispose()
       controller.dispose()
     }
   }

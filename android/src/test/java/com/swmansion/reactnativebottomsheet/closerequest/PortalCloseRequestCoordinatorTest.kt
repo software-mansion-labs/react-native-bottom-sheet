@@ -1,12 +1,16 @@
 package com.swmansion.reactnativebottomsheet.closerequest
 
-import android.app.Activity
 import android.view.KeyEvent
+import android.view.View
 import android.widget.FrameLayout
+import androidx.activity.BackEventCompat
+import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.swmansion.reactnativebottomsheet.presentation.PortalPresentationController
+import com.swmansion.reactnativebottomsheet.presentation.TestReactRoot
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -17,387 +21,259 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35])
 class PortalCloseRequestCoordinatorTest {
   @Test
-  fun `newest routing owner candidate wins while non-candidates are skipped`() {
-    withActivity { activity ->
-      val root = FrameLayout(activity)
-      val lower = TestParticipant()
-      val unresolvedUpper = TestParticipant()
-      val zeroUpper = TestParticipant()
-      val lowerRegistration = register(root, lower, routingOwnerCandidate = true)
-      val unresolvedRegistration = register(root, unresolvedUpper, routingOwnerCandidate = false)
-      val zeroRegistration = register(root, zeroUpper, routingOwnerCandidate = false)
-
-      try {
-        assertTrue(lower.isInputHandlingEnabled)
-        assertFalse(unresolvedUpper.isInputHandlingEnabled)
-        assertFalse(zeroUpper.isInputHandlingEnabled)
-        assertHandledEscape(root)
-        assertEquals(1, lower.requestCount)
-
-        zeroRegistration.update(portalState(routingOwnerCandidate = true))
-        assertFalse(lower.isInputHandlingEnabled)
-        assertTrue(zeroUpper.isInputHandlingEnabled)
-        assertHandledEscape(root, 100L)
-        assertEquals(1, lower.requestCount)
-        assertEquals(1, zeroUpper.requestCount)
-
-        zeroRegistration.update(portalState(routingOwnerCandidate = false))
-        assertTrue(lower.isInputHandlingEnabled)
-        assertHandledEscape(root, 110L)
-        assertEquals(2, lower.requestCount)
-      } finally {
-        zeroRegistration.remove()
-        unresolvedRegistration.remove()
-        lowerRegistration.remove()
-      }
+  fun `higher handlerless presentation blocks lower and handler updates keep visual ownership`() {
+    Fixture().use { fixture ->
+      val upper = fixture.portal().apply { view.elevation = 10f }
+      val lower = fixture.portal()
+      upper.update(portalInputState(hasHandler = false))
+      fixture.back()
+      assertFalse(lower.escapeDown())
+      assertFalse(lower.escapeUp())
+      assertEquals(1, fixture.hostBackCount)
+      assertEquals(0, lower.requests)
+      upper.update(portalInputState())
+      fixture.back()
+      assertTrue(lower.escapeDown())
+      assertTrue(lower.escapeUp())
+      assertEquals(2, upper.requests)
+      assertEquals(0, lower.requests)
     }
   }
 
   @Test
-  fun `routing owner without a handler blocks lower and handler toggles do not reorder it`() {
-    withActivity { activity ->
-      val root = FrameLayout(activity)
-      val lower = TestParticipant()
-      val upper = TestParticipant()
-      val lowerRegistration = register(root, lower, routingOwnerCandidate = true)
-      val upperRegistration = register(root, upper, routingOwnerCandidate = true, canEmit = false)
+  fun `closing owner consumes until settle and then transfers to lower`() {
+    Fixture().use { fixture ->
+      val lower = fixture.portal()
+      val upper = fixture.portal()
+      upper.update(portalInputState(targetOpen = false))
+      fixture.back()
+      assertTrue(lower.escapeDown())
+      assertTrue(lower.escapeUp())
+      assertEquals(0, upper.requests)
+      assertEquals(0, lower.requests)
+      assertEquals(0, fixture.hostBackCount)
 
-      try {
-        assertFalse(lower.isInputHandlingEnabled)
-        assertFalse(upper.isInputHandlingEnabled)
-        assertFalse(PortalCloseRequestCoordinator.dispatchEscape(root, escapeDown(120L)))
-        assertFalse(PortalCloseRequestCoordinator.dispatchEscape(root, escapeUp(120L)))
-
-        upperRegistration.update(portalState(routingOwnerCandidate = true, canEmit = true))
-        assertTrue(upper.isInputHandlingEnabled)
-        assertHandledEscape(root, 130L)
-        assertEquals(0, lower.requestCount)
-        assertEquals(1, upper.requestCount)
-
-        upperRegistration.update(portalState(routingOwnerCandidate = true, canEmit = false))
-        upperRegistration.update(portalState(routingOwnerCandidate = true, canEmit = true))
-        assertTrue(upper.isInputHandlingEnabled)
-        assertFalse(lower.isInputHandlingEnabled)
-      } finally {
-        upperRegistration.remove()
-        lowerRegistration.remove()
-      }
+      upper.update(portalInputState(active = false, targetOpen = false))
+      fixture.back()
+      assertTrue(lower.escapeDown())
+      assertTrue(lower.escapeUp())
+      assertEquals(2, lower.requests)
     }
   }
 
   @Test
-  fun `consuming upper routing owner blocks lower without emitting`() {
-    withActivity { activity ->
-      val root = FrameLayout(activity)
-      val lower = TestParticipant()
-      val upper = TestParticipant()
-      val lowerRegistration = register(root, lower, routingOwnerCandidate = true)
-      val upperRegistration =
-        PortalCloseRequestCoordinator.register(
-          root,
-          upper,
-          portalState(routingOwnerCandidate = true, action = CloseRequestInputAction.CONSUME),
-        )
-
-      try {
-        assertFalse(lower.isInputHandlingEnabled)
-        assertEquals(CloseRequestInputAction.CONSUME, upper.action)
-        assertHandledEscape(root, 135L)
-        assertEquals(0, lower.requestCount)
-        assertEquals(0, upper.requestCount)
-
-        upperRegistration.update(portalState(routingOwnerCandidate = false))
-        assertTrue(lower.isInputHandlingEnabled)
-        assertHandledEscape(root, 136L)
-        assertEquals(1, lower.requestCount)
-      } finally {
-        upperRegistration.remove()
-        lowerRegistration.remove()
-      }
+  fun `opening Active presentation handles input before any settle`() {
+    Fixture().use { fixture ->
+      val portal = fixture.portal(portalInputState(active = false))
+      fixture.back()
+      portal.update(portalInputState())
+      fixture.back()
+      assertEquals(1, fixture.hostBackCount)
+      assertEquals(1, portal.requests)
     }
   }
 
   @Test
-  fun `same routing owner changes action without passing through`() {
-    withActivity { activity ->
-      val root = FrameLayout(activity)
-      val participant = TestParticipant()
-      val registration = register(root, participant, routingOwnerCandidate = true)
-
-      try {
-        registration.update(
-          portalState(
-            routingOwnerCandidate = true,
-            action = CloseRequestInputAction.CONSUME,
-          )
-        )
-        registration.update(
-          portalState(
-            routingOwnerCandidate = true,
-            action = CloseRequestInputAction.EMIT_CLOSE_REQUEST,
-          )
-        )
-
-        assertEquals(
-          listOf(
-            CloseRequestInputAction.EMIT_CLOSE_REQUEST,
-            CloseRequestInputAction.CONSUME,
-            CloseRequestInputAction.EMIT_CLOSE_REQUEST,
-          ),
-          participant.actionChanges,
-        )
-        assertEquals(listOf(true, true, true), participant.inputHandlingChanges)
-        assertTrue(participant.isInputHandlingEnabled)
-      } finally {
-        registration.remove()
-      }
+  fun `unknown order uses stable shared Close fallback`() {
+    Fixture(unknownOrder = true).use { fixture ->
+      val first = fixture.portal()
+      val second = fixture.portal()
+      first.update(portalInputState(hasHandler = false))
+      first.update(portalInputState())
+      fixture.back()
+      assertTrue(first.escapeDown())
+      assertTrue(first.escapeUp())
+      assertEquals(0, first.requests)
+      assertEquals(2, second.requests)
     }
   }
 
   @Test
-  fun `inactive upper passes new requests lower and resume restores its position`() {
-    withActivity { activity ->
-      val root = FrameLayout(activity)
-      val lower = TestParticipant()
-      val upper = TestParticipant()
-      val lowerRegistration = register(root, lower, routingOwnerCandidate = true)
-      val upperRegistration = register(root, upper, routingOwnerCandidate = true)
-
-      try {
-        upperRegistration.update(portalState(routingOwnerCandidate = false))
-        assertTrue(lower.isInputHandlingEnabled)
-        assertHandledEscape(root, 140L)
-        assertEquals(1, lower.requestCount)
-
-        upperRegistration.update(portalState(routingOwnerCandidate = true))
-        assertTrue(upper.isInputHandlingEnabled)
-        assertFalse(lower.isInputHandlingEnabled)
-        assertHandledEscape(root, 150L)
-        assertEquals(1, upper.requestCount)
-
-        upperRegistration.update(portalState(routingOwnerCandidate = false))
-        assertTrue(lower.isInputHandlingEnabled)
-      } finally {
-        upperRegistration.remove()
-        lowerRegistration.remove()
-      }
+  fun `captured Escape cannot emit after ownership leaves and returns`() {
+    Fixture().use { fixture ->
+      val lower = fixture.portal()
+      val upper = fixture.portal()
+      assertTrue(lower.escapeDown())
+      upper.update(portalInputState(active = false))
+      upper.update(portalInputState())
+      assertTrue(lower.escapeUp())
+      assertEquals(0, lower.requests)
+      assertEquals(0, upper.requests)
+      assertTrue(lower.escapeDown())
+      assertTrue(lower.escapeUp())
+      assertEquals(1, upper.requests)
     }
   }
 
   @Test
-  fun `identical updates are no-ops and updates after remove are ignored`() {
-    withActivity { activity ->
-      val root = FrameLayout(activity)
-      val participant = TestParticipant()
-      val initialState = portalState(routingOwnerCandidate = true)
-      val registration = PortalCloseRequestCoordinator.register(root, participant, initialState)
-
-      assertEquals(listOf(true), participant.inputHandlingChanges)
-      registration.update(initialState)
-      assertEquals(listOf(true), participant.inputHandlingChanges)
-
-      registration.remove()
-      assertEquals(listOf(true, false), participant.inputHandlingChanges)
-      registration.update(initialState)
-      registration.remove()
-      assertEquals(listOf(true, false), participant.inputHandlingChanges)
+  fun `captured Escape cannot emit after handler loss and restoration`() {
+    Fixture().use { fixture ->
+      val portal = fixture.portal()
+      assertTrue(portal.escapeDown())
+      portal.update(portalInputState(hasHandler = false))
+      portal.update(portalInputState())
+      assertTrue(portal.escapeUp())
+      assertEquals(0, portal.requests)
     }
   }
 
   @Test
-  fun `initial action assignment is synchronous and pass-through is not redundantly reported`() {
-    withActivity { activity ->
-      val closeRequestRoot = FrameLayout(activity)
-      val closeRequestParticipant = TestParticipant()
-      val closeRequestRegistration =
-        register(closeRequestRoot, closeRequestParticipant, routingOwnerCandidate = true)
-      val passThroughRoot = FrameLayout(activity)
-      val passThroughParticipant = TestParticipant()
-      val passThroughRegistration =
-        register(passThroughRoot, passThroughParticipant, routingOwnerCandidate = false)
-
-      try {
-        assertEquals(listOf(true), closeRequestParticipant.inputHandlingChanges)
-        assertTrue(closeRequestParticipant.isInputHandlingEnabled)
-        assertTrue(passThroughParticipant.inputHandlingChanges.isEmpty())
-        assertFalse(passThroughParticipant.isInputHandlingEnabled)
-      } finally {
-        passThroughRegistration.remove()
-        closeRequestRegistration.remove()
-      }
+  fun `removing Escape owner consumes the captured up without retargeting`() {
+    Fixture().use { fixture ->
+      val lower = fixture.portal()
+      val upper = fixture.portal()
+      assertTrue(lower.escapeDown())
+      upper.dispose()
+      assertTrue(lower.escapeUp())
+      assertEquals(0, lower.requests)
+      fixture.back()
+      assertEquals(1, lower.requests)
     }
   }
 
   @Test
-  fun `routing owner transitions disable before enabling and remove disables before promoting lower`() {
-    withActivity { activity ->
-      val root = FrameLayout(activity)
-      val transitions = mutableListOf<String>()
-      val lower = TestParticipant("lower", transitions)
-      val upper = TestParticipant("upper", transitions)
-      val lowerRegistration = register(root, lower, routingOwnerCandidate = true)
-      val upperRegistration = register(root, upper, routingOwnerCandidate = false)
-
-      try {
-        transitions.clear()
-        upperRegistration.update(portalState(routingOwnerCandidate = true))
-        assertEquals(listOf("lower:false", "upper:true"), transitions)
-
-        transitions.clear()
-        upperRegistration.remove()
-        assertEquals(listOf("upper:false", "lower:true"), transitions)
-      } finally {
-        upperRegistration.remove()
-        lowerRegistration.remove()
-      }
+  fun `predictive Back remains captured when a higher presentation appears`() {
+    Fixture().use { fixture ->
+      val lower = fixture.portal()
+      fixture.activity.onBackPressedDispatcher.dispatchOnBackStarted(
+        BackEventCompat(0f, 0f, 0f, BackEventCompat.EDGE_LEFT)
+      )
+      val upper = fixture.portal()
+      fixture.back()
+      assertEquals(0, lower.requests)
+      assertEquals(0, upper.requests)
+      assertEquals(0, fixture.hostBackCount)
+      fixture.back()
+      assertEquals(1, upper.requests)
     }
   }
 
   @Test
-  fun `roots are isolated and migration creates a new membership position`() {
-    withActivity { activity ->
-      val firstRoot = FrameLayout(activity)
-      val secondRoot = FrameLayout(activity)
-      val firstLower = TestParticipant()
-      val migrating = TestParticipant()
-      val isolated = TestParticipant()
-      val firstRegistration = register(firstRoot, firstLower, routingOwnerCandidate = true)
-      var migratingRegistration = register(firstRoot, migrating, routingOwnerCandidate = true)
-      val isolatedRegistration = register(secondRoot, isolated, routingOwnerCandidate = true)
-
-      try {
-        assertTrue(migrating.isInputHandlingEnabled)
-        assertTrue(isolated.isInputHandlingEnabled)
-
-        migratingRegistration.remove()
-        assertTrue(firstLower.isInputHandlingEnabled)
-        migratingRegistration = register(secondRoot, migrating, routingOwnerCandidate = true)
-        assertTrue(migrating.isInputHandlingEnabled)
-        assertFalse(isolated.isInputHandlingEnabled)
-        assertTrue(firstLower.isInputHandlingEnabled)
-        assertEquals(listOf(true, false, true), migrating.inputHandlingChanges)
-      } finally {
-        migratingRegistration.remove()
-        isolatedRegistration.remove()
-        firstRegistration.remove()
-      }
+  fun `a rendered elevation change transfers Back without a sheet state or layout update`() {
+    Fixture().use { fixture ->
+      val lower = fixture.portal()
+      val upper = fixture.portal()
+      lower.view.elevation = 10f
+      lower.view.viewTreeObserver.dispatchOnPreDraw()
+      fixture.back()
+      assertEquals(1, lower.requests)
+      assertEquals(0, upper.requests)
     }
   }
 
   @Test
-  fun `routing ownership or emission loss is terminal for a captured Escape press`() {
-    withActivity { activity ->
-      val root = FrameLayout(activity)
-      val lower = TestParticipant()
-      val upper = TestParticipant()
-      val lowerRegistration = register(root, lower, routingOwnerCandidate = true)
-      val upperRegistration = register(root, upper, routingOwnerCandidate = true)
-
-      try {
-        assertTrue(PortalCloseRequestCoordinator.dispatchEscape(root, escapeDown(170L)))
-        upperRegistration.update(portalState(routingOwnerCandidate = false))
-        upperRegistration.update(portalState(routingOwnerCandidate = true))
-        assertTrue(PortalCloseRequestCoordinator.dispatchEscape(root, escapeUp(170L)))
-        assertEquals(0, lower.requestCount)
-        assertEquals(0, upper.requestCount)
-
-        assertTrue(PortalCloseRequestCoordinator.dispatchEscape(root, escapeDown(180L)))
-        upperRegistration.update(portalState(routingOwnerCandidate = true, canEmit = false))
-        upperRegistration.update(portalState(routingOwnerCandidate = true, canEmit = true))
-        assertTrue(PortalCloseRequestCoordinator.dispatchEscape(root, escapeUp(180L)))
-        assertEquals(0, upper.requestCount)
-
-        assertHandledEscape(root, 190L)
-        assertEquals(1, upper.requestCount)
-      } finally {
-        upperRegistration.remove()
-        lowerRegistration.remove()
-      }
+  fun `raising a handlerless presentation before drawing releases Back to the host`() {
+    Fixture().use { fixture ->
+      val lower = fixture.portal(portalInputState(hasHandler = false))
+      val upper = fixture.portal()
+      lower.view.translationZ = 10f
+      lower.view.viewTreeObserver.dispatchOnPreDraw()
+      fixture.back()
+      assertEquals(1, fixture.hostBackCount)
+      assertEquals(0, upper.requests)
+      assertEquals(0, lower.requests)
+      lower.view.translationZ = 0f
+      lower.view.viewTreeObserver.dispatchOnPreDraw()
+      fixture.back()
+      assertEquals(1, upper.requests)
     }
   }
 
   @Test
-  fun `state rejects emission without routing owner candidacy`() {
-    assertThrows(IllegalArgumentException::class.java) {
-      PortalCloseRequestState(
-        isRoutingOwnerCandidate = false,
-        actionIfRoutingOwner = CloseRequestInputAction.EMIT_CLOSE_REQUEST,
+  fun `visual transfer and return cannot reactivate predictive emission`() {
+    Fixture().use { fixture ->
+      val lower = fixture.portal()
+      val upper = fixture.portal()
+      fixture.activity.onBackPressedDispatcher.dispatchOnBackStarted(
+        BackEventCompat(0f, 0f, 0f, BackEventCompat.EDGE_LEFT)
+      )
+      lower.view.elevation = 10f
+      lower.view.viewTreeObserver.dispatchOnPreDraw()
+      lower.view.elevation = 0f
+      lower.view.viewTreeObserver.dispatchOnPreDraw()
+      fixture.back()
+      assertEquals(0, lower.requests)
+      assertEquals(0, upper.requests)
+      fixture.back()
+      assertEquals(1, upper.requests)
+    }
+  }
+
+  private class Fixture(unknownOrder: Boolean = false) : AutoCloseable {
+    private val activityController =
+      Robolectric.buildActivity(ComponentActivity::class.java).setup()
+    val activity = activityController.get()
+    private val root = TestReactRoot(activity)
+    val parent = if (unknownOrder) root else FrameLayout(activity).also(root::addView)
+    private val portals = mutableListOf<Portal>()
+    var hostBackCount = 0
+
+    init {
+      activity.setContentView(root)
+      activity.onBackPressedDispatcher.addCallback(
+        object : OnBackPressedCallback(true) {
+          override fun handleOnBackPressed() {
+            hostBackCount++
+          }
+        }
       )
     }
+
+    fun portal(state: CloseRequestInputState = portalInputState()): Portal =
+      Portal(this).also {
+        portals.add(it)
+        it.update(state)
+      }
+
+    fun back() = activity.onBackPressedDispatcher.onBackPressed()
+
+    override fun close() {
+      portals.asReversed().forEach { it.dispose() }
+      activityController.close()
+    }
   }
 
-  private fun register(
-    root: FrameLayout,
-    participant: TestParticipant,
-    routingOwnerCandidate: Boolean,
-    canEmit: Boolean = routingOwnerCandidate,
-  ): PortalCloseRequestCoordinator.Registration =
-    PortalCloseRequestCoordinator.register(
-      root,
-      participant,
-      portalState(routingOwnerCandidate, canEmit),
-    )
+  private class Portal(fixture: Fixture) {
+    val view = View(fixture.activity).also(fixture.parent::addView)
+    var requests = 0
+    private val close =
+      PortalCloseRequestController(view, { fixture.activity }) {
+        requests++
+        true
+      }
+    val presentation = PortalPresentationController(view, close::onPresentationChanged)
 
-  private fun portalState(
-    routingOwnerCandidate: Boolean,
-    canEmit: Boolean = routingOwnerCandidate,
-    action: CloseRequestInputAction? = null,
-  ) =
-    PortalCloseRequestState(
-      isRoutingOwnerCandidate = routingOwnerCandidate,
-      actionIfRoutingOwner =
-        action
-          ?: if (routingOwnerCandidate && canEmit) {
-            CloseRequestInputAction.EMIT_CLOSE_REQUEST
-          } else {
-            CloseRequestInputAction.PASS_THROUGH
-          },
-    )
+    fun update(state: CloseRequestInputState) {
+      close.update(state, usesPortalPresentation = true)
+      presentation.update(
+        isPortal = state.isAttached && state.isModal,
+        isActive = state.isPresentationActive,
+      )
+    }
 
-  private fun assertHandledEscape(root: FrameLayout, downTime: Long = 90L) {
-    assertTrue(PortalCloseRequestCoordinator.dispatchEscape(root, escapeDown(downTime)))
-    assertTrue(PortalCloseRequestCoordinator.dispatchEscape(root, escapeUp(downTime)))
-  }
+    fun escapeDown() =
+      close.dispatchEscape(KeyEvent(10, 10, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ESCAPE, 0))
 
-  private fun escapeDown(downTime: Long) =
-    KeyEvent(downTime, downTime, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ESCAPE, 0)
+    fun escapeUp() =
+      close.dispatchEscape(KeyEvent(10, 11, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ESCAPE, 0))
 
-  private fun escapeUp(downTime: Long) =
-    KeyEvent(downTime, downTime + 1, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ESCAPE, 0)
-
-  private fun withActivity(block: (Activity) -> Unit) {
-    val controller = Robolectric.buildActivity(Activity::class.java).setup()
-    try {
-      block(controller.get())
-    } finally {
-      controller.close()
+    fun dispose() {
+      presentation.dispose()
+      close.dispose()
     }
   }
 }
 
-private class TestParticipant(
-  private val name: String? = null,
-  private val sharedTransitions: MutableList<String>? = null,
-) : PortalCloseRequestParticipant {
-  var action = CloseRequestInputAction.PASS_THROUGH
-  var isInputHandlingEnabled = false
-  var locallyEligible = true
-  var requestCount = 0
-  val actionChanges = mutableListOf<CloseRequestInputAction>()
-  val inputHandlingChanges = mutableListOf<Boolean>()
-
-  override fun onAssignedActionChanged(action: CloseRequestInputAction) {
-    this.action = action
-    actionChanges.add(action)
-    val enabled = action != CloseRequestInputAction.PASS_THROUGH
-    isInputHandlingEnabled = enabled
-    inputHandlingChanges.add(enabled)
-    if (name != null) sharedTransitions?.add("$name:$enabled")
-  }
-
-  override fun emitCloseRequestIfEligible(): Boolean {
-    if (action != CloseRequestInputAction.EMIT_CLOSE_REQUEST || !locallyEligible) return false
-    requestCount++
-    return true
-  }
-}
+private fun portalInputState(
+  hasHandler: Boolean = true,
+  active: Boolean = true,
+  targetOpen: Boolean = true,
+) =
+  CloseRequestInputState(
+    isAttached = true,
+    isLifecycleActive = true,
+    isModal = true,
+    hasCloseRequestHandler = hasHandler,
+    isPresentationActive = active,
+    isTargetResolvedAndOpen = targetOpen,
+  )

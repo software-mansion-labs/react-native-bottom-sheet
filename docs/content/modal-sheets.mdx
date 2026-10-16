@@ -159,6 +159,14 @@ everything—including native modal screens—so it always covers the full windo
 On iOS, a `UIWindow`-attached container is used; on Android, a full-screen,
 edge-to-edge, transparent dialog.
 
+The overlay keeps the background of its window presentation inactive for touch
+and accessibility while the sheet is visibly open or closing. A transparent
+scrim, an absent or programmatic-only closed detent, and an omitted
+`onCloseRequest` handler do not make that background interactive. Sheet content
+remains usable; normal background interaction resumes after closed settle or
+removal. Scrim taps and accessibility dismissal still require an eligible
+non-programmatic closed detent.
+
 ```tsx
 <ModalBottomSheet
   nativeOverlay

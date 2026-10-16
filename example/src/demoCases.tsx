@@ -3,9 +3,13 @@ export type CaseKey =
   | 'lazy-mounted-modal'
   | 'native-overlay-modal'
   | 'native-overlay-nested'
+  | 'native-overlay-modality'
   | 'native-overlay-full-height-list'
   | 'native-overlay-keyboard-input'
   | 'close-request'
+  | 'portal-accessibility-stack'
+  | 'portal-local-contexts'
+  | 'portal-composed-contexts'
   | 'modal-scroll-view'
   | 'modal-flat-list'
   | 'keyboard-content-detent'
@@ -36,6 +40,16 @@ export type DemoCase = {
 
 export const DEMO_CASES: DemoCase[] = [
   {
+    key: 'portal-composed-contexts',
+    title: 'RN Modal + local contexts (iOS)',
+    href: '/portal-composed-contexts',
+  },
+  {
+    key: 'portal-local-contexts',
+    title: 'Local portal contexts (iOS)',
+    href: '/portal-local-contexts',
+  },
+  {
     key: 'basic-modal',
     title: 'Basic modal',
     href: '/basic-modal',
@@ -56,6 +70,11 @@ export const DEMO_CASES: DemoCase[] = [
     href: '/native-overlay-nested',
   },
   {
+    key: 'native-overlay-modality',
+    title: 'Native overlay modality',
+    href: '/native-overlay-modality',
+  },
+  {
     key: 'native-overlay-full-height-list',
     title: 'Native overlay full-height list',
     href: '/native-overlay-full-height-list',
@@ -69,6 +88,11 @@ export const DEMO_CASES: DemoCase[] = [
     key: 'close-request',
     title: 'Android close requests',
     href: '/close-request',
+  },
+  {
+    key: 'portal-accessibility-stack',
+    title: 'Portal accessibility stack',
+    href: '/portal-accessibility-stack',
   },
   {
     key: 'modal-scroll-view',
