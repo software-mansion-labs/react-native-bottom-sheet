@@ -1128,31 +1128,27 @@ public final class BottomSheetHostingView: UIView {
     return scrollView.alwaysBounceVertical || scrollView.contentSize.height > visibleHeight
   }
 
-  private func scrollView(containing location: CGPoint, in view: UIView) -> UIScrollView? {
-    for subview in view.subviews.reversed() {
-      let locationInSubview = view.convert(location, to: subview)
-      guard subview.bounds.contains(locationInSubview) else { continue }
-
-      if let found = scrollView(containing: locationInSubview, in: subview) {
-        return found
-      }
-
-      if let scrollView = subview as? UIScrollView, isVerticallyScrollable(scrollView) {
-        return scrollView
-      }
-    }
-    return nil
+  /// The view a touch at `location` lands on. UIKit hit-testing honors RN
+  /// `pointerEvents`, `zIndex`, hidden and transparent views, so a view drawn
+  /// over a scrollable (e.g. an absolutely positioned header) shields it.
+  /// Content interaction is switched off while a sheet-owned pan settles; hit
+  /// test as if it were on so a grab mid-settle still resolves the content.
+  private func touchTarget(at location: CGPoint) -> UIView? {
+    let wasDisabled = isContentInteractionDisabled
+    if wasDisabled { setContentInteractionEnabled(true) }
+    defer { if wasDisabled { setContentInteractionEnabled(false) } }
+    return sheetContainer.hitTest(location, with: nil)
   }
 
   private func scrollableAncestorChain(
     containing location: CGPoint
   ) -> [(scrollView: UIScrollView, inverted: Bool)] {
-    guard let touchedScrollView = scrollView(containing: location, in: sheetContainer) else {
+    guard let target = touchTarget(at: location) else {
       return []
     }
 
     var views: [UIView] = []
-    var node: UIView? = touchedScrollView
+    var node: UIView? = target
     while let view = node, view !== sheetContainer {
       views.append(view)
       node = view.superview
