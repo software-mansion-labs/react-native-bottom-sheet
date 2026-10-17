@@ -49,6 +49,15 @@ const SCROLLABLE_NEGOTIATION_LEVEL: Record<ScrollableNegotiationMode, number> =
     handoff: 2,
   };
 
+// Identifies the zero-height marker appended after the content so the native
+// hosts can measure the content height from its position. They look it up by
+// this nativeID rather than by sibling index, because Fabric mounts siblings
+// sorted by zIndex and a z-indexed child would otherwise take the marker's
+// place. Mirrored in `BottomSheetHostingView.swift` and
+// `BottomSheetHostView.kt`; keep the three in sync.
+const CONTENT_HEIGHT_MARKER_NATIVE_ID =
+  'swm-bottom-sheet-content-height-marker';
+
 const DEFAULT_SCROLLABLE_NEGOTIATION = {
   expand: 'handoff',
   collapse: 'initial',
@@ -341,7 +350,11 @@ export const BottomSheet = (props: BottomSheetProps) => {
             style={styles.contentWrapper}
           >
             {children}
-            <View collapsable={false} pointerEvents="none" />
+            <View
+              collapsable={false}
+              nativeID={CONTENT_HEIGHT_MARKER_NATIVE_ID}
+              pointerEvents="none"
+            />
           </View>
         </NativeView>
       </View>

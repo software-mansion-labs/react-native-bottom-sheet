@@ -151,6 +151,13 @@ export default function RootLayout() {
               options={{ title: 'Dynamic content height', headerShown: false }}
             />
             <Stack.Screen
+              name="z-indexed-content"
+              options={{
+                title: 'Content with zIndex children',
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
               name="snap-callbacks"
               options={{
                 title: 'Snap lifecycle callbacks',

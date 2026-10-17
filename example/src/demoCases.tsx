@@ -23,6 +23,7 @@ export type CaseKey =
   | 'percentage-detents'
   | 'dynamic-detents'
   | 'dynamic-content-height'
+  | 'z-indexed-content'
   | 'snap-callbacks'
   | 'no-animate-in'
   | 'ui-thread-position'
@@ -156,6 +157,11 @@ export const DEMO_CASES: DemoCase[] = [
     key: 'dynamic-content-height',
     title: 'Dynamic content height',
     href: '/dynamic-content-height',
+  },
+  {
+    key: 'z-indexed-content',
+    title: 'Content with zIndex children',
+    href: '/z-indexed-content',
   },
   {
     key: 'snap-callbacks',

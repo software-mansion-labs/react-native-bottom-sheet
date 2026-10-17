@@ -188,6 +188,10 @@ public final class BottomSheetHostingView: UIView {
   private var activeScrollViewsLocked = false
   private var scrollViewOwnsLowerBoundary = false
   private var isContentInteractionDisabled = false
+  // The `nativeID` the JS side gives the zero-height marker it appends to the
+  // content wrapper. Mirrored in `BottomSheet.tsx` and `BottomSheetHostView.kt`;
+  // keep the three in sync.
+  private static let contentHeightMarkerNativeID = "swm-bottom-sheet-content-height-marker"
   private var contentHeightMarker: UIView?
   private weak var surfaceView: UIView?
   private static var markerObservationContext = 0
@@ -1513,7 +1517,18 @@ public final class BottomSheetHostingView: UIView {
     // always read from the content, never from the surface.
     guard let contentView = sheetContainer.subviews.first(where: { $0 !== surfaceView })
     else { return nil }
-    return contentView.subviews.last
+    // The marker is identified by the nativeID the JS side gives it, not by
+    // its position: Fabric mounts siblings sorted by zIndex, so any content
+    // child with a positive zIndex lands after the marker in the wrapper.
+    return contentView.subviews.first { nativeID(of: $0) == Self.contentHeightMarkerNativeID }
+  }
+
+  private func nativeID(of view: UIView) -> String? {
+    // Fabric stores the `nativeID` prop in RCTViewComponentView's `nativeId`
+    // property. Its header is C++ and cannot be imported here, so read the
+    // property by name; views that do not declare it are never the marker.
+    guard view.responds(to: NSSelectorFromString("nativeId")) else { return nil }
+    return view.value(forKey: "nativeId") as? String
   }
 
   private var currentContentHeight: CGFloat? {

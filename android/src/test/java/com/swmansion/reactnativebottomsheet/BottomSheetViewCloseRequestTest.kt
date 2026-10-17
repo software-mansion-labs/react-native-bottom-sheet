@@ -24,6 +24,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.facebook.react.R
 import com.facebook.react.bridge.BridgeReactContext
 import com.facebook.react.internal.featureflags.ReactNativeFeatureFlagsForTests
 import com.facebook.react.uimanager.ThemedReactContext
@@ -663,7 +664,10 @@ private class CountingBottomSheetListener : BottomSheetViewListener {
 }
 
 private class MutableContentHeightView(context: Context) : ViewGroup(context) {
-  private val marker = View(context)
+  private val marker =
+    View(context).apply {
+      setTag(R.id.view_tag_native_id, BottomSheetHostView.CONTENT_HEIGHT_MARKER_NATIVE_ID)
+    }
   var contentHeight = 0
     set(value) {
       field = value

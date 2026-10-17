@@ -21,6 +21,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.dynamicanimation.animation.DynamicAnimation
 import androidx.dynamicanimation.animation.SpringAnimation
 import androidx.dynamicanimation.animation.SpringForce
+import com.facebook.react.R
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.uimanager.PointerEvents
 import com.facebook.react.uimanager.RootView
@@ -725,8 +726,12 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
       (0 until sheetContainer.childCount)
         .map { sheetContainer.getChildAt(it) }
         .firstOrNull { it !== surfaceView } as? ViewGroup ?: return null
-    if (contentView.childCount == 0) return null
-    return contentView.getChildAt(contentView.childCount - 1)
+    // The marker is identified by the nativeID the JS side gives it, not by
+    // its position: Fabric mounts siblings sorted by zIndex, so any content
+    // child with a positive zIndex lands after the marker in the wrapper.
+    return (0 until contentView.childCount)
+      .map { contentView.getChildAt(it) }
+      .firstOrNull { it.getTag(R.id.view_tag_native_id) == CONTENT_HEIGHT_MARKER_NATIVE_ID }
   }
 
   // MARK: - Snap logic
@@ -1822,6 +1827,11 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   }
 
   companion object {
+    // The `nativeID` the JS side gives the zero-height marker it appends to
+    // the content wrapper. Mirrored in `BottomSheet.tsx` and
+    // `BottomSheetHostingView.swift`; keep the three in sync.
+    const val CONTENT_HEIGHT_MARKER_NATIVE_ID = "swm-bottom-sheet-content-height-marker"
+
     // Upper bound on pre-draw passes spent waiting for the initial content
     // detent to become measurable. This is a safety valve, not the completion
     // mechanism: the snap is driven by the marker layout listener and the
