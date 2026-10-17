@@ -111,6 +111,9 @@ private final class ActiveScrollViewState {
 
 @objcMembers
 public final class BottomSheetHostingView: UIView {
+  /// Settle duration used when `settleDuration` is left at 0.
+  static let defaultSettleDuration: CFTimeInterval = 0.45
+
   public weak var eventDelegate: BottomSheetHostingViewDelegate?
   public var modal: Bool = false {
     didSet { updateScrim() }
@@ -150,6 +153,15 @@ public final class BottomSheetHostingView: UIView {
 
   public var scrollableExpandNegotiation: Int = ScrollableNegotiationLevel.handoff.rawValue
   public var scrollableCollapseNegotiation: Int = ScrollableNegotiationLevel.initial.rawValue
+
+  /// Seconds of release velocity projected onto the sheet's position before the
+  /// nearest-detent search that resolves a drag release. `0` (the default) keeps
+  /// the release resolved purely on where the gesture stopped.
+  public var releaseProjection: CGFloat = 0
+
+  /// Duration of the spring that carries the sheet to the detent a release
+  /// resolved to. `0` (the default) uses `defaultSettleDuration`.
+  public var settleDuration: CFTimeInterval = 0
 
   private var rawDetentSpecs: [RawDetentSpec] = []
   private var detentSpecs: [DetentSpec] = [] {
@@ -766,7 +778,7 @@ public final class BottomSheetHostingView: UIView {
     let clampedRatio = min(max(velocityRatio, -5), 5)
     let v0 = clampedRatio * distance
 
-    let duration: CFTimeInterval = 0.45
+    let duration = settleDuration > 0 ? settleDuration : Self.defaultSettleDuration
     // Pick the stiffness so the sheet looks settled (within ~0.5% of target)
     // right at `duration`. For a critically-damped spring that point is
     // ω·t ≈ 8, so ω = 8 / duration.
@@ -1091,8 +1103,14 @@ public final class BottomSheetHostingView: UIView {
         ?? candidates.first ?? targetIndex
     }
 
+    // Resolve against where the release was heading rather than where it stopped, so a
+    // deliberate but gentle flick counts toward the detent it was aimed at. `velocity` is
+    // downward-positive translation while `height` grows upward, hence the minus. The flick
+    // branches above keep using the raw `height`: they mean "one detent along from where the
+    // sheet ACTUALLY is", and projecting there could skip past one.
+    let projectedHeight = height - velocity * releaseProjection
     return candidates.min(by: {
-      abs(detentSpecs[$0].height - height) < abs(detentSpecs[$1].height - height)
+      abs(detentSpecs[$0].height - projectedHeight) < abs(detentSpecs[$1].height - projectedHeight)
     }) ?? targetIndex
   }
 
@@ -1116,8 +1134,11 @@ public final class BottomSheetHostingView: UIView {
         ?? candidates.first ?? targetIndex
     }
 
+    // Same projection as `bestSnapIndex` — its snapshot twin has to resolve a release
+    // identically or the rule would change under `including:`.
+    let projectedHeight = height - velocity * releaseProjection
     return candidates.min(by: {
-      abs(specs[$0].height - height) < abs(specs[$1].height - height)
+      abs(specs[$0].height - projectedHeight) < abs(specs[$1].height - projectedHeight)
     }) ?? targetIndex
   }
 

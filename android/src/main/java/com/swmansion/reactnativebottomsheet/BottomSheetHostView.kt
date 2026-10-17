@@ -28,6 +28,7 @@ import com.facebook.react.uimanager.StateWrapper
 import com.facebook.react.views.view.ReactViewGroup
 import com.swmansion.reactnativebottomsheet.closerequest.CloseRequestPresentationTracker
 import kotlin.math.abs
+import kotlin.math.pow
 import kotlin.math.roundToInt
 
 private enum class DetentKind {
@@ -123,6 +124,19 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
 
   var scrollableExpandNegotiation: Int = ScrollableNegotiationLevel.HANDOFF.value
   var scrollableCollapseNegotiation: Int = ScrollableNegotiationLevel.INITIAL.value
+
+  /**
+   * Seconds of release velocity projected onto the sheet's position before the nearest-detent
+   * search that resolves a drag release. 0 keeps the release resolved purely on where the gesture
+   * stopped.
+   */
+  var releaseProjection: Float = 0f
+
+  /**
+   * Seconds the settle spring takes. 0 keeps [SpringForce.STIFFNESS_MEDIUM], the platform default.
+   */
+  var settleDuration: Float = 0f
+
   private var pendingIndex: Int? = null
   private var hasLaidOut = false
   private var isPanning = false
@@ -998,7 +1012,16 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
         spring =
           SpringForce(targetTy).apply {
             dampingRatio = SpringForce.DAMPING_RATIO_NO_BOUNCY
-            stiffness = SpringForce.STIFFNESS_MEDIUM
+            // A critically damped spring is settled (within ~0.5% of target) at omega*t ~= 8, and
+            // SpringForce's stiffness is omega^2, so a requested duration maps to 8/duration
+            // squared. Left at 0 the platform default stands, which keeps existing sheets
+            // pixel-identical.
+            stiffness =
+              if (settleDuration > 0f) {
+                (8f / settleDuration).pow(2)
+              } else {
+                SpringForce.STIFFNESS_MEDIUM
+              }
           }
         setMinValue(minAnimationTy)
         setMaxValue(maxAnimationTy)
@@ -1061,7 +1084,13 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
         ?: targetIndex
     }
 
-    return candidates.minByOrNull { abs(detentSpecs[it].height - currentHeight) } ?: targetIndex
+    // Resolve against where the release was heading rather than where it stopped, so a deliberate
+    // but gentle flick counts toward the detent it was aimed at. `velocity` is downward-positive
+    // while height grows upward, hence the minus. The flick branches above keep using the raw
+    // `currentHeight`: they mean "one detent along from where the sheet ACTUALLY is", and
+    // projecting there could skip past one.
+    val projectedHeight = currentHeight - velocity * releaseProjection
+    return candidates.minByOrNull { abs(detentSpecs[it].height - projectedHeight) } ?: targetIndex
   }
 
   private fun snapshotBestSnapIndex(
@@ -1086,7 +1115,10 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
         ?: targetIndex
     }
 
-    return candidates.minByOrNull { abs(specs[it].height - currentHeight) } ?: targetIndex
+    // Same projection as `bestSnapIndex` — its snapshot twin has to resolve a release identically
+    // or the rule would change under `includeIndex`.
+    val projectedHeight = currentHeight - velocity * releaseProjection
+    return candidates.minByOrNull { abs(specs[it].height - projectedHeight) } ?: targetIndex
   }
 
   // MARK: - Touch handling
