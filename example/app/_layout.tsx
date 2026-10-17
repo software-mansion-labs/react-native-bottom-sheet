@@ -74,6 +74,13 @@ export default function RootLayout() {
               options={{ title: 'Modal with FlatList', headerShown: false }}
             />
             <Stack.Screen
+              name="fixed-detent-scroll-view"
+              options={{
+                title: 'Fixed detent ScrollView',
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
               name="keyboard-content-detent"
               options={{
                 title: 'Keyboard content detent',

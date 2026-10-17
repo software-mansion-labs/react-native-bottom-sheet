@@ -7,6 +7,7 @@
 #import <React/RCTAssert.h>
 #import <React/RCTConversions.h>
 #import <React/RCTFabricComponentsPlugins.h>
+#import <React/RCTMountingTransactionObserving.h>
 #import <React/RCTSurfaceTouchHandler.h>
 #import <react/renderer/components/ReactNativeBottomSheetSpec/EventEmitters.h>
 #import <react/renderer/components/ReactNativeBottomSheetSpec/Props.h>
@@ -48,7 +49,7 @@ using namespace facebook::react;
 
 @end
 
-@interface BottomSheetComponentView () <BottomSheetContentViewDelegate>
+@interface BottomSheetComponentView () <BottomSheetContentViewDelegate, RCTMountingTransactionObserving>
 @end
 
 @implementation BottomSheetComponentView {
@@ -101,8 +102,10 @@ using namespace facebook::react;
       }];
     }
     [_sheetView setDetents:detentsArray];
+    // The tallest detent bounds the content region, so a detents change can
+    // move the pushed inset without any native re-layout; dedups when not.
+    [self pushNativeGeometry];
   }
-
 
   if (_needsIndexSyncAfterRecycle || newViewProps.index != oldViewProps.index) {
     [_sheetView setDetentIndex:newViewProps.index];
@@ -168,6 +171,11 @@ using namespace facebook::react;
 - (void)updateState:(const State::Shared &)state oldState:(const State::Shared &)oldState
 {
   _sheetState = state;
+  // The committed state carries the content-region inset the content is laid
+  // out against in this very transaction; the host uses it to tell a fresh
+  // content measurement from one taken against a previous region.
+  const auto &data = std::static_pointer_cast<const BottomSheetViewShadowNode::ConcreteState>(state)->getData();
+  [_sheetView contentRegionStateDidCommit:data.contentRegionInset];
 }
 
 - (void)updateLayoutMetrics:(const LayoutMetrics &)layoutMetrics
@@ -291,7 +299,8 @@ using namespace facebook::react;
 /// sheet's frame size (consumed by the component descriptor only in overlay
 /// mode, where the sheet is hoisted out of its in-tree slot) and the content
 /// region's inset (applied as Yoga bottom padding in every mode, so in-flow
-/// content resolves exactly to the detent cap). Yoga then lays the sheet
+/// content resolves exactly to the tallest height the sheet can reach — the
+/// tallest detent, clamped to the detent cap). Yoga then lays the sheet
 /// subtree out against measured window geometry instead of JS-provided
 /// dimensions. Driven by the hosting view's didLayout delegate.
 - (void)pushNativeGeometry
@@ -363,6 +372,20 @@ using namespace facebook::react;
   } else {
     [_sheetView unmountChildComponentView:childComponentView];
   }
+}
+
+#pragma mark - RCTMountingTransactionObserving
+
+/// Fires after a whole mounting transaction has been applied, so every frame
+/// in the sheet subtree — the content wrapper sized by the committed
+/// content-region inset and the content-height marker inside it — is
+/// consistent. The host uses it to resolve a `content` detent it held back
+/// while that layout was outstanding; per-view layout hooks fire
+/// mid-transaction and cannot tell.
+- (void)mountingTransactionDidMount:(const facebook::react::MountingTransaction &)transaction
+               withSurfaceTelemetry:(const facebook::react::SurfaceTelemetry &)surfaceTelemetry
+{
+  [_sheetView contentRegionLayoutDidApply];
 }
 
 #pragma mark - BottomSheetContentViewDelegate

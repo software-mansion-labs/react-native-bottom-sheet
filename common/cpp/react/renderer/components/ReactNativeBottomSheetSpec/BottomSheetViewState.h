@@ -44,10 +44,12 @@ class BottomSheetViewState final {
   // first native report.
   Size frameSize{};
   // The natively measured inset of the content region (dp): the gap between
-  // the sheet's height and the detent cap — the overlapping status-bar inset
-  // unless extend-under-status-bar. Applied as Yoga bottom padding on the
-  // sheet node in every mode, so in-flow content (the flex: 1 wrapper)
-  // resolves to exactly the region the sheet can actually show.
+  // the sheet's height and the tallest height the sheet can reach — the
+  // tallest detent's upper bound, clamped to the detent cap (the height minus
+  // the overlapping status-bar inset unless extend-under-status-bar). Applied
+  // as Yoga bottom padding on the sheet node in every mode, so in-flow content
+  // (the flex: 1 wrapper) resolves to exactly the region the sheet can
+  // actually show.
   Float contentRegionInset{0};
 
 #ifdef ANDROID

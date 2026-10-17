@@ -9,6 +9,7 @@ export type CaseKey =
   | 'close-request'
   | 'modal-scroll-view'
   | 'modal-flat-list'
+  | 'fixed-detent-scroll-view'
   | 'keyboard-content-detent'
   | 'keyboard-aware-list'
   | 'scrim-opacity'
@@ -85,6 +86,11 @@ export const DEMO_CASES: DemoCase[] = [
     key: 'modal-flat-list',
     title: 'Modal with FlatList',
     href: '/modal-flat-list',
+  },
+  {
+    key: 'fixed-detent-scroll-view',
+    title: 'Fixed detent ScrollView',
+    href: '/fixed-detent-scroll-view',
   },
   {
     key: 'keyboard-content-detent',

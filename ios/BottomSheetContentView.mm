@@ -85,6 +85,16 @@
   [_impl setDetents:raw];
 }
 
+- (void)contentRegionStateDidCommit:(CGFloat)inset
+{
+  [_impl contentRegionStateDidCommit:inset];
+}
+
+- (void)contentRegionLayoutDidApply
+{
+  [_impl contentRegionLayoutDidApply];
+}
+
 - (void)setExtendUnderStatusBar:(BOOL)extendUnderStatusBar
 {
   _impl.extendUnderStatusBar = extendUnderStatusBar;

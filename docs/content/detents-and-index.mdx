@@ -47,6 +47,13 @@ surface:
 </BottomSheet>
 ```
 
+The flex container is as tall as the tallest detent the sheet can reach, so
+`flex: 1` content — including a `ScrollView` or `FlatList` — is laid out against
+the height the sheet can actually show. With `detents={[0, 500]}` a scrollable
+fills 500pt and scrolls all the way to its last item; with a `'content'` detent
+as the tallest, the container spans the full available height, so a filling
+scrollable resolves `'content'` to that height.
+
 By default, full-height detents are capped below the status bar. Set
 `extendUnderStatusBar` when the sheet should be allowed to occupy the full
 screen height:

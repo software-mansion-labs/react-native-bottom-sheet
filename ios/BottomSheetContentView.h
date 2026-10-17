@@ -29,6 +29,12 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) BOOL isModalAccessibilityActive;
 
 - (void)setDetents:(NSArray<NSDictionary *> *)raw;
+// Records the content-region inset of a state Fabric committed.
+- (void)contentRegionStateDidCommit:(CGFloat)inset;
+// Notifies the host that a Fabric mounting transaction has finished applying
+// layout, so content laid out against the committed content-region inset is
+// measurable again.
+- (void)contentRegionLayoutDidApply;
 // Whether full-height detents may extend under the status bar; feeds the
 // natively computed detent cap.
 - (void)setExtendUnderStatusBar:(BOOL)extendUnderStatusBar;
