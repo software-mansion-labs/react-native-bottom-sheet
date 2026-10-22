@@ -1,12 +1,19 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
   <application>
     <activity
+      android:name="com.swmansion.reactnativebottomsheet.LegacyRecordingReactActivity"
+      android:exported="true"
+      android:enableOnBackInvokedCallback="false"
+      android:theme="@style/Theme.AppCompat.Light.NoActionBar" />
+    <activity
       android:name="androidx.activity.ComponentActivity"
       android:exported="true"
+      android:enableOnBackInvokedCallback="true"
       android:theme="@android:style/Theme.Material.Light.NoActionBar" />
     <activity
       android:name="com.swmansion.reactnativebottomsheet.RecordingReactActivity"
       android:exported="true"
+      android:enableOnBackInvokedCallback="true"
       android:theme="@style/Theme.AppCompat.Light.NoActionBar" />
   </application>
 </manifest>

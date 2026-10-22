@@ -6,7 +6,7 @@ namespace facebook::react {
 Point BottomSheetViewShadowNode::getContentOriginOffset(
     bool /*includeTransform*/) const {
   auto state =
-      std::static_pointer_cast<const BottomSheetViewShadowNode::ConcreteState>(
+      std::static_pointer_cast<const facebook::react::ConcreteState<BottomSheetViewState>>(
           getState());
   return {0, state->getData().contentOffsetY};
 }
@@ -32,7 +32,7 @@ void updateBottomSheetState(
     Size frameSize,
     Float contentRegionInset) {
   auto concreteState =
-      std::static_pointer_cast<const BottomSheetViewShadowNode::ConcreteState>(
+      std::static_pointer_cast<const facebook::react::ConcreteState<BottomSheetViewState>>(
           state);
   concreteState->updateState(
       [contentOffsetY, frameSize, contentRegionInset](

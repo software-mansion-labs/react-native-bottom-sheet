@@ -1,5 +1,8 @@
 #import <UIKit/UIKit.h>
 
+#import "BottomSheetPresentationOwnership.h"
+#import "BottomSheetPortalNativeContainer.h"
+
 NS_ASSUME_NONNULL_BEGIN
 
 @class BottomSheetContentView;
@@ -11,22 +14,31 @@ NS_ASSUME_NONNULL_BEGIN
       didChangePosition:(CGFloat)position
                   index:(CGFloat)index;
 - (void)bottomSheetView:(BottomSheetContentView *)view didReportError:(NSString *)message;
+- (void)bottomSheetView:(BottomSheetContentView *)view
+    didChangePresentationActive:(BOOL)presentationActive;
+- (BottomSheetPresentationEscapeRoute)voiceOverEscapeRouteForBottomSheetView:
+    (BottomSheetContentView *)view;
 // Fired after each layout pass with fresh native geometry, so the component
 // layer can push the content wrapper's target size (and, in overlay mode, the
 // sheet frame) into the shadow tree.
 - (void)bottomSheetViewDidLayout:(BottomSheetContentView *)view;
+@optional
+// Supplies current registered ownership for the internal native content path.
+- (nullable UIView *)portalNativeOwnerForBottomSheetView:(BottomSheetContentView *)view;
 @end
 
-@interface BottomSheetContentView : UIView
+@interface BottomSheetContentView : UIView <BottomSheetPortalNativeContainer, BottomSheetPortalAccessibilityTransition>
 
 @property (nonatomic, weak, nullable) id<BottomSheetContentViewDelegate> delegate;
 @property (nonatomic) BOOL animateIn;
 @property (nonatomic) BOOL animateContentHeight;
 @property (nonatomic) BOOL modal;
+@property (nonatomic) BOOL defersAccessibilityPresentation;
 @property (nonatomic) NSInteger scrollableExpandNegotiation;
 @property (nonatomic) NSInteger scrollableCollapseNegotiation;
 @property (nonatomic, readonly) UIView *sheetContainer;
 @property (nonatomic, readonly) BOOL isModalAccessibilityActive;
+@property (nonatomic, readonly, getter=isPresentationActive) BOOL presentationActive;
 
 - (void)setDetents:(NSArray<NSDictionary *> *)raw;
 // Records the content-region inset of a state Fabric committed.

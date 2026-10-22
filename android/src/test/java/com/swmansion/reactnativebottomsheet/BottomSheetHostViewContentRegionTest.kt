@@ -351,6 +351,8 @@ class BottomSheetHostViewContentRegionTest {
     val controller = Robolectric.buildActivity(Activity::class.java).setup()
     val sheet = BottomSheetHostView(controller.get())
     try {
+      // Give these content-region tests an explicit full-frame cap, independent of system insets.
+      sheet.extendUnderStatusBar = true
       sheet.animateIn = false
       sheet.setDetents(detents)
       sheet.setIndex(0)

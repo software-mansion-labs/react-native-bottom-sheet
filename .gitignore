@@ -38,7 +38,13 @@ android/app/libs
 android/keystores/debug.keystore
 .expo/
 .turbo/
+.bundle/
+/vendor/bundle/
 lib/
 ios/generated
 android/generated
 nitrogen/
+tests/ios-native/BottomSheetNativeTests.xcworkspace/
+tests/ios-native/Pods/
+tests/ios-native/build/
+*.xcresult

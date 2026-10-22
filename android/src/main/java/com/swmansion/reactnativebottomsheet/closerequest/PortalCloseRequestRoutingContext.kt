@@ -14,7 +14,7 @@ import androidx.lifecycle.findViewTreeLifecycleOwner
 internal data class PortalCloseRequestRoutingContext(
   val dispatcherOwner: OnBackPressedDispatcherOwner?,
   val lifecycleOwner: LifecycleOwner?,
-  val rootView: View,
+  val windowRoot: View,
 )
 
 /**

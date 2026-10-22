@@ -1,7 +1,12 @@
 {
   "compilerOptions": {
     "rootDir": ".",
-    "paths": { "@swmansion/react-native-bottom-sheet": ["./src/index"] },
+    "paths": {
+      "@swmansion/react-native-bottom-sheet": ["./src/index"],
+      "react-native/Libraries/Utilities/codegenNativeComponent": [
+        "./node_modules/react-native/types_generated/Libraries/Utilities/codegenNativeComponent.d.ts"
+      ]
+    },
     "allowUnreachableCode": false,
     "allowUnusedLabels": false,
     "customConditions": ["react-native-strict-api"],
@@ -23,5 +28,5 @@
     "target": "ESNext",
     "verbatimModuleSyntax": true
   },
-  "exclude": ["docs", "example", "lib"]
+  "exclude": ["docs", "example", "lib", "tests/types"]
 }

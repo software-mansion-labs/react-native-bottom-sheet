@@ -1,0 +1,29 @@
+{
+  "configurations": [
+    {
+      "id": "58AA4896-DA4D-4679-9063-B35EAA118A8C",
+      "name": "Debug",
+      "options": {}
+    }
+  ],
+  "defaultOptions": {
+    "testExecutionOrdering": "lexical",
+    "targetForVariableExpansion": {
+      "containerPath": "container:BottomSheetNativeTests.xcodeproj",
+      "identifier": "A10000000000000000000001",
+      "name": "BottomSheetNativeTestHost"
+    }
+  },
+  "testTargets": [
+    {
+      "parallelizable": false,
+      "skippedTests": [],
+      "target": {
+        "containerPath": "container:BottomSheetNativeTests.xcodeproj",
+        "identifier": "A10000000000000000000002",
+        "name": "BottomSheetNativeTests"
+      }
+    }
+  ],
+  "version": 1
+}

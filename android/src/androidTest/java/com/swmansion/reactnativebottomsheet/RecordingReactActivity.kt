@@ -1,6 +1,8 @@
 package com.swmansion.reactnativebottomsheet
 
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.KeyEvent
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -11,8 +13,8 @@ class RecordingReactActivity : ReactActivity() {
     RecordingReactActivityDelegate(this)
 }
 
-class RecordingReactActivityDelegate(activity: ReactActivity) :
-  ReactActivityDelegate(activity, null) {
+class RecordingReactActivityDelegate(private val host: ReactActivity) :
+  ReactActivityDelegate(host, null) {
   override fun onCreate(savedInstanceState: Bundle?) = Unit
 
   override fun onPause() = Unit
@@ -32,11 +34,20 @@ class RecordingReactActivityDelegate(activity: ReactActivity) :
   override fun onUserLeaveHint() = Unit
 
   override fun onBackPressed(): Boolean {
-    backEntryCount.incrementAndGet()
+    val count = backEntryCount.incrementAndGet()
+    if (defaultBackLater && count == 1) {
+      Handler(Looper.getMainLooper()).post { host.invokeDefaultOnBackPressed() }
+    }
     return true
   }
 
   companion object {
     val backEntryCount = AtomicInteger()
+    var defaultBackLater = false
   }
+}
+
+class LegacyRecordingReactActivity : ReactActivity() {
+  override fun createReactActivityDelegate(): ReactActivityDelegate =
+    RecordingReactActivityDelegate(this)
 }

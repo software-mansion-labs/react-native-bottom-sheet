@@ -9,6 +9,22 @@
 @interface BottomSheetContentView () <BottomSheetHostingViewDelegate>
 @end
 
+@interface BottomSheetPresentationEscapeDecision : NSObject
++ (instancetype)passThrough;
++ (instancetype)attemptLocal;
++ (instancetype)consume;
+@end
+
+@interface BottomSheetHostingView (BottomSheetPresentationOwnership)
+@property (nonatomic, readonly, getter=isPresentationActive) BOOL presentationActive;
+@property (nonatomic) BOOL defersAccessibilityPresentation;
+@property (nonatomic, readonly) BOOL isAccessibilityTransitionRunning;
+- (void)commitAccessibilityPresentation;
+@property (nonatomic, copy, nullable) void (^presentationActiveDidChange)(BOOL active);
+@property (nonatomic, copy, nullable) BottomSheetPresentationEscapeDecision *
+    (^presentationEscapePolicy)(void);
+@end
+
 @implementation BottomSheetContentView {
   BottomSheetHostingView *_impl;
 }
@@ -19,6 +35,28 @@
     _impl = [[BottomSheetHostingView alloc] initWithFrame:self.bounds];
     _impl.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     _impl.eventDelegate = self;
+    __weak __typeof(self) weakSelf = self;
+    _impl.presentationActiveDidChange = ^(BOOL active) {
+      __typeof(self) strongSelf = weakSelf;
+      if (strongSelf != nil) {
+        [strongSelf.delegate bottomSheetView:strongSelf didChangePresentationActive:active];
+      }
+    };
+    _impl.presentationEscapePolicy = ^BottomSheetPresentationEscapeDecision *{
+      __typeof(self) strongSelf = weakSelf;
+      if (strongSelf == nil) {
+        return [BottomSheetPresentationEscapeDecision passThrough];
+      }
+
+      switch ([strongSelf.delegate voiceOverEscapeRouteForBottomSheetView:strongSelf]) {
+        case BottomSheetPresentationEscapeRouteAttemptLocal:
+          return [BottomSheetPresentationEscapeDecision attemptLocal];
+        case BottomSheetPresentationEscapeRouteConsume:
+          return [BottomSheetPresentationEscapeDecision consume];
+        case BottomSheetPresentationEscapeRoutePassThrough:
+          return [BottomSheetPresentationEscapeDecision passThrough];
+      }
+    };
     [self addSubview:_impl];
   }
 
@@ -28,6 +66,34 @@
 - (BOOL)animateIn
 {
   return _impl.animateIn;
+}
+
+- (BOOL)defersAccessibilityPresentation
+{
+  return _impl.defersAccessibilityPresentation;
+}
+
+- (void)setDefersAccessibilityPresentation:(BOOL)value
+{
+  _impl.defersAccessibilityPresentation = value;
+}
+
+- (BOOL)isAccessibilityTransitionRunning
+{
+  return _impl.isAccessibilityTransitionRunning;
+}
+
+- (void)commitAccessibilityPresentation
+{
+  [_impl commitAccessibilityPresentation];
+}
+
+- (UIView *)portalNativeOwner
+{
+  id<BottomSheetContentViewDelegate> delegate = self.delegate;
+  return [delegate respondsToSelector:@selector(portalNativeOwnerForBottomSheetView:)]
+      ? [delegate portalNativeOwnerForBottomSheetView:self]
+      : nil;
 }
 
 - (void)setAnimateIn:(BOOL)animateIn
@@ -128,6 +194,11 @@
 - (BOOL)isModalAccessibilityActive
 {
   return _impl.isModalAccessibilityActive;
+}
+
+- (BOOL)isPresentationActive
+{
+  return _impl.isPresentationActive;
 }
 
 - (void)mountChildComponentView:(UIView *)childView atIndex:(NSInteger)index
