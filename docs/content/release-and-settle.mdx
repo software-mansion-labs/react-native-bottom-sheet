@@ -1,0 +1,80 @@
+---
+title: Release and settle
+---
+
+# Release and settle
+
+When a drag ends, the sheet does two things: it decides which detent to go to,
+and it animates there. `releaseProjection` tunes the decision and
+`settleDuration` tunes the animation.
+
+Both default to the behavior the library has always had, so neither changes an
+existing sheet until you set it.
+
+## Resolving a release
+
+By default a release is resolved on where the gesture stopped: the sheet goes to
+whichever detent is nearest, and the boundary between two detents is the
+midpoint between them. A release faster than the flick threshold instead moves
+one detent along in the gesture's direction.
+
+That means a short gesture cannot reach the next detent no matter how
+deliberately it was made — if it stops before the midpoint and is not fast
+enough to count as a flick, the sheet returns to where it started. The closer
+two detents sit, the more this shows: a small, confident flick reads as a
+non-event.
+
+`releaseProjection` is the number of seconds of release velocity projected onto
+the sheet's position before the nearest-detent search runs. The sheet is
+resolved against where the gesture was heading rather than where it stopped, so
+momentum counts toward the detent it was aimed at.
+
+```tsx
+<BottomSheet
+  detents={[0, '50%', '90%']}
+  index={index}
+  onIndexChange={setIndex}
+  releaseProjection={0.15}
+  surface={/* ... */}
+>
+  {/* ... */}
+</BottomSheet>
+```
+
+Typical values are `0.1` to `0.25`. At `0.15`, a release travelling 400 points
+per second is resolved as though it had continued another 60 points.
+
+Projection only moves the boundary between detents; it does not change which
+detents exist or introduce a second rule. A release still resolves to one of the
+declared detents, programmatic detents are still excluded from drag snapping,
+and the flick threshold still applies above it — a fast release moves one detent
+along regardless of this value.
+
+## Settling
+
+`settleDuration` is how long, in seconds, the spring that carries the sheet to
+the resolved detent takes.
+
+The spring is critically damped, so the duration is also its stiffness: a longer
+duration is a softer settle. It never overshoots the detent at any value.
+
+```tsx
+<BottomSheet
+  detents={[0, 'content']}
+  index={index}
+  onIndexChange={setIndex}
+  settleDuration={0.55}
+  surface={/* ... */}
+>
+  {/* ... */}
+</BottomSheet>
+```
+
+Left unset, each platform keeps its own default, and those defaults are not the
+same: iOS settles over 0.45 seconds, while Android uses its platform spring
+stiffness, which is closer to 0.2 seconds. Setting `settleDuration` gives both
+platforms the same settle, so it is worth setting explicitly if you care about
+the two matching.
+
+Release velocity is carried into the spring at either setting, so a release that
+resolved to a distant detent still starts fast.
