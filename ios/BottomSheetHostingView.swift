@@ -1,4 +1,5 @@
 import UIKit
+import UIKit.UIGestureRecognizerSubclass
 
 @objc public protocol BottomSheetHostingViewDelegate: AnyObject {
   func bottomSheetHostingView(_ view: BottomSheetHostingView, didChangeIndex index: Int)
@@ -50,6 +51,85 @@ private enum ScrollableNegotiationLevel: Int {
 
   init(clamping value: Int) {
     self = ScrollableNegotiationLevel(rawValue: min(max(value, 0), 2)) ?? .none
+  }
+}
+
+/// The sheet's pan. UIKit's pan recognizers decide once, at a translation
+/// threshold, and the sheet rejects a sideways start there so horizontal
+/// recognizers under the touch keep it. A vertical scrollable's own pan is
+/// not decided by sideways travel: it stays possible and begins once vertical
+/// travel passes its slop, so a start the sheet rejected would later scroll
+/// content the sheet owns at this detent. Inside a vertical scrollable with no
+/// horizontal recognizer under the touch, a sideways start is therefore held —
+/// its moves are withheld from UIKit's pan machinery, leaving the sheet's pan
+/// possible — until vertical travel passes the slop or the scrollable's pan
+/// begins first. While held, the sheet yields to pans above it the way the
+/// scrollable would: see `gestureRecognizer(_:shouldBeRequiredToFailBy:)`.
+private final class SheetPanGestureRecognizer: UIPanGestureRecognizer {
+  private enum Hold {
+    /// No hold: the usual direction check applies.
+    case none
+    /// Moves are withheld until vertical travel passes the slop.
+    case active
+    /// The hold decided the direction, so the usual direction check does not apply.
+    case released
+  }
+
+  /// Vertical travel that releases a held start, matching the threshold
+  /// UIKit's pan recognizers apply to total travel.
+  private static let verticalSlop: CGFloat = 10
+
+  /// The vertical scrollables a sideways start defers to, set by the host as
+  /// the touch lands. Empty disables the hold.
+  var deferredScrollViews: [UIScrollView] = []
+  private var hold = Hold.none
+  private var initialLocation: CGPoint?
+
+  var isHoldingSidewaysStart: Bool {
+    hold == .active
+  }
+
+  var tookSidewaysStart: Bool {
+    hold == .released
+  }
+
+  /// Whether a deferred scrollable's pan has recognized the touch.
+  private var deferredScrollableAccepted: Bool {
+    deferredScrollViews.contains { scrollView in
+      let state = scrollView.panGestureRecognizer.state
+      return state == .began || state == .changed
+    }
+  }
+
+  override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+    if numberOfTouches == 0, touches.count == 1, let touch = touches.first, !deferredScrollViews.isEmpty {
+      initialLocation = touch.location(in: view)
+      hold = .active
+    } else if hold == .active {
+      // Only a single finger is held.
+      hold = .none
+    }
+    super.touchesBegan(touches, with: event)
+  }
+
+  override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+    if hold == .active {
+      if numberOfTouches != 1 {
+        hold = .none
+      } else if let start = initialLocation, let touch = touches.first {
+        let dy = touch.location(in: view).y - start.y
+        guard abs(dy) >= Self.verticalSlop || deferredScrollableAccepted else { return }
+        hold = .released
+      }
+    }
+    super.touchesMoved(touches, with: event)
+  }
+
+  override func reset() {
+    deferredScrollViews = []
+    hold = .none
+    initialLocation = nil
+    super.reset()
   }
 }
 
@@ -165,7 +245,7 @@ public final class BottomSheetHostingView: UIView {
 
   public let sheetContainer = UIView()
   private let scrimView = UIControl()
-  private var panGesture: UIPanGestureRecognizer!
+  private var panGesture: SheetPanGestureRecognizer!
   private var activeSpring: CriticalSpring?
   private var activeSpringTargetIndex: Int = 0
   private var activeSpringEmitsSettle = false
@@ -227,7 +307,7 @@ public final class BottomSheetHostingView: UIView {
     sheetContainer.clipsToBounds = false
     addSubview(sheetContainer)
 
-    panGesture = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+    panGesture = SheetPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
     panGesture.delegate = self
     panGesture.cancelsTouchesInView = true
     // Let child controls show immediate press feedback. If the interaction
@@ -1228,9 +1308,9 @@ public final class BottomSheetHostingView: UIView {
     return sheetContainer.hitTest(location, with: nil)
   }
 
-  private func scrollableAncestorChain(
-    containing location: CGPoint
-  ) -> [(scrollView: UIScrollView, inverted: Bool)] {
+  /// The views under a touch at `location`, from the hit-test target up to,
+  /// excluding, the sheet container.
+  private func touchedViews(at location: CGPoint) -> [UIView] {
     guard let target = touchTarget(at: location) else {
       return []
     }
@@ -1241,16 +1321,60 @@ public final class BottomSheetHostingView: UIView {
       views.append(view)
       node = view.superview
     }
+    return views
+  }
 
+  private func scrollableAncestorChain(
+    containing location: CGPoint
+  ) -> [(scrollView: UIScrollView, inverted: Bool)] {
+    scrollableAncestorChain(in: touchedViews(at: location))
+  }
+
+  private func scrollableAncestorChain(
+    in touchedViews: [UIView]
+  ) -> [(scrollView: UIScrollView, inverted: Bool)] {
     var inverted = false
     var result: [(scrollView: UIScrollView, inverted: Bool)] = []
-    for view in views.reversed() {
+    for view in touchedViews.reversed() {
       inverted = inverted || view.transform.d < 0
       if let candidate = view as? UIScrollView, isVerticallyScrollable(candidate) {
         result.append((candidate, inverted))
       }
     }
     return result
+  }
+
+  /// The vertical scrollables a sideways start under the touch defers to. A
+  /// horizontal recognizer on the way to the sheet container — the pan of a
+  /// scroll view that can scroll sideways, or any other pan — keeps sideways
+  /// movement instead, so nothing is deferred and the sheet yields to it as
+  /// before.
+  private func sidewaysDeferralScrollViews(at location: CGPoint) -> [UIScrollView] {
+    guard hasAnyScrollableNegotiation else { return [] }
+    let views = touchedViews(at: location)
+    let chain = scrollableAncestorChain(in: views).map(\.scrollView)
+    guard !chain.isEmpty else { return [] }
+    for view in views {
+      for recognizer in view.gestureRecognizers ?? [] {
+        guard recognizer.isEnabled, recognizer is UIPanGestureRecognizer else { continue }
+        if
+          let scrollView = view as? UIScrollView,
+          recognizer === scrollView.panGestureRecognizer,
+          chain.contains(where: { $0 === scrollView }),
+          !isHorizontallyScrollable(scrollView)
+        {
+          continue
+        }
+        return []
+      }
+    }
+    return chain
+  }
+
+  private func isHorizontallyScrollable(_ scrollView: UIScrollView) -> Bool {
+    let horizontalInset = scrollView.adjustedContentInset.left + scrollView.adjustedContentInset.right
+    let visibleWidth = max(0, scrollView.bounds.width - horizontalInset)
+    return scrollView.alwaysBounceHorizontal || scrollView.contentSize.width > visibleWidth
   }
 
   private func scrollStartOffset(for scrollView: UIScrollView, inverted: Bool) -> CGPoint {
@@ -1307,7 +1431,13 @@ public final class BottomSheetHostingView: UIView {
     guard gestureRecognizer === panGesture else { return true }
 
     let velocity = panGesture.velocity(in: self)
-    guard abs(velocity.y) > abs(velocity.x) else { return false }
+    // A sideways start yields to horizontal recognizers, unless it was held
+    // for a vertical scrollable under the touch and has since turned vertical:
+    // that scrollable's pan recognizes alongside this one, so yielding would
+    // let it scroll content the sheet owns at this detent.
+    if !panGesture.tookSidewaysStart {
+      guard abs(velocity.y) > abs(velocity.x) else { return false }
+    }
 
     let candidates = snapCandidateIndices(including: targetIndex)
     guard candidates.count > 1 else { return false }
@@ -1724,7 +1854,9 @@ extension BottomSheetHostingView: UIGestureRecognizerDelegate {
     // scrollables from this point instead of the post-threshold pan location,
     // matching Android's ACTION_DOWN semantics.
     if gestureRecognizer === panGesture, panGesture.numberOfTouches == 0 {
-      initialTouchLocation = touch.location(in: sheetContainer)
+      let location = touch.location(in: sheetContainer)
+      initialTouchLocation = location
+      panGesture.deferredScrollViews = sidewaysDeferralScrollViews(at: location)
     }
     return true
   }
@@ -1735,6 +1867,23 @@ extension BottomSheetHostingView: UIGestureRecognizerDelegate {
   ) -> Bool {
     guard gestureRecognizer === panGesture else { return false }
     if canCoordinate(with: other) {
+      return false
+    }
+    // While a touch inside a vertical scrollable is held, the sheet's pan
+    // behaves like that scrollable's own: a pan above the sheet — a navigation
+    // pop, a pager — recognizes a sideways swipe on its own and cancels the
+    // held pan, rather than waiting for a failure the hold never produces.
+    // UIKit settles this requirement as the touch lands, before its direction
+    // is known, so it cannot wait for sideways travel; like the scrollable's
+    // pan, the held pan therefore also yields a vertical start to a pan above
+    // it whose own threshold is below the slop. Pans inside the sheet disable
+    // the hold instead.
+    if
+      panGesture.isHoldingSidewaysStart,
+      other is UIPanGestureRecognizer,
+      let otherView = other.view,
+      !otherView.isDescendant(of: sheetContainer)
+    {
       return false
     }
     return other is UIPanGestureRecognizer || other is UITapGestureRecognizer

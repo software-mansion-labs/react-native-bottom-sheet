@@ -58,6 +58,12 @@ Or pass an object to configure the directions separately:
 Gestures that start outside a scrollable are unaffected and continue to move the
 sheet normally.
 
+On iOS and Android, a drag that starts diagonally inside a vertical scrollable
+is resolved like a vertical one: the sheet takes any start the scrollable would
+have accepted as a scroll, so a shallow angle cannot scroll content the sheet
+would otherwise move. A horizontal scrollable under the touch keeps sideways
+gestures as before. On web, a sideways start is left to the browser.
+
 ## Platform support
 
 Nested and inverted vertical lists are resolved at their visual edge, while
