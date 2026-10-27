@@ -25,7 +25,6 @@ const config: Config = {
 
   plugins: [swmGeo],
 
-
   presets: [
     [
       'classic',

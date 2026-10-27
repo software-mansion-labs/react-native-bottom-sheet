@@ -27,11 +27,14 @@ const decode = (value) =>
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const metaOf = (html, name) =>
-  new RegExp(
-    `<meta[^>]+name="${escapeRegExp(name)}"[^>]+content="([^"]*)"`,
+const metaOf = (html, name) => {
+  const escapedName = escapeRegExp(name);
+  const match = new RegExp(
+    `<meta\\s[^>]*?\\bname=(?:"${escapedName}"|'${escapedName}'|${escapedName}(?=\\s))\\s[^>]*?\\bcontent=(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`,
     'i',
-  ).exec(html)?.[1] ?? '';
+  ).exec(html);
+  return match?.[1] ?? match?.[2] ?? match?.[3] ?? '';
+};
 
 function describe(html, siteTitle) {
   const raw = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] ?? '';
