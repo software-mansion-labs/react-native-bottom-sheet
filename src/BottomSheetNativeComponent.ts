@@ -1,21 +1,25 @@
-import {
-  codegenNativeComponent,
-  type CodegenTypes,
-  type ColorValue,
-  type ViewProps,
-} from 'react-native';
+import type { ColorValue, ViewProps } from 'react-native';
+import type {
+  DirectEventHandler,
+  Double,
+  Int32,
+  WithDefault,
+} from './codegenTypes';
+// RN 0.76 exposes this factory only through the legacy path.
+// eslint-disable-next-line @react-native/no-deep-imports
+import codegenNativeComponent from 'react-native/Libraries/Utilities/codegenNativeComponent';
 
 type NativeDetent = Readonly<{
-  value: CodegenTypes.Double;
+  value: Double;
   kind: string;
   programmatic: boolean;
 }>;
 
 export interface NativeProps extends ViewProps {
   detents: ReadonlyArray<NativeDetent>;
-  index: CodegenTypes.Int32;
-  animateIn?: CodegenTypes.WithDefault<boolean, true>;
-  animateContentHeight?: CodegenTypes.WithDefault<boolean, true>;
+  index: Int32;
+  animateIn?: WithDefault<boolean, true>;
+  animateContentHeight?: WithDefault<boolean, true>;
   modal: boolean;
   nativeOverlay?: boolean;
   // Signal that JS supplied `onCloseRequest`. Native event-handler presence is
@@ -26,20 +30,16 @@ export interface NativeProps extends ViewProps {
   // computed from the overlay's real bounds and insets; inline sheets bake the
   // flag into the JS-computed maxDetentHeight as before.
   extendUnderStatusBar?: boolean;
-  scrollableExpandNegotiation: CodegenTypes.Int32;
-  scrollableCollapseNegotiation: CodegenTypes.Int32;
+  scrollableExpandNegotiation: Int32;
+  scrollableCollapseNegotiation: Int32;
   scrimColor?: ColorValue;
-  scrimOpacities?: ReadonlyArray<CodegenTypes.Double>;
-  onIndexChange?: CodegenTypes.DirectEventHandler<
-    Readonly<{ index: CodegenTypes.Int32 }>
+  scrimOpacities?: ReadonlyArray<Double>;
+  onIndexChange?: DirectEventHandler<Readonly<{ index: Int32 }>>;
+  onSettle?: DirectEventHandler<Readonly<{ index: Int32 }>>;
+  onPositionChange?: DirectEventHandler<
+    Readonly<{ position: Double; index: Double }>
   >;
-  onSettle?: CodegenTypes.DirectEventHandler<
-    Readonly<{ index: CodegenTypes.Int32 }>
-  >;
-  onPositionChange?: CodegenTypes.DirectEventHandler<
-    Readonly<{ position: CodegenTypes.Double; index: CodegenTypes.Double }>
-  >;
-  onCloseRequest?: CodegenTypes.DirectEventHandler<null>;
+  onCloseRequest?: DirectEventHandler<null>;
 }
 
 export default codegenNativeComponent<NativeProps>('BottomSheetView');

@@ -3,10 +3,13 @@ package com.swmansion.reactnativebottomsheet.closerequest
 import android.app.Activity
 import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.Window
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.swmansion.reactnativebottomsheet.presentation.PortalPresentationController
+import com.swmansion.reactnativebottomsheet.presentation.TestReactRoot
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
@@ -57,7 +60,7 @@ class LegacyBackKeyRoutingTest {
   }
 
   @Test
-  fun `callbacks added after the portal keep precedence`() {
+  fun `callbacks added after the portal cannot bypass the close request`() {
     withHost { activity, closeRequests ->
       val controller = openPortal(activity, closeRequests)
       var laterCallbackCount = 0
@@ -65,14 +68,14 @@ class LegacyBackKeyRoutingTest {
       activity.onBackPressedDispatcher.addCallback(laterCallback)
 
       pressBack(activity)
-      assertEquals(1, laterCallbackCount)
-      assertEquals(0, closeRequests.count)
+      assertEquals(0, laterCallbackCount)
+      assertEquals(1, closeRequests.count)
 
       laterCallback.remove()
       pressBack(activity)
 
-      assertEquals(1, laterCallbackCount)
-      assertEquals(1, closeRequests.count)
+      assertEquals(0, laterCallbackCount)
+      assertEquals(2, closeRequests.count)
       assertEquals(0, activity.legacyBackCount)
       controller.dispose()
     }
@@ -81,18 +84,9 @@ class LegacyBackKeyRoutingTest {
   @Test
   fun `stacked portals route legacy Back to the upper portal only`() {
     withHost { activity, lowerCloseRequests ->
-      val root = activity.window.decorView as android.view.ViewGroup
-      val upperPortal = View(activity)
-      root.addView(upperPortal)
       val upperCloseRequests = CloseRequestCounter()
       val lowerController = openPortal(activity, lowerCloseRequests)
-      val upperController =
-        PortalCloseRequestController(
-          view = upperPortal,
-          currentActivity = { activity },
-          emitCloseRequest = upperCloseRequests::emit,
-        )
-      upperController.update(inputState(), usesPortalPresentation = true)
+      val upperController = openPortal(activity, upperCloseRequests)
 
       pressBack(activity)
       assertEquals(1, upperCloseRequests.count)
@@ -214,15 +208,39 @@ class LegacyBackKeyRoutingTest {
     activity: Activity,
     closeRequests: CloseRequestCounter,
     state: CloseRequestInputState = inputState(),
-  ): PortalCloseRequestController {
+  ): TestPortal {
     val portal = View(activity)
-    activity.setContentView(portal)
-    return PortalCloseRequestController(
+    val root = activity.findViewById<ViewGroup>(android.R.id.content).getChildAt(0) as ViewGroup
+    root.addView(portal)
+    return TestPortal(portal, activity, closeRequests).also {
+      it.update(state, usesPortalPresentation = true)
+    }
+  }
+
+  private class TestPortal(portal: View, activity: Activity, closeRequests: CloseRequestCounter) {
+    private val controller =
+      PortalCloseRequestController(
         view = portal,
         currentActivity = { activity },
         emitCloseRequest = closeRequests::emit,
       )
-      .also { it.update(state, usesPortalPresentation = true) }
+    private val presentation =
+      PortalPresentationController(portal, controller::onPresentationChanged)
+
+    fun update(state: CloseRequestInputState, usesPortalPresentation: Boolean) {
+      controller.update(state, usesPortalPresentation)
+      presentation.update(isPortal = usesPortalPresentation, isActive = state.isPresentationActive)
+    }
+
+    fun clear() {
+      presentation.clear()
+      controller.clear()
+    }
+
+    fun dispose() {
+      presentation.dispose()
+      controller.dispose()
+    }
   }
 
   private fun inputState(hasCloseRequestHandler: Boolean = true) =
@@ -261,7 +279,9 @@ class LegacyBackKeyRoutingTest {
   private fun withHost(block: (LegacyHostActivity, CloseRequestCounter) -> Unit) {
     val activityController = Robolectric.buildActivity(LegacyHostActivity::class.java).setup()
     try {
-      block(activityController.get(), CloseRequestCounter())
+      val activity = activityController.get()
+      activity.setContentView(TestReactRoot(activity))
+      block(activity, CloseRequestCounter())
     } finally {
       activityController.close()
     }

@@ -5,23 +5,20 @@ import android.view.KeyEvent
 import android.view.KeyboardShortcutGroup
 import android.view.Menu
 import android.view.Window
-import androidx.activity.OnBackPressedCallback
-import androidx.activity.OnBackPressedDispatcher
 import androidx.annotation.RequiresApi
 import java.lang.ref.WeakReference
 import java.util.WeakHashMap
 
 /**
- * Routes legacy `KEYCODE_BACK` presses into an Activity's [OnBackPressedDispatcher] while a portal
- * Back callback registered with it is enabled.
+ * Routes legacy `KEYCODE_BACK` presses to the portal's system input before the host entry point.
  *
  * Without `OnBackInvokedCallback` routing (Android 15 and below, or a target SDK below 36),
  * `ReactActivity.onBackPressed` hands Back to JS `BackHandler` first and reaches the dispatcher
  * only through `invokeDefaultOnBackPressed`, which hosts may override without calling `super` (Expo
  * moves the task to the back on API 30 and below). Capturing the key sequence at the window
- * callback gives an enabled portal callback the precedence it has under `OnBackInvokedCallback`
- * routing, where `KEYCODE_BACK` never reaches the window callback. The press is handed to the
- * dispatcher rather than to the sheet, so callbacks added after the portal's still take precedence.
+ * callback gives the portal the precedence it has under `OnBackInvokedCallback` routing, where
+ * `KEYCODE_BACK` never reaches the window callback. Both paths use [PortalBackInput], keeping local
+ * owner capture and IME precedence separate from React Native's asynchronous default Back path.
  *
  * Other libraries also wrap window callbacks, so the wrapper is installed once per window and never
  * removed. Without an enabled registration, it passes every event through.
@@ -31,10 +28,7 @@ internal object LegacyBackKeyRouting {
     fun remove()
   }
 
-  private class Entry(
-    val dispatcher: OnBackPressedDispatcher,
-    val callback: OnBackPressedCallback,
-  ) {
+  private class Entry(val input: PortalBackInput) {
     var isRegistered = true
   }
 
@@ -53,18 +47,19 @@ internal object LegacyBackKeyRouting {
       return when (event.action) {
         KeyEvent.ACTION_DOWN -> {
           if (event.repeatCount == 0) {
-            capturedEntry = entries.lastOrNull { it.isRegistered && it.callback.isEnabled }
+            capturedEntry =
+              entries.toList().asReversed().firstOrNull {
+                it.isRegistered && it.input.dispatchKey(event)
+              }
+          } else {
+            capturedEntry?.takeIf { it.isRegistered }?.input?.dispatchKey(event)
           }
           capturedEntry != null
         }
         KeyEvent.ACTION_UP -> {
           val completedEntry = capturedEntry ?: return false
           capturedEntry = null
-          if (
-            completedEntry.isRegistered && completedEntry.callback.isEnabled && !event.isCanceled
-          ) {
-            completedEntry.dispatcher.onBackPressed()
-          }
+          if (completedEntry.isRegistered) completedEntry.input.dispatchKey(event)
           true
         }
         else -> capturedEntry != null
@@ -110,11 +105,10 @@ internal object LegacyBackKeyRouting {
 
   fun register(
     window: Window,
-    dispatcher: OnBackPressedDispatcher,
-    callback: OnBackPressedCallback,
+    input: PortalBackInput,
   ): Registration {
     val state = statesByWindow[window]?.get() ?: installState(window)
-    val entry = Entry(dispatcher, callback)
+    val entry = Entry(input)
     state.entries.add(entry)
     return RegistrationImpl(entry, state)
   }

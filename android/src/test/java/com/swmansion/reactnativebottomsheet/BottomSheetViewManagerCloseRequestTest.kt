@@ -23,6 +23,9 @@ import com.facebook.react.uimanager.events.Event
 import com.facebook.react.uimanager.events.EventDispatcher
 import com.facebook.react.uimanager.events.EventDispatcherListener
 import com.facebook.react.viewmanagers.BottomSheetViewManagerDelegate
+import com.swmansion.reactnativebottomsheet.closerequest.TestWindowBackDispatcher
+import com.swmansion.reactnativebottomsheet.closerequest.systemBack
+import com.swmansion.reactnativebottomsheet.presentation.TestReactRoot
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -34,7 +37,11 @@ import org.robolectric.annotation.Implementation
 import org.robolectric.annotation.Implements
 
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [35], shadows = [TestArgumentsShadow::class, TestUIManagerHelperShadow::class])
+@Config(
+  sdk = [35],
+  shadows =
+    [TestArgumentsShadow::class, TestUIManagerHelperShadow::class, TestWindowBackDispatcher::class],
+)
 class BottomSheetViewManagerCloseRequestTest {
   @Before
   fun useLocalReactNativeFeatureFlags() {
@@ -66,12 +73,12 @@ class BottomSheetViewManagerCloseRequestTest {
       )
       // The manager applies index at the end of a props update.
       manager.updateProperties(sheet, ReactStylesDiffMap(JavaOnlyMap.of("index", 1.0)))
-      activity.setContentView(sheet)
+      activity.setContentView(TestReactRoot(activity).apply { addView(sheet) })
       layout(sheet)
       reactContext.onHostResume(activity)
       eventDispatcher.eventNames.clear()
 
-      activity.onBackPressedDispatcher.onBackPressed()
+      activity.systemBack()
 
       assertEquals(listOf("topCloseRequest"), eventDispatcher.eventNames)
       assertEquals(

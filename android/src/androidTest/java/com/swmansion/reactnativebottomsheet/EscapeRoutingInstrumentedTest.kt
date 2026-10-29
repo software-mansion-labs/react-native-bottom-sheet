@@ -19,10 +19,6 @@ import com.facebook.react.R
 import com.facebook.react.bridge.BridgeReactContext
 import com.facebook.react.internal.featureflags.ReactNativeFeatureFlagsForTests
 import com.facebook.react.uimanager.ThemedReactContext
-import com.facebook.react.uimanager.events.BatchEventDispatchedListener
-import com.facebook.react.uimanager.events.Event
-import com.facebook.react.uimanager.events.EventDispatcher
-import com.facebook.react.uimanager.events.EventDispatcherListener
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -50,7 +46,7 @@ class EscapeRoutingInstrumentedTest {
         val child = EscapeRecordingView(activity, childEventCount, consumesEscape = true)
         child.isFocusableInTouchMode = true
         sheet.addView(child, ViewGroup.LayoutParams(1, 1))
-        activity.setContentView(sheet)
+        activity.setInstrumentedReactContentView(sheet)
         assertTrue(child.requestFocus())
       }
 
@@ -83,7 +79,7 @@ class EscapeRoutingInstrumentedTest {
           ),
         )
         root.addView(sibling, FrameLayout.LayoutParams(100, 100))
-        activity.setContentView(root)
+        activity.setInstrumentedReactContentView(root)
         assertTrue(sibling.requestFocus())
       }
 
@@ -121,7 +117,7 @@ class EscapeRoutingInstrumentedTest {
             FrameLayout.LayoutParams.MATCH_PARENT,
           ),
         )
-        activity.setContentView(root)
+        activity.setInstrumentedReactContentView(root)
         assertTrue(lowerChild.requestFocus())
 
         upperContent = MutableContentHeightView(activity)
@@ -181,7 +177,7 @@ class EscapeRoutingInstrumentedTest {
         sheet =
           BottomSheetView(themedContext).apply {
             listener = CountingCloseRequestListener(requestCount)
-            eventDispatcher = NoOpInstrumentedEventDispatcher
+            eventDispatcher = NoOpEventDispatcher
             animateIn = false
             modal = true
             setHasCloseRequestHandler(false)
@@ -364,20 +360,4 @@ private class CountingCloseRequestListener(private val requestCount: AtomicInteg
   override fun onCloseRequest() {
     requestCount.incrementAndGet()
   }
-}
-
-private object NoOpInstrumentedEventDispatcher : EventDispatcher {
-  override fun dispatchEvent(event: Event<*>) = Unit
-
-  override fun dispatchAllEvents() = Unit
-
-  override fun addListener(listener: EventDispatcherListener) = Unit
-
-  override fun removeListener(listener: EventDispatcherListener) = Unit
-
-  override fun addBatchEventDispatchedListener(listener: BatchEventDispatchedListener) = Unit
-
-  override fun removeBatchEventDispatchedListener(listener: BatchEventDispatchedListener) = Unit
-
-  @Suppress("OVERRIDE_DEPRECATION") override fun onCatalystInstanceDestroyed() = Unit
 }

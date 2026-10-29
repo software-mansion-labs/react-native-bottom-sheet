@@ -66,6 +66,22 @@ To keep the scrim deepening across every detent, pass one value per detent:
 </ModalBottomSheet>
 ```
 
+## Portal presentation contexts
+
+A portal's presentation context is the local area containing the sheet and the
+background it makes inactive. Its extent comes from the container that lays out
+the portal. `BottomSheetProvider` supplies the portal host but adds no native
+container of its own, so its children alone do not define that area's bounds.
+Use a layout container for each intended panel; nesting providers or sheet
+declarations in JSX alone does not create separate presentation areas. Sheets
+rendered by the same portal host form a stack in one context.
+
+Independent panels keep their own background isolated, even when they share a
+React Native root or window. Selecting one panel for input does not release
+another panel's isolation. When presentation areas are physically nested, the
+inner area's restrictions combine with those of the enclosing area; the inner
+portal does not take over background outside its own area.
+
 ## Android close requests
 
 `onCloseRequest` is **Android and web only**. Android system Back, a committed
@@ -97,30 +113,65 @@ gesture does not invoke the callback. Escape emits once for a completed,
 unmodified physical-key press; modified, repeated, incomplete, or cancelled
 sequences do not emit additional requests.
 
-When the consumer starts a visible animation to a closed target, the sheet
-continues to consume Back/Escape input without another callback until the
-animation settles. The next input is then routed to the next eligible sheet or
-to the host application. A no-op handler likewise consumes eligible input while
-leaving the sheet open.
+Each fresh input selects its context from current focus and presentation state.
+Once predictive Back or an Escape press captures an owner, changing focus or
+context does not transfer that sequence to another sheet or the host.
+
+A sheet selected for Back/Escape while visibly animating to a closed target
+consumes input without another callback until the animation settles, provided it
+has a handler. After settle, fresh input resolves its context again. A no-op
+handler likewise consumes eligible input while leaving the sheet open.
+
+### Input context
+
+A foreground `nativeOverlay` uses a window-wide input context regardless of
+focus in underlying portal panels. Otherwise, portals select a local context
+before applying presentation ordering.
+
+Recognized current accessibility focus takes priority. Keyboard focus is
+considered only after the absence of accessibility focus is confirmed. Touching
+another panel does not by itself replace focus. For nested areas, input selects
+the innermost context that contains the focus and has an active presentation. An
+inner context without an active presentation does not displace its enclosing
+active context.
+
+Focus known to be outside all portal contexts leaves Back and Escape to the
+host's normal input handling. When focus is absent or cannot be resolved
+reliably, the existing window input fallback selects the frontmost active
+portal, or a deterministic close fallback owner if visual order is unresolved.
+This fallback does not assign focus or expand the selected portal's isolation
+area.
+
+For independent panels A and B, each with an active portal and an
+`onCloseRequest` handler, with B visually above A:
+
+| Current focus                        | Fresh Back/Escape target                                         |
+| ------------------------------------ | ---------------------------------------------------------------- |
+| Recognized focus in A                | A's local top presentation, despite B's higher position          |
+| Recognized focus outside both panels | Normal host handling                                             |
+| Absent or unresolved focus           | Window input fallback: B when its visual priority is established |
 
 ### Presentation ordering
 
-Portal presentations in the same Android window follow their portal order. The
-topmost active portal receives the close request. A portal whose target is
-initially unresolved, already settled at zero height, or closed without a
-visible animation is skipped. A portal that is visibly animating closed remains
-active until settle, so a lower portal is not promoted early.
+Within the selected portal context, the topmost active presentation receives the
+close request. If visual order cannot establish a unique top presentation, a
+deterministic close fallback owner is used. That choice only routes close input;
+it does not establish a screen reader top presentation or widen isolation.
 
-An active top portal without `onCloseRequest` still blocks callbacks on lower
-portals. Back continues beyond the portal group, while Escape remains available
-to normal key handling. `nativeOverlay` is hosted in a separate window and does
-not participate in portal ordering. With a handler it forms the same modal
-boundary; without one it forwards Back to the host Activity and leaves Escape in
-normal key routing.
+A portal whose target is initially unresolved, already settled at zero height,
+or closed without a visible animation is skipped. A portal that is visibly
+animating closed remains active until settle, so a lower portal in that context
+is not promoted early.
 
-That priority is retained while the top portal remains visibly closing. With no
-handler, it continues to block lower callbacks until settle while preserving the
-same Back pass-through and normal Escape behavior.
+If the selected presentation has no `onCloseRequest`, Back uses normal host
+handling and Escape remains in normal key routing. The library does not search
+for a handler in a lower sheet, an enclosing context, or another panel. This
+also applies while the selected presentation remains visibly closing.
+
+On Android, `nativeOverlay` is hosted in a separate dialog window and does not
+participate in portal ordering. Without a handler it forwards Back to normal
+host handling and leaves Escape in normal key routing, while retaining its
+window-modal scope.
 
 ### Target eligibility
 
@@ -133,19 +184,56 @@ unmount it or change its detents if the close request should make it disappear.
 
 ### Limitations
 
-Portal Escape handling is reliable while focus is inside the portal tree. When
-focus is elsewhere, a focused view can consume Escape first, so external-focus
-Escape is best effort. Use `nativeOverlay` with `onCloseRequest` when Escape
-must be owned by a separate window.
+An inconclusive accessibility-focus read, including a null result from a virtual
+focus query, does not confirm that accessibility focus is absent. It uses the
+window input fallback instead of substituting keyboard focus. TalkBack may be
+reading panel A while that fallback selects panel B; not every virtual focus can
+be recognized reliably.
 
-On Android API 24–27, the external-focus fallback is supported for standard
-React Native and AndroidX hosts based on `ReactActivity`, `AppCompatActivity`,
-or `ComponentActivity`. Custom hosts and custom window callbacks can intercept
-key events before the portal receives them.
+A focused control can consume Escape before portal fallback sees it. When the
+window fallback applies and keyboard focus is outside the portal tree, delivery
+is best effort. Use `nativeOverlay` with `onCloseRequest` when Escape must be
+owned by a separate window.
+
+On Android API 24–27, this key-delivery fallback is supported for standard React
+Native and AndroidX hosts based on `ReactActivity`, `AppCompatActivity`, or
+`ComponentActivity`. Custom hosts and custom window callbacks can intercept key
+events before the portal receives them.
 
 Inline `BottomSheet`, iOS physical-keyboard Escape, accessibility dismiss
 actions, scrim taps, drag gestures, and programmatic index changes are outside
 this callback and keep their existing behavior.
+
+## Accessible dismissal
+
+An available accessibility dismiss action directly selects an eligible
+non-programmatic closed detent without invoking `onCloseRequest`. On iOS,
+VoiceOver Escape uses the action's local presentation context. Its top
+presentation may attempt dismissal and consumes the gesture even when dismissal
+is unavailable. If the local context or top presentation cannot be resolved, the
+gesture continues through normal UIKit routing.
+
+When an iOS sheet fills its host, there is no outside-sheet area for the Dismiss
+control, so that control is unavailable. VoiceOver Escape can still close it
+when an eligible non-programmatic closed detent is available.
+
+## Screen reader transitions
+
+For portal modals, the previous screen reader interface remains available while
+the sheet opens. After opening settles, the sheet content becomes available and
+the background in its presentation context is excluded from screen reader
+navigation. During closing, that accessible interface is retained until the
+sheet is fully closed. A new sheet that closes before finishing its opening is
+never exposed to the screen reader.
+
+This transition timing applies to portals. `nativeOverlay` uses the window
+boundary described below.
+
+Isolation updates follow React Native mounting and the library's presentation
+lifecycle. Direct hierarchy or accessibility-property changes by other native
+code do not have guaranteed automatic refresh. Independent panels that partly
+overlap do not have a guarantee that every exposed portion remains accessible.
+The handoff does not guarantee a fixed screen reader response time.
 
 ## Native overlay
 
@@ -159,6 +247,14 @@ everything—including native modal screens—so it always covers the full windo
 On iOS, a `UIWindow`-attached container is used; on Android, a full-screen,
 edge-to-edge, transparent dialog; on the web, a fixed-position layer in
 `document.body`.
+
+The overlay keeps the background of its window presentation inactive for touch
+and accessibility while the sheet is visibly open or closing. A transparent
+scrim, an absent or programmatic-only closed detent, and an omitted
+`onCloseRequest` handler do not make that background interactive. Sheet content
+remains usable; normal background interaction resumes after closed settle or
+removal. Scrim taps and accessibility dismissal still require an eligible
+non-programmatic closed detent.
 
 ```tsx
 <ModalBottomSheet

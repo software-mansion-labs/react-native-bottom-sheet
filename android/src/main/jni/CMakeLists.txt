@@ -19,6 +19,12 @@ add_library(
   ${LIB_CODEGEN_SRCS}
 )
 
+# RN 0.78 added the exact delivered-State getter. Older versions use the
+# public StateWrapper payload instead of depending on private wrapper layout.
+if(ReactAndroid_VERSION_MINOR GREATER_EQUAL 78)
+  target_compile_definitions(${LIB_TARGET_NAME} PRIVATE BOTTOM_SHEET_DIRECT_STATE_ACCESS=1)
+endif()
+
 # Custom headers must come before generated headers so that our ShadowNodes.h
 # and ComponentDescriptors.h take precedence over the codegen type aliases.
 target_include_directories(

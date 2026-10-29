@@ -1,10 +1,9 @@
 package com.swmansion.reactnativebottomsheet
 
 import android.content.Context
-import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Matrix
-import android.graphics.Paint
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.VelocityTracker
 import android.view.View
@@ -22,7 +21,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.dynamicanimation.animation.DynamicAnimation
 import androidx.dynamicanimation.animation.SpringAnimation
 import androidx.dynamicanimation.animation.SpringForce
-import com.facebook.react.R
+import com.facebook.react.R as ReactR
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.uimanager.PointerEvents
 import com.facebook.react.uimanager.ReactPointerEventsView
@@ -31,7 +30,7 @@ import com.facebook.react.uimanager.StateWrapper
 import com.facebook.react.views.scroll.ReactHorizontalScrollView
 import com.facebook.react.views.scroll.ReactScrollView
 import com.facebook.react.views.view.ReactViewGroup
-import com.swmansion.reactnativebottomsheet.closerequest.CloseRequestPresentationTracker
+import com.swmansion.reactnativebottomsheet.presentation.PresentationLifecycleTracker
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -114,10 +113,10 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   var interactionListener: ((Boolean) -> Unit)? = null
 
   /**
-   * Invokes the callback immediately when assigned and whenever later host state can change close
-   * request qualification.
+   * Publishes neutral presentation and resolved-target changes immediately on assignment and
+   * whenever layout or animation changes them.
    */
-  var closeRequestStateChangedListener: (() -> Unit)? = null
+  var presentationStateChangedListener: (() -> Unit)? = null
     set(value) {
       field = value
       value?.invoke()
@@ -149,7 +148,41 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   // MARK: - Internal
 
   private val sheetContainer = FrameLayout(context)
-  private val scrimPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+  private val visualScrimView =
+    object : View(context) {
+      override fun onTouchEvent(event: MotionEvent): Boolean = false
+    }
+  private val dismissAccessibilityView =
+    object : View(context) {
+      override fun onTouchEvent(event: MotionEvent): Boolean = false
+
+      override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (!isDismissConfirmKey(keyCode)) return super.onKeyDown(keyCode, event)
+        if (!event.hasNoModifiers()) {
+          isPressed = false
+          // Older View implementations can arm modified confirm keys too.
+          return false
+        }
+
+        if (event.repeatCount == 0) isPressed = true
+        return true
+      }
+
+      override fun performClick(): Boolean {
+        if (!isDismissAccessibilityAvailable) return false
+        super.performClick()
+        return attemptScrimDismissal()
+      }
+
+      override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (!isDismissConfirmKey(keyCode)) return super.onKeyUp(keyCode, event)
+
+        val shouldClick = isPressed
+        isPressed = false
+        if (!event.hasNoModifiers()) return false
+        return shouldClick && !event.isCanceled && performClick()
+      }
+    }
   private var activeAnimation: SpringAnimation? = null
   private var activeAnimationEmitsSettle = false
   private var velocityTracker: VelocityTracker? = null
@@ -177,6 +210,15 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   // only guards against empty input (indexing requires a non-empty array).
   private var scrimOpacities = listOf(1f)
   private var scrimProgress = 0f
+    set(value) {
+      field = value
+      visualScrimView.alpha = value
+      updateScrimPresentationState()
+    }
+
+  private var isVisualScrimRendered = false
+  private var isDismissAccessibilityEnabled = false
+
   private var suppressScrimForClosingTarget = false
   private var scrimPinnedFull = false
   private var contentHeightMarker: View? = null
@@ -186,7 +228,30 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   private var pendingInitialContentDetentPreDrawListener: ViewTreeObserver.OnPreDrawListener? = null
   private var pendingInitialContentDetentFrames = 0
   private var hasPerformedHostLayoutSinceAttach = false
-  private val closeRequestPresentationTracker = CloseRequestPresentationTracker()
+  private val presentationLifecycleTracker = PresentationLifecycleTracker()
+  private var defersAccessibilityPresentation = false
+  private var accessibilityPresentationCommitted = false
+
+  internal val isAccessibilityTransitionRunning: Boolean
+    get() = activeAnimation != null || isPanning
+
+  internal fun updateAccessibilityPresentation(deferUntilSettled: Boolean) {
+    defersAccessibilityPresentation = deferUntilSettled
+    if (!deferUntilSettled || !isPresentationActive) accessibilityPresentationCommitted = false
+    importantForAccessibility =
+      if (deferUntilSettled && !accessibilityPresentationCommitted)
+        View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+      else View.IMPORTANT_FOR_ACCESSIBILITY_NO
+  }
+
+  internal fun commitAccessibilityPresentation() {
+    if (
+      !defersAccessibilityPresentation || !isPresentationActive || isAccessibilityTransitionRunning
+    )
+      return
+    accessibilityPresentationCommitted = true
+    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+  }
 
   private val contentHeightMarkerLayoutListener =
     View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
@@ -203,9 +268,44 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     pointerEvents = PointerEvents.BOX_NONE
     sheetContainer.clipChildren = false
     sheetContainer.clipToPadding = false
+    sheetContainer.id = View.generateViewId()
+    visualScrimView.apply {
+      alpha = 0f
+      visibility = View.INVISIBLE
+      setBackgroundColor(scrimColor)
+      importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+    }
+    dismissAccessibilityView.apply {
+      alpha = 1f
+      pivotY = 0f
+      scaleY = 0f
+      visibility = View.INVISIBLE
+      contentDescription = context.getString(R.string.bottom_sheet_dismiss)
+      importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+      accessibilityTraversalAfter = sheetContainer.id
+    }
+    ViewCompat.setAccessibilityDelegate(
+      dismissAccessibilityView,
+      DismissAccessibilityDelegate(isDismissAvailable = { isDismissAccessibilityAvailable }),
+    )
+    super.addView(
+      visualScrimView,
+      LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
+    )
+    super.addView(
+      dismissAccessibilityView,
+      LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
+    )
     super.addView(
       sheetContainer,
       LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
+    )
+    ViewCompat.setAccessibilityDelegate(
+      sheetContainer,
+      SheetDismissAccessibilityDelegate(
+        isDismissAvailable = { isScrimDismissalAvailable },
+        performDismiss = ::attemptScrimDismissal,
+      ),
     )
   }
 
@@ -227,7 +327,9 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   // MARK: - Child view management
 
   override fun addView(child: View, index: Int, params: ViewGroup.LayoutParams) {
-    if (child === sheetContainer) {
+    if (
+      child === visualScrimView || child === dismissAccessibilityView || child === sheetContainer
+    ) {
       super.addView(child, index, params)
     } else {
       sheetContainer.addView(child, index, params)
@@ -235,7 +337,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   }
 
   override fun removeView(view: View) {
-    if (view === sheetContainer) {
+    if (view === visualScrimView || view === dismissAccessibilityView || view === sheetContainer) {
       super.removeView(view)
     } else {
       sheetContainer.removeView(view)
@@ -287,7 +389,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   override fun onAttachedToWindow() {
     super.onAttachedToWindow()
     hasPerformedHostLayoutSinceAttach = false
-    notifyCloseRequestStateChanged()
+    notifyPresentationStateChanged()
     // Native geometry (cap, frame) is derived from the window; recompute on
     // (re)attach — including the inline<->overlay reparent — and ask for a
     // fresh insets pass. Fabric may assign unchanged bounds before attaching
@@ -312,6 +414,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
 
   override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
     // The cap depends on the top inset, which can change without a resize.
+    lastAppliedWindowInsetTopPx = systemTopInset(WindowInsetsCompat.toWindowInsetsCompat(insets))
     recomputeNativeGeometry()
     return super.onApplyWindowInsets(insets)
   }
@@ -319,7 +422,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   override fun onDetachedFromWindow() {
     removeCallbacks(ensureHostLayoutAfterAttach)
     hasPerformedHostLayoutSinceAttach = false
-    notifyCloseRequestStateChanged()
+    updateScrimPresentationState()
+    notifyPresentationStateChanged()
     // Release the listener from the soon-to-be-replaced observer and clear our
     // references so a later re-attach registers on the new live observer.
     removePendingInitialContentDetentObserver()
@@ -330,7 +434,11 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     super.onLayout(changed, left, top, right, bottom)
     val w = right - left
     val h = bottom - top
-    if (w <= 0 || h <= 0) return
+    if (w <= 0 || h <= 0) {
+      hasPerformedHostLayoutSinceAttach = false
+      updateScrimPresentationState()
+      return
+    }
 
     performHostLayout(w, h)
   }
@@ -342,6 +450,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     refreshContentHeightMarker()
     refreshDetentsFromLayout()
     hasPerformedHostLayoutSinceAttach = true
+    visualScrimView.layout(0, 0, w, h)
+    dismissAccessibilityView.layout(0, 0, w, h)
     layoutSheetContainer(w, h)
 
     if (!hasLaidOut && detentSpecs.isNotEmpty()) {
@@ -355,7 +465,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
         pendingInitialContentDetentSnap = true
         sheetContainer.translationY = resolvedMaxDetentHeight(h)
         emitPosition()
-        notifyCloseRequestStateChanged()
+        notifyPresentationStateChanged()
         observePendingInitialContentDetent()
         return
       }
@@ -371,28 +481,27 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
         emitPosition()
         snapToIndex(targetIndex, 0f, emitIndexChange = false, emitSettle = true)
       } else {
-        closeRequestPresentationTracker.onTransitionSettled()
+        presentationLifecycleTracker.onTransitionSettled()
         sheetContainer.translationY = translationY(targetIndex)
         emitPosition()
-        notifyCloseRequestStateChanged()
+        notifyPresentationStateChanged()
       }
       return
     }
 
     if (activeAnimation != null || isPanning) {
-      notifyCloseRequestStateChanged()
+      notifyPresentationStateChanged()
       return
     }
-    closeRequestPresentationTracker.onTransitionSettled()
+    presentationLifecycleTracker.onTransitionSettled()
     sheetContainer.translationY = translationY(targetIndex)
     updateShadowState(sheetContainer.translationY)
-    notifyCloseRequestStateChanged()
+    updateScrimPresentationState()
+    notifyPresentationStateChanged()
   }
 
-  override fun dispatchDraw(canvas: Canvas) {
-    drawScrim(canvas)
-    super.dispatchDraw(canvas)
-  }
+  private val currentSheetTop: Float
+    get() = sheetContainer.top + sheetContainer.translationY
 
   private fun layoutSheetChildren(containerWidth: Int, containerHeight: Int) {
     for (i in 0 until sheetContainer.childCount) {
@@ -421,6 +530,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     lastAppliedMaxDetentHeight = maxHeight
     sheetContainer.layout(0, containerTop, viewWidth, containerTop + maxHeight.toInt())
     layoutSheetChildren(viewWidth, maxHeight.toInt())
+    updateScrimPresentationState()
   }
 
   // MARK: - Prop setters
@@ -460,7 +570,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     if (!hasLaidOut) {
       pendingIndex = newIndex
       targetIndex = newIndex
-      notifyCloseRequestStateChanged()
+      notifyPresentationStateChanged()
       return
     }
 
@@ -485,7 +595,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
       // already resolvable) or keep waiting for the content to measure.
       targetIndex = newIndex.coerceIn(0, detentSpecs.size - 1)
       if (!trySnapPendingInitialContentDetent()) {
-        notifyCloseRequestStateChanged()
+        notifyPresentationStateChanged()
         observePendingInitialContentDetent()
       }
       return
@@ -507,7 +617,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
 
   fun setScrimColor(color: Int?) {
     scrimColor = color ?: Color.TRANSPARENT
-    invalidate()
+    visualScrimView.setBackgroundColor(scrimColor)
   }
 
   fun setScrimOpacities(values: List<Float>) {
@@ -581,8 +691,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
       activeDragDetentSpecs = null
     }
     if (hasLaidOut && isInvalidContentDetentTarget(targetIndex)) {
-      closeRequestPresentationTracker.onInvalidTarget()
-      notifyCloseRequestStateChanged()
+      presentationLifecycleTracker.onInvalidTarget()
+      notifyPresentationStateChanged()
       updateScrim()
       return
     }
@@ -592,7 +702,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
       if (trySnapPendingInitialContentDetent()) {
         return
       }
-      notifyCloseRequestStateChanged()
+      notifyPresentationStateChanged()
       updateScrim()
       return
     }
@@ -650,11 +760,11 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
           val shouldAnimateHeight = shouldAnimateContentHeight(targetIndex)
           if (kotlin.math.abs(targetHeight - currentVisibleHeight) <= 0.5f) {
             // No meaningful change.
-            closeRequestPresentationTracker.onTransitionSettled()
+            presentationLifecycleTracker.onTransitionSettled()
             sheetContainer.translationY = targetTy
             emitPosition()
           } else if (!shouldAnimateHeight) {
-            closeRequestPresentationTracker.onTransitionSettled()
+            presentationLifecycleTracker.onTransitionSettled()
             sheetContainer.translationY = targetTy
             emitPosition()
           } else {
@@ -679,7 +789,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     }
 
     requestLayout()
-    notifyCloseRequestStateChanged()
+    notifyPresentationStateChanged()
     updateScrim()
   }
 
@@ -807,7 +917,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     // child with a positive zIndex lands after the marker in the wrapper.
     return (0 until contentView.childCount)
       .map { contentView.getChildAt(it) }
-      .firstOrNull { it.getTag(R.id.view_tag_native_id) == CONTENT_HEIGHT_MARKER_NATIVE_ID }
+      .firstOrNull { it.getTag(ReactR.id.view_tag_native_id) == CONTENT_HEIGHT_MARKER_NATIVE_ID }
   }
 
   // MARK: - Snap logic
@@ -836,7 +946,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   private val isTargetingClosedDetent: Boolean
     get() = detentSpecs.getOrNull(targetIndex)?.height == 0f
 
-  private val isCloseRequestLayoutReady: Boolean
+  private val isLayoutReady: Boolean
     get() =
       hasPerformedHostLayoutSinceAttach &&
         isAttachedToWindow &&
@@ -847,20 +957,34 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   private val isTargetDetentOpen: Boolean
     get() = detentSpecs.getOrNull(targetIndex)?.height?.let { it > 0f } == true
 
+  // Requiring an open target also ignores dismissals once a close is running: restarting it
+  // would emit a second index change and drop the running spring's velocity.
+  private val scrimDismissTargetIndex: Int?
+    get() = scrimDismissIndex?.takeIf { isScrimVisible() && isTargetDetentOpen }
+
+  private val isScrimDismissalAvailable: Boolean
+    get() = scrimDismissTargetIndex != null
+
+  private fun attemptScrimDismissal(): Boolean {
+    val closeIndex = scrimDismissTargetIndex ?: return false
+    snapToIndex(closeIndex, 0f)
+    return true
+  }
+
   // Request emission follows the resolved target rather than the transient animated position.
   val isCloseRequestTargetResolvedAndOpen: Boolean
-    get() = isCloseRequestLayoutReady && isTargetDetentOpen
+    get() = isLayoutReady && isTargetDetentOpen
 
-  /** Keeps the modal input boundary through a visible animated close. */
-  val isCloseRequestPresentationActive: Boolean
+  /** Keeps the Active presentation through a visible animated close. */
+  val isPresentationActive: Boolean
     get() =
-      closeRequestPresentationTracker.isPresentationActive(
+      presentationLifecycleTracker.isPresentationActive(
         isTargetDetentOpen = isTargetDetentOpen,
-        isCloseRequestLayoutReady = isCloseRequestLayoutReady,
+        isLayoutReady = isLayoutReady,
       )
 
-  private fun notifyCloseRequestStateChanged() {
-    closeRequestStateChangedListener?.invoke()
+  private fun notifyPresentationStateChanged() {
+    presentationStateChangedListener?.invoke()
   }
 
   private fun snapCandidateIndices(includeIndex: Int? = null): List<Int> {
@@ -938,6 +1062,9 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   private var lastGeometryStateHeight = 0
   private var lastGeometryStateInsetTop = Float.NaN
   private var lastSentStateSnapshot: StateSnapshot? = null
+  // onApplyWindowInsets is authoritative once it has delivered a value. The root lookup can lag
+  // behind that callback, so keep the applied top inset for later layout and state-wrapper passes.
+  private var lastAppliedWindowInsetTopPx: Int? = null
   // The natively computed detent cap: this view's height minus the part of the
   // window's top (status bar / display cutout) inset that actually overlaps it.
   // Measured from real window geometry in every mode — inline, portal, and
@@ -985,9 +1112,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     if (width <= 0 || height <= 0 || !isAttachedToWindow) return
 
     val topInset =
-      ViewCompat.getRootWindowInsets(this)
-        ?.getInsets(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout())
-        ?.top ?: 0
+      lastAppliedWindowInsetTopPx ?: systemTopInset(ViewCompat.getRootWindowInsets(this))
     val location = IntArray(2)
     getLocationInWindow(location)
     // Only the part of the inset this view actually extends under matters: a
@@ -1005,6 +1130,11 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
       requestLayout()
     }
   }
+
+  private fun systemTopInset(windowInsets: WindowInsetsCompat?): Int =
+    windowInsets
+      ?.getInsets(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout())
+      ?.top ?: 0
 
   // The content region height (px) a detents change moved the layout to, while
   // Fabric has yet to lay the content out against it. Resolving a `content`
@@ -1154,6 +1284,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
       pendingIndex = null
     }
     targetIndex = index
+    updateScrimPresentationState()
     if (!isTargetingClosedDetent) {
       suppressScrimForClosingTarget = false
     }
@@ -1201,8 +1332,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
             hideScrim()
           }
           emitPosition()
-          closeRequestPresentationTracker.onTransitionSettled()
-          notifyCloseRequestStateChanged()
+          presentationLifecycleTracker.onTransitionSettled()
+          notifyPresentationStateChanged()
           updateInteractionState()
           if (emitSettle) listener?.onSettle(index)
         }
@@ -1210,13 +1341,13 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
 
     activeAnimation = spring
     val visibleHeight = resolvedMaxDetentHeight() - currentTy
-    closeRequestPresentationTracker.onAnimationStarted(
+    presentationLifecycleTracker.onAnimationStarted(
       isTargetOpen = !isTargetingClosedDetent,
       visibleHeight = visibleHeight,
     )
     // Publish only after the replacement spring is assigned. Re-anchoring a close must not create
     // a transient pass-through window between canceling the old animation and starting the new.
-    notifyCloseRequestStateChanged()
+    notifyPresentationStateChanged()
     // Report the index change as soon as the snap is committed, not when it
     // finishes: targetIndex is already set, and a programmatic snap's start is
     // known to the caller. onSettle remains the signal for movement end.
@@ -1285,8 +1416,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     if (event.actionMasked == MotionEvent.ACTION_DOWN) {
       clearNestedScrollState()
     }
-    val sheetTop = sheetContainer.top + sheetContainer.translationY
-    if (event.actionMasked == MotionEvent.ACTION_DOWN && event.y < sheetTop) {
+    if (event.actionMasked == MotionEvent.ACTION_DOWN && event.y < currentSheetTop) {
       if (isScrimVisible()) {
         initialTouchX = event.x
         initialTouchY = event.y
@@ -1385,23 +1515,17 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     if (scrimTouchActive) {
       when (event.actionMasked) {
         MotionEvent.ACTION_MOVE -> {
-          val sheetTop = sheetContainer.top + sheetContainer.translationY
-          if (event.y >= sheetTop || abs(event.y - initialTouchY) > touchSlop) {
+          if (event.y >= currentSheetTop || abs(event.y - initialTouchY) > touchSlop) {
             scrimPressed = false
           }
           return true
         }
         MotionEvent.ACTION_UP -> {
-          val closeIndex = scrimDismissIndex
-          val shouldDismiss = scrimPressed && isScrimVisible()
+          val shouldDismiss = scrimPressed
           scrimPressed = false
           scrimTouchActive = false
           activePointerId = MotionEvent.INVALID_POINTER_ID
-          // A close already targeting this detent owns the dismissal: restarting it
-          // would emit a second index change and drop the running spring's velocity.
-          if (shouldDismiss && closeIndex != null && closeIndex != targetIndex) {
-            snapToIndex(closeIndex, 0f)
-          }
+          if (shouldDismiss) attemptScrimDismissal()
           return true
         }
         MotionEvent.ACTION_CANCEL -> {
@@ -1708,8 +1832,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   }
 
   private fun clearNestedScrollState() {
-    val touchTarget = nestedTouchTarget
-    val shouldRestoreDisabled = touchTarget is ScrollView && !nestedTouchWasEnabled
+    val touchTarget = nestedTouchTarget as? ScrollView
+    val shouldRestoreDisabled = !nestedTouchWasEnabled
 
     // Restoring nested scrolling to false calls View.stopNestedScroll(), which
     // synchronously re-enters onStopNestedScroll(). Clear ownership first so
@@ -1722,7 +1846,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     nestedSheetMoved = false
     nestedPanSettled = false
 
-    if (shouldRestoreDisabled) {
+    if (touchTarget != null && shouldRestoreDisabled) {
       ViewCompat.setNestedScrollingEnabled(touchTarget, false)
     }
   }
@@ -1780,7 +1904,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
 
   private fun findScrollableHitAtTouch(): TouchHit.Scrollable? {
     val containerX = initialTouchX - sheetContainer.left - sheetContainer.translationX
-    val containerY = initialTouchY - sheetContainer.top - sheetContainer.translationY
+    val containerY = initialTouchY - currentSheetTop
     if (
       containerX < 0f ||
         containerX >= sheetContainer.width ||
@@ -1951,6 +2075,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     lastGeometryStateWidth = 0
     lastGeometryStateHeight = 0
     lastGeometryStateInsetTop = Float.NaN
+    lastAppliedWindowInsetTopPx = null
     isContentRegionChangePending = false
     committedContentRegionInsetDp = Float.NaN
     committedFrameWidthDp = Float.NaN
@@ -1965,8 +2090,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     detentSpecs = emptyList()
     targetIndex = 0
     hasPerformedHostLayoutSinceAttach = false
-    closeRequestPresentationTracker.onHostDestroyed()
-    notifyCloseRequestStateChanged()
+    presentationLifecycleTracker.onHostDestroyed()
+    notifyPresentationStateChanged()
     pendingIndex = null
     hasLaidOut = false
     isPanning = false
@@ -1984,14 +2109,13 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     sheetContainer.removeAllViews()
     stateWrapper = null
     lastShadowOffsetY = Float.NaN
-    closeRequestStateChangedListener = null
+    presentationStateChangedListener = null
     listener = null
   }
 
   private fun updateScrim(position: Float = currentSheetHeight()) {
     if (!modal) {
       scrimProgress = 0f
-      invalidate()
       return
     }
 
@@ -2011,12 +2135,10 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     // re-anchor settles.
     if (scrimPinnedFull) {
       scrimProgress = fullyOpenScrimOpacity()
-      invalidate()
       return
     }
 
     scrimProgress = scrimOpacityAt(position)
-    invalidate()
   }
 
   /** The opacity at the tallest detent, held while the sheet re-anchors. */
@@ -2063,7 +2185,6 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
 
   private fun hideScrim() {
     scrimProgress = 0f
-    invalidate()
   }
 
   internal val isInteractive: Boolean
@@ -2079,6 +2200,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     val interactive = isInteractive
     pointerEvents = if (interactive) PointerEvents.AUTO else PointerEvents.BOX_NONE
     interactionListener?.invoke(interactive)
+    updateScrimPresentationState()
   }
 
   private fun currentSheetHeight(): Float {
@@ -2088,15 +2210,55 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
 
   private fun isScrimVisible(): Boolean = modal && scrimProgress > 0.001f
 
-  private fun drawScrim(canvas: Canvas) {
-    if (!modal || scrimProgress <= 0.001f) {
-      return
+  private val isDismissAccessibilityAvailable: Boolean
+    get() =
+      isLayoutReady &&
+        isScrimDismissalAvailable &&
+        width > 0 &&
+        dismissAccessibilityView.scaleY > 0f
+
+  private fun isDismissConfirmKey(keyCode: Int): Boolean =
+    keyCode == KeyEvent.KEYCODE_ENTER ||
+      keyCode == KeyEvent.KEYCODE_SPACE ||
+      keyCode == KeyEvent.KEYCODE_DPAD_CENTER
+
+  private fun syncDismissGeometry() {
+    val scale =
+      if (isAttachedToWindow && hasPerformedHostLayoutSinceAttach && height > 0) {
+        (currentSheetTop / height).coerceIn(0f, 1f)
+      } else {
+        0f
+      }
+    if (dismissAccessibilityView.scaleY != scale) {
+      dismissAccessibilityView.scaleY = scale
+    }
+  }
+
+  private fun updateScrimPresentationState() {
+    syncDismissGeometry()
+    val rendered = isScrimVisible()
+    if (rendered != isVisualScrimRendered) {
+      isVisualScrimRendered = rendered
+      visualScrimView.visibility = if (rendered) View.VISIBLE else View.INVISIBLE
     }
 
-    val alpha = (Color.alpha(scrimColor) * scrimProgress).toInt().coerceIn(0, 255)
-    scrimPaint.color =
-      Color.argb(alpha, Color.red(scrimColor), Color.green(scrimColor), Color.blue(scrimColor))
-    canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), scrimPaint)
+    val accessibilityEnabled = isDismissAccessibilityAvailable
+    if (accessibilityEnabled == isDismissAccessibilityEnabled) return
+
+    isDismissAccessibilityEnabled = accessibilityEnabled
+    dismissAccessibilityView.visibility = if (accessibilityEnabled) View.VISIBLE else View.INVISIBLE
+    dismissAccessibilityView.importantForAccessibility =
+      if (accessibilityEnabled) {
+        View.IMPORTANT_FOR_ACCESSIBILITY_YES
+      } else {
+        View.IMPORTANT_FOR_ACCESSIBILITY_NO
+      }
+    dismissAccessibilityView.isFocusable = accessibilityEnabled
+    dismissAccessibilityView.isClickable = accessibilityEnabled
+    if (!accessibilityEnabled) {
+      dismissAccessibilityView.clearFocus()
+      dismissAccessibilityView.isPressed = false
+    }
   }
 
   companion object {

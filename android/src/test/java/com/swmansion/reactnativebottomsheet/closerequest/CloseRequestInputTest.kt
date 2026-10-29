@@ -14,6 +14,60 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35])
 class CloseRequestInputTest {
   @Test
+  fun `canceled legacy Back consumes repeats without executing and next press starts fresh`() {
+    val executed = mutableListOf<CloseRequestInputAction>()
+    val callback =
+      CloseRequestBackCallback(
+        resolveAction = { CloseRequestInputAction.EMIT_CLOSE_REQUEST },
+        executeAction = executed::add,
+      )
+    callback.updateState(true, CloseRequestInputAction.EMIT_CLOSE_REQUEST)
+    assertTrue(
+      callback.dispatchKey(KeyEvent(10, 10, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK, 0)),
+    )
+    assertTrue(
+      callback.dispatchKey(KeyEvent(10, 11, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK, 1)),
+    )
+    assertTrue(
+      callback.dispatchKey(
+        KeyEvent(
+          10,
+          12,
+          KeyEvent.ACTION_UP,
+          KeyEvent.KEYCODE_BACK,
+          0,
+          0,
+          -1,
+          0,
+          KeyEvent.FLAG_CANCELED,
+        ),
+      ),
+    )
+    assertTrue(executed.isEmpty())
+    assertFalse(callback.isBackInProgress)
+    assertTrue(
+      callback.dispatchKey(KeyEvent(20, 20, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK, 0)),
+    )
+    assertTrue(callback.dispatchKey(KeyEvent(20, 21, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK, 0)))
+    assertEquals(listOf(CloseRequestInputAction.EMIT_CLOSE_REQUEST), executed)
+  }
+
+  @Test
+  fun `unhandled legacy Back remains in ordinary key routing without executing host itself`() {
+    val executed = mutableListOf<CloseRequestInputAction>()
+    val callback =
+      CloseRequestBackCallback(
+        resolveAction = { CloseRequestInputAction.PASS_THROUGH },
+        executeAction = executed::add,
+      )
+    callback.updateState(true, CloseRequestInputAction.EMIT_CLOSE_REQUEST)
+    assertFalse(callback.dispatchKey(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK)))
+    assertFalse(callback.dispatchKey(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK)))
+    assertFalse(callback.isBackInProgress)
+    assertTrue(executed.isEmpty())
+  }
+
+  @Test
   fun `resolver separates request consume and pass-through`() {
     assertEquals(
       CloseRequestInputAction.EMIT_CLOSE_REQUEST,
@@ -58,7 +112,7 @@ class CloseRequestInputTest {
     callback.handleOnBackPressed()
 
     assertEquals(listOf(CloseRequestInputAction.CONSUME), executed)
-    assertFalse(callback.isPredictiveBackInProgress)
+    assertFalse(callback.isBackInProgress)
 
     callback.handleOnBackPressed()
     assertEquals(
@@ -75,7 +129,7 @@ class CloseRequestInputTest {
       CloseRequestBackCallback(
         resolveAction = { CloseRequestInputAction.EMIT_CLOSE_REQUEST },
         executeAction = executed::add,
-        onPredictiveBackStateChanged = { predictiveStateChanges++ },
+        onCaptureStateChanged = { predictiveStateChanges++ },
       )
     callback.updateState(
       canReceiveBack = true,
@@ -89,7 +143,7 @@ class CloseRequestInputTest {
     callback.handleOnBackPressed()
 
     assertTrue(executed.isEmpty())
-    assertFalse(callback.isPredictiveBackInProgress)
+    assertFalse(callback.isBackInProgress)
     assertEquals(stateChangesBeforeLateEvents, predictiveStateChanges)
   }
 
@@ -97,11 +151,13 @@ class CloseRequestInputTest {
   fun `predictive Back cancellation clears its pinned action without executing it`() {
     val executed = mutableListOf<CloseRequestInputAction>()
     var predictiveStateChanges = 0
+    var captureCancellations = 0
     val callback =
       CloseRequestBackCallback(
         resolveAction = { CloseRequestInputAction.EMIT_CLOSE_REQUEST },
         executeAction = executed::add,
-        onPredictiveBackStateChanged = { predictiveStateChanges++ },
+        onCaptureStateChanged = { predictiveStateChanges++ },
+        onCaptureCancelled = { captureCancellations++ },
       )
     callback.updateState(
       canReceiveBack = true,
@@ -116,9 +172,10 @@ class CloseRequestInputTest {
     callback.handleOnBackCancelled()
 
     assertTrue(executed.isEmpty())
-    assertFalse(callback.isPredictiveBackInProgress)
+    assertFalse(callback.isBackInProgress)
     assertFalse(callback.isEnabled)
     assertEquals(2, predictiveStateChanges)
+    assertEquals(1, captureCancellations)
   }
 
   @Test
@@ -138,7 +195,7 @@ class CloseRequestInputTest {
     callback.handleOnBackPressed()
 
     assertEquals(listOf(CloseRequestInputAction.PASS_THROUGH), executed)
-    assertFalse(callback.isPredictiveBackInProgress)
+    assertFalse(callback.isBackInProgress)
 
     callback.handleOnBackPressed()
     assertEquals(

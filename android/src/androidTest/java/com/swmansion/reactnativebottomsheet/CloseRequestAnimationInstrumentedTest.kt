@@ -1,5 +1,6 @@
 package com.swmansion.reactnativebottomsheet
 
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.test.core.app.ActivityScenario
@@ -27,6 +28,9 @@ class CloseRequestAnimationInstrumentedTest {
     val requestCount = AtomicInteger()
     val fallbackCount = AtomicInteger()
     val closeSettled = CountDownLatch(1)
+    val focused = CountDownLatch(1)
+    val laidOut = CountDownLatch(1)
+    val hostBack = CountDownLatch(1)
     lateinit var sheet: BottomSheetView
 
     ActivityScenario.launch(ComponentActivity::class.java).use { scenario ->
@@ -35,6 +39,7 @@ class CloseRequestAnimationInstrumentedTest {
           object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
               fallbackCount.incrementAndGet()
+              hostBack.countDown()
             }
           },
         )
@@ -55,6 +60,7 @@ class CloseRequestAnimationInstrumentedTest {
                 }
               }
             animateIn = false
+            isFocusableInTouchMode = true
             modal = true
             setHasCloseRequestHandler(true)
             setDetents(
@@ -64,28 +70,39 @@ class CloseRequestAnimationInstrumentedTest {
               ),
             )
             setIndex(1)
+            addOnLayoutChangeListener { _, left, top, right, bottom, _, _, _, _ ->
+              if (right > left && bottom > top) laidOut.countDown()
+            }
           }
-        activity.setContentView(sheet)
+        activity.setInstrumentedReactContentView(sheet)
+        val decor = activity.window.decorView
+        decor.viewTreeObserver.addOnWindowFocusChangeListener { if (it) focused.countDown() }
+        if (decor.hasWindowFocus()) focused.countDown()
       }
 
       val instrumentation = InstrumentationRegistry.getInstrumentation()
-      instrumentation.waitForIdleSync()
-      scenario.onActivity {
-        sheet.setIndex(0)
-        it.onBackPressedDispatcher.onBackPressed()
-      }
+      try {
+        assertTrue("Testhost did not receive focus", focused.await(5, TimeUnit.SECONDS))
+        assertTrue("Portal did not receive layout", laidOut.await(5, TimeUnit.SECONDS))
+        scenario.onActivity {
+          assertTrue(sheet.requestFocus())
+          sheet.setIndex(0)
+          assertEquals("Close must still be animating", 1L, closeSettled.count)
+        }
+        instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
 
-      assertEquals(0, requestCount.get())
-      assertEquals(0, fallbackCount.get())
-      assertTrue("close animation did not settle", closeSettled.await(5, TimeUnit.SECONDS))
-      instrumentation.waitForIdleSync()
+        assertEquals(0, requestCount.get())
+        assertEquals(0, fallbackCount.get())
+        assertTrue("close animation did not settle", closeSettled.await(5, TimeUnit.SECONDS))
+        instrumentation.waitForIdleSync()
 
-      scenario.onActivity {
-        it.onBackPressedDispatcher.onBackPressed()
-        sheet.destroy()
+        instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
+        assertTrue("Settled close did not release host Back", hostBack.await(5, TimeUnit.SECONDS))
+        assertEquals(0, requestCount.get())
+        assertEquals(1, fallbackCount.get())
+      } finally {
+        scenario.onActivity { sheet.destroy() }
       }
-      assertEquals(0, requestCount.get())
-      assertEquals(1, fallbackCount.get())
     }
   }
 }

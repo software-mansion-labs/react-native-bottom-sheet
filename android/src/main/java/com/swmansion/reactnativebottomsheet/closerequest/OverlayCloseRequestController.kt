@@ -33,7 +33,7 @@ internal class OverlayCloseRequestController(private val emitCloseRequest: () ->
         CloseRequestBackCallback(
           resolveAction = ::currentAction,
           executeAction = ::executeBackAction,
-          onPredictiveBackStateChanged = ::updateWindowInputFlags,
+          onCaptureStateChanged = ::updateWindowInputFlags,
         )
       backCallback = callback
       dialog.onBackPressedDispatcher.addCallback(callback)
@@ -145,7 +145,7 @@ internal class OverlayCloseRequestController(private val emitCloseRequest: () ->
       touchable ||
         ownsCloseInput ||
         escapeDispatcher.hasCapturedPress ||
-        backCallback?.isPredictiveBackInProgress == true
+        backCallback?.isBackInProgress == true
 
     if (touchable) {
       window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)

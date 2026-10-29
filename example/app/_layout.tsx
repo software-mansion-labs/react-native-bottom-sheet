@@ -18,6 +18,17 @@ export default function RootLayout() {
           >
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen
+              name="portal-composed-contexts"
+              options={{
+                title: 'RN Modal + local contexts',
+                headerShown: true,
+              }}
+            />
+            <Stack.Screen
+              name="portal-local-contexts"
+              options={{ title: 'Local portal contexts', headerShown: true }}
+            />
+            <Stack.Screen
               name="scrim-pressables"
               options={{ title: 'Scrim press isolation', headerShown: false }}
             />
@@ -45,6 +56,10 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
+              name="native-overlay-modality"
+              options={{ title: 'Native overlay modality', headerShown: false }}
+            />
+            <Stack.Screen
               name="native-overlay-full-height-list"
               options={{
                 title: 'Native overlay full-height list',
@@ -62,6 +77,13 @@ export default function RootLayout() {
               name="close-request"
               options={{
                 title: 'Close requests',
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="portal-accessibility-stack"
+              options={{
+                title: 'Portal accessibility stack',
                 headerShown: false,
               }}
             />

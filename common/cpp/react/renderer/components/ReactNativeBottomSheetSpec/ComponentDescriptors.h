@@ -30,7 +30,7 @@ class BottomSheetViewComponentDescriptor final
     node.setIsOverlayRoot(props.nativeOverlay);
 
     const auto& stateData =
-        static_cast<const BottomSheetViewShadowNode::ConcreteState&>(
+        static_cast<const facebook::react::ConcreteState<BottomSheetViewState>&>(
             *shadowNode.getState())
             .getData();
     auto& layoutableShadowNode =

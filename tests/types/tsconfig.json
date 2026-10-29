@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "skipLibCheck": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "target": "ESNext",
+    "jsx": "react-jsx",
+    "customConditions": ["react-native-strict-api"],
+    "noEmit": true
+  },
+  "files": ["published-api.ts"]
+}

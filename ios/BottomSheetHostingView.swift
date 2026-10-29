@@ -195,11 +195,78 @@ private final class ActiveScrollViewState {
   }
 }
 
+/// The scrim control, exposed to VoiceOver as a dismiss button while a
+/// dismissible modal sheet is open. VoiceOver's default activation simulates
+/// a tap at the activation point; attempting dismissal directly keeps
+/// activation reliable even when the sheet overlaps that point mid-settle.
+private final class BottomSheetScrimControl: UIControl {
+  // Keep the native hit area outside the sheet while drawing the scrim behind
+  // the entire host, including the sheet's transparent rounded corners.
+  private let backgroundView = UIView()
+  var onAccessibilityActivate: (() -> Bool)?
+
+  override var backgroundColor: UIColor? {
+    get { backgroundView.backgroundColor }
+    set { backgroundView.backgroundColor = newValue }
+  }
+
+  override init(frame: CGRect) {
+    super.init(frame: frame)
+    clipsToBounds = false
+    backgroundView.isUserInteractionEnabled = false
+    backgroundView.accessibilityElementsHidden = true
+    addSubview(backgroundView)
+  }
+
+  @available(*, unavailable)
+  required init?(coder _: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  func setBackgroundSize(_ size: CGSize) {
+    backgroundView.frame = CGRect(origin: .zero, size: size)
+  }
+
+  override func accessibilityActivate() -> Bool {
+    onAccessibilityActivate?() ?? false
+  }
+}
+
+@objc(BottomSheetPresentationEscapeDecision)
+final class PresentationEscapeDecision: NSObject {
+  fileprivate enum Route {
+    case passThrough
+    case attemptLocal
+    case consume
+  }
+
+  fileprivate let route: Route
+
+  private init(route: Route) {
+    self.route = route
+  }
+
+  @objc static func passThrough() -> PresentationEscapeDecision {
+    PresentationEscapeDecision(route: .passThrough)
+  }
+
+  @objc static func attemptLocal() -> PresentationEscapeDecision {
+    PresentationEscapeDecision(route: .attemptLocal)
+  }
+
+  @objc static func consume() -> PresentationEscapeDecision {
+    PresentationEscapeDecision(route: .consume)
+  }
+}
+
 @objcMembers
 public final class BottomSheetHostingView: UIView {
   public weak var eventDelegate: BottomSheetHostingViewDelegate?
   public var modal: Bool = false {
-    didSet { updateScrim() }
+    didSet {
+      updateScrim()
+      updatePresentationActiveForCurrentState()
+    }
   }
 
   public var scrimColor: UIColor? = .clear {
@@ -229,7 +296,6 @@ public final class BottomSheetHostingView: UIView {
   public var extendUnderStatusBar: Bool = false {
     didSet {
       guard extendUnderStatusBar != oldValue else { return }
-      refreshDetentsFromLayout()
       setNeedsLayout()
     }
   }
@@ -246,11 +312,20 @@ public final class BottomSheetHostingView: UIView {
   }
 
   private var targetIndex: Int = 0
+  @objc(isPresentationActive)
+  private(set) var presentationActive = false {
+    didSet {
+      updateAccessibilityPresentation()
+      guard presentationActive != oldValue else { return }
+      presentationActiveDidChange?(presentationActive)
+    }
+  }
+
   public var animateIn: Bool = true
   public var animateContentHeight: Bool = true
 
   public let sheetContainer = UIView()
-  private let scrimView = UIControl()
+  private let scrimView = BottomSheetScrimControl()
   private var panGesture: SheetPanGestureRecognizer!
   private var activeSpring: CriticalSpring?
   private var activeSpringTargetIndex: Int = 0
@@ -279,7 +354,39 @@ public final class BottomSheetHostingView: UIView {
   // keep the three in sync.
   private static let contentHeightMarkerNativeID = "swm-bottom-sheet-content-height-marker"
   private var contentHeightMarker: UIView?
+  private var dismissAccessibilityFrame: CGRect?
+  private weak var dismissAccessibilityGeometryWindow: UIWindow?
+  private var pendingStableDismissAccessibilityFrame: CGRect?
   private weak var surfaceView: UIView?
+  var presentationActiveDidChange: ((Bool) -> Void)?
+  var defersAccessibilityPresentation = false {
+    didSet { updateAccessibilityPresentation() }
+  }
+
+  private var accessibilityPresentationCommitted = false
+  var isAccessibilityTransitionRunning: Bool {
+    activeSpring != nil || isPanning
+  }
+
+  func commitAccessibilityPresentation() {
+    guard
+      defersAccessibilityPresentation,
+      presentationActive,
+      !isAccessibilityTransitionRunning,
+      !accessibilityPresentationCommitted
+    else { return }
+    accessibilityPresentationCommitted = true
+    accessibilityElementsHidden = false
+  }
+
+  private func updateAccessibilityPresentation() {
+    if !defersAccessibilityPresentation || !presentationActive {
+      accessibilityPresentationCommitted = false
+    }
+    accessibilityElementsHidden = defersAccessibilityPresentation && !accessibilityPresentationCommitted
+  }
+
+  var presentationEscapePolicy: (() -> PresentationEscapeDecision)?
   private static var markerObservationContext = 0
   /// Whether a detents change moved the content region while Fabric has yet
   /// to lay the content out against it. Resolving a `content` detent from the
@@ -307,6 +414,12 @@ public final class BottomSheetHostingView: UIView {
     scrimView.alpha = 0
     scrimView.isHidden = true
     scrimView.addTarget(self, action: #selector(handleScrimPress), for: .touchUpInside)
+    scrimView.onAccessibilityActivate = { [weak self] in
+      self?.attemptScrimDismissal() ?? false
+    }
+    scrimView.isAccessibilityElement = false
+    scrimView.accessibilityTraits = .button
+    scrimView.accessibilityLabel = "Dismiss"
     addSubview(scrimView)
 
     sheetContainer.backgroundColor = .clear
@@ -338,14 +451,18 @@ public final class BottomSheetHostingView: UIView {
 
   override public func safeAreaInsetsDidChange() {
     super.safeAreaInsetsDidChange()
-    // The native detent cap depends on the window's top inset.
-    refreshDetentsFromLayout()
+    // The native detent cap depends on the window's top inset. Re-resolve it in
+    // the ensuing layout pass so a paired bounds/orientation change publishes
+    // only the final stable accessibility geometry.
     setNeedsLayout()
   }
 
   override public func didMoveToWindow() {
     super.didMoveToWindow()
     surfaceTouchHandler = nil
+    dismissAccessibilityGeometryWindow = nil
+    invalidateDismissAccessibilityGeometry()
+    updateInteractionState()
     guard window != nil else { return }
     // The native detent cap becomes computable once a window exists.
     refreshDetentsFromLayout()
@@ -368,15 +485,25 @@ public final class BottomSheetHostingView: UIView {
 
   override public func layoutSubviews() {
     super.layoutSubviews()
-    guard bounds.width > 0, bounds.height > 0 else { return }
+    guard bounds.width > 0, bounds.height > 0 else {
+      dismissAccessibilityGeometryWindow = nil
+      invalidateDismissAccessibilityGeometry()
+      updateInteractionState()
+      return
+    }
     // See refreshDetentsFromLayout: without a window the detent cap falls back
     // to the full height, which must not be applied to the container geometry.
     if hasLaidOut, window == nil {
       return
     }
 
-    scrimView.frame = bounds
-    refreshDetentsFromLayout()
+    let commitsStableLayout = hasLaidOut && activeSpring == nil && !isPanning
+    if commitsStableLayout {
+      beginStableDismissGeometryTransition()
+    }
+
+    scrimView.setBackgroundSize(bounds.size)
+    refreshDetentsFromLayout(commitsStableGeometry: false)
     let maxHeight = sheetContainerHeight
     lastAppliedMaxDetentHeight = maxHeight
     sheetContainer.bounds = CGRect(x: 0, y: 0, width: bounds.width, height: maxHeight)
@@ -391,6 +518,10 @@ public final class BottomSheetHostingView: UIView {
     // Report fresh native geometry so the component layer can push the content
     // wrapper's target size (and the overlay frame) into the shadow tree.
     eventDelegate?.bottomSheetHostingViewDidLayout(self)
+
+    // didMoveToWindow keeps Dismiss unavailable until this attachment has
+    // completed a layout using its destination bounds and coordinate space.
+    dismissAccessibilityGeometryWindow = window
 
     if !hasLaidOut && !detentSpecs.isEmpty {
       let indexToApply = pendingIndex ?? targetIndex
@@ -417,6 +548,7 @@ public final class BottomSheetHostingView: UIView {
       } else {
         sheetContainer.transform = CGAffineTransform(translationX: 0, y: translationY(for: targetIndex))
         emitPosition()
+        commitStableDismissGeometryIfNeeded()
       }
       return
     }
@@ -426,6 +558,9 @@ public final class BottomSheetHostingView: UIView {
     }
     sheetContainer.transform = CGAffineTransform(translationX: 0, y: translationY(for: targetIndex))
     updateScrim()
+    if commitsStableLayout {
+      commitStableDismissGeometryIfNeeded()
+    }
   }
 
   private var presentedSheetFrame: CGRect {
@@ -609,8 +744,11 @@ public final class BottomSheetHostingView: UIView {
     rawDetentSpecs = []
     detentSpecs = []
     targetIndex = 0
+    presentationActive = false
     pendingIndex = nil
     pendingSnapRequest = nil
+    discardPendingStableDismissGeometry()
+    dismissAccessibilityGeometryWindow = nil
     hasLaidOut = false
     isPanning = false
     panStartingIndex = nil
@@ -626,6 +764,7 @@ public final class BottomSheetHostingView: UIView {
     sheetContainer.transform = .identity
     scrimView.alpha = 0
     scrimView.isHidden = true
+    invalidateDismissAccessibilityGeometry()
     for subview in sheetContainer.subviews {
       subview.removeFromSuperview()
     }
@@ -703,8 +842,15 @@ public final class BottomSheetHostingView: UIView {
     detentSpecs.firstIndex(where: { $0.height == 0 })
   }
 
-  private var scrimDismissIndex: Int? {
-    guard let closedIndex, !detentSpecs[closedIndex].programmatic else {
+  private var accessibleDismissalIndex: Int? {
+    guard
+      hasLaidOut,
+      isScrimVisible,
+      let closedIndex,
+      !detentSpecs[closedIndex].programmatic,
+      detent(at: targetIndex).height > 0,
+      activeSpring == nil || currentSheetHeight > 0.5
+    else {
       return nil
     }
     return closedIndex
@@ -747,6 +893,7 @@ public final class BottomSheetHostingView: UIView {
     updateScrim(forPosition: position)
     updateSheetVisibility(forPosition: position)
     updateInteractionState()
+    updatePresentationActive(forPosition: position)
     eventDelegate?.bottomSheetHostingView(
       self, didChangePosition: position, index: detentIndex(forPosition: position)
     )
@@ -877,16 +1024,45 @@ public final class BottomSheetHostingView: UIView {
   }
 
   @objc private func handleScrimPress() {
-    guard
-      modal,
-      let closedIndex = scrimDismissIndex,
-      targetIndex != closedIndex,
-      activeSpring == nil || currentSheetHeight > 0.5
-    else {
-      return
+    attemptScrimDismissal()
+  }
+
+  /// Scrim taps and Dismiss activation require a positive outside-sheet area.
+  @discardableResult
+  private func attemptScrimDismissal() -> Bool {
+    guard dismissAccessibilityFrame != nil else { return false }
+    return attemptAccessibleDismissal()
+  }
+
+  /// Escape can directly dismiss an eligible sheet even when it fills the host
+  /// and leaves no outside-sheet area for the spatial Dismiss control.
+  @discardableResult
+  private func attemptAccessibleDismissal() -> Bool {
+    guard let closedIndex = accessibleDismissalIndex else {
+      return false
     }
 
     snapToIndex(closedIndex, velocity: 0)
+    return true
+  }
+
+  /// VoiceOver's escape gesture (two-finger Z scrub) follows the current
+  /// per-window presentation route. Only Top may attempt local dismissal;
+  /// lower presentations consume defensively, while no Top passes through.
+  override public func accessibilityPerformEscape() -> Bool {
+    guard let decision = presentationEscapePolicy?() else {
+      return false
+    }
+
+    switch decision.route {
+    case .passThrough:
+      return false
+    case .attemptLocal:
+      attemptAccessibleDismissal()
+      return true
+    case .consume:
+      return true
+    }
   }
 
   private func snapToIndex(
@@ -914,16 +1090,19 @@ public final class BottomSheetHostingView: UIView {
       return
     }
 
-    targetIndex = index
-    if !preserveScrimPin {
-      scrimPinnedFull = false
-    }
-
     let currentTy: CGFloat
     if activeSpring != nil {
       currentTy = cancelActiveSpring()
     } else {
       currentTy = sheetContainer.transform.ty
+    }
+    updateDismissAccessibilityGeometry(forPosition: sheetContainerHeight - currentTy)
+    beginStableDismissGeometryTransition()
+
+    targetIndex = index
+    updateInteractionState()
+    if !preserveScrimPin {
+      scrimPinnedFull = false
     }
     let targetTy = translationY(for: index)
     let distance = targetTy - currentTy
@@ -970,6 +1149,13 @@ public final class BottomSheetHostingView: UIView {
     sheetContainer.layer.add(animation, forKey: Self.springAnimationKey)
     activeSpring = spring
 
+    // Publish ownership after motion is installed, so accessibility retains the
+    // previous interface instead of projecting the target during this transition.
+    if detent(at: index).height > 0.5 {
+      updatePresentationActive(forPosition: detent(at: index).height)
+    }
+    presentationActiveDidChange?(presentationActive)
+
     startDisplayLink()
 
     // Report the index change as soon as the snap is committed, not when it
@@ -1010,9 +1196,15 @@ public final class BottomSheetHostingView: UIView {
 
     sheetContainer.transform = CGAffineTransform(translationX: 0, y: targetTy)
     emitPosition()
+    if detent(at: index).height <= 0.5 {
+      presentationActive = false
+    }
     scrimPinnedFull = false
     setContentInteractionEnabled(true)
     updateInteractionState()
+    commitStableDismissGeometryIfNeeded()
+    // Opening/open-to-open can settle without changing neutral Active membership.
+    presentationActiveDidChange?(presentationActive)
     if emitSettle {
       eventDelegate?.bottomSheetHostingView(self, didSettle: index)
     }
@@ -1026,6 +1218,7 @@ public final class BottomSheetHostingView: UIView {
     stopDisplayLink()
     sheetContainer.layer.removeAnimation(forKey: Self.springAnimationKey)
     sheetContainer.transform = CGAffineTransform(translationX: 0, y: visualTy)
+    discardPendingStableDismissGeometry()
     return visualTy
   }
 
@@ -1037,6 +1230,8 @@ public final class BottomSheetHostingView: UIView {
       if activeSpring != nil {
         cancelActiveSpring()
       }
+      updateDismissAccessibilityGeometry(forPosition: currentSheetHeight)
+      beginStableDismissGeometryTransition(replacingPending: true)
       isPanning = true
       // The user takes control: drop any index retained from props.
       pendingIndex = nil
@@ -1164,6 +1359,8 @@ public final class BottomSheetHostingView: UIView {
         activeDragRange = nil
         activeDragDetentSpecs = nil
         finishScrollViewCoordination()
+        discardPendingStableDismissGeometry()
+        presentationActiveDidChange?(presentationActive)
         return
       }
       let currentHeight = maxHeight - sheetContainer.transform.ty
@@ -1203,6 +1400,8 @@ public final class BottomSheetHostingView: UIView {
         activeDragRange = nil
         activeDragDetentSpecs = nil
         finishScrollViewCoordination()
+        discardPendingStableDismissGeometry()
+        presentationActiveDidChange?(presentationActive)
         return
       }
       let cancelHeight = maxHeight - sheetContainer.transform.ty
@@ -1234,6 +1433,8 @@ public final class BottomSheetHostingView: UIView {
       activeDragDetentSpecs = nil
       setContentInteractionEnabled(true)
       finishScrollViewCoordination()
+      discardPendingStableDismissGeometry()
+      presentationActiveDidChange?(presentationActive)
 
     default:
       break
@@ -1591,12 +1792,12 @@ public final class BottomSheetHostingView: UIView {
     return maxHeight
   }
 
-  private func refreshDetentsFromLayout() {
-    resolveDetentsFromLayout()
+  private func refreshDetentsFromLayout(commitsStableGeometry: Bool = true) {
+    resolveDetentsFromLayout(commitsStableGeometry: commitsStableGeometry)
     replayPendingIndexIfResolved()
   }
 
-  private func resolveDetentsFromLayout() {
+  private func resolveDetentsFromLayout(commitsStableGeometry: Bool) {
     // While detached from a window (e.g. mid-commit, when Fabric reparents the
     // host as ancestor view flattening changes), the native detent cap is not
     // computable — its full-height fallback would register as a cap change and
@@ -1605,6 +1806,11 @@ public final class BottomSheetHostingView: UIView {
     if hasLaidOut, window == nil {
       return
     }
+    let commitsStableTransition =
+      commitsStableGeometry && hasLaidOut && activeSpring == nil && !isPanning
+    if commitsStableTransition {
+      beginStableDismissGeometryTransition()
+    }
     refreshContentHeightMarker()
     if !isPanning {
       activeDragRange = nil
@@ -1612,11 +1818,17 @@ public final class BottomSheetHostingView: UIView {
     }
     if hasLaidOut, isInvalidContentDetentTarget(targetIndex) {
       updateScrim()
+      if commitsStableTransition {
+        commitStableDismissGeometryIfNeeded()
+      }
       return
     }
 
     guard let resolvedDetents = resolveDetentSpecs() else {
       updateScrim()
+      if commitsStableTransition {
+        commitStableDismissGeometryIfNeeded()
+      }
       return
     }
     // Also fall through when only the cap changed: the specs store heights,
@@ -1625,7 +1837,14 @@ public final class BottomSheetHostingView: UIView {
     guard resolvedDetents != detentSpecs || sheetContainerHeight != lastAppliedMaxDetentHeight
     else {
       updateScrim()
+      if commitsStableTransition {
+        commitStableDismissGeometryIfNeeded()
+      }
       return
+    }
+
+    if hasLaidOut, activeSpring != nil, !isPanning {
+      beginStableDismissGeometryTransition(replacingPending: true)
     }
 
     // The re-anchor math below preserves the on-screen sheet height across the
@@ -1655,7 +1874,9 @@ public final class BottomSheetHostingView: UIView {
 
       if activeSpring != nil {
         let shouldEmitSettle = activeSpringEmitsSettle
+        let transitionStartFrame = pendingStableDismissAccessibilityFrame
         let visualTy = cancelActiveSpring()
+        pendingStableDismissAccessibilityFrame = transitionStartFrame
         // Re-anchor the in-flight position to the new container height so the
         // sheet surface keeps the same on-screen height across the resize.
         let visibleHeight = previousMaxHeight - visualTy
@@ -1678,10 +1899,16 @@ public final class BottomSheetHostingView: UIView {
           sheetContainer.transform = CGAffineTransform(translationX: 0, y: targetTy)
           emitPosition()
           scrimPinnedFull = false
+          if commitsStableGeometry {
+            commitStableDismissGeometryIfNeeded()
+          }
         } else if !shouldAnimateHeight {
           sheetContainer.transform = CGAffineTransform(translationX: 0, y: targetTy)
           emitPosition()
           scrimPinnedFull = false
+          if commitsStableGeometry {
+            commitStableDismissGeometryIfNeeded()
+          }
         } else {
           // The content detent changed (grew or shrank): re-anchor at the
           // current visible height, then animate to the new target. The surface
@@ -1828,6 +2055,18 @@ public final class BottomSheetHostingView: UIView {
       return validContentHeight == nil
     }
   }
+
+  private func updatePresentationActiveForCurrentState() {
+    updatePresentationActive(forPosition: currentSheetHeight)
+  }
+
+  private func updatePresentationActive(forPosition position: CGFloat) {
+    if !modal {
+      presentationActive = false
+    } else if position > 0.5 {
+      presentationActive = true
+    }
+  }
 }
 
 extension BottomSheetHostingView: CAAnimationDelegate {
@@ -1944,6 +2183,8 @@ private extension BottomSheetHostingView {
   }
 
   func updateScrim(forPosition position: CGFloat) {
+    updateDismissAccessibilityGeometry(forPosition: position)
+
     guard modal else {
       scrimView.alpha = 0
       scrimView.isHidden = true
@@ -2041,7 +2282,104 @@ private extension BottomSheetHostingView {
     min(1, max(0, value))
   }
 
+  func updateDismissAccessibilityGeometry(forPosition position: CGFloat) {
+    let hostBounds = bounds
+    guard
+      let window,
+      dismissAccessibilityGeometryWindow === window,
+      position.isFinite,
+      hostBounds.minX.isFinite,
+      hostBounds.minY.isFinite,
+      hostBounds.width.isFinite,
+      hostBounds.height.isFinite,
+      hostBounds.width > 0,
+      hostBounds.height > 0
+    else {
+      invalidateDismissAccessibilityGeometry()
+      return
+    }
+
+    let sheetTop = min(max(hostBounds.maxY - position, hostBounds.minY), hostBounds.maxY)
+    let outsideSheetRect = CGRect(
+      x: hostBounds.minX,
+      y: hostBounds.minY,
+      width: hostBounds.width,
+      height: sheetTop - hostBounds.minY
+    )
+    guard outsideSheetRect.height > 0 else {
+      invalidateDismissAccessibilityGeometry()
+      return
+    }
+
+    let screenFrame = UIAccessibility.convertToScreenCoordinates(outsideSheetRect, in: self)
+    guard
+      screenFrame.minX.isFinite,
+      screenFrame.minY.isFinite,
+      screenFrame.width.isFinite,
+      screenFrame.height.isFinite,
+      screenFrame.width > 0,
+      screenFrame.height > 0
+    else {
+      invalidateDismissAccessibilityGeometry()
+      return
+    }
+
+    dismissAccessibilityFrame = screenFrame
+    scrimView.frame = outsideSheetRect
+    scrimView.accessibilityFrame = screenFrame
+  }
+
+  func invalidateDismissAccessibilityGeometry() {
+    discardPendingStableDismissGeometry()
+    dismissAccessibilityFrame = nil
+    scrimView.accessibilityFrame = .zero
+    scrimView.frame = .zero
+  }
+
+  func beginStableDismissGeometryTransition(replacingPending: Bool = false) {
+    if replacingPending {
+      discardPendingStableDismissGeometry()
+    }
+    guard
+      pendingStableDismissAccessibilityFrame == nil,
+      scrimView.isAccessibilityElement,
+      let dismissAccessibilityFrame
+    else {
+      return
+    }
+    pendingStableDismissAccessibilityFrame = dismissAccessibilityFrame
+  }
+
+  func discardPendingStableDismissGeometry() {
+    pendingStableDismissAccessibilityFrame = nil
+  }
+
+  func commitStableDismissGeometryIfNeeded() {
+    guard let initialFrame = pendingStableDismissAccessibilityFrame else { return }
+    discardPendingStableDismissGeometry()
+
+    guard
+      let finalFrame = dismissAccessibilityFrame,
+      initialFrame != finalFrame,
+      scrimView.isAccessibilityElement,
+      UIAccessibility.isVoiceOverRunning,
+      scrimView.accessibilityElementIsFocused()
+    else {
+      return
+    }
+
+    UIAccessibility.post(notification: .layoutChanged, argument: nil)
+  }
+
   func updateInteractionState() {
     scrimView.isUserInteractionEnabled = modal && (closedIndex != nil) && !scrimView.isHidden
+    // Expose the scrim to VoiceOver only while tapping it would dismiss the
+    // sheet; otherwise it would be an inert, unlabeled stop in the
+    // accessibility tree (a scrim over a programmatic-only close detent is
+    // decorative, not actionable).
+    scrimView.isAccessibilityElement = accessibleDismissalIndex != nil && dismissAccessibilityFrame != nil
+    if !scrimView.isAccessibilityElement {
+      discardPendingStableDismissGeometry()
+    }
   }
 }

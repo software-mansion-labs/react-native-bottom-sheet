@@ -14,9 +14,11 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.Window
+import android.view.WindowInsets
 import android.view.WindowManager
 import androidx.activity.ComponentDialog
 import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import com.facebook.react.bridge.LifecycleEventListener
 import com.facebook.react.common.LifecycleState
 import com.facebook.react.config.ReactFeatureFlags
@@ -29,10 +31,14 @@ import com.facebook.react.uimanager.ThemedReactContext
 import com.facebook.react.uimanager.UIManagerHelper
 import com.facebook.react.uimanager.events.EventDispatcher
 import com.facebook.react.views.view.ReactViewGroup
+import com.swmansion.reactnativebottomsheet.accessibility.PortalAccessibilityIsolationCoordinator
+import com.swmansion.reactnativebottomsheet.accessibility.PortalNativeContainer
 import com.swmansion.reactnativebottomsheet.closerequest.CloseRequestInputState
 import com.swmansion.reactnativebottomsheet.closerequest.OverlayCloseRequestController
 import com.swmansion.reactnativebottomsheet.closerequest.PortalCloseRequestController
 import com.swmansion.reactnativebottomsheet.closerequest.findActivity
+import com.swmansion.reactnativebottomsheet.presentation.PortalPresentationController
+import java.lang.ref.WeakReference
 
 /**
  * Fabric-mounted bottom-sheet view. It is a thin coordinator around a single [BottomSheetHostView]
@@ -60,6 +66,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   private var hasCloseRequestHandler = false
   private var isViewAttached = false
   private var isReactHostResumed = themedReactContext?.lifecycleState == LifecycleState.RESUMED
+  private var destroyed = false
   private val portalCloseRequestController =
     PortalCloseRequestController(
       view = this,
@@ -74,11 +81,14 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     )
   private val overlayCloseRequestController =
     OverlayCloseRequestController(emitCloseRequest = ::emitCloseRequest)
+  private val portalPresentationController =
+    PortalPresentationController(this, portalCloseRequestController::onPresentationChanged)
+  private val portalAccessibilityIsolationLease = PortalAccessibilityIsolationCoordinator.acquire()
 
   init {
     pointerEvents = PointerEvents.BOX_NONE
     host.interactionListener = { interactive -> updateOverlayTouchability(interactive) }
-    host.closeRequestStateChangedListener = ::refreshCloseRequestControllers
+    host.presentationStateChangedListener = ::refreshPresentationRouting
     attachHostInline()
     // The overlay dialog's window is bound to the host activity, so we follow the
     // activity lifecycle: tear the window down before the activity is destroyed
@@ -153,7 +163,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     get() = host.modal
     set(value) {
       host.modal = value
-      refreshCloseRequestControllers()
+      refreshPresentationRouting()
     }
 
   var scrollableExpandNegotiation: Int
@@ -181,25 +191,28 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   fun setHasCloseRequestHandler(value: Boolean) {
     if (value == hasCloseRequestHandler) return
     hasCloseRequestHandler = value
-    refreshCloseRequestControllers()
+    refreshPresentationRouting()
   }
 
   fun setNativeOverlay(value: Boolean) {
+    if (destroyed) return
     if (value == nativeOverlay) return
     nativeOverlay = value
     if (value) {
+      portalPresentationController.clear()
       portalCloseRequestController.clear()
       presentOverlay()
     } else {
       dismissOverlay()
     }
-    refreshCloseRequestControllers()
+    refreshPresentationRouting()
   }
 
   // MARK: - Inline vs overlay presentation
 
   override fun onAttachedToWindow() {
     super.onAttachedToWindow()
+    if (destroyed) return
     isViewAttached = true
     overlayDialog?.let { dialog ->
       overlayCloseRequestController.bind(dialog)
@@ -207,21 +220,30 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     if (nativeOverlay && overlayDialog == null) {
       presentOverlay()
     }
-    refreshCloseRequestControllers()
-    portalCloseRequestController.scheduleRoutingContextSync()
+    refreshPresentationRouting()
+    portalPresentationController.scheduleHierarchySync()
   }
 
   override fun onDetachedFromWindow() {
     isViewAttached = false
+    portalPresentationController.clear()
     portalCloseRequestController.clear()
     overlayCloseRequestController.unbind()
-    refreshCloseRequestControllers()
+    refreshPresentationRouting()
     super.onDetachedFromWindow()
   }
 
   override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
     super.onWindowFocusChanged(hasWindowFocus)
-    refreshCloseRequestControllers()
+    refreshPresentationRouting()
+  }
+
+  override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
+    portalCloseRequestController.onImeVisibilityChanged(
+      WindowInsetsCompat.toWindowInsetsCompat(insets, this)
+        .isVisible(WindowInsetsCompat.Type.ime()),
+    )
+    return super.onApplyWindowInsets(insets)
   }
 
   override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -248,6 +270,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     if (host.parent === this) {
       host.layout(0, 0, right - left, bottom - top)
     }
+    portalPresentationController.syncHierarchy()
   }
 
   private fun attachHostInline() {
@@ -268,7 +291,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
 
     val dialog = ComponentDialog(activity, android.R.style.Theme_Translucent_NoTitleBar)
     val root =
-      BottomSheetDialogRootView(reactContext).apply {
+      BottomSheetDialogRootView(reactContext, this).apply {
         id = this@BottomSheetView.id
         eventDispatcher = this@BottomSheetView.eventDispatcher ?: currentEventDispatcher()
         addView(
@@ -299,11 +322,12 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       // so no interaction-listener transition is guaranteed after show(). Reapply the current
       // state after the final window configuration resets the dialog to its safe initial flags.
       overlayInteractive = host.isInteractive
-      refreshCloseRequestControllers()
+      refreshPresentationRouting()
     } catch (_: RuntimeException) {
       // Show failed (e.g. the activity went away mid-present). Dismiss so the
       // partially-created window can't leak, then fall back to inline.
       overlayCloseRequestController.unbind()
+      root.invalidatePortalNativeOwner()
       runCatching { if (dialog.isShowing) dialog.dismiss() }
       overlayDialog = null
       overlayRoot = null
@@ -315,6 +339,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   }
 
   private fun dismissOverlay() {
+    overlayRoot?.invalidatePortalNativeOwner()
     overlayCloseRequestController.unbind()
     overlayDialog?.let { dialog ->
       (host.parent as? ViewGroup)?.removeView(host)
@@ -404,7 +429,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   private fun updateOverlayTouchability(interactive: Boolean) {
     if (interactive == overlayInteractive) return
     overlayInteractive = interactive
-    refreshCloseRequestControllers()
+    refreshPresentationRouting()
   }
 
   private fun Window.setOverlayWindowAlpha(interactive: Boolean) {
@@ -420,19 +445,26 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     return true
   }
 
-  private fun refreshCloseRequestControllers() {
+  private fun refreshPresentationRouting() {
+    host.updateAccessibilityPresentation(
+      deferUntilSettled = isViewAttached && modal && !nativeOverlay,
+    )
     val state =
       CloseRequestInputState(
         isAttached = isViewAttached,
         isLifecycleActive = isReactHostResumed,
         isModal = modal,
         hasCloseRequestHandler = hasCloseRequestHandler,
-        isPresentationActive = host.isCloseRequestPresentationActive,
+        isPresentationActive = host.isPresentationActive,
         isTargetResolvedAndOpen = host.isCloseRequestTargetResolvedAndOpen,
       )
     portalCloseRequestController.update(
       state = state,
       usesPortalPresentation = modal && !nativeOverlay,
+    )
+    portalPresentationController.update(
+      isPortal = isViewAttached && modal && !nativeOverlay,
+      isActive = host.isPresentationActive,
     )
     overlayCloseRequestController.update(
       state = state,
@@ -441,47 +473,61 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     )
   }
 
+  internal val isAccessibilityTransitionRunning: Boolean
+    get() = host.isAccessibilityTransitionRunning
+
+  internal fun commitAccessibilityPresentation() = host.commitAccessibilityPresentation()
+
   // MARK: - Activity lifecycle
 
   override fun onHostResume() {
+    if (destroyed) return
     isReactHostResumed = true
     // Restore the overlay if it was torn down while the activity was gone but the
     // sheet should still be presented above it.
     if (nativeOverlay && overlayDialog == null) {
       presentOverlay()
     }
-    refreshCloseRequestControllers()
-    portalCloseRequestController.scheduleRoutingContextSync()
+    refreshPresentationRouting()
+    portalPresentationController.scheduleHierarchySync()
   }
 
   override fun onHostPause() {
+    if (destroyed) return
     isReactHostResumed = false
-    refreshCloseRequestControllers()
+    refreshPresentationRouting()
   }
 
   override fun onHostDestroy() {
+    if (destroyed) return
     isReactHostResumed = false
+    portalPresentationController.clear()
     portalCloseRequestController.clear()
     // Dismiss before the activity's window token is destroyed to avoid a leaked
     // window. `nativeOverlay` is left intact so `onHostResume` can restore it;
     // the host falls back to inline parenting in the meantime.
     if (overlayDialog != null) {
       dismissOverlay()
-      refreshCloseRequestControllers()
+      refreshPresentationRouting()
     }
   }
 
   // MARK: - Cleanup
 
   fun destroy() {
+    if (destroyed) return
+    destroyed = true
     isViewAttached = false
     isReactHostResumed = false
     hasCloseRequestHandler = false
+    portalPresentationController.dispose()
+    portalAccessibilityIsolationLease.release()
     portalCloseRequestController.dispose()
     overlayCloseRequestController.dispose()
     themedReactContext?.removeLifecycleEventListener(this)
     host.interactionListener = null
-    host.closeRequestStateChangedListener = null
+    host.presentationStateChangedListener = null
+    overlayRoot?.invalidatePortalNativeOwner()
     overlayDialog?.let { if (it.isShowing) it.dismiss() }
     overlayDialog = null
     overlayRoot = null
@@ -495,8 +541,14 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   }
 }
 
-private class BottomSheetDialogRootView(context: ThemedReactContext) :
-  ReactViewGroup(context), RootView {
+private class BottomSheetDialogRootView(context: ThemedReactContext, owner: View) :
+  ReactViewGroup(context), RootView, PortalNativeContainer {
+
+  private val owner = WeakReference(owner)
+  override val portalNativeOwner: View?
+    get() = owner.get()
+
+  fun invalidatePortalNativeOwner() = owner.clear()
 
   var eventDispatcher: EventDispatcher? = null
 

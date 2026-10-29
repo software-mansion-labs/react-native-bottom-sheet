@@ -63,17 +63,19 @@ internal fun resolveCloseRequestInputAction(
   }
 }
 
-/** Pins one complete Back action at predictive-gesture start and never retargets its commit. */
+/** Pins one complete Back action at gesture/key start and never retargets its commit. */
 internal class CloseRequestBackCallback(
   private val resolveAction: () -> CloseRequestInputAction,
   private val executeAction: (CloseRequestInputAction) -> Unit,
-  private val onPredictiveBackStateChanged: () -> Unit = {},
+  private val onCaptureStateChanged: () -> Unit = {},
+  private val onCaptureCancelled: () -> Unit = {},
 ) : OnBackPressedCallback(false) {
   private var canReceiveBack = false
   private var pinnedAction: CloseRequestInputAction? = null
+  private var hasKeyPress = false
   private var disposed = false
 
-  var isPredictiveBackInProgress = false
+  var isBackInProgress = false
     private set
 
   fun updateState(
@@ -83,51 +85,90 @@ internal class CloseRequestBackCallback(
     if (disposed) return
     this.canReceiveBack = canReceiveBack
     if (
-      isPredictiveBackInProgress &&
+      isBackInProgress &&
         pinnedAction == CloseRequestInputAction.EMIT_CLOSE_REQUEST &&
         currentAction != CloseRequestInputAction.EMIT_CLOSE_REQUEST
     ) {
       pinnedAction = CloseRequestInputAction.CONSUME
     }
-    isEnabled = canReceiveBack || isPredictiveBackInProgress
+    isEnabled = canReceiveBack || isBackInProgress
   }
 
   override fun handleOnBackStarted(backEvent: BackEventCompat) {
     if (disposed) return
-    isPredictiveBackInProgress = true
+    hasKeyPress = false
+    isBackInProgress = true
     pinnedAction = resolveAction()
-    isEnabled = canReceiveBack || isPredictiveBackInProgress
-    onPredictiveBackStateChanged()
+    isEnabled = canReceiveBack || isBackInProgress
+    onCaptureStateChanged()
   }
 
   override fun handleOnBackCancelled() {
     if (disposed) return
+    onCaptureCancelled()
     clearPinnedAction()
+  }
+
+  fun dispatchKey(event: KeyEvent): Boolean {
+    if (disposed || event.keyCode != KeyEvent.KEYCODE_BACK) return false
+    return when (event.action) {
+      KeyEvent.ACTION_DOWN -> {
+        if (event.repeatCount == 0) {
+          if (isBackInProgress) handleOnBackCancelled()
+          if (!isEnabled || !event.hasNoModifiers()) return false
+          val action = resolveAction()
+          if (action == CloseRequestInputAction.PASS_THROUGH) {
+            onCaptureCancelled()
+            return false
+          }
+          hasKeyPress = true
+          isBackInProgress = true
+          pinnedAction = action
+          onCaptureStateChanged()
+        }
+        hasKeyPress
+      }
+      KeyEvent.ACTION_UP -> {
+        if (!hasKeyPress) return false
+        if (event.isCanceled || !event.hasNoModifiers()) handleOnBackCancelled()
+        else handleOnBackPressed()
+        true
+      }
+      else -> false
+    }
   }
 
   override fun handleOnBackPressed() {
     if (disposed) return
-    val action = if (isPredictiveBackInProgress) pinnedAction else resolveAction()
+    val action = if (isBackInProgress) pinnedAction else resolveAction()
     // Clear before executing. Pass-through can synchronously enter another dispatcher whose
     // callback changes props, presentation mode, attachment, or the lifetime of this view.
-    clearPinnedAction()
-    action?.let(executeAction)
+    clearPinnedAction(notify = false)
+    try {
+      action?.let(executeAction)
+    } finally {
+      // An ended proxy may dispose on notification; deliver its captured target before cleanup.
+      if (!disposed) onCaptureStateChanged()
+    }
   }
 
-  private fun clearPinnedAction() {
-    isPredictiveBackInProgress = false
+  private fun clearPinnedAction(notify: Boolean = true) {
+    hasKeyPress = false
+    isBackInProgress = false
     pinnedAction = null
     isEnabled = canReceiveBack
-    onPredictiveBackStateChanged()
+    if (notify) onCaptureStateChanged()
   }
 
   fun dispose() {
+    onCaptureCancelled()
     disposed = true
+    hasKeyPress = false
     canReceiveBack = false
-    isPredictiveBackInProgress = false
+    isBackInProgress = false
     pinnedAction = null
     isEnabled = false
-    onPredictiveBackStateChanged()
+    onCaptureStateChanged()
   }
 }
 

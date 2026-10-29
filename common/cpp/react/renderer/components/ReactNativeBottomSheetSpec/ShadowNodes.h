@@ -2,6 +2,9 @@
 
 #include <jsi/jsi.h>
 #include <react/renderer/components/ReactNativeBottomSheetSpec/BottomSheetViewState.h>
+#ifdef ANDROID
+#include <react/renderer/components/ReactNativeBottomSheetSpec/BottomSheetViewConcreteState.h>
+#endif
 #include <react/renderer/components/ReactNativeBottomSheetSpec/EventEmitters.h>
 #include <react/renderer/components/ReactNativeBottomSheetSpec/Props.h>
 #include <react/renderer/components/view/ConcreteViewShadowNode.h>
@@ -20,6 +23,9 @@ class JSI_EXPORT BottomSheetViewShadowNode final
   using ConcreteViewShadowNode::ConcreteViewShadowNode;
 
  public:
+#ifdef ANDROID
+  using ConcreteState = BottomSheetViewConcreteState;
+#endif
   Point getContentOriginOffset(bool includeTransform) const override;
 
   // Toggles the `RootNodeKind` trait so a native-overlay sheet re-roots its

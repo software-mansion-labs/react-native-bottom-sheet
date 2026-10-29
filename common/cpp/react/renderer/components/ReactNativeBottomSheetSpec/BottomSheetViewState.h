@@ -3,6 +3,7 @@
 #include <react/renderer/graphics/Size.h>
 
 #ifdef ANDROID
+#include <string>
 #include <folly/dynamic.h>
 #include <react/renderer/mapbuffer/MapBuffer.h>
 #include <react/renderer/mapbuffer/MapBufferBuilder.h>
@@ -34,7 +35,9 @@ class BottomSheetViewState final {
         contentRegionInset(
             data.count("contentRegionInset") != 0
                 ? static_cast<Float>(data["contentRegionInset"].getDouble())
-                : previousState.contentRegionInset) {}
+                : previousState.contentRegionInset),
+        // Geometry payloads cannot author or replace the publication identity.
+        portalPublicationId(previousState.portalPublicationId) {}
 #endif
 
   float contentOffsetY{0};
@@ -53,10 +56,19 @@ class BottomSheetViewState final {
   Float contentRegionInset{0};
 
 #ifdef ANDROID
+  // Opaque source identity written by the native publication producer.
+  std::string portalPublicationId;
+#endif
+
+#ifdef ANDROID
   folly::dynamic getDynamic() const {
-    return folly::dynamic::object("contentOffsetY", contentOffsetY)(
+    folly::dynamic result = folly::dynamic::object("contentOffsetY", contentOffsetY)(
         "frameWidth", frameSize.width)("frameHeight", frameSize.height)(
         "contentRegionInset", contentRegionInset);
+    if (!portalPublicationId.empty()) {
+      result["portalPublicationId"] = portalPublicationId;
+    }
+    return result;
   }
 
   MapBuffer getMapBuffer() const {
