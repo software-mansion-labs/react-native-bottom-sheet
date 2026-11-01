@@ -61,8 +61,13 @@ sheet normally.
 On iOS and Android, a drag that starts diagonally inside a vertical scrollable
 is resolved like a vertical one: the sheet takes any start the scrollable would
 have accepted as a scroll, so a shallow angle cannot scroll content the sheet
-would otherwise move. A horizontal scrollable under the touch keeps sideways
-gestures as before. On web, a sideways start is left to the browser.
+would otherwise move, although on iOS the content may move briefly before the
+sheet takes the drag. A horizontal scrollable under the touch keeps sideways
+gestures as before. On iOS, a vertical start in a direction the sheet cannot
+move, such as downward at its lowest draggable detent, stays with the
+scrollable. If the drag reverses into a `handoff` direction, the sheet can take
+over without lifting; an `initial` direction keeps the original owner. On web, a
+sideways start is left to the browser.
 
 ## Platform support
 
@@ -70,6 +75,13 @@ Nested and inverted vertical lists are resolved at their visual edge, while
 horizontal lists keep their horizontal gesture handling. Native bounce and
 refresh controls take over after the sheet reaches the boundary in their
 direction.
+
+On iOS, vertical scroll indicators inside the sheet are hidden while the sheet
+is below its tallest configured detent, including a programmatic-only top
+detent. This prevents the interactive indicator from capturing a drag near the
+sheet's edge. At full expansion, each scrollable's
+`showsVerticalScrollIndicator` preference is restored; an indicator explicitly
+disabled by the caller stays hidden. This applies in every negotiation mode.
 
 On iOS, handoff works with `UIScrollView` subclasses. On Android, handoff
 requires an Android nested-scrolling child. React Native’s vertical

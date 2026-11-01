@@ -2,6 +2,7 @@ import type { ComponentProps, ReactNode } from 'react';
 import { router } from 'expo-router';
 import {
   Platform,
+  ScrollView,
   Text,
   TouchableOpacity,
   View,
@@ -137,10 +138,12 @@ export const DemoScreen = ({
   title,
   children,
   sheet,
+  scrollableControls = false,
 }: {
   title: string;
   children: ReactNode;
   sheet?: ReactNode;
+  scrollableControls?: boolean;
 }) => {
   const insets = useSafeAreaInsets();
 
@@ -185,7 +188,20 @@ export const DemoScreen = ({
           backgroundColor: 'white',
         }}
       >
-        <View style={{ gap: 12 }}>{children}</View>
+        {scrollableControls ? (
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{
+              gap: 12,
+              paddingBottom: insets.bottom + 16,
+            }}
+            showsVerticalScrollIndicator={false}
+          >
+            {children}
+          </ScrollView>
+        ) : (
+          <View style={{ gap: 12 }}>{children}</View>
+        )}
       </View>
       {sheet}
     </View>

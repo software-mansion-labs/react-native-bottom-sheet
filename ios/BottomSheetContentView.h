@@ -35,6 +35,9 @@ NS_ASSUME_NONNULL_BEGIN
 // layout, so content laid out against the committed content-region inset is
 // measurable again.
 - (void)contentRegionLayoutDidApply;
+// Insert/remove parents from a completed Fabric transaction; the host
+// refreshes indicator discovery only when its content subtree was affected.
+- (void)contentHierarchyDidChange:(NSArray<NSNumber *> *)parentTags sheetTag:(NSInteger)sheetTag;
 // Whether full-height detents may extend under the status bar; feeds the
 // natively computed detent cap.
 - (void)setExtendUnderStatusBar:(BOOL)extendUnderStatusBar;
