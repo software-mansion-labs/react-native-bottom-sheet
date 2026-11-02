@@ -76,13 +76,6 @@ horizontal lists keep their horizontal gesture handling. Native bounce and
 refresh controls take over after the sheet reaches the boundary in their
 direction.
 
-On iOS, vertical scroll indicators inside the sheet are hidden while the sheet
-is below its tallest configured detent, including a programmatic-only top
-detent. This prevents the interactive indicator from capturing a drag near the
-sheet's edge. At full expansion, each scrollable's
-`showsVerticalScrollIndicator` preference is restored; an indicator explicitly
-disabled by the caller stays hidden. This applies in every negotiation mode.
-
 On iOS, handoff works with `UIScrollView` subclasses. On Android, handoff
 requires an Android nested-scrolling child. React Native’s vertical
 `ScrollView`, `FlatList`, and `SectionList` use a native Android `ScrollView`.

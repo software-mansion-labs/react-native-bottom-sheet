@@ -1,8 +1,7 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import {
   FlatList,
   StyleSheet,
-  Switch,
   Text,
   TouchableOpacity,
   View,
@@ -65,30 +64,6 @@ const CASES = [
     expected:
       'The list keeps the gesture and its scrolled position. The sheet stays expanded.',
   },
-  {
-    id: 'near-edge',
-    title: 'Near edge',
-    gesture:
-      'Tap Flash. Quickly hold about 18pt from the right edge, drag down 30pt, then swipe up without lifting.',
-    expected:
-      'The sheet expands. On iOS, the indicator is hidden at preview and restored at full height.',
-  },
-  {
-    id: 'programmatic-top',
-    title: 'Programmatic top',
-    gesture:
-      'Drag the list at preview, then press Full and Preview in the sheet header.',
-    expected:
-      'A drag cannot expand the sheet. On iOS, the indicator appears only at the programmatic top.',
-  },
-  {
-    id: 'indicator-off',
-    title: 'Indicator off',
-    gesture:
-      'Expand with a down-then-up drag or Full, then scroll. Toggle Indicator to check preference changes.',
-    expected:
-      'The indicator stays hidden while disabled. On iOS, enabling it shows it only at full height.',
-  },
 ] as const;
 
 type InteractionCase = (typeof CASES)[number];
@@ -96,11 +71,6 @@ const SHEET_HEADER_HEIGHT = 112;
 const PREVIEW_HEIGHT =
   SHEET_HEADER_HEIGHT + LIST_ITEM_HEIGHT * INLINE_FLATLIST_PREVIEW_ITEMS;
 const DETENTS: Detent[] = [programmatic(0), PREVIEW_HEIGHT, 'content'];
-const PROGRAMMATIC_TOP_DETENTS: Detent[] = [
-  programmatic(0),
-  PREVIEW_HEIGHT,
-  programmatic('content'),
-];
 const HEIGHT_LABELS = ['Closed', 'Preview', 'Expanded'] as const;
 
 export const ScrollInteractionScreen = () => {
@@ -109,8 +79,6 @@ export const ScrollInteractionScreen = () => {
   const [index, setIndex] = useState(0);
   const [settledIndex, setSettledIndex] = useState<number | null>(0);
   const [scrollOffset, setScrollOffset] = useState(0);
-  const [showIndicator, setShowIndicator] = useState(true);
-  const listRef = useRef<FlatList<(typeof DATA)[number]>>(null);
   const sheetBottomPadding = useSheetBottomPadding();
 
   const selectCase = (nextCase: InteractionCase) => {
@@ -119,11 +87,10 @@ export const ScrollInteractionScreen = () => {
     setIndex(0);
     setSettledIndex(0);
     setScrollOffset(nextCase.id === 'scrolled-list' ? 5 * LIST_ITEM_HEIGHT : 0);
-    setShowIndicator(nextCase.id !== 'indicator-off');
   };
 
   const reset = () => {
-    // Remount to reset recognizers, list offset, and the caller's preference.
+    // Remount to reset recognizers and the list offset.
     const startIndex = selectedCase.id === 'initial-collapse' ? 2 : 1;
     setRun((value) => value + 1);
     setIndex(startIndex);
@@ -131,7 +98,6 @@ export const ScrollInteractionScreen = () => {
     setScrollOffset(
       selectedCase.id === 'scrolled-list' ? 5 * LIST_ITEM_HEIGHT : 0
     );
-    setShowIndicator(selectedCase.id !== 'indicator-off');
   };
 
   const selectHeight = (nextIndex: number) => {
@@ -157,11 +123,7 @@ export const ScrollInteractionScreen = () => {
       sheet={
         <BottomSheet
           key={run}
-          detents={
-            selectedCase.id === 'programmatic-top'
-              ? PROGRAMMATIC_TOP_DETENTS
-              : DETENTS
-          }
+          detents={DETENTS}
           index={index}
           animateIn={false}
           onIndexChange={selectHeight}
@@ -202,15 +164,6 @@ export const ScrollInteractionScreen = () => {
               <Text testID="gesture-regression-offset" style={styles.readout}>
                 Last offset: {scrollOffset}pt
               </Text>
-              <View style={styles.indicatorControl}>
-                <Text style={styles.readout}>Indicator</Text>
-                <Switch
-                  testID="gesture-regression-indicator"
-                  accessibilityLabel="Show scroll indicator"
-                  value={showIndicator}
-                  onValueChange={setShowIndicator}
-                />
-              </View>
             </View>
             <View style={styles.sheetActions}>
               <SheetAction title="Reset case" id="reset" onPress={reset} />
@@ -224,15 +177,9 @@ export const ScrollInteractionScreen = () => {
                 id="full"
                 onPress={() => selectHeight(2)}
               />
-              <SheetAction
-                title="Flash"
-                id="flash"
-                onPress={() => listRef.current?.flashScrollIndicators()}
-              />
             </View>
           </View>
           <FlatList
-            ref={listRef}
             testID="gesture-regression-list"
             data={DATA}
             initialScrollIndex={selectedCase.id === 'scrolled-list' ? 5 : 0}
@@ -243,7 +190,6 @@ export const ScrollInteractionScreen = () => {
             })}
             onScrollEndDrag={reportScrollOffset}
             onMomentumScrollEnd={reportScrollOffset}
-            showsVerticalScrollIndicator={showIndicator}
             keyExtractor={(item) => item.id}
             contentContainerStyle={{ paddingBottom: sheetBottomPadding }}
             renderItem={({ item, index: itemIndex }) => (
@@ -382,7 +328,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   readout: { color: '#555', fontSize: 12 },
-  indicatorControl: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sheetActions: { flexDirection: 'row', flex: 1 },
   sheetAction: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   sheetActionText: { color: '#1764c0', fontSize: 14, fontWeight: '500' },

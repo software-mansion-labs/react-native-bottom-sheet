@@ -95,11 +95,6 @@
   [_impl contentRegionLayoutDidApply];
 }
 
-- (void)contentHierarchyDidChange:(NSArray<NSNumber *> *)parentTags sheetTag:(NSInteger)sheetTag
-{
-  [_impl contentHierarchyDidChange:parentTags sheetTag:sheetTag];
-}
-
 - (void)setExtendUnderStatusBar:(BOOL)extendUnderStatusBar
 {
   _impl.extendUnderStatusBar = extendUnderStatusBar;

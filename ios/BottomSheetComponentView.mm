@@ -9,24 +9,11 @@
 #import <React/RCTFabricComponentsPlugins.h>
 #import <React/RCTMountingTransactionObserving.h>
 #import <React/RCTSurfaceTouchHandler.h>
-#include <cxxreact/ReactNativeVersion.h>
 #import <react/renderer/components/ReactNativeBottomSheetSpec/EventEmitters.h>
 #import <react/renderer/components/ReactNativeBottomSheetSpec/Props.h>
 #import <react/renderer/components/ReactNativeBottomSheetSpec/RCTComponentViewHelpers.h>
 
 using namespace facebook::react;
-
-// RN 0.78 replaced parentShadowView with parentTag. Keep the member access
-// dependent on Mutation so older headers can discard the newer branch.
-template <typename Mutation>
-static Tag parentTagForMutation(const Mutation &mutation)
-{
-  if constexpr (ReactNativeVersion.Major > 0 || ReactNativeVersion.Minor >= 78) {
-    return mutation.parentTag;
-  } else {
-    return mutation.parentShadowView.tag;
-  }
-}
 
 /// Full-window container hosting the sheet in native-overlay mode. It is added
 /// directly to the host `UIWindow` (above any modal presented in that window)
@@ -399,23 +386,6 @@ static Tag parentTagForMutation(const Mutation &mutation)
                withSurfaceTelemetry:(const facebook::react::SurfaceTelemetry &)surfaceTelemetry
 {
   [_sheetView contentRegionLayoutDidApply];
-
-  // Animation position changes produce Update mutations every frame. Only
-  // structural mutations can add/remove scroll views; the host checks these
-  // parents against cached subtree tags before rediscovering descendants.
-  NSMutableSet<NSNumber *> *changedParentTags = nil;
-  for (const auto &mutation : transaction.getMutations()) {
-    if (mutation.type != ShadowViewMutation::Insert && mutation.type != ShadowViewMutation::Remove) {
-      continue;
-    }
-    if (changedParentTags == nil) {
-      changedParentTags = [NSMutableSet new];
-    }
-    [changedParentTags addObject:@(parentTagForMutation(mutation))];
-  }
-  if (changedParentTags.count > 0) {
-    [_sheetView contentHierarchyDidChange:changedParentTags.allObjects sheetTag:self.tag];
-  }
 }
 
 #pragma mark - BottomSheetContentViewDelegate

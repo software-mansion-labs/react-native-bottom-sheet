@@ -193,45 +193,6 @@ private final class SheetPanGestureRecognizer: UIPanGestureRecognizer {
   }
 }
 
-/// Keeps the caller's preference separate from temporary sheet suppression.
-private final class ScrollIndicatorState {
-  weak var scrollView: UIScrollView?
-  private var requestedVisibility: Bool
-  private var isSuppressed = false
-  private var isApplyingVisibility = false
-  private var observation: NSKeyValueObservation?
-
-  init(scrollView: UIScrollView) {
-    self.scrollView = scrollView
-    requestedVisibility = scrollView.showsVerticalScrollIndicator
-    observation = scrollView.observe(\.showsVerticalScrollIndicator, options: [.new]) { [weak self] _, change in
-      guard let self, !self.isApplyingVisibility, let visible = change.newValue else { return }
-      self.requestedVisibility = visible
-      self.applyVisibility()
-    }
-  }
-
-  func setSuppressed(_ suppressed: Bool) {
-    isSuppressed = suppressed
-    applyVisibility()
-  }
-
-  func restore() {
-    observation?.invalidate()
-    observation = nil
-    scrollView?.showsVerticalScrollIndicator = requestedVisibility
-  }
-
-  private func applyVisibility() {
-    guard let scrollView else { return }
-    let visible = requestedVisibility && !isSuppressed
-    guard scrollView.showsVerticalScrollIndicator != visible else { return }
-    isApplyingVisibility = true
-    scrollView.showsVerticalScrollIndicator = visible
-    isApplyingVisibility = false
-  }
-}
-
 private final class ActiveScrollViewState {
   weak var scrollView: UIScrollView?
   var pinnedOffset: CGPoint
@@ -249,6 +210,7 @@ private final class ActiveScrollViewState {
   /// restored when it unlocks.
   var bounces: Bool
   var directionalLockEnabled: Bool
+  var showsVerticalScrollIndicator: Bool
   private var contentOffsetObservation: NSKeyValueObservation?
   private var isRestoringPinnedOffset = false
 
@@ -259,6 +221,7 @@ private final class ActiveScrollViewState {
     self.wasAtStartWhenTouched = wasAtStartWhenTouched
     bounces = scrollView.bounces
     directionalLockEnabled = scrollView.isDirectionalLockEnabled
+    showsVerticalScrollIndicator = scrollView.showsVerticalScrollIndicator
   }
 
   func startPinning(at offset: CGPoint) {
@@ -373,9 +336,6 @@ public final class BottomSheetHostingView: UIView {
   private var activeDragRange: (minTy: CGFloat, maxTy: CGFloat)?
   private var activeDragDetentSpecs: [DetentSpec]?
   private var activeScrollViewStates: [ActiveScrollViewState] = []
-  private var scrollIndicatorStates: [ObjectIdentifier: ScrollIndicatorState] = [:]
-  private var scrollIndicatorParentTags: Set<Int> = []
-  private var lastIndicatorTouchTimestamp: TimeInterval?
   private var panCoordinationMode: PanCoordinationMode = .sheet
   private var activeScrollableNegotiationLevel: ScrollableNegotiationLevel = .none
   private var didMoveSheetDuringPan = false
@@ -455,10 +415,7 @@ public final class BottomSheetHostingView: UIView {
   override public func didMoveToWindow() {
     super.didMoveToWindow()
     surfaceTouchHandler = nil
-    guard window != nil else {
-      restoreScrollIndicators()
-      return
-    }
+    guard window != nil else { return }
     // The native detent cap becomes computable once a window exists.
     refreshDetentsFromLayout()
     setNeedsLayout()
@@ -476,12 +433,10 @@ public final class BottomSheetHostingView: UIView {
       current = view.superview
     }
     flushPendingSnapIfNeeded()
-    refreshScrollIndicatorViews()
   }
 
   override public func layoutSubviews() {
     super.layoutSubviews()
-    defer { updateScrollIndicators() }
     guard bounds.width > 0, bounds.height > 0 else { return }
     // See refreshDetentsFromLayout: without a window the detent cap falls back
     // to the full height, which must not be applied to the container geometry.
@@ -575,14 +530,6 @@ public final class BottomSheetHostingView: UIView {
 
     let containerPoint = convert(point, to: sheetContainer)
     guard sheetContainer.bounds.contains(containerPoint) else { return nil }
-    // Native descendants can appear outside a Fabric transaction. Discover
-    // them before UIKit can hit-test their scroll indicators, at most once
-    // per touch event. Repeated hit-tests and nil-event geometry queries use
-    // the cache rather than walking the subtree again.
-    if let event, event.type == .touches, lastIndicatorTouchTimestamp != event.timestamp {
-      lastIndicatorTouchTimestamp = event.timestamp
-      refreshScrollIndicatorViews()
-    }
     return sheetContainer.hitTest(containerPoint, with: event)
   }
 
@@ -695,21 +642,18 @@ public final class BottomSheetHostingView: UIView {
   }
 
   public func mountChildComponentView(_ childView: UIView, atIndex index: Int) {
-    defer { refreshScrollIndicatorViews() }
     sheetContainer.insertSubview(childView, at: index)
     refreshContentHeightMarker()
     setNeedsLayout()
   }
 
   public func unmountChildComponentView(_ childView: UIView) {
-    defer { refreshScrollIndicatorViews() }
     childView.removeFromSuperview()
     refreshContentHeightMarker()
     setNeedsLayout()
   }
 
   public func mountSurfaceComponentView(_ childView: UIView, atIndex index: Int) {
-    defer { refreshScrollIndicatorViews() }
     surfaceView = childView
     sheetContainer.insertSubview(childView, at: index)
     refreshContentHeightMarker()
@@ -717,7 +661,6 @@ public final class BottomSheetHostingView: UIView {
   }
 
   public func unmountSurfaceComponentView(_ childView: UIView) {
-    defer { refreshScrollIndicatorViews() }
     if surfaceView === childView {
       surfaceView = nil
     }
@@ -745,7 +688,6 @@ public final class BottomSheetHostingView: UIView {
     initialScrollViewStates = []
     initialScrollableChainAtStart = true
     finishScrollViewCoordination()
-    restoreScrollIndicators()
     setContentInteractionEnabled(true)
     stopObservingContentHeightMarker()
     isContentRegionChangePending = false
@@ -919,68 +861,6 @@ public final class BottomSheetHostingView: UIView {
     }
   }
 
-  /// Discover only when hierarchy changes or a new touch needs a native-view
-  /// fallback. Layout and animation frames update the cached scroll views.
-  private func refreshScrollIndicatorViews() {
-    guard window != nil else {
-      restoreScrollIndicators()
-      return
-    }
-    var descendants: [ObjectIdentifier: UIScrollView] = [:]
-    var parentTags: Set<Int> = []
-    func collect(_ view: UIView) {
-      // Nested sheets apply their own indicator policy.
-      guard !(view is BottomSheetHostingView) else { return }
-      if view.tag != 0 {
-        parentTags.insert(view.tag)
-      }
-      if let scrollView = view as? UIScrollView {
-        descendants[ObjectIdentifier(scrollView)] = scrollView
-      }
-      for child in view.subviews {
-        collect(child)
-      }
-    }
-    collect(sheetContainer)
-    scrollIndicatorParentTags = parentTags
-    for (id, state) in scrollIndicatorStates where state.scrollView !== descendants[id] {
-      state.restore()
-      scrollIndicatorStates.removeValue(forKey: id)
-    }
-    for (id, scrollView) in descendants where scrollIndicatorStates[id] == nil {
-      scrollIndicatorStates[id] = ScrollIndicatorState(scrollView: scrollView)
-    }
-    updateScrollIndicators()
-  }
-
-  private func updateScrollIndicators(forPosition position: CGFloat? = nil) {
-    guard window != nil else {
-      restoreScrollIndicators()
-      return
-    }
-    // A programmatic-only top is still full expansion. Use the actual
-    // position, not an animation target or the available drag range.
-    let fullyExpandedHeight = detentSpecs.lazy.map(\.height).max() ?? 0
-    let partiallyExpanded = !detentSpecs.isEmpty
-      && (!hasLaidOut || (position ?? currentSheetHeight) < fullyExpandedHeight - 0.5)
-    for state in scrollIndicatorStates.values {
-      guard let scrollView = state.scrollView else { continue }
-      let lockedForPan = activeScrollViewsLocked && activeScrollViewStates.contains {
-        $0.scrollView === scrollView
-      }
-      state.setSuppressed(partiallyExpanded || lockedForPan)
-    }
-  }
-
-  private func restoreScrollIndicators() {
-    for state in scrollIndicatorStates.values {
-      state.restore()
-    }
-    scrollIndicatorStates.removeAll()
-    scrollIndicatorParentTags.removeAll()
-    lastIndicatorTouchTimestamp = nil
-  }
-
   /// Pins the touched scroll views while the sheet moves. Each is pinned at
   /// its visual start when asked for all of them, when it reached that start
   /// while released at the lowest detent, or, for the lock that begins the
@@ -995,6 +875,7 @@ public final class BottomSheetHostingView: UIView {
         // prop change, which the unlock would otherwise overwrite.
         state.bounces = scrollView.bounces
         state.directionalLockEnabled = scrollView.isDirectionalLockEnabled
+        state.showsVerticalScrollIndicator = scrollView.showsVerticalScrollIndicator
       }
       let pinnedToStart = pinToStart
         || state.reachedStartWhileReleased
@@ -1005,10 +886,10 @@ public final class BottomSheetHostingView: UIView {
         : restingOffset(for: scrollView)
       scrollView.bounces = false
       scrollView.isDirectionalLockEnabled = true
+      scrollView.showsVerticalScrollIndicator = false
       state.startPinning(at: pinnedOffset)
     }
     activeScrollViewsLocked = true
-    updateScrollIndicators()
   }
 
   private func pinActiveScrollViews() {
@@ -1025,9 +906,9 @@ public final class BottomSheetHostingView: UIView {
       guard let scrollView = state.scrollView else { continue }
       scrollView.bounces = state.bounces
       scrollView.isDirectionalLockEnabled = state.directionalLockEnabled
+      scrollView.showsVerticalScrollIndicator = state.showsVerticalScrollIndicator
     }
     activeScrollViewsLocked = false
-    updateScrollIndicators()
   }
 
   private func cancelActiveScrollViewPans() {
@@ -1174,7 +1055,6 @@ public final class BottomSheetHostingView: UIView {
     sheetContainer.transform = CGAffineTransform(translationX: 0, y: targetTy)
     sheetContainer.layer.add(animation, forKey: Self.springAnimationKey)
     activeSpring = spring
-    updateScrollIndicators()
 
     startDisplayLink()
 
@@ -2001,15 +1881,6 @@ public final class BottomSheetHostingView: UIView {
     refreshDetentsFromLayout()
   }
 
-  /// Only relevant insert/remove parents invalidate descendant discovery.
-  /// Position-only Fabric updates keep using the cached scroll views.
-  public func contentHierarchyDidChange(_ parentTags: [NSNumber], sheetTag: Int) {
-    guard parentTags.contains(where: {
-      $0.intValue == sheetTag || scrollIndicatorParentTags.contains($0.intValue)
-    }) else { return }
-    refreshScrollIndicatorViews()
-  }
-
   override public func observeValue(
     forKeyPath keyPath: String?,
     of object: Any?,
@@ -2024,7 +1895,6 @@ public final class BottomSheetHostingView: UIView {
   }
 
   deinit {
-    restoreScrollIndicators()
     stopObservingContentHeightMarker()
     displayLink?.invalidate()
     sheetContainer.layer.removeAnimation(forKey: Self.springAnimationKey)
@@ -2217,7 +2087,6 @@ private extension BottomSheetHostingView {
 
   func updateSheetVisibility(forPosition position: CGFloat) {
     sheetContainer.alpha = position <= 0.5 ? 0 : 1
-    updateScrollIndicators(forPosition: position)
   }
 
   func updateScrim(forPosition position: CGFloat) {
