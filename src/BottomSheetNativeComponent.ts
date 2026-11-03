@@ -38,6 +38,17 @@ export interface NativeProps extends ViewProps {
     'circular' | 'continuous',
     'circular'
   >;
+  // Outset shadows cast by the card, drawn outside its clipped shape. Colors
+  // are processed ARGB integers.
+  surfaceShadows?: ReadonlyArray<
+    Readonly<{
+      offsetX: CodegenTypes.Double;
+      offsetY: CodegenTypes.Double;
+      blurRadius: CodegenTypes.Double;
+      spreadDistance: CodegenTypes.Double;
+      color: CodegenTypes.Int32;
+    }>
+  >;
   onIndexChange?: CodegenTypes.DirectEventHandler<
     Readonly<{ index: CodegenTypes.Int32 }>
   >;

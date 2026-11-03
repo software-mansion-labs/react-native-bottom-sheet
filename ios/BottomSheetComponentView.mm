@@ -176,6 +176,18 @@ using namespace facebook::react;
     [_sheetView setSurfaceCornerCurve:newViewProps.surfaceCornerCurve == BottomSheetViewSurfaceCornerCurve::Continuous
                     ? @"continuous"
                     : @"circular"];
+
+    NSMutableArray<NSDictionary *> *shadows = [NSMutableArray new];
+    for (const auto &shadow : newViewProps.surfaceShadows) {
+      [shadows addObject:@{
+        @"offsetX" : @(shadow.offsetX),
+        @"offsetY" : @(shadow.offsetY),
+        @"blurRadius" : @(shadow.blurRadius),
+        @"spreadDistance" : @(shadow.spreadDistance),
+        @"color" : @(shadow.color),
+      }];
+    }
+    [_sheetView setSurfaceShadows:shadows];
   }
 
   [super updateProps:props oldProps:oldProps];

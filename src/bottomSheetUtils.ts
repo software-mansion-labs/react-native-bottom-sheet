@@ -1,4 +1,9 @@
-import { StyleSheet, type StyleProp } from 'react-native';
+import {
+  processColor,
+  StyleSheet,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 
 // Identifies the zero-height marker appended after the content so the native
 // hosts can measure the content height from its position. They look it up by
@@ -26,13 +31,120 @@ export type SurfaceStyle = Readonly<{
   borderBottomEndRadius?: number;
   /** iOS only. Android always draws circular corners. */
   borderCurve?: 'circular' | 'continuous';
+  /**
+   * Shadows cast by the card, outside its clipped shape. Outset shadows only;
+   * `inset` shadows are ignored. Android draws them on API 28 and later.
+   */
+  boxShadow?: ViewStyle['boxShadow'];
+}>;
+
+/** A card shadow in the shape the native hosts consume. */
+type NativeShadow = Readonly<{
+  offsetX: number;
+  offsetY: number;
+  blurRadius: number;
+  spreadDistance: number;
+  /** A processed color: an ARGB integer. */
+  color: number;
 }>;
 
 type ResolvedSurfaceStyle = Readonly<{
   /** Physical corner radii: top-left, top-right, bottom-right, bottom-left. */
   cornerRadii: number[];
   cornerCurve: 'circular' | 'continuous';
+  shadows: NativeShadow[];
 }>;
+
+type BoxShadowObject = Exclude<
+  NonNullable<ViewStyle['boxShadow']>,
+  string
+>[number];
+
+// Mirrors React Native's own `boxShadow` string syntax: comma-separated
+// shadows of 2–4 lengths, an optional color, and an optional `inset`.
+const COMMA_SPLIT_PATTERN = /,(?![^()]*\))/;
+const WHITESPACE_SPLIT_PATTERN = /\s+(?![^(]*\))/;
+const LENGTH_PATTERN = /^([+-]?\d*\.?\d+)(px)?$/;
+const DEFAULT_SHADOW_COLOR = 0xff000000;
+
+const invalidBoxShadowError = (value: unknown) =>
+  new Error(
+    `Invalid bottom sheet surfaceStyle: \`boxShadow\` received ${JSON.stringify(value)}. Expected a React Native boxShadow value.`
+  );
+
+const parseLength = (value: number | string | undefined, fallback = 0) => {
+  if (value === undefined) return fallback;
+  if (typeof value === 'number') return value;
+  const match = LENGTH_PATTERN.exec(value);
+  return match ? Number(match[1]) : NaN;
+};
+
+const parseBoxShadowString = (value: string): BoxShadowObject[] =>
+  value
+    .replace(/\n/g, ' ')
+    .split(COMMA_SPLIT_PATTERN)
+    .map((shadow) => shadow.trim())
+    .filter((shadow) => shadow !== '')
+    .map((shadow) => {
+      const lengths: string[] = [];
+      let color: string | undefined;
+      let inset = false;
+      for (const token of shadow.split(WHITESPACE_SPLIT_PATTERN)) {
+        if (token === 'inset') {
+          inset = true;
+        } else if (color === undefined && processColor(token) != null) {
+          color = token;
+        } else {
+          lengths.push(token);
+        }
+      }
+      if (lengths.length < 2 || lengths.length > 4) {
+        throw invalidBoxShadowError(value);
+      }
+      return {
+        offsetX: lengths[0]!,
+        offsetY: lengths[1]!,
+        blurRadius: lengths[2],
+        spreadDistance: lengths[3],
+        color,
+        inset,
+      };
+    });
+
+/** Normalizes `boxShadow` into outset shadows with numeric lengths and colors. */
+const resolveShadows = (boxShadow: ViewStyle['boxShadow']): NativeShadow[] => {
+  if (boxShadow == null) return [];
+  const shadows =
+    typeof boxShadow === 'string' ? parseBoxShadowString(boxShadow) : boxShadow;
+  return shadows.flatMap((shadow) => {
+    if (shadow.inset === true) {
+      if (__DEV__) {
+        console.warn(
+          'Bottom sheet surfaceStyle: inset `boxShadow` values are not supported and are ignored.'
+        );
+      }
+      return [];
+    }
+    const offsetX = parseLength(shadow.offsetX);
+    const offsetY = parseLength(shadow.offsetY);
+    const blurRadius = parseLength(shadow.blurRadius);
+    const spreadDistance = parseLength(shadow.spreadDistance);
+    if (
+      ![offsetX, offsetY, blurRadius, spreadDistance].every(Number.isFinite) ||
+      blurRadius < 0
+    ) {
+      throw invalidBoxShadowError(boxShadow);
+    }
+    const color =
+      shadow.color == null ? DEFAULT_SHADOW_COLOR : processColor(shadow.color);
+    if (typeof color !== 'number') {
+      // Platform and dynamic colors resolve natively and cannot be passed as
+      // a plain ARGB value.
+      throw invalidBoxShadowError(boxShadow);
+    }
+    return [{ offsetX, offsetY, blurRadius, spreadDistance, color }];
+  });
+};
 
 const invalidCornerRadiusError = (key: string, value: unknown) =>
   new Error(
@@ -83,6 +195,7 @@ export const resolveSurfaceStyle = (
       bottomLeft ?? borderBottomLeftRadius ?? borderRadius ?? 0,
     ],
     cornerCurve: flattened.borderCurve ?? 'circular',
+    shadows: resolveShadows(flattened.boxShadow),
   };
 };
 

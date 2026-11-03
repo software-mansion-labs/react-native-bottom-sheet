@@ -130,6 +130,11 @@
   [_impl setSurfaceCornerCurve:curve];
 }
 
+- (void)setSurfaceShadows:(NSArray<NSDictionary *> *)shadows
+{
+  [_impl setSurfaceShadows:shadows];
+}
+
 - (CGFloat)currentContentOffsetY
 {
   return _impl.currentContentOffsetY;

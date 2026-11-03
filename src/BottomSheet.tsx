@@ -82,10 +82,11 @@ export interface BottomSheetProps {
    */
   surface?: ReactNode;
   /**
-   * The card shape of the sheet: corner radii and `borderCurve`. The native
-   * host clips both `surface` and `children` to this shape, so content near a
-   * rounded corner is cut to it. State the shape here rather than on the
-   * `surface` element, which only paints the background.
+   * The card shape of the sheet: corner radii, `borderCurve`, and
+   * `boxShadow`. The native host clips both `surface` and `children` to this
+   * shape, so content near a rounded corner is cut to it, and casts the
+   * shadows outside it. State the shape here rather than on the `surface`
+   * element, which only paints the background.
    */
   surfaceStyle?: StyleProp<SurfaceStyle>;
   /** Additional style applied to the native sheet host view. */
@@ -268,7 +269,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
     setIsContentActive(true);
   }
   const shouldRenderContent = !lazy || isContentActive;
-  const { cornerRadii, cornerCurve } = resolveSurfaceStyle(
+  const { cornerRadii, cornerCurve, shadows } = resolveSurfaceStyle(
     surfaceStyle,
     I18nManager.isRTL
   );
@@ -364,6 +365,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
           scrimOpacities={resolvedScrimOpacities}
           surfaceCornerRadii={cornerRadii}
           surfaceCornerCurve={cornerCurve}
+          surfaceShadows={shadows}
           onIndexChange={handleIndexChange}
           onSettle={handleSettle}
           onPositionChange={onPositionChange}

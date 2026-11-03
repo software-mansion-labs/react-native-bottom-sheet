@@ -48,6 +48,9 @@ NS_ASSUME_NONNULL_BEGIN
 // bottom-left) and its corner curve ("circular" or "continuous").
 - (void)setSurfaceCornerRadii:(NSArray<NSNumber *> *)radii;
 - (void)setSurfaceCornerCurve:(NSString *)curve;
+// Outset card shadows: dictionaries of offsetX, offsetY, blurRadius,
+// spreadDistance and an ARGB color.
+- (void)setSurfaceShadows:(NSArray<NSDictionary *> *)shadows;
 - (CGFloat)currentContentOffsetY;
 - (void)mountChildComponentView:(UIView *)childView atIndex:(NSInteger)index;
 - (void)unmountChildComponentView:(UIView *)childView;

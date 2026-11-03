@@ -150,6 +150,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
 
   private val sheetContainer = FrameLayout(context)
   private val clipContainer = BottomSheetCardClipLayout(context)
+  private val shadowView = BottomSheetCardShadowView(context)
   private val scrimPaint = Paint(Paint.ANTI_ALIAS_FLAG)
   private var activeAnimation: SpringAnimation? = null
   private var activeAnimationEmitsSettle = false
@@ -206,6 +207,11 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     sheetContainer.clipToPadding = false
     super.addView(
       sheetContainer,
+      LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
+    )
+    // Below the clip container, so the clip never cuts the shadows.
+    sheetContainer.addView(
+      shadowView,
       LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
     )
     sheetContainer.addView(
@@ -403,6 +409,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   private fun layoutSheetChildren(containerWidth: Int, containerHeight: Int) {
     // The clip container keeps the sheet container's full size, so its
     // children keep sheet-container coordinates; only its clip follows the card.
+    shadowView.layout(0, 0, containerWidth, containerHeight)
     clipContainer.layout(0, 0, containerWidth, containerHeight)
     for (i in 0 until clipContainer.childCount) {
       val child = clipContainer.getChildAt(i)
@@ -939,7 +946,22 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   fun setSurfaceCornerRadii(values: List<Float>) {
     val radii = FloatArray(4) { (values.getOrNull(it) ?: 0f).coerceAtLeast(0f) * density }
     clipContainer.setCornerRadii(radii)
+    shadowView.setCornerRadii(radii)
     updateCardGeometry()
+  }
+
+  /** Outset card shadows, with lengths in dp. */
+  internal fun setSurfaceShadows(values: List<CardShadow>) {
+    shadowView.setShadows(
+      values.map {
+        it.copy(
+          offsetX = it.offsetX * density,
+          offsetY = it.offsetY * density,
+          blurRadius = it.blurRadius * density,
+          spreadDistance = it.spreadDistance * density,
+        )
+      },
+    )
   }
 
   /**
@@ -954,7 +976,10 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   /** Keeps the card clip in step with the sheet. RenderNode work only. */
   private fun updateCardGeometry() {
     val position = resolvedMaxDetentHeight() - sheetContainer.translationY
-    clipContainer.setCard(0f, 0f, sheetContainer.width.toFloat(), cardBottom(position))
+    val right = sheetContainer.width.toFloat()
+    val bottom = cardBottom(position)
+    clipContainer.setCard(0f, 0f, right, bottom)
+    shadowView.setCard(0f, 0f, right, bottom)
   }
 
   /** Whether `(x, y)`, in host coordinates, falls on the card as it is drawn. */

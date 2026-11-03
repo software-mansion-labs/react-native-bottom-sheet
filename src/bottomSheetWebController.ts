@@ -30,6 +30,16 @@ export type BottomSheetWebConfig = Readonly<{
   scrimOpacities: ReadonlyArray<number>;
   /** Physical corner radii: top-left, top-right, bottom-right, bottom-left. */
   cornerRadii: ReadonlyArray<number>;
+  shadows: ReadonlyArray<
+    Readonly<{
+      offsetX: number;
+      offsetY: number;
+      blurRadius: number;
+      spreadDistance: number;
+      /** A processed ARGB color. */
+      color: number;
+    }>
+  >;
 }>;
 
 export type BottomSheetWebCallbacks = Readonly<{
@@ -46,6 +56,8 @@ export type BottomSheetWebElements = Readonly<{
   container: HTMLElement;
   /** Wraps the surface and content and is clipped to the card shape. */
   card: HTMLElement;
+  /** Sized to the card behind it, and casts the card's shadows. */
+  shadow: HTMLElement;
   content: HTMLElement;
 }>;
 
@@ -243,6 +255,14 @@ const isTextEditingTarget = (target: EventTarget | null) =>
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
 
+/** Formats a processed ARGB color for CSS. */
+const argbToCss = (color: number) => {
+  // Processed colors may arrive as signed 32-bit integers.
+  const argb = ((color % 2 ** 32) + 2 ** 32) % 2 ** 32;
+  const channel = (shift: number) => Math.floor(argb / 2 ** shift) % 256;
+  return `rgba(${channel(16)}, ${channel(8)}, ${channel(0)}, ${channel(24) / 255})`;
+};
+
 export class BottomSheetWebController {
   private elements: BottomSheetWebElements | null = null;
   private callbacks: BottomSheetWebCallbacks | null = null;
@@ -384,7 +404,8 @@ export class BottomSheetWebController {
       previous === null ||
       previous.cornerRadii.some(
         (radius, corner) => radius !== config.cornerRadii[corner]
-      )
+      ) ||
+      previous.shadows !== config.shadows
     ) {
       this.updateCardClip();
     }
@@ -831,19 +852,30 @@ export class BottomSheetWebController {
    * its shape intact. Unrounded cards stay unclipped.
    */
   private updateCardClip() {
-    const card = this.elements?.card;
-    const radii = this.config?.cornerRadii;
-    if (!card) return;
-    if (radii === undefined || !radii.some((radius) => radius > 0)) {
-      card.style.clipPath = '';
-      return;
-    }
+    const elements = this.elements;
+    const config = this.config;
+    if (elements === null || config === null) return;
+    const { card, shadow } = elements;
     const firstOpenHeight =
       this.detents.find((detent) => detent.height > 0)?.height ?? 0;
     const position = this.cap - this.translateY;
     const cardHeight = clamp(Math.max(position, firstOpenHeight), 0, this.cap);
-    const corners = [0, 1, 2, 3].map((corner) => `${radii[corner] ?? 0}px`);
-    card.style.clipPath = `inset(0px 0px ${this.cap - cardHeight}px 0px round ${corners.join(' ')})`;
+    const corners = [0, 1, 2, 3]
+      .map((corner) => `${config.cornerRadii[corner] ?? 0}px`)
+      .join(' ');
+
+    shadow.style.height = `${cardHeight}px`;
+    shadow.style.borderRadius = corners;
+    shadow.style.boxShadow = config.shadows
+      .map(
+        ({ offsetX, offsetY, blurRadius, spreadDistance, color }) =>
+          `${offsetX}px ${offsetY}px ${blurRadius}px ${spreadDistance}px ${argbToCss(color)}`
+      )
+      .join(', ');
+
+    card.style.clipPath = config.cornerRadii.some((radius) => radius > 0)
+      ? `inset(0px 0px ${this.cap - cardHeight}px 0px round ${corners})`
+      : '';
   }
 
   private setDetentIndex(newIndex: number) {

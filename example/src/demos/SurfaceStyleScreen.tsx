@@ -14,21 +14,32 @@ import {
 
 const SHAPES: { label: string; style: SurfaceStyle | undefined }[] = [
   {
-    label: 'Top corners, continuous',
+    label: 'Top corners, red shadow',
     style: {
       borderTopLeftRadius: 32,
       borderTopRightRadius: 32,
       borderCurve: 'continuous',
+      boxShadow: '0 -6 24 rgba(255, 0, 0, 0.6)',
     },
   },
-  { label: 'All corners', style: { borderRadius: 32 } },
+  { label: 'All corners, no shadow', style: { borderRadius: 32 } },
   {
-    label: 'Mixed radii',
+    label: 'Mixed radii, two shadows',
     style: {
       borderTopStartRadius: 48,
       borderTopEndRadius: 12,
       borderBottomLeftRadius: 24,
       borderBottomRightRadius: 0,
+      boxShadow: [
+        { offsetX: 0, offsetY: -2, blurRadius: 4, color: 'rgba(0, 0, 0, 0.3)' },
+        {
+          offsetX: 0,
+          offsetY: -12,
+          blurRadius: 32,
+          spreadDistance: 4,
+          color: 'rgba(0, 120, 255, 0.5)',
+        },
+      ],
     },
   },
   { label: 'No surfaceStyle', style: undefined },

@@ -185,6 +185,26 @@ class BottomSheetViewManager :
     view.setSurfaceCornerRadii(radii)
   }
 
+  @ReactProp(name = "surfaceShadows")
+  override fun setSurfaceShadows(view: BottomSheetView, value: ReadableArray?) {
+    val shadows = mutableListOf<CardShadow>()
+    if (value != null) {
+      for (i in 0 until value.size()) {
+        val shadow = value.getMap(i) ?: continue
+        shadows.add(
+          CardShadow(
+            offsetX = shadow.getDouble("offsetX").toFloat(),
+            offsetY = shadow.getDouble("offsetY").toFloat(),
+            blurRadius = shadow.getDouble("blurRadius").toFloat(),
+            spreadDistance = shadow.getDouble("spreadDistance").toFloat(),
+            color = shadow.getInt("color"),
+          ),
+        )
+      }
+    }
+    view.setSurfaceShadows(shadows)
+  }
+
   // Android always draws circular corners; the curve applies on iOS only.
   @ReactProp(name = "surfaceCornerCurve")
   override fun setSurfaceCornerCurve(view: BottomSheetView, value: String?) = Unit

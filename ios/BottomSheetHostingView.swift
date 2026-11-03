@@ -205,6 +205,25 @@ private final class CardClipView: UIView {
   }
 }
 
+/// An outset shadow of the card, as `boxShadow` describes it.
+private struct CardShadow: Equatable {
+  let offset: CGSize
+  let blurRadius: CGFloat
+  let spreadDistance: CGFloat
+  /// ARGB, as React Native processes colors.
+  let color: Int32
+
+  var uiColor: UIColor {
+    let argb = UInt32(bitPattern: color)
+    return UIColor(
+      red: CGFloat((argb >> 16) & 0xFF) / 255,
+      green: CGFloat((argb >> 8) & 0xFF) / 255,
+      blue: CGFloat(argb & 0xFF) / 255,
+      alpha: CGFloat((argb >> 24) & 0xFF) / 255
+    )
+  }
+}
+
 @objcMembers
 public final class BottomSheetHostingView: UIView {
   public weak var eventDelegate: BottomSheetHostingViewDelegate?
@@ -242,6 +261,25 @@ public final class BottomSheetHostingView: UIView {
     guard radii != cornerRadii else { return }
     cornerRadii = radii
     updateCardShape()
+  }
+
+  /// Outset shadows cast by the card, each one drawn by its own layer below
+  /// the clipping container so the clip never cuts it.
+  private var cardShadows: [CardShadow] = []
+
+  public func setSurfaceShadows(_ values: [NSDictionary]) {
+    let shadows = values.map { value in
+      let number = { (key: String) in CGFloat(truncating: value[key] as? NSNumber ?? 0) }
+      return CardShadow(
+        offset: CGSize(width: number("offsetX"), height: number("offsetY")),
+        blurRadius: max(0, number("blurRadius")),
+        spreadDistance: number("spreadDistance"),
+        color: (value["color"] as? NSNumber)?.int32Value ?? 0
+      )
+    }
+    guard shadows != cardShadows else { return }
+    cardShadows = shadows
+    updateCardShadows()
   }
 
   public func setSurfaceCornerCurve(_ value: String) {
@@ -283,6 +321,10 @@ public final class BottomSheetHostingView: UIView {
 
   public let sheetContainer = UIView()
   private let clipContainer = CardClipView()
+  /// Casts the card's shadows. A sibling below the clipping container, so the
+  /// clip never cuts the shadows.
+  private let shadowView = UIView()
+  private var shadowLayers: [CALayer] = []
   /// Masks the card when its corners differ in radius, which the layer's own
   /// corner radius cannot express. Nil while the layer's corners suffice.
   private var cardMask: CAShapeLayer?
@@ -336,6 +378,7 @@ public final class BottomSheetHostingView: UIView {
   private static let cardBoundsAnimationKey = "bottomSheetCardBounds"
   private static let cardPositionAnimationKey = "bottomSheetCardPosition"
   private static let cardMaskAnimationKey = "bottomSheetCardMask"
+  private static let cardShadowAnimationKey = "bottomSheetCardShadow"
 
   override public init(frame: CGRect) {
     super.init(frame: frame)
@@ -358,6 +401,9 @@ public final class BottomSheetHostingView: UIView {
     clipContainer.backgroundColor = .clear
     clipContainer.layer.anchorPoint = .zero
     clipContainer.autoresizesSubviews = false
+    shadowView.backgroundColor = .clear
+    shadowView.isUserInteractionEnabled = false
+    sheetContainer.addSubview(shadowView)
     sheetContainer.addSubview(clipContainer)
 
     panGesture = SheetPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
@@ -434,6 +480,7 @@ public final class BottomSheetHostingView: UIView {
     // how short the content becomes. Sized from the top via frame — never via
     // anchorPoint.
     surfaceView?.frame = sheetContainer.bounds
+    shadowView.frame = sheetContainer.bounds
     // From the model translation: mid-settle the card animation drives the
     // presented geometry and the model already holds the target.
     applyCardGeometry(forPosition: maxHeight - sheetContainer.transform.ty)
@@ -1993,9 +2040,13 @@ private extension BottomSheetHostingView {
     return CGRect(x: 0, y: 0, width: sheetContainer.bounds.width, height: height)
   }
 
-  func cardPath(in rect: CGRect) -> CGPath {
-    let limit = min(rect.width, rect.height) / 2
-    let r = cornerRadii.map { min($0, limit) }
+  /// The card's outline in `rect`. A positive `outset` grows the outline and
+  /// its rounded corners, as a `boxShadow` spread does; sharp corners stay
+  /// sharp.
+  func cardPath(in cardRect: CGRect, outset: CGFloat = 0) -> CGPath {
+    let rect = cardRect.insetBy(dx: -outset, dy: -outset)
+    let limit = max(0, min(rect.width, rect.height) / 2)
+    let r = cornerRadii.map { $0 > 0 ? min(max(0, $0 + outset), limit) : 0 }
     let (topLeft, topRight, bottomRight, bottomLeft) = (r[0], r[1], r[2], r[3])
     let path = CGMutablePath()
     path.move(to: CGPoint(x: rect.minX + topLeft, y: rect.minY))
@@ -2036,7 +2087,27 @@ private extension BottomSheetHostingView {
     clipContainer.layer.position = rect.origin
     clipContainer.layer.bounds = rect
     cardMask?.path = cardPath(in: rect)
+    for (layer, shadow) in zip(shadowLayers, cardShadows) {
+      layer.shadowPath = cardPath(in: rect, outset: shadow.spreadDistance)
+    }
     CATransaction.commit()
+  }
+
+  /// Rebuilds the shadow layers. CSS blur radius is twice the Gaussian
+  /// sigma, which is what `shadowRadius` approximates.
+  func updateCardShadows() {
+    shadowLayers.forEach { $0.removeFromSuperlayer() }
+    shadowLayers = cardShadows.map { shadow in
+      let layer = CALayer()
+      layer.frame = shadowView.bounds
+      layer.shadowOffset = shadow.offset
+      layer.shadowRadius = shadow.blurRadius / 2
+      layer.shadowColor = shadow.uiColor.cgColor
+      layer.shadowOpacity = 1
+      shadowView.layer.addSublayer(layer)
+      return layer
+    }
+    applyCardGeometry(forPosition: sheetContainerHeight - sheetContainer.transform.ty)
   }
 
   /// Chooses how the card is clipped. Corners sharing one radius use the
@@ -2116,6 +2187,12 @@ private extension BottomSheetHostingView {
       keyframes("path", rects.map { cardPath(in: $0) }),
       forKey: Self.cardMaskAnimationKey
     )
+    for (layer, shadow) in zip(shadowLayers, cardShadows) {
+      layer.add(
+        keyframes("shadowPath", rects.map { cardPath(in: $0, outset: shadow.spreadDistance) }),
+        forKey: Self.cardShadowAnimationKey
+      )
+    }
   }
 
   func removeSettleAnimations() {
@@ -2123,6 +2200,7 @@ private extension BottomSheetHostingView {
     clipContainer.layer.removeAnimation(forKey: Self.cardBoundsAnimationKey)
     clipContainer.layer.removeAnimation(forKey: Self.cardPositionAnimationKey)
     cardMask?.removeAnimation(forKey: Self.cardMaskAnimationKey)
+    shadowLayers.forEach { $0.removeAnimation(forKey: Self.cardShadowAnimationKey) }
   }
 }
 

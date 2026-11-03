@@ -181,6 +181,8 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
 
   fun setSurfaceCornerRadii(values: List<Float>) = host.setSurfaceCornerRadii(values)
 
+  internal fun setSurfaceShadows(values: List<CardShadow>) = host.setSurfaceShadows(values)
+
   fun setHasCloseRequestHandler(value: Boolean) {
     if (value == hasCloseRequestHandler) return
     hasCloseRequestHandler = value
