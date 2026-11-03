@@ -26,6 +26,10 @@ export default function RootLayout() {
               options={{ title: 'Basic modal', headerShown: false }}
             />
             <Stack.Screen
+              name="surface-style"
+              options={{ title: 'Surface style', headerShown: false }}
+            />
+            <Stack.Screen
               name="lazy-mounted-modal"
               options={{ title: 'Lazy mounted modal', headerShown: false }}
             />
