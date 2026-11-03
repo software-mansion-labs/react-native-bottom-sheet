@@ -1,3 +1,5 @@
+import { StyleSheet, type StyleProp } from 'react-native';
+
 // Identifies the zero-height marker appended after the content so the native
 // hosts can measure the content height from its position. They look it up by
 // this nativeID rather than by sibling index, because Fabric mounts siblings
@@ -6,6 +8,83 @@
 // `BottomSheetHostView.kt`; keep the three in sync. The web host imports it.
 export const CONTENT_HEIGHT_MARKER_NATIVE_ID =
   'swm-bottom-sheet-content-height-marker';
+
+/**
+ * The card shape of a sheet, stated in standard style vocabulary. The native
+ * host clips the surface and content to this shape, so a radius set here also
+ * rounds the sheet's content.
+ */
+export type SurfaceStyle = Readonly<{
+  borderRadius?: number;
+  borderTopLeftRadius?: number;
+  borderTopRightRadius?: number;
+  borderBottomLeftRadius?: number;
+  borderBottomRightRadius?: number;
+  borderTopStartRadius?: number;
+  borderTopEndRadius?: number;
+  borderBottomStartRadius?: number;
+  borderBottomEndRadius?: number;
+  /** iOS only. Android always draws circular corners. */
+  borderCurve?: 'circular' | 'continuous';
+}>;
+
+type ResolvedSurfaceStyle = Readonly<{
+  /** Physical corner radii: top-left, top-right, bottom-right, bottom-left. */
+  cornerRadii: number[];
+  cornerCurve: 'circular' | 'continuous';
+}>;
+
+const invalidCornerRadiusError = (key: string, value: unknown) =>
+  new Error(
+    `Invalid bottom sheet surfaceStyle: \`${key}\` received ${String(value)}. Expected a finite, non-negative number.`
+  );
+
+/**
+ * Resolves a surface style into physical corner radii for the native host.
+ * Start/end corners take precedence over left/right ones, matching React
+ * Native's own border-radius resolution.
+ */
+export const resolveSurfaceStyle = (
+  style: StyleProp<SurfaceStyle>,
+  isRTL: boolean
+): ResolvedSurfaceStyle => {
+  const flattened: SurfaceStyle = StyleSheet.flatten(style) ?? {};
+  for (const [key, value] of Object.entries(flattened)) {
+    if (
+      key.endsWith('Radius') &&
+      value != null &&
+      (typeof value !== 'number' || !Number.isFinite(value) || value < 0)
+    ) {
+      throw invalidCornerRadiusError(key, value);
+    }
+  }
+
+  const {
+    borderRadius,
+    borderTopLeftRadius,
+    borderTopRightRadius,
+    borderBottomLeftRadius,
+    borderBottomRightRadius,
+    borderTopStartRadius,
+    borderTopEndRadius,
+    borderBottomStartRadius,
+    borderBottomEndRadius,
+  } = flattened;
+  const topLeft = isRTL ? borderTopEndRadius : borderTopStartRadius;
+  const topRight = isRTL ? borderTopStartRadius : borderTopEndRadius;
+  const bottomLeft = isRTL ? borderBottomEndRadius : borderBottomStartRadius;
+  const bottomRight = isRTL ? borderBottomStartRadius : borderBottomEndRadius;
+
+  return {
+    cornerRadii: [
+      topLeft ?? borderTopLeftRadius ?? borderRadius ?? 0,
+      topRight ?? borderTopRightRadius ?? borderRadius ?? 0,
+      bottomRight ?? borderBottomRightRadius ?? borderRadius ?? 0,
+      bottomLeft ?? borderBottomLeftRadius ?? borderRadius ?? 0,
+    ],
+    cornerCurve: flattened.borderCurve ?? 'circular',
+  };
+};
 
 /**
  * A finite, non-negative height in points, an unsigned percentage from `0%`

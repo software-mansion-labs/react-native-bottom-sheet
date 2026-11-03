@@ -24,6 +24,7 @@ type BottomSheetViewProps = NativeProps & {
 };
 
 const DEFAULT_SCRIM_OPACITIES = [1];
+const DEFAULT_CORNER_RADII = [0, 0, 0, 0];
 
 // React Native for Web views render DOM elements, and their refs resolve to
 // them.
@@ -61,6 +62,11 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
     scrollableCollapseNegotiation,
     scrimColor,
     scrimOpacities = DEFAULT_SCRIM_OPACITIES,
+    surfaceCornerRadii = DEFAULT_CORNER_RADII,
+    // CSS has no continuous corner curve; corners are drawn circular. Taken
+    // out of the props so it is not forwarded to the host view.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    surfaceCornerCurve,
     onIndexChange,
     onSettle,
     onPositionChange,
@@ -71,6 +77,7 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
   const hostRef = useRef<ViewInstance>(null);
   const scrimRef = useRef<ViewInstance>(null);
   const containerRef = useRef<ViewInstance>(null);
+  const cardRef = useRef<ViewInstance>(null);
   const contentRef = useRef<ViewInstance>(null);
   // Detents that fail validation are found while measuring, outside render.
   // Rethrow them during render so error boundaries see them, as the native
@@ -102,9 +109,10 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
     const host = asElement(hostRef.current);
     const scrim = asElement(scrimRef.current);
     const container = asElement(containerRef.current);
+    const card = asElement(cardRef.current);
     const content = asElement(contentRef.current);
-    if (!host || !scrim || !container || !content) return;
-    controller.attach({ host, scrim, container, content });
+    if (!host || !scrim || !container || !card || !content) return;
+    controller.attach({ host, scrim, container, card, content });
     return () => controller.detach();
   }, [controller, isMounted]);
 
@@ -132,6 +140,7 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
       scrollableExpandNegotiation,
       scrollableCollapseNegotiation,
       scrimOpacities,
+      cornerRadii: surfaceCornerRadii,
     });
   });
 
@@ -169,8 +178,10 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
         // pressables under the pointer cancel their press.
         onMoveShouldSetResponderCapture={controller.shouldCaptureResponder}
       >
-        {surface}
-        <View ref={contentRef}>{sheetContent}</View>
+        <View ref={cardRef} style={StyleSheet.absoluteFill}>
+          {surface}
+          <View ref={contentRef}>{sheetContent}</View>
+        </View>
       </View>
     </View>
   );

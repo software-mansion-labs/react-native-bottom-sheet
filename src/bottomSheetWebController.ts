@@ -28,6 +28,8 @@ export type BottomSheetWebConfig = Readonly<{
   scrollableExpandNegotiation: number;
   scrollableCollapseNegotiation: number;
   scrimOpacities: ReadonlyArray<number>;
+  /** Physical corner radii: top-left, top-right, bottom-right, bottom-left. */
+  cornerRadii: ReadonlyArray<number>;
 }>;
 
 export type BottomSheetWebCallbacks = Readonly<{
@@ -42,6 +44,8 @@ export type BottomSheetWebElements = Readonly<{
   host: HTMLElement;
   scrim: HTMLElement;
   container: HTMLElement;
+  /** Wraps the surface and content and is clipped to the card shape. */
+  card: HTMLElement;
   content: HTMLElement;
 }>;
 
@@ -378,6 +382,14 @@ export class BottomSheetWebController {
     }
     if (
       previous === null ||
+      previous.cornerRadii.some(
+        (radius, corner) => radius !== config.cornerRadii[corner]
+      )
+    ) {
+      this.updateCardClip();
+    }
+    if (
+      previous === null ||
       !areRawDetentsEqual(previous.detents, config.detents)
     ) {
       this.rawDetents = config.detents;
@@ -522,6 +534,7 @@ export class BottomSheetWebController {
     container.style.top = `${hostHeight - cap}px`;
     container.style.height = `${cap}px`;
     content.style.height = `${this.contentRegionHeight(cap)}px`;
+    this.updateCardClip();
 
     this.resolveDetentsFromLayout();
     this.replayPendingIndexIfResolved();
@@ -808,6 +821,29 @@ export class BottomSheetWebController {
     if (container) {
       container.style.transform = `translate3d(0px, ${ty}px, 0px)`;
     }
+    this.updateCardClip();
+  }
+
+  /**
+   * Clips the surface and content to the card. At or above the first open
+   * detent the card reaches the host's bottom edge; below it, it keeps that
+   * detent's height and slides down rigidly, so a closing sheet leaves with
+   * its shape intact. Unrounded cards stay unclipped.
+   */
+  private updateCardClip() {
+    const card = this.elements?.card;
+    const radii = this.config?.cornerRadii;
+    if (!card) return;
+    if (radii === undefined || !radii.some((radius) => radius > 0)) {
+      card.style.clipPath = '';
+      return;
+    }
+    const firstOpenHeight =
+      this.detents.find((detent) => detent.height > 0)?.height ?? 0;
+    const position = this.cap - this.translateY;
+    const cardHeight = clamp(Math.max(position, firstOpenHeight), 0, this.cap);
+    const corners = [0, 1, 2, 3].map((corner) => `${radii[corner] ?? 0}px`);
+    card.style.clipPath = `inset(0px 0px ${this.cap - cardHeight}px 0px round ${corners.join(' ')})`;
   }
 
   private setDetentIndex(newIndex: number) {

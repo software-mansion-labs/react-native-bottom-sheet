@@ -120,6 +120,16 @@
   [_impl setScrimOpacities:opacities];
 }
 
+- (void)setSurfaceCornerRadii:(NSArray<NSNumber *> *)radii
+{
+  [_impl setSurfaceCornerRadii:radii];
+}
+
+- (void)setSurfaceCornerCurve:(NSString *)curve
+{
+  [_impl setSurfaceCornerCurve:curve];
+}
+
 - (CGFloat)currentContentOffsetY
 {
   return _impl.currentContentOffsetY;

@@ -149,6 +149,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   // MARK: - Internal
 
   private val sheetContainer = FrameLayout(context)
+  private val clipContainer = BottomSheetCardClipLayout(context)
   private val scrimPaint = Paint(Paint.ANTI_ALIAS_FLAG)
   private var activeAnimation: SpringAnimation? = null
   private var activeAnimationEmitsSettle = false
@@ -207,20 +208,24 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
       sheetContainer,
       LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
     )
+    sheetContainer.addView(
+      clipContainer,
+      LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
+    )
   }
 
   val sheetChildCount: Int
-    get() = sheetContainer.childCount
+    get() = clipContainer.childCount
 
-  fun getSheetChildAt(index: Int): View? = sheetContainer.getChildAt(index)
+  fun getSheetChildAt(index: Int): View? = clipContainer.getChildAt(index)
 
   fun addSheetChild(child: View, index: Int) {
-    sheetContainer.addView(child, index)
+    clipContainer.addView(child, index)
     refreshContentHeightMarker()
   }
 
   fun removeSheetChildAt(index: Int) {
-    sheetContainer.removeViewAt(index)
+    clipContainer.removeViewAt(index)
     refreshContentHeightMarker()
   }
 
@@ -230,7 +235,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     if (child === sheetContainer) {
       super.addView(child, index, params)
     } else {
-      sheetContainer.addView(child, index, params)
+      clipContainer.addView(child, index, params)
     }
   }
 
@@ -238,13 +243,13 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     if (view === sheetContainer) {
       super.removeView(view)
     } else {
-      sheetContainer.removeView(view)
+      clipContainer.removeView(view)
       refreshContentHeightMarker()
     }
   }
 
   override fun removeViewAt(index: Int) {
-    sheetContainer.removeViewAt(index)
+    clipContainer.removeViewAt(index)
     refreshContentHeightMarker()
   }
 
@@ -386,6 +391,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     closeRequestPresentationTracker.onTransitionSettled()
     sheetContainer.translationY = translationY(targetIndex)
     updateShadowState(sheetContainer.translationY)
+    updateCardGeometry()
     notifyCloseRequestStateChanged()
   }
 
@@ -395,8 +401,11 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   }
 
   private fun layoutSheetChildren(containerWidth: Int, containerHeight: Int) {
-    for (i in 0 until sheetContainer.childCount) {
-      val child = sheetContainer.getChildAt(i)
+    // The clip container keeps the sheet container's full size, so its
+    // children keep sheet-container coordinates; only its clip follows the card.
+    clipContainer.layout(0, 0, containerWidth, containerHeight)
+    for (i in 0 until clipContainer.childCount) {
+      val child = clipContainer.getChildAt(i)
       if (child === surfaceView) {
         // The surface fills the full container so it always covers the visible
         // sheet (the container is translated to the current sheet position),
@@ -421,6 +430,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     lastAppliedMaxDetentHeight = maxHeight
     sheetContainer.layout(0, containerTop, viewWidth, containerTop + maxHeight.toInt())
     layoutSheetChildren(viewWidth, maxHeight.toInt())
+    updateCardGeometry()
   }
 
   // MARK: - Prop setters
@@ -785,8 +795,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   }
 
   private fun findSurfaceView(): View? {
-    for (i in 0 until sheetContainer.childCount) {
-      val child = sheetContainer.getChildAt(i)
+    for (i in 0 until clipContainer.childCount) {
+      val child = clipContainer.getChildAt(i)
       if (child is BottomSheetSurfaceView) return child
     }
     return null
@@ -795,8 +805,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   // The content wrapper: the surface is its sibling, so skip it and the wrapper
   // is whatever else the sheet mounts.
   private fun findContentView(): ViewGroup? =
-    (0 until sheetContainer.childCount)
-      .map { sheetContainer.getChildAt(it) }
+    (0 until clipContainer.childCount)
+      .map { clipContainer.getChildAt(it) }
       .firstOrNull { it !== surfaceView } as? ViewGroup
 
   private fun findContentHeightMarker(): View? {
@@ -920,7 +930,39 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     updateInteractionState()
     listener?.onPositionChange((position / density).toDouble(), detentIndexAt(position).toDouble())
     updateShadowState(ty)
+    updateCardGeometry()
   }
+
+  // MARK: - Card geometry
+
+  /** Physical corner radii of the card in dp: top-left, top-right, bottom-right, bottom-left. */
+  fun setSurfaceCornerRadii(values: List<Float>) {
+    val radii = FloatArray(4) { (values.getOrNull(it) ?: 0f).coerceAtLeast(0f) * density }
+    clipContainer.setCornerRadii(radii)
+    updateCardGeometry()
+  }
+
+  /**
+   * The card's bottom edge in sheet-container coordinates for a sheet position (the height of the
+   * sheet's top above the host's bottom). At or above the first open detent the card reaches the
+   * host's bottom edge; below it, it keeps that detent's height and slides down rigidly, so a
+   * closing sheet leaves with its shape intact.
+   */
+  private fun cardBottom(position: Float): Float =
+    maxOf(position, firstNonZeroDetentHeight, 0f).coerceAtMost(sheetContainer.height.toFloat())
+
+  /** Keeps the card clip in step with the sheet. RenderNode work only. */
+  private fun updateCardGeometry() {
+    val position = resolvedMaxDetentHeight() - sheetContainer.translationY
+    clipContainer.setCard(0f, 0f, sheetContainer.width.toFloat(), cardBottom(position))
+  }
+
+  /** Whether `(x, y)`, in host coordinates, falls on the card as it is drawn. */
+  private fun cardContains(x: Float, y: Float): Boolean =
+    clipContainer.cardContains(
+      x - sheetContainer.left - sheetContainer.translationX,
+      y - sheetContainer.top - sheetContainer.translationY,
+    )
 
   // Fractional detent index in 0..(detentSpecs.size - 1): 0 at the shortest
   // detent, 1 at the next, and so on, interpolated by position in between. The
@@ -1285,8 +1327,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     if (event.actionMasked == MotionEvent.ACTION_DOWN) {
       clearNestedScrollState()
     }
-    val sheetTop = sheetContainer.top + sheetContainer.translationY
-    if (event.actionMasked == MotionEvent.ACTION_DOWN && event.y < sheetTop) {
+    if (event.actionMasked == MotionEvent.ACTION_DOWN && !cardContains(event.x, event.y)) {
       if (isScrimVisible()) {
         initialTouchX = event.x
         initialTouchY = event.y
@@ -1385,8 +1426,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     if (scrimTouchActive) {
       when (event.actionMasked) {
         MotionEvent.ACTION_MOVE -> {
-          val sheetTop = sheetContainer.top + sheetContainer.translationY
-          if (event.y >= sheetTop || abs(event.y - initialTouchY) > touchSlop) {
+          if (cardContains(event.x, event.y) || abs(event.y - initialTouchY) > touchSlop) {
             scrimPressed = false
           }
           return true
@@ -1981,7 +2021,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     scrimTouchActive = false
     scrimProgress = 0f
     suppressScrimForClosingTarget = false
-    sheetContainer.removeAllViews()
+    clipContainer.removeAllViews()
     stateWrapper = null
     lastShadowOffsetY = Float.NaN
     closeRequestStateChangedListener = null

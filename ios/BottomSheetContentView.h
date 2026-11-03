@@ -44,6 +44,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setDetentIndex:(NSInteger)newIndex;
 - (void)setScrimColor:(UIColor *_Nullable)color;
 - (void)setScrimOpacities:(NSArray<NSNumber *> *)opacities;
+// Physical corner radii of the card (top-left, top-right, bottom-right,
+// bottom-left) and its corner curve ("circular" or "continuous").
+- (void)setSurfaceCornerRadii:(NSArray<NSNumber *> *)radii;
+- (void)setSurfaceCornerCurve:(NSString *)curve;
 - (CGFloat)currentContentOffsetY;
 - (void)mountChildComponentView:(UIView *)childView atIndex:(NSInteger)index;
 - (void)unmountChildComponentView:(UIView *)childView;

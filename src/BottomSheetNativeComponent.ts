@@ -30,6 +30,14 @@ export interface NativeProps extends ViewProps {
   scrollableCollapseNegotiation: CodegenTypes.Int32;
   scrimColor?: ColorValue;
   scrimOpacities?: ReadonlyArray<CodegenTypes.Double>;
+  // Physical corner radii of the card the host clips the surface and content
+  // to: top-left, top-right, bottom-right, bottom-left. Empty or all-zero
+  // leaves the sheet unclipped.
+  surfaceCornerRadii?: ReadonlyArray<CodegenTypes.Double>;
+  surfaceCornerCurve?: CodegenTypes.WithDefault<
+    'circular' | 'continuous',
+    'circular'
+  >;
   onIndexChange?: CodegenTypes.DirectEventHandler<
     Readonly<{ index: CodegenTypes.Int32 }>
   >;

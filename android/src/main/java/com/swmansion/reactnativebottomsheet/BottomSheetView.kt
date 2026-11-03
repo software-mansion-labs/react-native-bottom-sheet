@@ -179,6 +179,8 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
 
   fun setScrimOpacities(values: List<Float>) = host.setScrimOpacities(values)
 
+  fun setSurfaceCornerRadii(values: List<Float>) = host.setSurfaceCornerRadii(values)
+
   fun setHasCloseRequestHandler(value: Boolean) {
     if (value == hasCloseRequestHandler) return
     hasCloseRequestHandler = value

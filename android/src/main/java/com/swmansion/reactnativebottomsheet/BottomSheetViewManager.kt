@@ -174,6 +174,21 @@ class BottomSheetViewManager :
     view.setScrimOpacities(opacities)
   }
 
+  @ReactProp(name = "surfaceCornerRadii")
+  override fun setSurfaceCornerRadii(view: BottomSheetView, value: ReadableArray?) {
+    val radii = mutableListOf<Float>()
+    if (value != null) {
+      for (i in 0 until value.size()) {
+        radii.add(value.getDouble(i).toFloat())
+      }
+    }
+    view.setSurfaceCornerRadii(radii)
+  }
+
+  // Android always draws circular corners; the curve applies on iOS only.
+  @ReactProp(name = "surfaceCornerCurve")
+  override fun setSurfaceCornerCurve(view: BottomSheetView, value: String?) = Unit
+
   override fun onDropViewInstance(view: BottomSheetView) {
     super.onDropViewInstance(view)
     view.destroy()
