@@ -26,6 +26,28 @@ const insets = useSafeAreaInsets();
 </ModalBottomSheet>
 ```
 
+## Lazy content
+
+By default, a sheet’s `children` and `surface` stay mounted while it is closed.
+Set `lazy` to render them only while the sheet is open:
+
+```tsx
+<ModalBottomSheet
+  lazy
+  index={index}
+  onIndexChange={setIndex}
+  surface={/* ... */}
+>
+  <ExpensiveContent />
+</ModalBottomSheet>
+```
+
+The content mounts in the same render that `index` selects an open detent, so it
+is in place before the sheet starts opening, and unmounts once the sheet settles
+at a closed detent, so it stays visible throughout the closing animation.
+Content state is reset each time the sheet opens. `lazy` is also available on
+`BottomSheet` and has no effect when no detent is closed.
+
 ## Scrim
 
 Tapping the scrim collapses the sheet to the closed detent. Use `scrimColor` to

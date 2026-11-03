@@ -105,6 +105,16 @@ export interface BottomSheetProps {
    */
   extendUnderStatusBar?: boolean;
   /**
+   * Whether to render `children` and `surface` only while the sheet is open.
+   * The content mounts in the same render that `index` selects an open detent,
+   * so it is in place before the sheet starts opening, and unmounts once the
+   * sheet settles at a closed detent, so it stays visible throughout the closing
+   * animation. Has no effect when no detent is closed.
+   *
+   * @default false
+   */
+  lazy?: boolean;
+  /**
    * Called when a user-driven snap is initiated: the moment a drag commits to a
    * detent, before the animation settles. Does not fire for programmatic `index`
    * changes; you already know when you make those. Use it to keep your controlled
@@ -192,6 +202,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
     animateIn = true,
     animateContentHeight = true,
     extendUnderStatusBar = false,
+    lazy = false,
     onIndexChange,
     onSettle,
     onPositionChange,
@@ -235,6 +246,16 @@ export const BottomSheet = (props: BottomSheetProps) => {
   const selectedNormalizedDetent = normalizedDetents[index]!;
   const isSheetClosed = isNormalizedDetentClosed(selectedNormalizedDetent);
   const hasCloseRequestHandler = onCloseRequest != null;
+  // Tracks whether the sheet is open or still animating closed, so lazy
+  // content mounts no later than the open request (the update below runs
+  // during render, before the commit that hands the new index to native) and
+  // unmounts only after the sheet settles at a closed detent. Tracked
+  // regardless of `lazy`, so enabling it on an open sheet keeps the content.
+  const [isContentActive, setIsContentActive] = useState(!isSheetClosed);
+  if (!isSheetClosed && !isContentActive) {
+    setIsContentActive(true);
+  }
+  const shouldRenderContent = !lazy || isContentActive;
   // Default the scrim opacity per detent: transparent at any closed detent,
   // fully opaque at every open one.
   const resolvedScrimOpacities =
@@ -246,6 +267,10 @@ export const BottomSheet = (props: BottomSheetProps) => {
     onIndexChange?.(event.nativeEvent.index);
   };
   const handleSettle = (event: { nativeEvent: { index: number } }) => {
+    // Ignore a settle that a newer open request has already superseded.
+    if (event.nativeEvent.index === index && isSheetClosed) {
+      setIsContentActive(false);
+    }
     onSettle?.(event.nativeEvent.index);
   };
 
@@ -322,7 +347,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
           onPositionChange={onPositionChange}
           onCloseRequest={onCloseRequest}
         >
-          {surface != null && (
+          {shouldRenderContent && surface != null && (
             <BottomSheetSurfaceView
               collapsable={false}
               pointerEvents="box-none"
@@ -342,7 +367,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
             // every mode.
             style={styles.contentWrapper}
           >
-            {children}
+            {shouldRenderContent && children}
             <View
               collapsable={false}
               nativeID={CONTENT_HEIGHT_MARKER_NATIVE_ID}
