@@ -28,6 +28,11 @@ export interface NativeProps extends ViewProps {
   extendUnderStatusBar?: boolean;
   scrollableExpandNegotiation: CodegenTypes.Int32;
   scrollableCollapseNegotiation: CodegenTypes.Int32;
+  // Seconds of release velocity projected onto the sheet's position before the
+  // detent a drag release resolves to is chosen. 0 disables projection.
+  releaseProjection?: CodegenTypes.WithDefault<CodegenTypes.Double, 0>;
+  // Seconds the settle animation takes. 0 defers to the platform default.
+  settleDuration?: CodegenTypes.WithDefault<CodegenTypes.Double, 0>;
   scrimColor?: ColorValue;
   scrimOpacities?: ReadonlyArray<CodegenTypes.Double>;
   onIndexChange?: CodegenTypes.DirectEventHandler<
