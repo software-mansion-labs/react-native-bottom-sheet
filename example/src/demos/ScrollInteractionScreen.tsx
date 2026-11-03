@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   FlatList,
+  RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -64,6 +65,14 @@ const CASES = [
     expected:
       'The list keeps the gesture and its scrolled position. The sheet stays expanded.',
   },
+  {
+    id: 'refresh-pull',
+    title: 'Refresh pull',
+    gesture:
+      'At preview, pull the list down until the refresh spinner shows, then swipe up without lifting.',
+    expected:
+      'The pull scrolls back smoothly, then the sheet expands with the list at its start.',
+  },
 ] as const;
 
 type InteractionCase = (typeof CASES)[number];
@@ -79,7 +88,13 @@ export const ScrollInteractionScreen = () => {
   const [index, setIndex] = useState(0);
   const [settledIndex, setSettledIndex] = useState<number | null>(0);
   const [scrollOffset, setScrollOffset] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
   const sheetBottomPadding = useSheetBottomPadding();
+
+  const refresh = () => {
+    setRefreshing(true);
+    setTimeout(() => setRefreshing(false), 1000);
+  };
 
   const selectCase = (nextCase: InteractionCase) => {
     setSelectedCase(nextCase);
@@ -190,6 +205,11 @@ export const ScrollInteractionScreen = () => {
             })}
             onScrollEndDrag={reportScrollOffset}
             onMomentumScrollEnd={reportScrollOffset}
+            refreshControl={
+              selectedCase.id === 'refresh-pull' ? (
+                <RefreshControl refreshing={refreshing} onRefresh={refresh} />
+              ) : undefined
+            }
             keyExtractor={(item) => item.id}
             contentContainerStyle={{ paddingBottom: sheetBottomPadding }}
             renderItem={({ item, index: itemIndex }) => (

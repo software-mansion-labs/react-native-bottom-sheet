@@ -202,9 +202,9 @@ private final class ActiveScrollViewState {
   /// lock that begins the pan pins it back.
   let wasAtStartWhenTouched: Bool
   /// Whether the scroll view reached or passed its visual start while the
-  /// sheet, at its lowest detent, had released the touch to it. The lock that
-  /// takes the touch back pins it there: the reversal update may already have
-  /// scrolled it by a few points.
+  /// sheet had left the touch to it: at its lowest detent, or until a pull the
+  /// pan began with cleared. The lock that takes the touch back pins it there:
+  /// the reversal update may already have scrolled it by a few points.
   var reachedStartWhileReleased = false
   /// The caller's preferences, captured as the sheet locks the scroll view and
   /// restored when it unlocks.
@@ -339,6 +339,9 @@ public final class BottomSheetHostingView: UIView {
   private var panCoordinationMode: PanCoordinationMode = .sheet
   private var activeScrollableNegotiationLevel: ScrollableNegotiationLevel = .none
   private var didMoveSheetDuringPan = false
+  /// Whether the spring a pan stopped as it began emitted `onSettle`; nil when
+  /// no spring was running.
+  private var interruptedSpringEmitsSettle: Bool?
   private var didCancelTouchesForPan = false
   private var activeScrollViewsLocked = false
   private var scrollViewOwnsLowerBoundary = false
@@ -611,6 +614,7 @@ public final class BottomSheetHostingView: UIView {
         emitSettle: true,
         preserveScrimPin: false
       )
+      interruptedSpringEmitsSettle = nil
       return
     }
 
@@ -672,6 +676,7 @@ public final class BottomSheetHostingView: UIView {
   public func resetSheetState() {
     activeSpring = nil
     activeSpringEmitsSettle = false
+    interruptedSpringEmitsSettle = nil
     lastAppliedMaxDetentHeight = .nan
     stopDisplayLink()
     sheetContainer.layer.removeAnimation(forKey: Self.springAnimationKey)
@@ -863,8 +868,8 @@ public final class BottomSheetHostingView: UIView {
 
   /// Pins the touched scroll views while the sheet moves. Each is pinned at
   /// its visual start when asked for all of them, when it reached that start
-  /// while released at the lowest detent, or, for the lock that begins the
-  /// pan, when it was there as the touch landed; otherwise where it rests now.
+  /// while released, or, for the lock that begins the pan, when it was there
+  /// as the touch landed; otherwise where it rests now.
   private func lockActiveScrollViews(pinToStart: Bool = false, pinInitialStarts: Bool = false) {
     guard !activeScrollViewStates.isEmpty else { return }
 
@@ -983,6 +988,8 @@ public final class BottomSheetHostingView: UIView {
     preserveScrimPin: Bool = false
   ) {
     guard index >= 0, index < detentSpecs.count else { return }
+    // A newer snap supersedes the one a pan stopped.
+    interruptedSpringEmitsSettle = nil
     if emitIndexChange {
       // A user-driven snap supersedes an index retained from props.
       pendingIndex = nil
@@ -1104,6 +1111,15 @@ public final class BottomSheetHostingView: UIView {
     }
   }
 
+  /// Restarts the snap a pan stopped as it began, when the content kept the
+  /// touch and the sheet never moved: it would otherwise rest wherever the
+  /// spring stopped, and `onSettle` would never arrive.
+  private func resumeInterruptedSpring() {
+    guard let emitSettle = interruptedSpringEmitsSettle else { return }
+    interruptedSpringEmitsSettle = nil
+    snapToIndex(targetIndex, velocity: 0, emitIndexChange: false, emitSettle: emitSettle)
+  }
+
   @discardableResult
   private func cancelActiveSpring() -> CGFloat {
     let visualTy = currentTranslationY
@@ -1120,6 +1136,7 @@ public final class BottomSheetHostingView: UIView {
 
     switch gesture.state {
     case .began:
+      interruptedSpringEmitsSettle = activeSpring == nil ? nil : activeSpringEmitsSettle
       if activeSpring != nil {
         cancelActiveSpring()
       }
@@ -1155,6 +1172,18 @@ public final class BottomSheetHostingView: UIView {
           isAtLargestDetent, verticalDirection < 0 || !activeScrollViewsAreAtStart()
         {
           panCoordinationMode = .scrollView
+        } else if
+          activeScrollableNegotiationLevel == .handoff,
+          verticalDirection < 0,
+          activeScrollViewsArePulledPastStart()
+        {
+          // A bounce or refresh pull holds the content past its start, left to
+          // it by a held start or still returning as the touch landed. As at
+          // the lower boundary, the sheet waits until it clears: pinning now
+          // would snap it back in a single frame.
+          panCoordinationMode = .scrollView
+          scrollViewOwnsLowerBoundary = true
+          noteReleasedScrollViewsAtStart()
         } else {
           panCoordinationMode = .sheet
           lockActiveScrollViews(pinToStart: isAtLargestDetent, pinInitialStarts: true)
@@ -1173,9 +1202,10 @@ public final class BottomSheetHostingView: UIView {
         panCoordinationMode == .scrollView
       {
         if scrollViewOwnsLowerBoundary {
-          // Once the sheet is fully collapsed, downward movement belongs to
-          // native bounce/RefreshControl. On reversal, the sheet expands again
-          // as soon as no scrollable is still pulled past its start: a quick
+          // Once the sheet is fully collapsed, or the pan began with the content
+          // pulled past its start, downward movement belongs to native
+          // bounce/RefreshControl. On reversal, the sheet expands as soon as
+          // no scrollable is still pulled past its start: a quick
           // reversal crosses the resting offset between two updates, and a
           // scrollable that was scrolled when the sheet collapsed never lands
           // there, so waiting for an exact landing would leave the touch with
@@ -1255,6 +1285,7 @@ public final class BottomSheetHostingView: UIView {
         activeDragRange = nil
         activeDragDetentSpecs = nil
         finishScrollViewCoordination()
+        resumeInterruptedSpring()
         return
       }
       let currentHeight = maxHeight - sheetContainer.transform.ty
@@ -1294,6 +1325,7 @@ public final class BottomSheetHostingView: UIView {
         activeDragRange = nil
         activeDragDetentSpecs = nil
         finishScrollViewCoordination()
+        resumeInterruptedSpring()
         return
       }
       let cancelHeight = maxHeight - sheetContainer.transform.ty
