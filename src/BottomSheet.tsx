@@ -246,11 +246,8 @@ export const BottomSheet = (props: BottomSheetProps) => {
   const selectedNormalizedDetent = normalizedDetents[index]!;
   const isSheetClosed = isNormalizedDetentClosed(selectedNormalizedDetent);
   const hasCloseRequestHandler = onCloseRequest != null;
-  // Tracks whether the sheet is open or still animating closed, so lazy
-  // content mounts no later than the open request (the update below runs
-  // during render, before the commit that hands the new index to native) and
-  // unmounts only after the sheet settles at a closed detent. Tracked
-  // regardless of `lazy`, so enabling it on an open sheet keeps the content.
+  // Whether the sheet is open or still closing. Set during render so lazy
+  // content mounts in the same commit as the open index.
   const [isContentActive, setIsContentActive] = useState(!isSheetClosed);
   if (!isSheetClosed && !isContentActive) {
     setIsContentActive(true);
