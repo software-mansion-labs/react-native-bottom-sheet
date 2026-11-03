@@ -105,6 +105,16 @@ export interface BottomSheetProps {
    */
   extendUnderStatusBar?: boolean;
   /**
+   * Whether to render `children` and `surface` only while the sheet is open.
+   * The content mounts in the same render that `index` selects an open detent,
+   * so it is in place before the sheet starts opening, and unmounts once the
+   * sheet settles at a closed detent, so it stays visible throughout the closing
+   * animation. Has no effect when no detent is closed.
+   *
+   * @default false
+   */
+  lazy?: boolean;
+  /**
    * Called when a user-driven snap is initiated: the moment a drag commits to a
    * detent, before the animation settles. Does not fire for programmatic `index`
    * changes; you already know when you make those. Use it to keep your controlled
@@ -192,6 +202,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
     animateIn = true,
     animateContentHeight = true,
     extendUnderStatusBar = false,
+    lazy = false,
     onIndexChange,
     onSettle,
     onPositionChange,
@@ -235,6 +246,13 @@ export const BottomSheet = (props: BottomSheetProps) => {
   const selectedNormalizedDetent = normalizedDetents[index]!;
   const isSheetClosed = isNormalizedDetentClosed(selectedNormalizedDetent);
   const hasCloseRequestHandler = onCloseRequest != null;
+  // Whether the sheet is open or still closing. Set during render so lazy
+  // content mounts in the same commit as the open index.
+  const [isContentActive, setIsContentActive] = useState(!isSheetClosed);
+  if (!isSheetClosed && !isContentActive) {
+    setIsContentActive(true);
+  }
+  const shouldRenderContent = !lazy || isContentActive;
   // Default the scrim opacity per detent: transparent at any closed detent,
   // fully opaque at every open one.
   const resolvedScrimOpacities =
@@ -246,6 +264,14 @@ export const BottomSheet = (props: BottomSheetProps) => {
     onIndexChange?.(event.nativeEvent.index);
   };
   const handleSettle = (event: { nativeEvent: { index: number } }) => {
+    // Don't compare against `index`: the settle can arrive in the same batch as
+    // the `onIndexChange` that closes the sheet, before `index` catches up. If
+    // a newer open index superseded this settle, the render-time check above
+    // reactivates the content before commit, so it never unmounts.
+    const settledDetent = normalizedDetents[event.nativeEvent.index];
+    if (settledDetent != null && isNormalizedDetentClosed(settledDetent)) {
+      setIsContentActive(false);
+    }
     onSettle?.(event.nativeEvent.index);
   };
 
@@ -322,7 +348,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
           onPositionChange={onPositionChange}
           onCloseRequest={onCloseRequest}
         >
-          {surface != null && (
+          {shouldRenderContent && surface != null && (
             <BottomSheetSurfaceView
               collapsable={false}
               pointerEvents="box-none"
@@ -342,7 +368,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
             // every mode.
             style={styles.contentWrapper}
           >
-            {children}
+            {shouldRenderContent && children}
             <View
               collapsable={false}
               nativeID={CONTENT_HEIGHT_MARKER_NATIVE_ID}
