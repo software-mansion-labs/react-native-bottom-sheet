@@ -264,8 +264,12 @@ export const BottomSheet = (props: BottomSheetProps) => {
     onIndexChange?.(event.nativeEvent.index);
   };
   const handleSettle = (event: { nativeEvent: { index: number } }) => {
-    // Ignore a settle that a newer open request has already superseded.
-    if (event.nativeEvent.index === index && isSheetClosed) {
+    // Don't compare against `index`: the settle can arrive in the same batch as
+    // the `onIndexChange` that closes the sheet, before `index` catches up. If
+    // a newer open index superseded this settle, the render-time check above
+    // reactivates the content before commit, so it never unmounts.
+    const settledDetent = normalizedDetents[event.nativeEvent.index];
+    if (settledDetent != null && isNormalizedDetentClosed(settledDetent)) {
       setIsContentActive(false);
     }
     onSettle?.(event.nativeEvent.index);
