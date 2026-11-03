@@ -182,6 +182,10 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
         // Hand React Native for Web's responder to the sheet once it drags, so
         // pressables under the pointer cancel their press.
         onMoveShouldSetResponderCapture={controller.shouldCaptureResponder}
+        // Only the card takes pointers: a press in a corner it clips away
+        // reaches the scrim (or the page) instead. Presses on the card still
+        // bubble through here to the drag listeners.
+        pointerEvents="box-none"
       >
         <View ref={shadowRef} style={styles.shadow} pointerEvents="none" />
         <View ref={cardRef} style={StyleSheet.absoluteFill}>
