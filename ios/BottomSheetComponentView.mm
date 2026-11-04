@@ -165,6 +165,33 @@ using namespace facebook::react;
     [_sheetView setScrimOpacities:opacities];
   }
 
+  // Pushed unconditionally (the host dedups): a recycled instance's `_props`
+  // still holds the previous sheet's values, so a props diff can miss a reset.
+  {
+    NSMutableArray<NSNumber *> *radii = [NSMutableArray new];
+    for (const auto &radius : newViewProps.surfaceCornerRadii) {
+      [radii addObject:@(radius)];
+    }
+    [_sheetView setSurfaceCornerRadii:radii];
+    [_sheetView setSurfaceCornerCurve:newViewProps.surfaceCornerCurve == BottomSheetViewSurfaceCornerCurve::Continuous
+                    ? @"continuous"
+                    : @"circular"];
+
+    NSMutableArray<NSDictionary *> *shadows = [NSMutableArray new];
+    for (const auto &shadow : newViewProps.surfaceShadows) {
+      [shadows addObject:@{
+        @"offsetX" : @(shadow.offsetX),
+        @"offsetY" : @(shadow.offsetY),
+        @"blurRadius" : @(shadow.blurRadius),
+        @"spreadDistance" : @(shadow.spreadDistance),
+        @"color" : RCTUIColorFromSharedColor(shadow.color) ?: UIColor.blackColor,
+        @"opacity" : @(shadow.opacity),
+        @"excludesInterior" : @(shadow.excludesInterior),
+      }];
+    }
+    [_sheetView setSurfaceShadows:shadows];
+  }
+
   [super updateProps:props oldProps:oldProps];
 }
 

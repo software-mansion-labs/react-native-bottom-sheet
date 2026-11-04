@@ -1,6 +1,11 @@
-import { useState, type ComponentType, type ReactNode } from 'react';
+import { useMemo, useState, type ComponentType, type ReactNode } from 'react';
 import type { NativeSyntheticEvent, StyleProp, ViewStyle } from 'react-native';
-import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import {
+  I18nManager,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 
 import {
   BottomSheetView,
@@ -13,9 +18,11 @@ import {
   type Detent,
   isNormalizedDetentClosed,
   normalizeDetent,
+  resolveSurfaceStyle,
+  type SurfaceStyle,
   validateIndex,
 } from './bottomSheetUtils';
-export type { Detent, DetentValue } from './bottomSheetUtils';
+export type { Detent, DetentValue, SurfaceStyle } from './bottomSheetUtils';
 export { programmatic } from './bottomSheetUtils';
 
 /**
@@ -74,6 +81,14 @@ export interface BottomSheetProps {
    * content would collapse and not show.
    */
   surface?: ReactNode;
+  /**
+   * The card shape of the sheet: corner radii, `borderCurve`, and shadows
+   * (`boxShadow`, `elevation`, and the `shadow*` props). The native host clips
+   * both `surface` and `children` to this shape, so content near a rounded
+   * corner is cut to it, and casts the shadows outside it. State the shape here
+   * rather than on the `surface` element, which only paints the background.
+   */
+  surfaceStyle?: StyleProp<SurfaceStyle>;
   /** Additional style applied to the native sheet host view. */
   style?: StyleProp<ViewStyle>;
   /**
@@ -196,6 +211,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
   const {
     children,
     surface,
+    surfaceStyle,
     style,
     detents = [0, 'content'],
     index,
@@ -253,6 +269,10 @@ export const BottomSheet = (props: BottomSheetProps) => {
     setIsContentActive(true);
   }
   const shouldRenderContent = !lazy || isContentActive;
+  const { cornerRadii, cornerCurve, shadows, elevation, shadowColor } = useMemo(
+    () => resolveSurfaceStyle(surfaceStyle, I18nManager.isRTL),
+    [surfaceStyle]
+  );
   // Default the scrim opacity per detent: transparent at any closed detent,
   // fully opaque at every open one.
   const resolvedScrimOpacities =
@@ -343,6 +363,11 @@ export const BottomSheet = (props: BottomSheetProps) => {
           }
           scrimColor={scrimColor}
           scrimOpacities={resolvedScrimOpacities}
+          surfaceCornerRadii={cornerRadii}
+          surfaceCornerCurve={cornerCurve}
+          surfaceShadows={shadows}
+          surfaceElevation={elevation}
+          surfaceShadowColor={shadowColor}
           onIndexChange={handleIndexChange}
           onSettle={handleSettle}
           onPositionChange={onPositionChange}

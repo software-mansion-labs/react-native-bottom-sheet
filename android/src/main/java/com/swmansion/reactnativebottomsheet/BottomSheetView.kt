@@ -179,6 +179,14 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
 
   fun setScrimOpacities(values: List<Float>) = host.setScrimOpacities(values)
 
+  fun setSurfaceCornerRadii(values: List<Float>) = host.setSurfaceCornerRadii(values)
+
+  internal fun setSurfaceShadows(values: List<CardShadow>) = host.setSurfaceShadows(values)
+
+  fun setSurfaceElevation(value: Float) = host.setSurfaceElevation(value)
+
+  fun setSurfaceShadowColor(color: Int) = host.setSurfaceShadowColor(color)
+
   fun setHasCloseRequestHandler(value: Boolean) {
     if (value == hasCloseRequestHandler) return
     hasCloseRequestHandler = value

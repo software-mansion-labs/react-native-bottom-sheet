@@ -30,6 +30,35 @@ export interface NativeProps extends ViewProps {
   scrollableCollapseNegotiation: CodegenTypes.Int32;
   scrimColor?: ColorValue;
   scrimOpacities?: ReadonlyArray<CodegenTypes.Double>;
+  // Physical corner radii of the card the host clips the surface and content
+  // to: top-left, top-right, bottom-right, bottom-left. Empty or all-zero
+  // leaves the sheet unclipped.
+  surfaceCornerRadii?: ReadonlyArray<CodegenTypes.Double>;
+  surfaceCornerCurve?: CodegenTypes.WithDefault<
+    'circular' | 'continuous',
+    'circular'
+  >;
+  // Outset shadows cast by the card, drawn outside its clipped shape. Nested
+  // colors are not processed by the view config, so JS passes them processed.
+  surfaceShadows?: ReadonlyArray<
+    Readonly<{
+      offsetX: CodegenTypes.Double;
+      offsetY: CodegenTypes.Double;
+      blurRadius: CodegenTypes.Double;
+      spreadDistance: CodegenTypes.Double;
+      color: ColorValue;
+      // iOS only. Android and web draw `boxShadow`, which is always opaque here.
+      opacity: CodegenTypes.Double;
+      // iOS only. `boxShadow` leaves the card's interior unpainted, while the
+      // `shadow*` props paint under it. Android and web draw `boxShadow` alone,
+      // and exclude the interior themselves.
+      excludesInterior: boolean;
+    }>
+  >;
+  // Android only. Casts a system shadow from the card's shape.
+  surfaceElevation?: CodegenTypes.WithDefault<CodegenTypes.Double, 0>;
+  // Android only, API 28+. The color of the elevation shadow.
+  surfaceShadowColor?: ColorValue;
   onIndexChange?: CodegenTypes.DirectEventHandler<
     Readonly<{ index: CodegenTypes.Int32 }>
   >;

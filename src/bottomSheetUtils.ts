@@ -1,3 +1,13 @@
+import {
+  I18nManager,
+  Platform,
+  processColor,
+  StyleSheet,
+  type ProcessedColorValue,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
+
 // Identifies the zero-height marker appended after the content so the native
 // hosts can measure the content height from its position. They look it up by
 // this nativeID rather than by sibling index, because Fabric mounts siblings
@@ -6,6 +16,288 @@
 // `BottomSheetHostView.kt`; keep the three in sync. The web host imports it.
 export const CONTENT_HEIGHT_MARKER_NATIVE_ID =
   'swm-bottom-sheet-content-height-marker';
+
+/**
+ * The card shape of a sheet, stated in standard style vocabulary. The native
+ * host clips the surface and content to this shape, so a radius set here also
+ * rounds the sheet's content.
+ */
+export type SurfaceStyle = Readonly<{
+  borderRadius?: number;
+  borderTopLeftRadius?: number;
+  borderTopRightRadius?: number;
+  borderBottomLeftRadius?: number;
+  borderBottomRightRadius?: number;
+  borderTopStartRadius?: number;
+  borderTopEndRadius?: number;
+  borderBottomStartRadius?: number;
+  borderBottomEndRadius?: number;
+  /** iOS only. Android always draws circular corners. */
+  borderCurve?: 'circular' | 'continuous';
+  /**
+   * Shadows cast by the card, outside its clipped shape. Outset shadows only;
+   * `inset` shadows are ignored. As with React Native's own `boxShadow`,
+   * Android skips them before API 28: use `elevation` for those versions.
+   */
+  boxShadow?: ViewStyle['boxShadow'];
+  /** Android only. Casts a system shadow from the card, on every API level. */
+  elevation?: ViewStyle['elevation'];
+  /** The color of the iOS shadow, and of `elevation` on Android API 28+. */
+  shadowColor?: ViewStyle['shadowColor'];
+  /** iOS only. */
+  shadowOffset?: ViewStyle['shadowOffset'];
+  /** iOS only. Without an opacity above zero, there is no iOS shadow. */
+  shadowOpacity?: ViewStyle['shadowOpacity'];
+  /** iOS only. */
+  shadowRadius?: ViewStyle['shadowRadius'];
+}>;
+
+/** A card shadow in the shape the native hosts consume. */
+type NativeShadow = Readonly<{
+  offsetX: number;
+  offsetY: number;
+  blurRadius: number;
+  spreadDistance: number;
+  /**
+   * A processed color: an ARGB integer, or a platform color object
+   * (`PlatformColor`, `DynamicColorIOS`) that the native host resolves.
+   */
+  color: ProcessedColorValue;
+  /** Multiplied into the color. A dynamic color's alpha is unknown to JS. */
+  opacity: number;
+  /** Whether the shadow leaves the card's interior unpainted, as `boxShadow` does. */
+  excludesInterior: boolean;
+}>;
+
+type ResolvedSurfaceStyle = Readonly<{
+  /** Physical corner radii: top-left, top-right, bottom-right, bottom-left. */
+  cornerRadii: number[];
+  cornerCurve: 'circular' | 'continuous';
+  shadows: NativeShadow[];
+  elevation: number;
+  shadowColor: SurfaceStyle['shadowColor'];
+}>;
+
+type BoxShadowObject = Exclude<
+  NonNullable<ViewStyle['boxShadow']>,
+  string
+>[number];
+
+// Mirrors React Native's own `boxShadow` string syntax: comma-separated
+// shadows of 2–4 lengths, an optional color, and an optional `inset`.
+const COMMA_SPLIT_PATTERN = /,(?![^()]*\))/;
+const WHITESPACE_SPLIT_PATTERN = /\s+(?![^(]*\))/;
+const LENGTH_PATTERN = /^([+-]?\d*\.?\d+)(px)?$/;
+const DEFAULT_SHADOW_COLOR = 'black';
+
+const invalidBoxShadowError = (value: unknown) =>
+  new Error(
+    `Invalid bottom sheet surfaceStyle: \`boxShadow\` received ${JSON.stringify(value)}. Expected a React Native boxShadow value.`
+  );
+
+const parseLength = (value: number | string | undefined, fallback = 0) => {
+  if (value === undefined) return fallback;
+  if (typeof value === 'number') return value;
+  const match = LENGTH_PATTERN.exec(value);
+  return match ? Number(match[1]) : NaN;
+};
+
+const parseBoxShadowString = (value: string): BoxShadowObject[] =>
+  value
+    .replace(/\n/g, ' ')
+    .split(COMMA_SPLIT_PATTERN)
+    .map((shadow) => shadow.trim())
+    .filter((shadow) => shadow !== '')
+    .map((shadow) => {
+      const lengths: string[] = [];
+      let color: string | undefined;
+      let inset = false;
+      for (const token of shadow.split(WHITESPACE_SPLIT_PATTERN)) {
+        if (token === 'inset') {
+          inset = true;
+        } else if (color === undefined && processColor(token) != null) {
+          color = token;
+        } else {
+          lengths.push(token);
+        }
+      }
+      if (lengths.length < 2 || lengths.length > 4) {
+        throw invalidBoxShadowError(value);
+      }
+      return {
+        offsetX: lengths[0]!,
+        offsetY: lengths[1]!,
+        blurRadius: lengths[2],
+        spreadDistance: lengths[3],
+        color,
+        inset,
+      };
+    });
+
+/** Normalizes `boxShadow` into outset shadows with numeric lengths and colors. */
+const resolveShadows = (boxShadow: ViewStyle['boxShadow']): NativeShadow[] => {
+  if (boxShadow == null) return [];
+  const shadows =
+    typeof boxShadow === 'string' ? parseBoxShadowString(boxShadow) : boxShadow;
+  return shadows.flatMap((shadow) => {
+    if (shadow.inset === true) {
+      if (__DEV__) {
+        console.warn(
+          'Bottom sheet surfaceStyle: inset `boxShadow` values are not supported and are ignored.'
+        );
+      }
+      return [];
+    }
+    const offsetX = parseLength(shadow.offsetX);
+    const offsetY = parseLength(shadow.offsetY);
+    const blurRadius = parseLength(shadow.blurRadius);
+    const spreadDistance = parseLength(shadow.spreadDistance);
+    if (
+      ![offsetX, offsetY, blurRadius, spreadDistance].every(Number.isFinite) ||
+      blurRadius < 0
+    ) {
+      throw invalidBoxShadowError(boxShadow);
+    }
+    // Nested colors skip the view config's color processing, so process them
+    // here. Platform and dynamic colors stay objects the native host resolves.
+    const color = processColor(shadow.color ?? DEFAULT_SHADOW_COLOR);
+    if (color == null) {
+      throw invalidBoxShadowError(boxShadow);
+    }
+    return [
+      {
+        offsetX,
+        offsetY,
+        blurRadius,
+        spreadDistance,
+        color,
+        opacity: 1,
+        excludesInterior: true,
+      },
+    ];
+  });
+};
+
+const invalidShadowPropError = (key: string, value: unknown) =>
+  new Error(
+    `Invalid bottom sheet surfaceStyle: \`${key}\` received ${JSON.stringify(value)}.`
+  );
+
+/**
+ * The iOS `shadow*` props as one more card shadow, with React Native's defaults
+ * for a view. They only apply on iOS: the clip would cut a shadow on the view.
+ */
+const resolveIOSShadow = ({
+  shadowColor,
+  shadowOffset,
+  shadowOpacity,
+  shadowRadius,
+}: SurfaceStyle): NativeShadow[] => {
+  if (Platform.OS !== 'ios' || !shadowOpacity) return [];
+  const offsetX = shadowOffset?.width ?? 0;
+  const offsetY = shadowOffset?.height ?? -3;
+  if (!Number.isFinite(offsetX) || !Number.isFinite(offsetY)) {
+    throw invalidShadowPropError('shadowOffset', shadowOffset);
+  }
+  if (!Number.isFinite(shadowOpacity)) {
+    throw invalidShadowPropError('shadowOpacity', shadowOpacity);
+  }
+  const color = processColor(shadowColor ?? DEFAULT_SHADOW_COLOR);
+  if (color == null) {
+    throw invalidShadowPropError('shadowColor', shadowColor);
+  }
+  return [
+    {
+      offsetX,
+      offsetY,
+      // A layer's shadow radius is the sigma, half of a CSS blur radius.
+      blurRadius: (shadowRadius ?? 3) * 2,
+      spreadDistance: 0,
+      color,
+      opacity: shadowOpacity,
+      excludesInterior: false,
+    },
+  ];
+};
+
+const invalidCornerRadiusError = (key: string, value: unknown) =>
+  new Error(
+    `Invalid bottom sheet surfaceStyle: \`${key}\` received ${String(value)}. Expected a finite, non-negative number.`
+  );
+
+/**
+ * Resolves a surface style into physical corner radii for the native host.
+ * Start/end corners take precedence over left/right ones. As in React Native's
+ * own border-radius resolution, Android swaps left and right in RTL unless the
+ * app opted out; iOS and web keep them physical.
+ */
+export const resolveSurfaceStyle = (
+  style: StyleProp<SurfaceStyle>,
+  isRTL: boolean
+): ResolvedSurfaceStyle => {
+  const flattened: SurfaceStyle = StyleSheet.flatten(style) ?? {};
+  for (const [key, value] of Object.entries(flattened)) {
+    if (
+      key.endsWith('Radius') &&
+      value != null &&
+      (typeof value !== 'number' || !Number.isFinite(value) || value < 0)
+    ) {
+      throw invalidCornerRadiusError(key, value);
+    }
+  }
+
+  const {
+    borderRadius,
+    borderTopLeftRadius,
+    borderTopRightRadius,
+    borderBottomLeftRadius,
+    borderBottomRightRadius,
+    borderTopStartRadius,
+    borderTopEndRadius,
+    borderBottomStartRadius,
+    borderBottomEndRadius,
+  } = flattened;
+  const topLeft = isRTL ? borderTopEndRadius : borderTopStartRadius;
+  const topRight = isRTL ? borderTopStartRadius : borderTopEndRadius;
+  const bottomLeft = isRTL ? borderBottomEndRadius : borderBottomStartRadius;
+  const bottomRight = isRTL ? borderBottomStartRadius : borderBottomEndRadius;
+  const swapsSides =
+    isRTL && Platform.OS === 'android' && I18nManager.doLeftAndRightSwapInRTL;
+  const elevation = flattened.elevation ?? 0;
+  if (!Number.isFinite(elevation) || elevation < 0) {
+    throw invalidShadowPropError('elevation', flattened.elevation);
+  }
+
+  return {
+    cornerRadii: [
+      topLeft ??
+        (swapsSides ? borderTopRightRadius : borderTopLeftRadius) ??
+        borderRadius ??
+        0,
+      topRight ??
+        (swapsSides ? borderTopLeftRadius : borderTopRightRadius) ??
+        borderRadius ??
+        0,
+      bottomRight ??
+        (swapsSides ? borderBottomLeftRadius : borderBottomRightRadius) ??
+        borderRadius ??
+        0,
+      bottomLeft ??
+        (swapsSides ? borderBottomRightRadius : borderBottomLeftRadius) ??
+        borderRadius ??
+        0,
+    ],
+    cornerCurve: flattened.borderCurve ?? 'circular',
+    // The first shadow draws on top. A view's `shadow*` shadow sits below its
+    // `boxShadow` in React Native.
+    shadows: [
+      ...resolveShadows(flattened.boxShadow),
+      ...resolveIOSShadow(flattened),
+    ],
+    elevation,
+    shadowColor: flattened.shadowColor,
+  };
+};
 
 /**
  * A finite, non-negative height in points, an unsigned percentage from `0%`
