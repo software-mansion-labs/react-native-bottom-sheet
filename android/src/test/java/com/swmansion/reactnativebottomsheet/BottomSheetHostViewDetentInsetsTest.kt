@@ -1,12 +1,17 @@
 package com.swmansion.reactnativebottomsheet
 
 import android.app.Activity
+import android.graphics.Color
 import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.facebook.react.internal.featureflags.ReactNativeFeatureFlagsForTests
+import com.facebook.react.uimanager.TouchTargetHelper
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
@@ -33,10 +38,14 @@ class BottomSheetHostViewDetentInsetsTest {
       ->
       val d = sheet.density
       assertEquals(HEIGHT_PX - 332 * d, sheet.container.translationY, 0.5f)
-      assertEquals(-16 * d, sheet.clip.hitSlopRect.left.toFloat(), 1f)
-      assertEquals(-8 * d, sheet.clip.hitSlopRect.right.toFloat(), 1f)
+      val middle = 150 * d
+      assertFalse(sheet.clip.cardContains(15 * d, middle))
+      assertTrue(sheet.clip.cardContains(17 * d, middle))
+      assertTrue(sheet.clip.cardContains(WIDTH_PX - 9 * d, middle))
+      assertFalse(sheet.clip.cardContains(WIDTH_PX - 7 * d, middle))
       // The card's bottom in the container: its height, clear of the gap.
-      assertEquals(300 * d - HEIGHT_PX, sheet.clip.hitSlopRect.bottom.toFloat(), 1f)
+      assertTrue(sheet.clip.cardContains(WIDTH_PX / 2f, 299 * d))
+      assertFalse(sheet.clip.cardContains(WIDTH_PX / 2f, 301 * d))
     }
   }
 
@@ -45,7 +54,8 @@ class BottomSheetHostViewDetentInsetsTest {
     withSheet(listOf(points(0.0), percentage(1.0, top = 24.0, bottom = 32.0))) { sheet ->
       val d = sheet.density
       assertEquals(24 * d, sheet.container.translationY, 0.5f)
-      assertEquals(-56 * d, sheet.clip.hitSlopRect.bottom.toFloat(), 1f)
+      assertTrue(sheet.clip.cardContains(WIDTH_PX / 2f, HEIGHT_PX - 57 * d))
+      assertFalse(sheet.clip.cardContains(WIDTH_PX / 2f, HEIGHT_PX - 55 * d))
     }
   }
 
@@ -90,6 +100,29 @@ class BottomSheetHostViewDetentInsetsTest {
     }
   }
 
+  @Test
+  fun `React Native targets the card but not the gaps around it`() {
+    val detents = listOf(points(0.0), points(300.0, left = 16.0, right = 16.0, bottom = 32.0))
+    withSheet(detents, shadows = true) { sheet ->
+      val d = sheet.density
+      val parent = FrameLayout(sheet.context).apply { id = PARENT_TAG }
+      (sheet.parent as ViewGroup).removeView(sheet)
+      sheet.id = SHEET_TAG
+      parent.addView(sheet, ViewGroup.LayoutParams(WIDTH_PX, HEIGHT_PX))
+      parent.layout(0, 0, WIDTH_PX, HEIGHT_PX)
+      val cardTop = HEIGHT_PX - 332 * d
+      val target = { x: Float, y: Float ->
+        TouchTargetHelper.findTargetTagForTouch(x, y, parent)
+      }
+
+      assertEquals(SHEET_TAG, target(WIDTH_PX / 2f, cardTop + 150 * d))
+      assertEquals("bottom gap", PARENT_TAG, target(WIDTH_PX / 2f, HEIGHT_PX - 16 * d))
+      assertEquals("left gap", PARENT_TAG, target(8 * d, cardTop + 150 * d))
+      assertEquals("right gap", PARENT_TAG, target(WIDTH_PX - 8 * d, cardTop + 150 * d))
+      assertEquals("above the card", PARENT_TAG, target(WIDTH_PX / 2f, cardTop - 16 * d))
+    }
+  }
+
   private val BottomSheetHostView.container: ViewGroup
     get() = getChildAt(0) as ViewGroup
 
@@ -130,6 +163,7 @@ class BottomSheetHostViewDetentInsetsTest {
   private fun withSheet(
     detents: List<Map<String, Any>>,
     index: Int = 1,
+    shadows: Boolean = false,
     block: (BottomSheetHostView) -> Unit,
   ) {
     val controller = Robolectric.buildActivity(Activity::class.java).setup()
@@ -145,6 +179,7 @@ class BottomSheetHostViewDetentInsetsTest {
         },
         0,
       )
+      if (shadows) sheet.setSurfaceShadows(listOf(CardShadow(0f, 4f, 24f, 0f, Color.BLACK)))
       sheet.setDetents(detents)
       sheet.setIndex(index)
       controller.get().setContentView(sheet, ViewGroup.LayoutParams(WIDTH_PX, HEIGHT_PX))
@@ -164,5 +199,7 @@ class BottomSheetHostViewDetentInsetsTest {
   private companion object {
     const val WIDTH_PX = 1080
     const val HEIGHT_PX = 1920
+    const val PARENT_TAG = 1
+    const val SHEET_TAG = 2
   }
 }

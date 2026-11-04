@@ -9,6 +9,8 @@ import android.graphics.Rect
 import android.graphics.RectF
 import android.os.Build
 import android.view.View
+import com.facebook.react.uimanager.PointerEvents
+import com.facebook.react.uimanager.ReactPointerEventsView
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.floor
@@ -34,7 +36,11 @@ internal data class CardShadow(
  * Drawn the way React Native draws `boxShadow`: the shadow's shape, blurred, with the card clipped
  * out of it. Hardware-accelerated blurs on shapes need API 28, so earlier versions draw no shadow.
  */
-internal class BottomSheetCardShadowView(context: Context) : View(context) {
+internal class BottomSheetCardShadowView(context: Context) :
+  View(context), ReactPointerEventsView {
+  // Spans the whole sheet container, gaps included, so React Native must not target it.
+  override val pointerEvents: PointerEvents = PointerEvents.NONE
+
   private val cornerRadii = FloatArray(4)
   private var shadows: List<CardShadow> = emptyList()
   private var blurFilters: List<BlurMaskFilter?> = emptyList()

@@ -11,7 +11,6 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewOutlineProvider
 import android.widget.FrameLayout
-import com.facebook.react.touch.ReactHitSlopView
 import com.facebook.react.uimanager.PointerEvents
 import com.facebook.react.uimanager.ReactPointerEventsView
 
@@ -23,7 +22,7 @@ import com.facebook.react.uimanager.ReactPointerEventsView
  * clip), never a relayout of the Fabric-managed children.
  */
 internal class BottomSheetCardClipLayout(context: Context) :
-  FrameLayout(context), ReactPointerEventsView, ReactHitSlopView {
+  FrameLayout(context), ReactPointerEventsView {
   /** The card in this view's coordinates. */
   private val cardRect = RectF()
 
@@ -33,7 +32,6 @@ internal class BottomSheetCardClipLayout(context: Context) :
   private val pathRadii = FloatArray(8)
   private val clipRect = Rect()
   private var clipsToCard = false
-  private val cardHitSlop = Rect()
 
   private enum class ClipMode {
     /** No corner is rounded and the card fills the sheet: the sheet stays unclipped. */
@@ -64,20 +62,6 @@ internal class BottomSheetCardClipLayout(context: Context) :
 
   override val pointerEvents: PointerEvents = PointerEvents.BOX_NONE
 
-  /**
-   * Keeps React Native's touch targeting on the card: a touch in a gap isn't on the sheet, even
-   * where the surface or content extends under it.
-   */
-  override val hitSlopRect: Rect
-    get() {
-      cardHitSlop.set(
-        -cardRect.left.toInt(),
-        -cardRect.top.toInt(),
-        cardRect.right.toInt() - width,
-        cardRect.bottom.toInt() - height,
-      )
-      return cardHitSlop
-    }
 
   init {
     clipChildren = false
@@ -152,9 +136,6 @@ internal class BottomSheetCardClipLayout(context: Context) :
       }
     clipToOutline =
       clipMode != ClipMode.NONE && clipMode != ClipMode.RECT && clipMode != ClipMode.CANVAS_PATH
-    // React Native's touch targeting only stops at a view's bounds (here, the card's through
-    // `hitSlopRect`) when it clips its children. Drawing is cut to the card anyway.
-    clipChildren = clipMode != ClipMode.NONE
     updateClipBounds()
     invalidateOutline()
     invalidate()
@@ -225,18 +206,6 @@ internal class BottomSheetCardClipLayout(context: Context) :
         isInCorner(x, y, left + bottomLeft, bottom - bottomLeft, bottomLeft)
       else -> true
     }
-  }
-
-  /** Whether `(x, y)`, in this view's coordinates, falls in a corner the card clips away. */
-  fun isInClippedCorner(x: Float, y: Float): Boolean =
-    cardRect.contains(x, y) && !cardContains(x, y)
-
-  /** The clipped corners are not on the card, so touches there skip its children. */
-  override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-    if (event.actionMasked == MotionEvent.ACTION_DOWN && isInClippedCorner(event.x, event.y)) {
-      return false
-    }
-    return super.dispatchTouchEvent(event)
   }
 
   private fun isInCorner(

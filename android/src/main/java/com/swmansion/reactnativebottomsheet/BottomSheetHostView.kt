@@ -1095,24 +1095,17 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   }
 
   /**
-   * Steps the sheet out of React Native's target walk for a touch in a clipped corner, so the walk
-   * finds what shows through it. A visible scrim keeps the touch, as it does anywhere else. The
+   * Steps the sheet out of React Native's target walk for a touch off the card, in a gap or a clipped
+   * corner, so the walk finds what shows through it. A visible scrim keeps the touch, as it does anywhere else. The
    * walk runs while the touch is dispatched, so the skip ends with that dispatch and never outlives
    * it into another view walk.
    */
   private fun onTouchTargeting(x: Float, y: Float) {
-    val skips = !isScrimVisible() && isInClippedCorner(x, y)
+    val skips = !isScrimVisible() && !cardContains(x, y)
     sheetContainer.skipsTouchTargeting = skips
     removeCallbacks(clearCardTouchSkip)
     if (skips) post(clearCardTouchSkip)
   }
-
-  /** Whether `(x, y)`, in host coordinates, falls in a corner the card clips away. */
-  private fun isInClippedCorner(x: Float, y: Float): Boolean =
-    clipContainer.isInClippedCorner(
-      x - sheetContainer.left - sheetContainer.translationX,
-      y - sheetContainer.top - sheetContainer.translationY,
-    )
 
   /** Whether `(x, y)`, in host coordinates, falls on the card as it is drawn. */
   private fun cardContains(x: Float, y: Float): Boolean =
@@ -1498,10 +1491,10 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
         announceGestureTakeover(event)
         return true
       }
-      // The target walk has already stepped past the sheet for a clipped corner. If it didn't, on a
-      // React Native whose walk doesn't reach the sensor, the JS target may be hidden content, so
-      // cancel that touch.
-      if (!sheetContainer.skipsTouchTargeting && isInClippedCorner(event.x, event.y)) {
+      // The target walk has already stepped past the sheet for a touch off the card. If it didn't,
+      // on a React Native whose walk doesn't reach the sensor, the JS target may be hidden content,
+      // so cancel that touch.
+      if (!sheetContainer.skipsTouchTargeting) {
         notifyNativeGestureStarted(event)
       }
       return false
