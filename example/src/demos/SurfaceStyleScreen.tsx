@@ -129,7 +129,7 @@ export const SurfaceStyleScreen = () => {
           }
         >
           {/* Full-bleed band: the card's corners must cut it. */}
-          <View style={{ height: 72, backgroundColor: '#3b82f6' }}>
+          <View style={{ backgroundColor: '#3b82f6' }}>
             <SheetHeader title={shape.label} onClose={() => setIndex(0)} />
           </View>
           <View

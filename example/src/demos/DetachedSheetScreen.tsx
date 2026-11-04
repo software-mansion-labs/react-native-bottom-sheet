@@ -146,7 +146,8 @@ const SCENARIOS: Scenario[] = [
   },
   {
     label: 'No closed detent',
-    expect: 'Stays open: the card never leaves, and drags stop at 160.',
+    expect:
+      'Drags stop at 160. No detent hides it, so the X unmounts the sheet.',
     detents: [160, '50%'],
     detentInsets: [FLOATING, { left: 32, right: 32, bottom: 64 }],
   },
@@ -306,6 +307,7 @@ const KeyboardBody = () => {
 
 export const DetachedSheetScreen = () => {
   const [index, setIndex] = useState(0);
+  const [isUnmounted, setIsUnmounted] = useState(false);
   const [scenarioIndex, setScenarioIndex] = useState(0);
   const [isModal, setIsModal] = useState(true);
   const [nativeOverlay, setNativeOverlay] = useState(false);
@@ -316,7 +318,8 @@ export const DetachedSheetScreen = () => {
   const imageRef = useRef<Image>(null);
   const [isRTLOnNextLaunch, setIsRTLOnNextLaunch] = useState(I18nManager.isRTL);
   const scenario = SCENARIOS[scenarioIndex]!;
-  const openIndex = scenario.detents[0] === 0 ? 1 : 0;
+  const hasClosedDetent = scenario.detents[0] === 0;
+  const openIndex = hasClosedDetent ? 1 : 0;
 
   const sheetProps = {
     detents: scenario.detents,
@@ -350,7 +353,12 @@ export const DetachedSheetScreen = () => {
       <>
         {/* Full-bleed band: it must touch the card's edges at every detent. */}
         <View style={styles.band}>
-          <SheetHeader title={scenario.label} onClose={() => setIndex(0)} />
+          <SheetHeader
+            title={scenario.label}
+            onClose={() =>
+              hasClosedDetent ? setIndex(0) : setIsUnmounted(true)
+            }
+          />
         </View>
         {scenario.hugeGaps && (
           // Full-bleed too: it must touch the card's edges at every detent.
@@ -407,7 +415,7 @@ export const DetachedSheetScreen = () => {
           >
             <Text>Presses behind the sheet: {behindPresses}</Text>
           </Pressable>
-          {isModal ? (
+          {isUnmounted ? null : isModal ? (
             <ModalBottomSheet
               {...sheetProps}
               scrimColor={MODAL_SCRIM_COLOR}
@@ -429,6 +437,7 @@ export const DetachedSheetScreen = () => {
             ]}
             onPress={() => {
               setScenarioIndex(itemIndex);
+              setIsUnmounted(false);
               setIndex(item.detents[0] === 0 ? 1 : 0);
             }}
           >
@@ -460,7 +469,13 @@ export const DetachedSheetScreen = () => {
           }}
         />
       </View>
-      <Button title="Open sheet" onPress={() => setIndex(openIndex)} />
+      <Button
+        title="Open sheet"
+        onPress={() => {
+          setIsUnmounted(false);
+          setIndex(openIndex);
+        }}
+      />
     </DemoScreen>
   );
 };
@@ -506,7 +521,7 @@ const styles = StyleSheet.create({
     height: 120,
     width: 120,
   },
-  band: { height: 72, backgroundColor: '#3b82f6' },
+  band: { backgroundColor: '#3b82f6' },
   body: { padding: 16, gap: 12 },
   detentButtons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   input: {
