@@ -1,8 +1,12 @@
 package com.swmansion.reactnativebottomsheet
 
+import android.graphics.Color
 import android.view.View
 import com.facebook.react.bridge.Arguments
+import com.facebook.react.bridge.ColorPropConverter
 import com.facebook.react.bridge.ReadableArray
+import com.facebook.react.bridge.ReadableMap
+import com.facebook.react.bridge.ReadableType
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.module.annotations.ReactModule
 import com.facebook.react.uimanager.ReactStylesDiffMap
@@ -11,7 +15,6 @@ import com.facebook.react.uimanager.ThemedReactContext
 import com.facebook.react.uimanager.UIManagerHelper
 import com.facebook.react.uimanager.ViewGroupManager
 import com.facebook.react.uimanager.ViewManagerDelegate
-import com.facebook.react.uimanager.annotations.ReactProp
 import com.facebook.react.uimanager.events.Event
 import com.facebook.react.viewmanagers.BottomSheetViewManagerDelegate
 import com.facebook.react.viewmanagers.BottomSheetViewManagerInterface
@@ -102,7 +105,6 @@ class BottomSheetViewManager :
     )
   }
 
-  @ReactProp(name = "detents")
   override fun setDetents(view: BottomSheetView, detents: ReadableArray?) {
     if (detents == null) return
     val list = mutableListOf<Map<String, Any>>()
@@ -119,7 +121,6 @@ class BottomSheetViewManager :
     view.setDetents(list)
   }
 
-  @ReactProp(name = "index")
   override fun setIndex(view: BottomSheetView, index: Int) {
     // Props within an update arrive in no particular order, so apply the index after the update's
     // detents, as iOS does. Otherwise an index that targets a newly added detent is dropped.
@@ -131,57 +132,46 @@ class BottomSheetViewManager :
     view.applyPendingIndex()
   }
 
-  @ReactProp(name = "animateIn")
   override fun setAnimateIn(view: BottomSheetView, animateIn: Boolean) {
     view.animateIn = animateIn
   }
 
-  @ReactProp(name = "animateContentHeight")
   override fun setAnimateContentHeight(view: BottomSheetView, animateContentHeight: Boolean) {
     view.animateContentHeight = animateContentHeight
   }
 
-  @ReactProp(name = "modal")
   override fun setModal(view: BottomSheetView, modal: Boolean) {
     view.modal = modal
   }
 
-  @ReactProp(name = "nativeOverlay")
   override fun setNativeOverlay(view: BottomSheetView, value: Boolean) {
     view.setNativeOverlay(value)
   }
 
-  @ReactProp(name = "overlayOrder")
   override fun setOverlayOrder(view: BottomSheetView, value: Int) {
     view.setOverlayOrder(value)
   }
 
-  @ReactProp(name = "hasCloseRequestHandler")
   override fun setHasCloseRequestHandler(view: BottomSheetView, value: Boolean) {
     view.setHasCloseRequestHandler(value)
   }
 
-  @ReactProp(name = "extendUnderStatusBar")
   override fun setExtendUnderStatusBar(view: BottomSheetView, value: Boolean) {
     view.extendUnderStatusBar = value
   }
 
-  @ReactProp(name = "scrollableExpandNegotiation")
   override fun setScrollableExpandNegotiation(view: BottomSheetView, value: Int) {
     view.scrollableExpandNegotiation = value
   }
 
-  @ReactProp(name = "scrollableCollapseNegotiation")
   override fun setScrollableCollapseNegotiation(view: BottomSheetView, value: Int) {
     view.scrollableCollapseNegotiation = value
   }
 
-  @ReactProp(name = "scrimColor", customType = "Color")
   override fun setScrimColor(view: BottomSheetView, scrimColor: Int?) {
     view.setScrimColor(scrimColor)
   }
 
-  @ReactProp(name = "scrimOpacities")
   override fun setScrimOpacities(view: BottomSheetView, value: ReadableArray?) {
     val opacities = mutableListOf<Float>()
     if (value != null) {
@@ -191,6 +181,57 @@ class BottomSheetViewManager :
     }
     view.setScrimOpacities(opacities)
   }
+
+  override fun setSurfaceCornerRadii(view: BottomSheetView, value: ReadableArray?) {
+    val radii = mutableListOf<Float>()
+    if (value != null) {
+      for (i in 0 until value.size()) {
+        radii.add(value.getDouble(i).toFloat())
+      }
+    }
+    view.setSurfaceCornerRadii(radii)
+  }
+
+  override fun setSurfaceShadows(view: BottomSheetView, value: ReadableArray?) {
+    val shadows = mutableListOf<CardShadow>()
+    if (value != null) {
+      for (i in 0 until value.size()) {
+        val shadow = value.getMap(i) ?: continue
+        shadows.add(
+          CardShadow(
+            offsetX = shadow.getDouble("offsetX").toFloat(),
+            offsetY = shadow.getDouble("offsetY").toFloat(),
+            blurRadius = shadow.getDouble("blurRadius").toFloat(),
+            spreadDistance = shadow.getDouble("spreadDistance").toFloat(),
+            color = shadowColor(view, shadow),
+          ),
+        )
+      }
+    }
+    view.setSurfaceShadows(shadows)
+  }
+
+  override fun setSurfaceElevation(view: BottomSheetView, value: Double) {
+    view.setSurfaceElevation(value.toFloat())
+  }
+
+  override fun setSurfaceShadowColor(view: BottomSheetView, value: Int?) {
+    view.setSurfaceShadowColor(value ?: Color.BLACK)
+  }
+
+  // Processed colors arrive as numbers, or as maps for `PlatformColor`.
+  private fun shadowColor(view: BottomSheetView, shadow: ReadableMap): Int {
+    val value: Any? =
+      when (shadow.getType("color")) {
+        ReadableType.Number -> shadow.getDouble("color")
+        ReadableType.Map -> shadow.getMap("color")
+        else -> null
+      }
+    return ColorPropConverter.getColor(value, view.context, Color.BLACK)
+  }
+
+  // Android always draws circular corners; the curve applies on iOS only.
+  override fun setSurfaceCornerCurve(view: BottomSheetView, value: String?) = Unit
 
   override fun onDropViewInstance(view: BottomSheetView) {
     super.onDropViewInstance(view)

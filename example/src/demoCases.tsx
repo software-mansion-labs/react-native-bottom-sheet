@@ -1,6 +1,8 @@
 export type CaseKey =
   | 'scrim-pressables'
   | 'basic-modal'
+  | 'surface-style'
+  | 'corner-touches'
   | 'lazy-mounted-modal'
   | 'native-overlay-modal'
   | 'native-overlay-nested'
@@ -48,6 +50,16 @@ export const DEMO_CASES: DemoCase[] = [
     key: 'basic-modal',
     title: 'Basic modal',
     href: '/basic-modal',
+  },
+  {
+    key: 'surface-style',
+    title: 'Surface style (card shape)',
+    href: '/surface-style',
+  },
+  {
+    key: 'corner-touches',
+    title: 'Corner touches',
+    href: '/corner-touches',
   },
   {
     key: 'lazy-mounted-modal',

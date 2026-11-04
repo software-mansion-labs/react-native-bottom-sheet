@@ -24,6 +24,8 @@ type BottomSheetViewProps = NativeProps & {
 };
 
 const DEFAULT_SCRIM_OPACITIES = [1];
+const DEFAULT_CORNER_RADII = [0, 0, 0, 0];
+const DEFAULT_SHADOWS: NonNullable<NativeProps['surfaceShadows']> = [];
 
 // React Native for Web views render DOM elements, and their refs resolve to
 // them.
@@ -62,6 +64,17 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
     scrollableCollapseNegotiation,
     scrimColor,
     scrimOpacities = DEFAULT_SCRIM_OPACITIES,
+    surfaceCornerRadii = DEFAULT_CORNER_RADII,
+    surfaceShadows = DEFAULT_SHADOWS,
+    // CSS has no continuous corner curve; corners are drawn circular. Taken
+    // out of the props so it is not forwarded to the host view.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    surfaceCornerCurve,
+    // Android only. Taken out of the props for the same reason.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    surfaceElevation,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    surfaceShadowColor,
     onIndexChange,
     onSettle,
     onPositionChange,
@@ -72,6 +85,8 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
   const hostRef = useRef<ViewInstance>(null);
   const scrimRef = useRef<ViewInstance>(null);
   const containerRef = useRef<ViewInstance>(null);
+  const cardRef = useRef<ViewInstance>(null);
+  const shadowRef = useRef<ViewInstance>(null);
   const contentRef = useRef<ViewInstance>(null);
   // Detents that fail validation are found while measuring, outside render.
   // Rethrow them during render so error boundaries see them, as the native
@@ -103,9 +118,11 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
     const host = asElement(hostRef.current);
     const scrim = asElement(scrimRef.current);
     const container = asElement(containerRef.current);
+    const card = asElement(cardRef.current);
+    const shadow = asElement(shadowRef.current);
     const content = asElement(contentRef.current);
-    if (!host || !scrim || !container || !content) return;
-    controller.attach({ host, scrim, container, content });
+    if (!host || !scrim || !container || !card || !shadow || !content) return;
+    controller.attach({ host, scrim, container, card, shadow, content });
     return () => controller.detach();
   }, [controller, isMounted]);
 
@@ -133,6 +150,8 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
       scrollableExpandNegotiation,
       scrollableCollapseNegotiation,
       scrimOpacities,
+      cornerRadii: surfaceCornerRadii,
+      shadows: surfaceShadows,
     });
   });
 
@@ -169,9 +188,16 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
         // Hand React Native for Web's responder to the sheet once it drags, so
         // pressables under the pointer cancel their press.
         onMoveShouldSetResponderCapture={controller.shouldCaptureResponder}
+        // Only the card takes pointers: a press in a corner it clips away
+        // reaches the scrim (or the page) instead. Presses on the card still
+        // bubble through here to the drag listeners.
+        pointerEvents="box-none"
       >
-        {surface}
-        <View ref={contentRef}>{sheetContent}</View>
+        <View ref={shadowRef} style={styles.shadow} pointerEvents="none" />
+        <View ref={cardRef} style={StyleSheet.absoluteFill}>
+          {surface}
+          <View ref={contentRef}>{sheetContent}</View>
+        </View>
       </View>
     </View>
   );
@@ -197,6 +223,7 @@ const OVERLAY_Z_INDEX = 10000;
 const styles = StyleSheet.create({
   host: { overflow: 'hidden' },
   container: { position: 'absolute', left: 0, right: 0, top: 0 },
+  shadow: { position: 'absolute', left: 0, right: 0, top: 0 },
   overlay: {
     // React Native for Web supports fixed positioning; the overlay spans the
     // viewport above the app, like the native window-level overlay.
