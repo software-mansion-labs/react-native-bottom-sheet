@@ -72,6 +72,5 @@ follow React Native's support on each platform:
 `elevation` next to `boxShadow`. Android casts `elevation` from a light above
 the screen, so it is faint along a sheet's top edge.
 
-On Android, a press in a clipped corner doesn't reach your content. It reaches
-native views behind the sheet, but React Native can't route it to a `Pressable`
-behind the sheet, so that `Pressable` doesn't fire.
+A press in a clipped corner isn't on the card. It reaches whatever shows through
+the corner, or closes a modal sheet through its scrim.
