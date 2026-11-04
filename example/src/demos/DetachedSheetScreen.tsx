@@ -59,10 +59,9 @@ const SCENARIOS: Scenario[] = [
   },
   {
     label: 'Top inset at full',
-    expect:
-      'The full detent stops 24 below the status bar and 32 above the bottom.',
+    expect: 'The full detent stops 120 below the top and 32 above the bottom.',
     detents: [0, 320, '100%'],
-    detentInsets: [{ ...FLOATING, top: 24 }],
+    detentInsets: [{ ...FLOATING, top: 120 }],
   },
   {
     label: 'Percentage detents',
@@ -86,7 +85,7 @@ const SCENARIOS: Scenario[] = [
     label: 'Scrollable, narrows when full',
     expect: 'The last row reaches the bottom of the narrower full card.',
     detents: [0, 320, '100%'],
-    detentInsets: [{}, {}, { ...FLOATING, top: 24 }],
+    detentInsets: [{}, {}, FLOATING],
     scrollable: true,
   },
   {
@@ -178,7 +177,7 @@ export const DetachedSheetScreen = () => {
   const [scenarioIndex, setScenarioIndex] = useState(0);
   const [isModal, setIsModal] = useState(true);
   const [nativeOverlay, setNativeOverlay] = useState(false);
-  const [extendUnderStatusBar, setExtendUnderStatusBar] = useState(false);
+  const [isUnderStatusBar, setIsUnderStatusBar] = useState(false);
   const [hasShadow, setHasShadow] = useState(true);
   const [behindPresses, setBehindPresses] = useState(0);
   const [isRTLOnNextLaunch, setIsRTLOnNextLaunch] = useState(I18nManager.isRTL);
@@ -187,10 +186,11 @@ export const DetachedSheetScreen = () => {
 
   const sheetProps = {
     detents: scenario.detents,
-    detentInsets: scenario.detentInsets,
+    detentInsets: isUnderStatusBar
+      ? (scenario.detentInsets ?? [{}]).map((inset) => ({ ...inset, top: 0 }))
+      : scenario.detentInsets,
     index: Math.min(index, scenario.detents.length - 1),
     onIndexChange: setIndex,
-    extendUnderStatusBar,
     animateContentHeight: !scenario.keyboard,
     surfaceStyle: {
       ...(scenario.shape ?? ROUNDED),
@@ -283,8 +283,8 @@ export const DetachedSheetScreen = () => {
         />
         <Toggle
           label="Under status bar"
-          value={extendUnderStatusBar}
-          onValueChange={setExtendUnderStatusBar}
+          value={isUnderStatusBar}
+          onValueChange={setIsUnderStatusBar}
         />
         <Toggle label="Shadow" value={hasShadow} onValueChange={setHasShadow} />
         <Toggle

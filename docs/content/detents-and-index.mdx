@@ -54,13 +54,14 @@ fills 500pt and scrolls all the way to its last item; with a `'content'` detent
 as the tallest, the container spans the full available height, so a filling
 scrollable resolves `'content'` to that height.
 
-By default, full-height detents are capped below the status bar. Set
-`extendUnderStatusBar` when the sheet should be allowed to occupy the full
-screen height:
+By default, full-height detents stop below the status bar: the top of
+`detentInsets` defaults to the part of the status bar that overlaps the host. It
+is measured from the host's top, so a lower value goes partly under the status
+bar, and `0` lets the sheet occupy the full screen height:
 
 ```tsx
 <BottomSheet // Or `ModalBottomSheet`.
-  extendUnderStatusBar
+  detentInsets={[{ top: 0 }]}
   index={index}
   onIndexChange={setIndex}
   surface={/* ... */}
@@ -77,15 +78,14 @@ The `index` prop must be a finite, zero-based integer in the range
 `ModalBottomSheet`. `onIndexChange` and `onSettle` have different
 responsibilities:
 
-- `onIndexChange` fires when a user-triggered snap is _initiated_: the
-  moment a drag commits to a detent, before the animation settles. It does not
-  fire for programmatic `index` changes; you already know when you make those.
-  Treat it as the signal to update your controlled `index` state.
+- `onIndexChange` fires when a user-triggered snap is _initiated_: the moment a
+  drag commits to a detent, before the animation settles. It does not fire for
+  programmatic `index` changes; you already know when you make those. Treat it
+  as the signal to update your controlled `index` state.
 - `onSettle` fires when the sheet finishes snapping to a detent, regardless of
-  whether that snap was user-triggered or programmatic. It is the
-  signal for the _end_ of any movement. Use it for observability or side effects
-  (analytics, reacting to collapse, etc.), not for updating the controlled
-  `index` state.
+  whether that snap was user-triggered or programmatic. It is the signal for the
+  _end_ of any movement. Use it for observability or side effects (analytics,
+  reacting to collapse, etc.), not for updating the controlled `index` state.
 
 ```tsx
 const [index, setIndex] = useState(0);

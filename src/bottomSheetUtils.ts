@@ -333,8 +333,9 @@ export const isDetentProgrammatic = (detent: Detent): boolean => {
  */
 export type DetentInset = Readonly<{
   /**
-   * The minimum space between the card's top and the top of the space the sheet
-   * can reach: the status bar's edge or, with `extendUnderStatusBar`, the host's.
+   * The minimum space between the card's top and the host's top. Defaults to the
+   * part of the status bar that overlaps the host, so the card stops below it;
+   * pass a lower value, or `0`, to go under the status bar.
    */
   top?: number;
   left?: number;
@@ -352,6 +353,9 @@ type NormalizedDetent = Readonly<{
   insetRight: number;
   insetBottom: number;
 }>;
+
+/** Tells the native views to use the status bar's overlap as the top inset. */
+const STATUS_BAR_TOP_INSET = -1;
 
 const PERCENTAGE_PATTERN = /^\d+(?:\.\d+)?%$/;
 
@@ -388,7 +392,8 @@ const resolveDetentInset = (
     return value;
   };
   return {
-    insetTop: resolveSide('top'),
+    insetTop:
+      inset.top === undefined ? STATUS_BAR_TOP_INSET : resolveSide('top'),
     insetLeft: resolveSide('left'),
     insetRight: resolveSide('right'),
     insetBottom: resolveSide('bottom'),

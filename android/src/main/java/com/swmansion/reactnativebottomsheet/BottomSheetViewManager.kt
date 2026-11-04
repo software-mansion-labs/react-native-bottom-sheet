@@ -161,10 +161,6 @@ class BottomSheetViewManager :
     view.setHasCloseRequestHandler(value)
   }
 
-  override fun setExtendUnderStatusBar(view: BottomSheetView, value: Boolean) {
-    view.extendUnderStatusBar = value
-  }
-
   override fun setScrollableExpandNegotiation(view: BottomSheetView, value: Int) {
     view.scrollableExpandNegotiation = value
   }

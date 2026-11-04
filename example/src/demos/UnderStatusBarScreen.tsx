@@ -12,12 +12,12 @@ import {
 
 export const UnderStatusBarScreen = () => {
   const [index, setIndex] = useState(0);
-  const [extendUnderStatusBar, setExtendUnderStatusBar] = useState(false);
+  const [isUnderStatusBar, setIsUnderStatusBar] = useState(false);
   const insets = useSafeAreaInsets();
   const sheetBottomPadding = useSheetBottomPadding();
 
-  const openSheet = (nextExtendUnderStatusBar: boolean) => {
-    setExtendUnderStatusBar(nextExtendUnderStatusBar);
+  const openSheet = (nextIsUnderStatusBar: boolean) => {
+    setIsUnderStatusBar(nextIsUnderStatusBar);
     setIndex(1);
   };
 
@@ -26,8 +26,8 @@ export const UnderStatusBarScreen = () => {
       title="Under status bar"
       sheet={
         <BottomSheet
-          extendUnderStatusBar={extendUnderStatusBar}
           detents={[0, 'content']}
+          detentInsets={isUnderStatusBar ? [{ top: 0 }] : undefined}
           index={index}
           onIndexChange={setIndex}
           surface={
@@ -35,8 +35,8 @@ export const UnderStatusBarScreen = () => {
               style={[
                 StyleSheet.absoluteFill,
                 {
-                  borderTopLeftRadius: extendUnderStatusBar ? 0 : 16,
-                  borderTopRightRadius: extendUnderStatusBar ? 0 : 16,
+                  borderTopLeftRadius: isUnderStatusBar ? 0 : 16,
+                  borderTopRightRadius: isUnderStatusBar ? 0 : 16,
                 },
               ]}
             />
@@ -64,14 +64,14 @@ export const UnderStatusBarScreen = () => {
               }}
             >
               <Text style={{ fontSize: 18, fontWeight: '600' }}>
-                {extendUnderStatusBar
+                {isUnderStatusBar
                   ? 'Sheet can use the full screen height.'
                   : 'Sheet is capped below the status bar.'}
               </Text>
               <Text style={{ fontSize: 15, lineHeight: 22, color: '#555' }}>
                 Open each mode and compare the sheet top edge. The blue header
                 includes status-bar padding, so it visibly reaches the top only
-                when `extendUnderStatusBar` is enabled.
+                with a `top` inset of 0.
               </Text>
             </View>
           </View>
@@ -80,7 +80,7 @@ export const UnderStatusBarScreen = () => {
     >
       <Button title="Open below status bar" onPress={() => openSheet(false)} />
       <Button title="Open under status bar" onPress={() => openSheet(true)} />
-      <Text>extendUnderStatusBar: {String(extendUnderStatusBar)}</Text>
+      <Text>top inset: {isUnderStatusBar ? '0' : 'default'}</Text>
       <Text>detents: [{`0, 'content'`}]</Text>
     </DemoScreen>
   );

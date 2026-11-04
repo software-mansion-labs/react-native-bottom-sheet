@@ -54,6 +54,7 @@ private enum class ScrollableNegotiationLevel(val value: Int) {
 
 /** The space kept around the card at a detent, in px. */
 private data class DetentInsets(
+  // Negative for the status bar's overlap with the host, which can change.
   val top: Float = 0f,
   val left: Float = 0f,
   val right: Float = 0f,
@@ -661,7 +662,10 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   // The tallest the card can be at a detent: the cap, less the detent's top and bottom insets.
   // Percentages resolve against it, so `100%` fits.
   private fun availableCardHeight(spec: RawDetentSpec, capPx: Float): Float =
-    (capPx - spec.insets.top - spec.insets.bottom).coerceAtLeast(0f)
+    (capPx -
+        (if (spec.insets.top < 0f) statusBarOverlapPx else spec.insets.top) -
+        spec.insets.bottom)
+      .coerceAtLeast(0f)
 
   private fun unresolvedContentDetentHeight(index: Int, maxHeight: Float): Float {
     val nextBound =
@@ -1179,19 +1183,16 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   private var lastGeometryStateHeight = 0
   private var lastGeometryStateInsetTop = Float.NaN
   private var lastSentStateSnapshot: StateSnapshot? = null
-  // The natively computed detent cap: this view's height minus the part of the
-  // window's top (status bar / display cutout) inset that actually overlaps it.
-  // Measured from real window geometry in every mode — inline, portal, and
-  // overlay — so no JS-estimated dimensions are involved. NaN until the view is
-  // attached and sized, in which case the full height applies.
+  // The detent cap: this view's height. The top inset decides how much of it a
+  // detent can use. NaN until the view is attached and sized, in which case the
+  // full height applies.
   private var nativeCapPx = Float.NaN
 
-  var extendUnderStatusBar: Boolean = false
-    set(value) {
-      if (field == value) return
-      field = value
-      recomputeNativeGeometry()
-    }
+  // The default top inset: the part of the window's top (status bar / display
+  // cutout) inset that actually overlaps this view. Measured from real window
+  // geometry in every mode — inline, portal, and overlay — so no JS-estimated
+  // dimensions are involved.
+  private var statusBarOverlapPx = 0f
 
   /**
    * The height of the content region: the Yoga box the sheet's in-flow children (the `flex: 1`
@@ -1239,12 +1240,12 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     // Only the part of the inset this view actually extends under matters: a
     // sheet inside a container that starts below the status bar keeps its full
     // height.
-    val topOverlap = (topInset - location[1]).coerceAtLeast(0)
-    val cap =
-      (if (extendUnderStatusBar) height else height - topOverlap).toFloat().coerceAtLeast(0f)
+    val topOverlap = (topInset - location[1]).coerceIn(0, height).toFloat()
+    val cap = height.toFloat()
 
-    val capChanged = cap != nativeCapPx
+    val capChanged = cap != nativeCapPx || topOverlap != statusBarOverlapPx
     nativeCapPx = cap
+    statusBarOverlapPx = topOverlap
     pushGeometryState(width, height, height - contentRegionHeightPx(cap))
     if (capChanged) {
       refreshDetentsFromLayout()
@@ -2197,6 +2198,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     sheetChildrenLayoutEnqueued = false
     removeCallbacks(ensureHostLayoutAfterAttach)
     nativeCapPx = Float.NaN
+    statusBarOverlapPx = 0f
     lastAppliedMaxDetentHeight = Float.NaN
     lastGeometryStateWidth = 0
     lastGeometryStateHeight = 0

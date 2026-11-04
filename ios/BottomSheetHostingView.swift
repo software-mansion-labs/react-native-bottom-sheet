@@ -16,6 +16,7 @@ import UIKit.UIGestureRecognizerSubclass
 
 /// The space kept around the card at a detent.
 private struct DetentInsets: Equatable {
+  /// Negative for the status bar's overlap with the host, which can change.
   var top: CGFloat = 0
   var left: CGFloat = 0
   var right: CGFloat = 0
@@ -336,16 +337,6 @@ public final class BottomSheetHostingView: UIView {
   /// against the value the current translation was computed with.
   private var lastAppliedMaxDetentHeight: CGFloat = .nan
 
-  /// Whether full-height detents may extend under the status bar. Feeds the
-  /// natively computed detent cap; there is no JS-provided cap anymore.
-  public var extendUnderStatusBar: Bool = false {
-    didSet {
-      guard extendUnderStatusBar != oldValue else { return }
-      refreshDetentsFromLayout()
-      setNeedsLayout()
-    }
-  }
-
   public var scrollableExpandNegotiation: Int = ScrollableNegotiationLevel.handoff.rawValue
   public var scrollableCollapseNegotiation: Int = ScrollableNegotiationLevel.initial.rawValue
 
@@ -504,8 +495,7 @@ public final class BottomSheetHostingView: UIView {
 
   override public func safeAreaInsetsDidChange() {
     super.safeAreaInsetsDidChange()
-    // The native detent cap depends on the window's top inset. Resolved in the
-    // layout pass rather than here: UIKit calls this from inside `setFrame:`, and
+    // The default top inset depends on the window's. Resolved in the layout pass rather than here: UIKit calls this from inside `setFrame:`, and
     // the base component view briefly shrinks this view to its padding-inset frame
     // (see `updateLayoutMetrics:`), which would read as a much smaller cap.
     setNeedsLayout()
@@ -515,7 +505,7 @@ public final class BottomSheetHostingView: UIView {
     super.didMoveToWindow()
     surfaceTouchHandler = nil
     guard window != nil else { return }
-    // The native detent cap becomes computable once a window exists.
+    // The default top inset becomes computable once a window exists.
     refreshDetentsFromLayout()
     setNeedsLayout()
     var current: UIView? = superview
@@ -662,7 +652,7 @@ public final class BottomSheetHostingView: UIView {
         kind: kind,
         programmatic: programmatic,
         insets: DetentInsets(
-          top: inset("insetTop"),
+          top: CGFloat(truncating: dict["insetTop"] as? NSNumber ?? 0),
           left: inset("insetLeft"),
           right: inset("insetRight"),
           bottom: inset("insetBottom")
@@ -1684,18 +1674,20 @@ public final class BottomSheetHostingView: UIView {
     return true
   }
 
+  /// The detent cap: the sheet's own height. The top inset decides how much of it
+  /// a detent can use.
   private var resolvedMaxDetentHeight: CGFloat {
-    // The detent cap is computed natively: the sheet's own height minus the
-    // part of the window's top (status bar / notch) inset that actually
-    // overlaps this view. Measured from real window geometry in every mode —
-    // inline, portal, and overlay — so no JS-estimated dimensions are
-    // involved. Before the view is in a window, fall back to full height.
-    guard !extendUnderStatusBar, let window else {
-      return bounds.height
-    }
+    bounds.height
+  }
+
+  /// The default top inset: the part of the window's top (status bar / notch)
+  /// inset that actually overlaps this view. Measured from real window geometry
+  /// in every mode — inline, portal, and overlay — so no JS-estimated dimensions
+  /// are involved. Before the view is in a window, nothing overlaps it.
+  private var statusBarOverlap: CGFloat {
+    guard let window else { return 0 }
     let originYInWindow = convert(CGPoint.zero, to: window).y
-    let topOverlap = max(0, window.safeAreaInsets.top - originYInWindow)
-    return min(max(0, bounds.height - topOverlap), bounds.height)
+    return min(max(0, window.safeAreaInsets.top - originYInWindow), bounds.height)
   }
 
   /// How much the content is scaled at a detent: its card's width over the
@@ -1737,7 +1729,8 @@ public final class BottomSheetHostingView: UIView {
   /// The tallest the card can be at a detent: the cap, less the detent's top
   /// and bottom insets. Percentages resolve against it, so `100%` fits.
   private func availableCardHeight(for spec: RawDetentSpec, cap: CGFloat) -> CGFloat {
-    max(0, cap - spec.insets.top - spec.insets.bottom)
+    let top = spec.insets.top < 0 ? statusBarOverlap : spec.insets.top
+    return max(0, cap - top - spec.insets.bottom)
   }
 
   /// The natively measured inset of the content region: the gap between the

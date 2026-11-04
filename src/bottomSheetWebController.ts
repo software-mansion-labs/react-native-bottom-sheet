@@ -42,7 +42,6 @@ export type BottomSheetWebConfig = Readonly<{
   hasCloseRequestHandler: boolean;
   /** When the sheet last opened, relative to other sheets. */
   openOrder: number;
-  extendUnderStatusBar: boolean;
   scrollableExpandNegotiation: number;
   scrollableCollapseNegotiation: number;
   scrimOpacities: ReadonlyArray<number>;
@@ -272,10 +271,20 @@ const isTextEditingTarget = (target: EventTarget | null) =>
 
 /**
  * The tallest the card can be at a detent: the cap, less the detent's top and
- * bottom insets. Percentages resolve against it, so `100%` fits.
+ * bottom insets. A negative top inset stands for the status bar's overlap.
+ * Percentages resolve against it, so `100%` fits.
  */
-const availableCardHeight = (spec: RawDetent, cap: number) =>
-  Math.max(0, cap - spec.insetTop - spec.insetBottom);
+const availableCardHeight = (
+  spec: RawDetent,
+  cap: number,
+  statusBarOverlap: number
+) =>
+  Math.max(
+    0,
+    cap -
+      (spec.insetTop < 0 ? statusBarOverlap : spec.insetTop) -
+      spec.insetBottom
+  );
 
 /**
  * The smallest sum of side insets across the open detents, and the left inset
@@ -323,6 +332,7 @@ export class BottomSheetWebController {
   private appliedIndex: number | null = null;
 
   private rawDetents: ReadonlyArray<RawDetent> = [];
+  private statusBarOverlap = 0;
   private detents: ResolvedDetent[] = [];
   private targetIndex = 0;
   private pendingIndex: number | null = null;
@@ -542,20 +552,6 @@ export class BottomSheetWebController {
   }
 
   /**
-   * The detent cap: the host's height minus the part of the top safe-area
-   * inset that overlaps it, unless the sheet may extend under the status bar.
-   */
-  private resolveCap(hostHeight: number) {
-    const { host } = this.elements!;
-    if (this.requireConfig().extendUnderStatusBar) return hostHeight;
-    const topOverlap = Math.max(
-      0,
-      readSafeAreaTop() - host.getBoundingClientRect().top
-    );
-    return clamp(hostHeight - topOverlap, 0, hostHeight);
-  }
-
-  /**
    * The height the content wrapper is laid out in: the card's height at the
    * tallest detent, clamped to the space its insets leave. A trailing `content`
    * detent is bounded by that space alone, since it is measured from this very
@@ -564,7 +560,7 @@ export class BottomSheetWebController {
   private contentRegionHeight(cap: number) {
     const tallest = this.rawDetents[this.rawDetents.length - 1];
     if (tallest === undefined) return cap;
-    const available = availableCardHeight(tallest, cap);
+    const available = availableCardHeight(tallest, cap, this.statusBarOverlap);
     let bound: number;
     switch (tallest.kind) {
       case 'points':
@@ -625,9 +621,15 @@ export class BottomSheetWebController {
     const hostHeight = host.clientHeight;
     if (hostHeight <= 0 || host.clientWidth <= 0) return;
 
-    const cap = this.resolveCap(hostHeight);
+    const cap = hostHeight;
     this.cap = cap;
-    container.style.top = `${hostHeight - cap}px`;
+    // The part of the top safe-area inset that overlaps the host: the default
+    // top inset.
+    this.statusBarOverlap = Math.max(
+      0,
+      readSafeAreaTop() - host.getBoundingClientRect().top
+    );
+    container.style.top = '0px';
     container.style.height = `${cap}px`;
     content.style.height = `${this.contentRegionHeight(cap)}px`;
     this.updateCardClip();
@@ -684,7 +686,11 @@ export class BottomSheetWebController {
     const resolved: ResolvedDetent[] = [];
 
     for (const [index, spec] of this.rawDetents.entries()) {
-      const available = availableCardHeight(spec, maxHeight);
+      const available = availableCardHeight(
+        spec,
+        maxHeight,
+        this.statusBarOverlap
+      );
       let height: number;
       switch (spec.kind) {
         case 'points':
@@ -727,7 +733,11 @@ export class BottomSheetWebController {
   private unresolvedContentDetentHeight(index: number, maxHeight: number) {
     for (const spec of this.rawDetents.slice(index + 1)) {
       if (spec.kind === 'content') continue;
-      const available = availableCardHeight(spec, maxHeight);
+      const available = availableCardHeight(
+        spec,
+        maxHeight,
+        this.statusBarOverlap
+      );
       const height =
         spec.kind === 'points' ? spec.value : available * spec.value;
       // Whatever its inset, this detent must not rise above the next one's top.

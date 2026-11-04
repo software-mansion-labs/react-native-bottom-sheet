@@ -172,12 +172,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       host.scrollableCollapseNegotiation = value
     }
 
-  var extendUnderStatusBar: Boolean
-    get() = host.extendUnderStatusBar
-    set(value) {
-      host.extendUnderStatusBar = value
-    }
-
   fun setScrimColor(color: Int?) = host.setScrimColor(color)
 
   fun setScrimOpacities(values: List<Float>) = host.setScrimOpacities(values)

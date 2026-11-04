@@ -59,7 +59,6 @@ using namespace facebook::react;
   BOOL _needsIndexSyncAfterRecycle;
   BOOL _nativeOverlay;
   NSInteger _openOrder;
-  BOOL _extendUnderStatusBar;
   BottomSheetOverlayContainerView *_overlayContainer;
   RCTSurfaceTouchHandler *_overlayTouchHandler;
   CGSize _lastGeometryFrameSize;
@@ -149,13 +148,6 @@ using namespace facebook::react;
     if (didOpen) {
       [self bringOverlayToFront];
     }
-  }
-
-  if (newViewProps.extendUnderStatusBar != _extendUnderStatusBar) {
-    _extendUnderStatusBar = newViewProps.extendUnderStatusBar;
-    // The hosting view recomputes its native detent cap and re-lays out, which
-    // fires the didLayout delegate that refreshes the pushed geometry.
-    [_sheetView setExtendUnderStatusBar:newViewProps.extendUnderStatusBar];
   }
 
   // Compare against native state: codegen defaults to 0 (none), while the
@@ -499,14 +491,10 @@ using namespace facebook::react;
   // Restore inline parenting after the base class resets Fabric view state so a
   // reused instance starts from the default presentation.
   _nativeOverlay = NO;
-  _extendUnderStatusBar = NO;
   _openOrder = 0;
   [self restoreInlinePresentation];
   _needsIndexSyncAfterRecycle = YES;
   [_sheetView resetSheetState];
-  // `_extendUnderStatusBar` is the diff baseline for the prop, so the hosting
-  // view has to be reset with it or a recycled sheet keeps the previous flag.
-  [_sheetView setExtendUnderStatusBar:NO];
   _sheetState.reset();
   _lastContentOffsetY = 0;
   _lastGeometryFrameSize = CGSizeZero;

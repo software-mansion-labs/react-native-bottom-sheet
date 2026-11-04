@@ -12,6 +12,7 @@ type NativeDetent = Readonly<{
   // Carried with the detent, not in a prop of their own, so a detents change
   // reaches the host in one piece: props within an update arrive in no
   // particular order on Android, and detents are validated as they resolve.
+  // A negative top inset stands for the status bar's overlap with the host.
   insetTop: CodegenTypes.Double;
   insetLeft: CodegenTypes.Double;
   insetRight: CodegenTypes.Double;
@@ -33,10 +34,6 @@ export interface NativeProps extends ViewProps {
   // not otherwise observable, so Android (and the web host) use this to decide
   // whether a modal should own Back/Escape input.
   hasCloseRequestHandler: boolean;
-  // Consulted natively only in native-overlay mode, where the detent cap is
-  // computed from the overlay's real bounds and insets; inline sheets bake the
-  // flag into the JS-computed maxDetentHeight as before.
-  extendUnderStatusBar?: boolean;
   scrollableExpandNegotiation: CodegenTypes.Int32;
   scrollableCollapseNegotiation: CodegenTypes.Int32;
   scrimColor?: ColorValue;

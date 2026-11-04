@@ -118,7 +118,8 @@ export interface BottomSheetProps {
    * moves between detents; below the first open detent the card keeps its shape
    * and slides down through the bottom inset. A shorter array than `detents`
    * reuses its last value for any remaining detents, and a closed detent ignores
-   * its inset.
+   * its inset. `top` defaults to the status bar's overlap with the host; a lower
+   * value, or `0`, lets the card go under the status bar.
    *
    * Insets never relayout the content. It is laid out against the widest card,
    * the detent with the tightest side insets, and scaled uniformly to fit
@@ -146,11 +147,6 @@ export interface BottomSheetProps {
    * @default true
    */
   animateContentHeight?: boolean;
-  /**
-   * Whether the sheet may extend under the status bar when using full-height
-   * detents. Defaults to `false`, so detents remain capped below the status bar.
-   */
-  extendUnderStatusBar?: boolean;
   /**
    * Whether to keep the sheet in the tree only while it is open. The native
    * sheet view and its content mount in the same render that `index` selects an
@@ -255,7 +251,6 @@ export const BottomSheet = (props: BottomSheetProps) => {
     index,
     animateIn = true,
     animateContentHeight = true,
-    extendUnderStatusBar = false,
     lazy = false,
     onIndexChange,
     onSettle,
@@ -284,9 +279,8 @@ export const BottomSheet = (props: BottomSheetProps) => {
       : resolvedScrollableNegotiation.collapse;
   const usesNativeOverlay = modal && nativeOverlay;
   // All real geometry — the sheet's frame, the content wrapper's bounds, and
-  // the detent cap (host height minus the overlapping status-bar inset, unless
-  // extendUnderStatusBar) — is measured natively from the window the sheet
-  // actually lives in and flows into the shadow tree through state (see
+  // the default top inset (the overlapping status-bar inset) — is measured
+  // natively from the window the sheet actually lives in and flows into the shadow tree through state (see
   // BottomSheetHostView / BottomSheetHostingView). The window dimensions here
   // only size the native-overlay host for the first frame, before the overlay
   // window reports its measured geometry.
@@ -413,7 +407,6 @@ export const BottomSheet = (props: BottomSheetProps) => {
             style,
           ]}
           detents={normalizedDetents}
-          extendUnderStatusBar={extendUnderStatusBar}
           index={index}
           animateIn={animateIn || (lazy && hasOpenedFromClosed)}
           animateContentHeight={animateContentHeight}

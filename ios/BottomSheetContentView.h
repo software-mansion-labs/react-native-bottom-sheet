@@ -35,9 +35,6 @@ NS_ASSUME_NONNULL_BEGIN
 // layout, so content laid out against the committed content-region inset is
 // measurable again.
 - (void)contentRegionLayoutDidApply;
-// Whether full-height detents may extend under the status bar; feeds the
-// natively computed detent cap.
-- (void)setExtendUnderStatusBar:(BOOL)extendUnderStatusBar;
 // The natively measured inset of the content region: the gap between the
 // sheet's height and the detent cap.
 - (CGFloat)contentRegionInset;

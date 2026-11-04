@@ -60,6 +60,21 @@ class BottomSheetHostViewDetentInsetsTest {
   }
 
   @Test
+  fun `a full height detent reaches the top with a top inset of zero`() {
+    withSheet(listOf(points(0.0), percentage(1.0, top = 0.0, bottom = 32.0))) { sheet ->
+      assertEquals(0f, sheet.container.translationY, 0.5f)
+    }
+  }
+
+  @Test
+  fun `an unset top inset is the status bar's overlap, not a negative gap`() {
+    // Nothing overlaps an unattached host, so the detent reaches its top.
+    withSheet(listOf(points(0.0), percentage(1.0, top = -1.0))) { sheet ->
+      assertEquals(0f, sheet.container.translationY, 0.5f)
+    }
+  }
+
+  @Test
   fun `percentages resolve against the space the insets leave`() {
     withSheet(listOf(points(0.0), percentage(0.5, top = 20.0, bottom = 40.0))) { sheet ->
       val d = sheet.density

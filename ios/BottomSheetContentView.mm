@@ -95,11 +95,6 @@
   [_impl contentRegionLayoutDidApply];
 }
 
-- (void)setExtendUnderStatusBar:(BOOL)extendUnderStatusBar
-{
-  _impl.extendUnderStatusBar = extendUnderStatusBar;
-}
-
 - (CGFloat)contentRegionInset
 {
   return _impl.contentRegionInset;
