@@ -47,9 +47,6 @@ android {
     minSdkVersion getExtOrDefault("minSdkVersion")
     targetSdkVersion getExtOrDefault("targetSdkVersion")
     testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-    // Ships the keep rule for the reflectively-resolved JSTouchDispatcher overload (see
-    // JSTouchDispatcherCompat.kt) to consuming apps' R8/ProGuard.
-    consumerProguardFiles "proguard-rules.pro"
   }
 
   buildFeatures {
