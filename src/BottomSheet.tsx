@@ -125,8 +125,10 @@ export interface BottomSheetProps {
    * widest card, the detent with the tightest side insets, and scaled uniformly
    * to fit narrower ones, so full-width content and an image surface always touch
    * the card's edges. A `'content'` detent's card is its scaled height. `measure`
-   * and `measureInWindow` report the scaled position and size, except that with
-   * `nativeOverlay` only `measureInWindow` includes the scale.
+   * and `measureInWindow` report the scaled position and size, except that only
+   * `measureInWindow` follows the card with `nativeOverlay`, where `measure` omits
+   * the scale, and on the web, where React Native Web's `measure` ignores
+   * transforms.
    * Space in an inset isn't part of the sheet: touches there reach the scrim or
    * whatever is behind it.
    */
