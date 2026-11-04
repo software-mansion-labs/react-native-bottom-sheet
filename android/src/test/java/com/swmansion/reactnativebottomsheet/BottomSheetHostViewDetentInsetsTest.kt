@@ -123,6 +123,32 @@ class BottomSheetHostViewDetentInsetsTest {
     }
   }
 
+  @Test
+  fun `React Native targets the card's rounded shape but not its clipped corners`() {
+    val detents = listOf(points(0.0), points(300.0, left = 16.0, right = 16.0, bottom = 32.0))
+    withSheet(detents, shadows = true, radius = 28f) { sheet ->
+      val d = sheet.density
+      val parent = FrameLayout(sheet.context).apply { id = PARENT_TAG }
+      (sheet.parent as ViewGroup).removeView(sheet)
+      sheet.id = SHEET_TAG
+      parent.addView(sheet, ViewGroup.LayoutParams(WIDTH_PX, HEIGHT_PX))
+      parent.layout(0, 0, WIDTH_PX, HEIGHT_PX)
+      val cardBottom = HEIGHT_PX - 32 * d
+      val target = { x: Float, y: Float ->
+        TouchTargetHelper.findTargetTagForTouch(x, y, parent)
+      }
+
+      assertEquals("clipped corner", PARENT_TAG, target(18 * d, cardBottom - 2 * d))
+      assertEquals("on the curve's inside", SHEET_TAG, target(32 * d, cardBottom - 16 * d))
+      assertEquals(
+        "clipped corner again",
+        PARENT_TAG,
+        target(WIDTH_PX - 18 * d, cardBottom - 2 * d),
+      )
+      assertEquals("middle of the card", SHEET_TAG, target(WIDTH_PX / 2f, cardBottom - 100 * d))
+    }
+  }
+
   private val BottomSheetHostView.container: ViewGroup
     get() = getChildAt(0) as ViewGroup
 
@@ -164,6 +190,7 @@ class BottomSheetHostViewDetentInsetsTest {
     detents: List<Map<String, Any>>,
     index: Int = 1,
     shadows: Boolean = false,
+    radius: Float = 0f,
     block: (BottomSheetHostView) -> Unit,
   ) {
     val controller = Robolectric.buildActivity(Activity::class.java).setup()
@@ -179,6 +206,7 @@ class BottomSheetHostViewDetentInsetsTest {
         },
         0,
       )
+      sheet.setSurfaceCornerRadii(List(4) { radius })
       if (shadows) sheet.setSurfaceShadows(listOf(CardShadow(0f, 4f, 24f, 0f, Color.BLACK)))
       sheet.setDetents(detents)
       sheet.setIndex(index)
