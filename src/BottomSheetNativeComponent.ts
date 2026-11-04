@@ -47,7 +47,12 @@ export interface NativeProps extends ViewProps {
       blurRadius: CodegenTypes.Double;
       spreadDistance: CodegenTypes.Double;
       color: ColorValue;
+      // iOS only. Android and web draw `boxShadow`, which is always opaque here.
       opacity: CodegenTypes.Double;
+      // iOS only. `boxShadow` leaves the card's interior unpainted, while the
+      // `shadow*` props paint under it. Android and web draw `boxShadow` alone,
+      // and exclude the interior themselves.
+      excludesInterior: boolean;
     }>
   >;
   // Android only. Casts a system shadow from the card's shape.

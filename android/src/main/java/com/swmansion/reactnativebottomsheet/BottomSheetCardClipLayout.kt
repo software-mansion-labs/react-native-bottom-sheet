@@ -7,6 +7,7 @@ import android.graphics.Path
 import android.graphics.Rect
 import android.graphics.RectF
 import android.os.Build
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewOutlineProvider
 import android.widget.FrameLayout
@@ -68,9 +69,9 @@ internal class BottomSheetCardClipLayout(context: Context) :
           val right = cardRect.right.toInt()
           val bottom = cardRect.bottom.toInt()
           when (clipMode) {
-            ClipMode.UNIFORM -> outline.setRoundRect(left, top, right, bottom, cornerRadii[0])
+            ClipMode.UNIFORM -> outline.setRoundRect(left, top, right, bottom, limitedRadius(0))
             ClipMode.TOP -> {
-              val radius = cornerRadii[0]
+              val radius = limitedRadius(0)
               outline.setRoundRect(left, top, right, bottom + radius.toInt() + 1, radius)
             }
             ClipMode.OUTLINE_PATH ->
@@ -84,6 +85,10 @@ internal class BottomSheetCardClipLayout(context: Context) :
         }
       }
   }
+
+  /** A corner's radius as the card can fit it, as the hit test and shadows limit it too. */
+  private fun limitedRadius(corner: Int): Float =
+    cornerRadii[corner].coerceAtMost(minOf(cardRect.width(), cardRect.height()) / 2f)
 
   @Suppress("DEPRECATION")
   private fun setShadowOutline(outline: Outline, left: Int, top: Int, right: Int, bottom: Int) {
@@ -164,11 +169,10 @@ internal class BottomSheetCardClipLayout(context: Context) :
   fun cardContains(x: Float, y: Float): Boolean {
     if (!cardRect.contains(x, y)) return false
     if (!isShaped) return true
-    val limit = minOf(cardRect.width(), cardRect.height()) / 2f
-    val topLeft = cornerRadii[0].coerceAtMost(limit)
-    val topRight = cornerRadii[1].coerceAtMost(limit)
-    val bottomRight = cornerRadii[2].coerceAtMost(limit)
-    val bottomLeft = cornerRadii[3].coerceAtMost(limit)
+    val topLeft = limitedRadius(0)
+    val topRight = limitedRadius(1)
+    val bottomRight = limitedRadius(2)
+    val bottomLeft = limitedRadius(3)
     val left = cardRect.left
     val top = cardRect.top
     val right = cardRect.right
@@ -184,6 +188,18 @@ internal class BottomSheetCardClipLayout(context: Context) :
         isInCorner(x, y, left + bottomLeft, bottom - bottomLeft, bottomLeft)
       else -> true
     }
+  }
+
+  /** Whether `(x, y)`, in this view's coordinates, falls in a corner the card clips away. */
+  fun isInClippedCorner(x: Float, y: Float): Boolean =
+    cardRect.contains(x, y) && !cardContains(x, y)
+
+  /** The clipped corners are not on the card, so touches there skip its children. */
+  override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+    if (event.actionMasked == MotionEvent.ACTION_DOWN && isInClippedCorner(event.x, event.y)) {
+      return false
+    }
+    return super.dispatchTouchEvent(event)
   }
 
   private fun isInCorner(
@@ -206,9 +222,8 @@ internal class BottomSheetCardClipLayout(context: Context) :
   }
 
   private fun buildCardPath(): Path {
-    val limit = minOf(cardRect.width(), cardRect.height()) / 2f
     for (corner in 0 until 4) {
-      val radius = cornerRadii[corner].coerceAtMost(limit)
+      val radius = limitedRadius(corner)
       pathRadii[corner * 2] = radius
       pathRadii[corner * 2 + 1] = radius
     }

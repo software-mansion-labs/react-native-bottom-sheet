@@ -1,6 +1,7 @@
 package com.swmansion.reactnativebottomsheet
 
 import android.content.Context
+import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
@@ -30,13 +31,13 @@ internal data class CardShadow(
  * and one, translated, for its bottom half. Translation and clip bounds are RenderNode properties,
  * so a moving card does not redraw the shadows.
  *
- * Only the shadow is drawn, not the shape that casts it: the shape is drawn far outside the view
- * and its shadow layer offset back onto the card, the same way React Native draws `boxShadow`.
- * Hardware-accelerated shadow layers on shapes need API 28, so earlier versions draw no shadow.
+ * Drawn the way React Native draws `boxShadow`: the shadow's shape, blurred, with the card clipped
+ * out of it. Hardware-accelerated blurs on shapes need API 28, so earlier versions draw no shadow.
  */
 internal class BottomSheetCardShadowView(context: Context) : View(context) {
   private val cornerRadii = FloatArray(4)
   private var shadows: List<CardShadow> = emptyList()
+  private var blurFilters: List<BlurMaskFilter?> = emptyList()
   private var shapeHeight = 0f
   private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
   private val path = Path()
@@ -56,24 +57,29 @@ internal class BottomSheetCardShadowView(context: Context) : View(context) {
    * the card's sides are straight, so the shadow there is the same for any card height, and two
    * copies can be joined anywhere in it without a seam.
    */
-  val edgeBand: Float
-    get() {
-      // Past three sigma (1.5 blur radii) a Gaussian blur adds nothing visible.
-      val reach = shadows.maxOfOrNull {
-        1.5f * it.blurRadius + abs(it.spreadDistance) + abs(it.offsetY)
-      }
-      return (reach ?: 0f) + (cornerRadii.maxOrNull() ?: 0f) + 1f
+  var edgeBand = 1f
+    private set
+
+  private fun updateEdgeBand() {
+    // Past three sigma (1.5 blur radii) a Gaussian blur adds nothing visible.
+    val reach = shadows.maxOfOrNull {
+      1.5f * it.blurRadius + abs(it.spreadDistance) + abs(it.offsetY)
     }
+    edgeBand = (reach ?: 0f) + (cornerRadii.maxOrNull() ?: 0f) + 1f
+  }
 
   fun setShadows(value: List<CardShadow>) {
     if (value == shadows) return
     shadows = value
+    blurFilters = value.map(::blurFilter)
+    updateEdgeBand()
     invalidate()
   }
 
   fun setCornerRadii(radii: FloatArray) {
     if (radii.contentEquals(cornerRadii)) return
     radii.copyInto(cornerRadii)
+    updateEdgeBand()
     invalidate()
   }
 
@@ -99,34 +105,34 @@ internal class BottomSheetCardShadowView(context: Context) : View(context) {
   }
 
   override fun onDraw(canvas: Canvas) {
-    if (!hasShadows || shapeHeight <= 0f || width <= 0) return
-    // Far enough that the shape itself never lands on screen.
-    val shapeOffset = (width + height).toFloat() * 2f
-    for (shadow in shadows) {
-      // CSS blur radius is twice the Gaussian sigma; Skia derives its sigma
-      // from a shadow-layer radius as 0.57735 * radius + 0.5.
-      val sigma = shadow.blurRadius / 2f
-      val radius = if (sigma > 0.5f) (sigma - 0.5f) / 0.57735f else 0f
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return
+    if (shadows.isEmpty() || shapeHeight <= 0f || width <= 0) return
+    canvas.save()
+    // An outset shadow never paints inside the card, which may be translucent.
+    if (buildPath(-CLIP_INSET)) canvas.clipOutPath(path)
+    // The first listed shadow goes on top, so it is drawn last.
+    for (index in shadows.lastIndex downTo 0) {
+      val shadow = shadows[index]
+      if (!buildPath(shadow.spreadDistance)) continue
       paint.color = shadow.color
-      paint.setShadowLayer(
-        radius.coerceAtLeast(Float.MIN_VALUE),
-        shapeOffset + shadow.offsetX,
-        shadow.offsetY,
-        shadow.color,
-      )
-      buildPath(shadow.spreadDistance)
+      paint.maskFilter = blurFilters[index]
       canvas.save()
-      canvas.translate(-shapeOffset, 0f)
+      canvas.translate(shadow.offsetX, shadow.offsetY)
       canvas.drawPath(path, paint)
       canvas.restore()
     }
+    canvas.restore()
   }
 
-  /** The card's outline grown by `outset`, as a `boxShadow` spread does. */
-  private fun buildPath(outset: Float) {
+  /**
+   * The card's outline grown by `outset`, as a `boxShadow` spread does. Returns false if a negative
+   * spread leaves no shape, which then casts no shadow.
+   */
+  private fun buildPath(outset: Float): Boolean {
     shapeRect.set(0f, 0f, width.toFloat(), shapeHeight)
     shapeRect.inset(-outset, -outset)
-    val limit = (minOf(shapeRect.width(), shapeRect.height()) / 2f).coerceAtLeast(0f)
+    if (shapeRect.width() <= 0f || shapeRect.height() <= 0f) return false
+    val limit = minOf(shapeRect.width(), shapeRect.height()) / 2f
     for (corner in 0 until 4) {
       val base = cornerRadii[corner]
       val radius = if (base > 0f) (base + outset).coerceIn(0f, limit) else 0f
@@ -135,5 +141,21 @@ internal class BottomSheetCardShadowView(context: Context) : View(context) {
     }
     path.reset()
     path.addRoundRect(shapeRect, pathRadii, Path.Direction.CW)
+    return true
   }
+}
+
+/**
+ * Keeps antialiased clip and shadow edges from leaving a gap: only visible without a background.
+ */
+private const val CLIP_INSET = 0.4f
+
+/**
+ * CSS blur radius is twice the Gaussian sigma; Skia derives its sigma from a mask filter's radius
+ * as 0.57735 * radius + 0.5.
+ */
+private fun blurFilter(shadow: CardShadow): BlurMaskFilter? {
+  val sigma = shadow.blurRadius / 2f
+  if (sigma <= 0.5f) return null
+  return BlurMaskFilter((sigma - 0.5f) / 0.57735f, BlurMaskFilter.Blur.NORMAL)
 }

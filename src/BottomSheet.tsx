@@ -1,4 +1,4 @@
-import { useState, type ComponentType, type ReactNode } from 'react';
+import { useMemo, useState, type ComponentType, type ReactNode } from 'react';
 import type { NativeSyntheticEvent, StyleProp, ViewStyle } from 'react-native';
 import {
   I18nManager,
@@ -269,8 +269,10 @@ export const BottomSheet = (props: BottomSheetProps) => {
     setIsContentActive(true);
   }
   const shouldRenderContent = !lazy || isContentActive;
-  const { cornerRadii, cornerCurve, shadows, elevation, shadowColor } =
-    resolveSurfaceStyle(surfaceStyle, I18nManager.isRTL);
+  const { cornerRadii, cornerCurve, shadows, elevation, shadowColor } = useMemo(
+    () => resolveSurfaceStyle(surfaceStyle, I18nManager.isRTL),
+    [surfaceStyle]
+  );
   // Default the scrim opacity per detent: transparent at any closed detent,
   // fully opaque at every open one.
   const resolvedScrimOpacities =

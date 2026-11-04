@@ -1,4 +1,5 @@
 import {
+  I18nManager,
   Platform,
   processColor,
   StyleSheet,
@@ -64,6 +65,8 @@ type NativeShadow = Readonly<{
   color: ProcessedColorValue;
   /** Multiplied into the color. A dynamic color's alpha is unknown to JS. */
   opacity: number;
+  /** Whether the shadow leaves the card's interior unpainted, as `boxShadow` does. */
+  excludesInterior: boolean;
 }>;
 
 type ResolvedSurfaceStyle = Readonly<{
@@ -162,10 +165,23 @@ const resolveShadows = (boxShadow: ViewStyle['boxShadow']): NativeShadow[] => {
       throw invalidBoxShadowError(boxShadow);
     }
     return [
-      { offsetX, offsetY, blurRadius, spreadDistance, color, opacity: 1 },
+      {
+        offsetX,
+        offsetY,
+        blurRadius,
+        spreadDistance,
+        color,
+        opacity: 1,
+        excludesInterior: true,
+      },
     ];
   });
 };
+
+const invalidShadowPropError = (key: string, value: unknown) =>
+  new Error(
+    `Invalid bottom sheet surfaceStyle: \`${key}\` received ${JSON.stringify(value)}.`
+  );
 
 /**
  * The iOS `shadow*` props as one more card shadow, with React Native's defaults
@@ -178,20 +194,30 @@ const resolveIOSShadow = ({
   shadowRadius,
 }: SurfaceStyle): NativeShadow[] => {
   if (Platform.OS !== 'ios' || !shadowOpacity) return [];
+  const offsetX = shadowOffset?.width ?? 0;
+  const offsetY = shadowOffset?.height ?? -3;
+  if (!Number.isFinite(offsetX) || !Number.isFinite(offsetY)) {
+    throw invalidShadowPropError('shadowOffset', shadowOffset);
+  }
+  if (!Number.isFinite(shadowOpacity)) {
+    throw invalidShadowPropError('shadowOpacity', shadowOpacity);
+  }
   const color = processColor(shadowColor ?? DEFAULT_SHADOW_COLOR);
-  return color == null
-    ? []
-    : [
-        {
-          offsetX: shadowOffset?.width ?? 0,
-          offsetY: shadowOffset?.height ?? -3,
-          // A layer's shadow radius is the sigma, half of a CSS blur radius.
-          blurRadius: (shadowRadius ?? 3) * 2,
-          spreadDistance: 0,
-          color,
-          opacity: shadowOpacity,
-        },
-      ];
+  if (color == null) {
+    throw invalidShadowPropError('shadowColor', shadowColor);
+  }
+  return [
+    {
+      offsetX,
+      offsetY,
+      // A layer's shadow radius is the sigma, half of a CSS blur radius.
+      blurRadius: (shadowRadius ?? 3) * 2,
+      spreadDistance: 0,
+      color,
+      opacity: shadowOpacity,
+      excludesInterior: false,
+    },
+  ];
 };
 
 const invalidCornerRadiusError = (key: string, value: unknown) =>
@@ -201,8 +227,9 @@ const invalidCornerRadiusError = (key: string, value: unknown) =>
 
 /**
  * Resolves a surface style into physical corner radii for the native host.
- * Start/end corners take precedence over left/right ones, matching React
- * Native's own border-radius resolution.
+ * Start/end corners take precedence over left/right ones. As in React Native's
+ * own border-radius resolution, Android swaps left and right in RTL unless the
+ * app opted out; iOS and web keep them physical.
  */
 export const resolveSurfaceStyle = (
   style: StyleProp<SurfaceStyle>,
@@ -234,20 +261,40 @@ export const resolveSurfaceStyle = (
   const topRight = isRTL ? borderTopStartRadius : borderTopEndRadius;
   const bottomLeft = isRTL ? borderBottomEndRadius : borderBottomStartRadius;
   const bottomRight = isRTL ? borderBottomStartRadius : borderBottomEndRadius;
+  const swapsSides =
+    isRTL && Platform.OS === 'android' && I18nManager.doLeftAndRightSwapInRTL;
+  const elevation = flattened.elevation ?? 0;
+  if (!Number.isFinite(elevation) || elevation < 0) {
+    throw invalidShadowPropError('elevation', flattened.elevation);
+  }
 
   return {
     cornerRadii: [
-      topLeft ?? borderTopLeftRadius ?? borderRadius ?? 0,
-      topRight ?? borderTopRightRadius ?? borderRadius ?? 0,
-      bottomRight ?? borderBottomRightRadius ?? borderRadius ?? 0,
-      bottomLeft ?? borderBottomLeftRadius ?? borderRadius ?? 0,
+      topLeft ??
+        (swapsSides ? borderTopRightRadius : borderTopLeftRadius) ??
+        borderRadius ??
+        0,
+      topRight ??
+        (swapsSides ? borderTopLeftRadius : borderTopRightRadius) ??
+        borderRadius ??
+        0,
+      bottomRight ??
+        (swapsSides ? borderBottomLeftRadius : borderBottomRightRadius) ??
+        borderRadius ??
+        0,
+      bottomLeft ??
+        (swapsSides ? borderBottomRightRadius : borderBottomLeftRadius) ??
+        borderRadius ??
+        0,
     ],
     cornerCurve: flattened.borderCurve ?? 'circular',
+    // The first shadow draws on top. A view's `shadow*` shadow sits below its
+    // `boxShadow` in React Native.
     shadows: [
-      ...resolveIOSShadow(flattened),
       ...resolveShadows(flattened.boxShadow),
+      ...resolveIOSShadow(flattened),
     ],
-    elevation: flattened.elevation ?? 0,
+    elevation,
     shadowColor: flattened.shadowColor,
   };
 };

@@ -49,7 +49,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setSurfaceCornerRadii:(NSArray<NSNumber *> *)radii;
 - (void)setSurfaceCornerCurve:(NSString *)curve;
 // Outset card shadows: dictionaries of offsetX, offsetY, blurRadius,
-// spreadDistance and a UIColor (possibly dynamic).
+// spreadDistance, a UIColor (possibly dynamic), opacity and excludesInterior.
 - (void)setSurfaceShadows:(NSArray<NSDictionary *> *)shadows;
 - (CGFloat)currentContentOffsetY;
 - (void)mountChildComponentView:(UIView *)childView atIndex:(NSInteger)index;

@@ -214,6 +214,9 @@ private struct CardShadow: Equatable {
   /// the host's trait collection when applied.
   let color: UIColor
   let opacity: CGFloat
+  /// `boxShadow` leaves the card's interior unpainted; the `shadow*` props
+  /// paint under it, as a layer's own shadow does.
+  let excludesInterior: Bool
 }
 
 /// The continuous ("squircle") corner `CALayer` draws for
@@ -300,7 +303,8 @@ public final class BottomSheetHostingView: UIView {
         blurRadius: max(0, number("blurRadius")),
         spreadDistance: number("spreadDistance"),
         color: value["color"] as? UIColor ?? .black,
-        opacity: number("opacity")
+        opacity: number("opacity"),
+        excludesInterior: (value["excludesInterior"] as? NSNumber)?.boolValue ?? false
       )
     }
     guard shadows != cardShadows else { return }
@@ -405,6 +409,7 @@ public final class BottomSheetHostingView: UIView {
   private static let cardPositionAnimationKey = "bottomSheetCardPosition"
   private static let cardMaskAnimationKey = "bottomSheetCardMask"
   private static let cardShadowAnimationKey = "bottomSheetCardShadow"
+  private static let cardShadowMaskAnimationKey = "bottomSheetCardShadowMask"
 
   override public init(frame: CGRect) {
     super.init(frame: frame)
@@ -2092,6 +2097,8 @@ private extension BottomSheetHostingView {
   /// `CALayer.cornerCurve = .continuous`.
   func cardPath(in cardRect: CGRect, outset: CGFloat = 0) -> CGPath {
     let rect = cardRect.insetBy(dx: -outset, dy: -outset)
+    // A negative spread can leave no shape, which then casts no shadow.
+    guard !rect.isNull else { return CGMutablePath() }
     let grown = cornerRadii.map { $0 > 0 ? max(0, $0 + outset) : 0 }
     // Corner transforms map the top-right corner's local frame (origin at the
     // corner, x leftward-negative along the top edge, y down the right edge)
@@ -2127,6 +2134,22 @@ private extension BottomSheetHostingView {
     return path
   }
 
+  /// Masks the card's interior out of a shadow: everything the shadow can
+  /// reach, minus the card, with an even-odd fill.
+  func shadowMaskPath(in cardRect: CGRect, for shadow: CardShadow) -> CGPath {
+    // Past three sigma (1.5 blur radii) a Gaussian blur adds nothing visible.
+    let reach = 1.5 * shadow.blurRadius + abs(shadow.spreadDistance) + 1
+    let path = CGMutablePath()
+    path.addRect(
+      cardRect
+        .offsetBy(dx: shadow.offset.width, dy: shadow.offset.height)
+        .union(cardRect)
+        .insetBy(dx: -reach, dy: -reach)
+    )
+    path.addPath(cardPath(in: cardRect))
+    return path
+  }
+
   /// Sets the model geometry of the card. Layer work only: the surface and
   /// content are never resized, so no Fabric layout runs.
   func applyCardGeometry(forPosition position: CGFloat) {
@@ -2138,6 +2161,7 @@ private extension BottomSheetHostingView {
     cardMask?.path = cardPath(in: rect)
     for (layer, shadow) in zip(shadowLayers, cardShadows) {
       layer.shadowPath = cardPath(in: rect, outset: shadow.spreadDistance)
+      (layer.mask as? CAShapeLayer)?.path = shadowMaskPath(in: rect, for: shadow)
     }
     CATransaction.commit()
   }
@@ -2151,7 +2175,8 @@ private extension BottomSheetHostingView {
     }
     while shadowLayers.count < cardShadows.count {
       let layer = CALayer()
-      shadowView.layer.addSublayer(layer)
+      // Below the others, as the first listed shadow goes on top.
+      shadowView.layer.insertSublayer(layer, at: 0)
       shadowLayers.append(layer)
     }
     CATransaction.begin()
@@ -2161,6 +2186,13 @@ private extension BottomSheetHostingView {
       layer.shadowOffset = shadow.offset
       layer.shadowRadius = shadow.blurRadius / 2
       layer.shadowOpacity = Float(shadow.opacity)
+      if shadow.excludesInterior {
+        let mask = layer.mask as? CAShapeLayer ?? CAShapeLayer()
+        mask.fillRule = .evenOdd
+        layer.mask = mask
+      } else {
+        layer.mask = nil
+      }
     }
     CATransaction.commit()
     updateCardShadowColors()
@@ -2263,6 +2295,10 @@ private extension BottomSheetHostingView {
         keyframes("shadowPath", rects.map { cardPath(in: $0, outset: shadow.spreadDistance) }),
         forKey: Self.cardShadowAnimationKey
       )
+      layer.mask?.add(
+        keyframes("path", rects.map { shadowMaskPath(in: $0, for: shadow) }),
+        forKey: Self.cardShadowMaskAnimationKey
+      )
     }
   }
 
@@ -2271,7 +2307,10 @@ private extension BottomSheetHostingView {
     clipContainer.layer.removeAnimation(forKey: Self.cardBoundsAnimationKey)
     clipContainer.layer.removeAnimation(forKey: Self.cardPositionAnimationKey)
     cardMask?.removeAnimation(forKey: Self.cardMaskAnimationKey)
-    shadowLayers.forEach { $0.removeAnimation(forKey: Self.cardShadowAnimationKey) }
+    for layer in shadowLayers {
+      layer.removeAnimation(forKey: Self.cardShadowAnimationKey)
+      layer.mask?.removeAnimation(forKey: Self.cardShadowMaskAnimationKey)
+    }
   }
 }
 

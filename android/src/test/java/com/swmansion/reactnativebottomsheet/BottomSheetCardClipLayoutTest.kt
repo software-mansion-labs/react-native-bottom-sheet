@@ -3,7 +3,11 @@ package com.swmansion.reactnativebottomsheet
 import android.app.Activity
 import android.graphics.Outline
 import android.graphics.Rect
+import android.os.SystemClock
+import android.view.MotionEvent
+import android.view.View
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -74,5 +78,46 @@ class BottomSheetCardClipLayoutTest {
     assertFalse(card.clipToOutline)
     assertFalse(outline.getRect(Rect()))
     assertFalse(outline.isEmpty)
+  }
+
+  @Test
+  fun `outline limits a top-corner radius to what the card fits, like the hit test`() {
+    val card = layout(floatArrayOf(80f, 80f, 0f, 0f))
+    val outline = Outline()
+    card.outlineProvider.getOutline(card, outline)
+    assertEquals(50f, outline.radius, 0f)
+    assertFalse(card.cardContains(10f, 10f))
+  }
+
+  @Test
+  fun `only a corner the card clips away counts as clipped`() {
+    val card = layout(floatArrayOf(20f, 20f, 0f, 0f))
+    assertTrue(card.isInClippedCorner(2f, 2f))
+    assertFalse(card.isInClippedCorner(100f, 2f))
+    // Outside the card altogether is not a clipped corner.
+    assertFalse(card.isInClippedCorner(100f, 150f))
+  }
+
+  @Test
+  fun `touches in a clipped corner skip the card's children`() {
+    val card = layout(floatArrayOf(20f, 20f, 0f, 0f))
+    val time = SystemClock.uptimeMillis()
+    val down = { x: Float, y: Float ->
+      MotionEvent.obtain(time, time, MotionEvent.ACTION_DOWN, x, y, 0)
+    }
+    var childTouched = false
+    val child = View(card.context)
+    child.setOnTouchListener { _, _ ->
+      childTouched = true
+      true
+    }
+    card.addView(child)
+    card.layout(0, 0, 200, 100)
+    child.layout(0, 0, 200, 100)
+
+    assertFalse(card.dispatchTouchEvent(down(2f, 2f)))
+    assertFalse(childTouched)
+    assertTrue(card.dispatchTouchEvent(down(100f, 50f)))
+    assertTrue(childTouched)
   }
 }

@@ -69,6 +69,11 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
     // out of the props so it is not forwarded to the host view.
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     surfaceCornerCurve,
+    // Android only. Taken out of the props for the same reason.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    surfaceElevation,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    surfaceShadowColor,
     onIndexChange,
     onSettle,
     onPositionChange,

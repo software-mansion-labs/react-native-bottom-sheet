@@ -33,6 +33,7 @@ import com.facebook.react.views.scroll.ReactScrollView
 import com.facebook.react.views.view.ReactViewGroup
 import com.swmansion.reactnativebottomsheet.closerequest.CloseRequestPresentationTracker
 import kotlin.math.abs
+import kotlin.math.round
 import kotlin.math.roundToInt
 
 private enum class DetentKind {
@@ -1007,18 +1008,31 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     }
     for (shadowView in shadowViews) shadowView.visibility = View.VISIBLE
     val shapeHeight = sheetContainer.height.toFloat()
-    val split = cardBottom / 2f
+    // Whole pixels, so the halves' clips meet exactly and never paint the same row twice.
+    val split = round(cardBottom / 2f)
     if (split >= shadowTop.edgeBand && shapeHeight >= cardBottom) {
       // Both copies are drawn at the container's height, which only changes with the layout.
       // The join is far enough from both edges that the copies match there.
       shadowTop.place(shapeHeight, 0f, Float.NEGATIVE_INFINITY, split)
-      shadowBottom.place(shapeHeight, cardBottom - shapeHeight, split, Float.POSITIVE_INFINITY)
+      shadowBottom.place(
+        shapeHeight,
+        round(cardBottom - shapeHeight),
+        split,
+        Float.POSITIVE_INFINITY,
+      )
     } else {
       // Too short to join: draw the card as it is, redrawing as it changes.
       shadowTop.place(cardBottom, 0f, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY)
       shadowBottom.visibility = View.INVISIBLE
     }
   }
+
+  /** Whether `(x, y)`, in host coordinates, falls in a corner the card clips away. */
+  private fun isInClippedCorner(x: Float, y: Float): Boolean =
+    clipContainer.isInClippedCorner(
+      x - sheetContainer.left - sheetContainer.translationX,
+      y - sheetContainer.top - sheetContainer.translationY,
+    )
 
   /** Whether `(x, y)`, in host coordinates, falls on the card as it is drawn. */
   private fun cardContains(x: Float, y: Float): Boolean =
@@ -1403,6 +1417,10 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
         announceGestureTakeover(event)
         return true
       }
+      // React Native picks a JS touch's target by view bounds, before this view sees the touch, and
+      // has no hook to change that. In a clipped corner that target may be hidden content, so
+      // cancel the JS touch; native views behind the sheet still receive the touch.
+      if (isInClippedCorner(event.x, event.y)) notifyNativeGestureStarted(event)
       return false
     }
 
