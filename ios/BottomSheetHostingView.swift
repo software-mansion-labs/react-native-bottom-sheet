@@ -430,6 +430,9 @@ public final class BottomSheetHostingView: UIView {
   private static let cardShadowAnimationKey = "bottomSheetCardShadow"
   private static let cardShadowMaskAnimationKey = "bottomSheetCardShadowMask"
   private static let cardContentAnimationKey = "bottomSheetCardContent"
+  /// The settle animation the card is following, kept so the content's keyframes
+  /// can be rebuilt when a layout moves the content mid-settle.
+  private var cardSettleAnimation: CAKeyframeAnimation?
 
   override public init(frame: CGRect) {
     super.init(frame: frame)
@@ -501,8 +504,10 @@ public final class BottomSheetHostingView: UIView {
 
   override public func safeAreaInsetsDidChange() {
     super.safeAreaInsetsDidChange()
-    // The native detent cap depends on the window's top inset.
-    refreshDetentsFromLayout()
+    // The native detent cap depends on the window's top inset. Resolved in the
+    // layout pass rather than here: UIKit calls this from inside `setFrame:`, and
+    // the base component view briefly shrinks this view to its padding-inset frame
+    // (see `updateLayoutMetrics:`), which would read as a much smaller cap.
     setNeedsLayout()
   }
 
@@ -1972,6 +1977,9 @@ public final class BottomSheetHostingView: UIView {
     appliedContentRegionInset = committedContentRegionInset
     // The transform pins the content by its center, which this layout may move.
     applyCardGeometry(forPosition: sheetContainerHeight - sheetContainer.transform.ty)
+    // So does a running settle's copy of it: the settle usually starts before
+    // the layout of the same transaction lands.
+    addContentAnimation()
     guard isContentRegionChangePending else { return }
     refreshDetentsFromLayout()
   }
@@ -2370,19 +2378,9 @@ private extension BottomSheetHostingView {
       ($0 as? CGFloat) ?? ($0 as? NSNumber).map { CGFloat(truncating: $0) }
     }
     guard !samples.isEmpty else { return }
-    let maxHeight = sheetContainerHeight
-    let rects = samples.map { cardRect(forPosition: maxHeight - $0) }
-
-    func keyframes(_ keyPath: String, _ values: [Any]) -> CAKeyframeAnimation {
-      let animation = CAKeyframeAnimation(keyPath: keyPath)
-      animation.values = values
-      animation.keyTimes = sheetAnimation.keyTimes
-      animation.duration = sheetAnimation.duration
-      animation.calculationMode = sheetAnimation.calculationMode
-      animation.beginTime = sheetAnimation.beginTime
-      animation.isRemovedOnCompletion = false
-      animation.fillMode = .forwards
-      return animation
+    let rects = cardRects(forSamples: samples)
+    let keyframes = { (keyPath: String, values: [Any]) in
+      Self.cardKeyframes(keyPath, values, matching: sheetAnimation)
     }
 
     clipContainer.layer.add(
@@ -2393,15 +2391,8 @@ private extension BottomSheetHostingView {
       keyframes("position", rects.map { NSValue(cgPoint: $0.origin) }),
       forKey: Self.cardPositionAnimationKey
     )
-    if hasCardGaps, let contentView = findContentView() {
-      contentView.layer.add(
-        keyframes(
-          "transform",
-          rects.map { NSValue(caTransform3D: contentTransform(of: contentView, in: $0)) }
-        ),
-        forKey: Self.cardContentAnimationKey
-      )
-    }
+    cardSettleAnimation = sheetAnimation
+    addContentAnimation()
     cardMask?.add(
       keyframes("path", rects.map { cardPath(in: $0) }),
       forKey: Self.cardMaskAnimationKey
@@ -2418,7 +2409,49 @@ private extension BottomSheetHostingView {
     }
   }
 
+  /// Adds the content's keyframes for the running settle, or replaces them: the
+  /// same `beginTime` keeps them on the settle's clock, so nothing visibly restarts.
+  private func addContentAnimation() {
+    guard hasCardGaps, let sheetAnimation = cardSettleAnimation,
+          let contentView = findContentView() else { return }
+    let samples = (sheetAnimation.values ?? []).compactMap {
+      ($0 as? CGFloat) ?? ($0 as? NSNumber).map { CGFloat(truncating: $0) }
+    }
+    contentView.layer.add(
+      Self.cardKeyframes(
+        "transform",
+        cardRects(forSamples: samples).map {
+          NSValue(caTransform3D: contentTransform(of: contentView, in: $0))
+        },
+        matching: sheetAnimation
+      ),
+      forKey: Self.cardContentAnimationKey
+    )
+  }
+
+  private func cardRects(forSamples samples: [CGFloat]) -> [CGRect] {
+    let maxHeight = sheetContainerHeight
+    return samples.map { cardRect(forPosition: maxHeight - $0) }
+  }
+
+  private static func cardKeyframes(
+    _ keyPath: String,
+    _ values: [Any],
+    matching sheetAnimation: CAKeyframeAnimation
+  ) -> CAKeyframeAnimation {
+    let animation = CAKeyframeAnimation(keyPath: keyPath)
+    animation.values = values
+    animation.keyTimes = sheetAnimation.keyTimes
+    animation.duration = sheetAnimation.duration
+    animation.calculationMode = sheetAnimation.calculationMode
+    animation.beginTime = sheetAnimation.beginTime
+    animation.isRemovedOnCompletion = false
+    animation.fillMode = .forwards
+    return animation
+  }
+
   func removeSettleAnimations() {
+    cardSettleAnimation = nil
     sheetContainer.layer.removeAnimation(forKey: Self.springAnimationKey)
     clipContainer.layer.removeAnimation(forKey: Self.cardBoundsAnimationKey)
     clipContainer.layer.removeAnimation(forKey: Self.cardPositionAnimationKey)

@@ -983,6 +983,21 @@ export class BottomSheetWebController {
     const bottom = this.interpolateInset(position, 'insetBottom');
     const cardHeight = clamp(position - bottom, 0, this.cap);
     const clipInset = this.cap - cardHeight;
+
+    // Scale the content to the card's width, with its top-left corner on the
+    // card's. The transform origin is the content box's, which starts at the
+    // container's left, so the layout margin scales along. Ahead of the check
+    // below: the widest card can change while this card stays the same.
+    const widestCard = findWidestCard(this.rawDetents);
+    const widest = host.clientWidth - widestCard.gaps;
+    const scale =
+      widest > 0 ? Math.max(0, host.clientWidth - left - right) / widest : 1;
+    content.style.transformOrigin = '0 0';
+    content.style.transform =
+      scale === 1 && left === widestCard.left
+        ? ''
+        : `translateX(${left - scale * widestCard.left}px) scale(${scale})`;
+
     if (
       cardHeight === this.appliedCardHeight &&
       clipInset === this.appliedClipInset &&
@@ -995,19 +1010,6 @@ export class BottomSheetWebController {
     this.appliedClipInset = clipInset;
     this.appliedCardLeft = left;
     this.appliedCardRight = right;
-
-    // Scale the content to the card's width, with its top-left corner on the
-    // card's. The transform origin is the content box's, which starts at the
-    // container's left, so the layout margin scales along.
-    const widestCard = findWidestCard(this.rawDetents);
-    const widest = host.clientWidth - widestCard.gaps;
-    const scale =
-      widest > 0 ? Math.max(0, host.clientWidth - left - right) / widest : 1;
-    content.style.transformOrigin = '0 0';
-    content.style.transform =
-      scale === 1 && left === widestCard.left
-        ? ''
-        : `translateX(${left - scale * widestCard.left}px) scale(${scale})`;
 
     shadow.style.height = `${cardHeight}px`;
     shadow.style.left = `${left}px`;
