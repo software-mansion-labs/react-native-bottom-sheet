@@ -95,6 +95,35 @@ class BottomSheetHostViewStateTest {
   }
 
   @Test
+  fun `snapshots carry where the card puts the content`() {
+    withSheet { sheet ->
+      val wrapper = RecordingStateWrapper()
+      sheet.stateWrapper = wrapper
+      val density = sheet.resources.displayMetrics.density
+      val floating = mapOf("value" to 300.0, "insetLeft" to 16.0, "insetRight" to 16.0)
+
+      // Laid out against the full-width detent, so the floating card scales it down.
+      sheet.setDetents(
+        listOf(mapOf("value" to 0.0), floating, mapOf("value" to 1.0, "kind" to "percentage")),
+      )
+      sheet.setIndex(1)
+      shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(5))
+      layout(sheet)
+      val scaled = wrapper.updates.last()
+      assertEquals((1080 - 32 * density) / 1080.0, scaled.getValue("contentScale"), 0.001)
+      assertEquals(16.0, scaled.getValue("contentOffsetX"), 0.01)
+
+      // Laid out against the floating card itself: its margin is what places it.
+      sheet.setDetents(listOf(mapOf("value" to 0.0), floating))
+      shadowOf(Looper.getMainLooper()).idle()
+      layout(sheet)
+      val unscaled = wrapper.updates.last()
+      assertEquals(1.0, unscaled.getValue("contentScale"), 0.001)
+      assertEquals(0.0, unscaled.getValue("contentOffsetX"), 0.01)
+    }
+  }
+
+  @Test
   fun `disconnecting the wrapper allows the current snapshot to be sent again`() {
     withSheet { sheet ->
       val first = RecordingStateWrapper()
@@ -163,9 +192,15 @@ private class RecordingStateWrapper : StateWrapper {
 
   override fun updateState(map: WritableMap) {
     updates.add(
-      listOf("contentOffsetY", "frameWidth", "frameHeight", "contentRegionInset").associateWith {
-        map.getDouble(it)
-      },
+      listOf(
+          "contentOffsetX",
+          "contentOffsetY",
+          "contentScale",
+          "frameWidth",
+          "frameHeight",
+          "contentRegionInset",
+        )
+        .associateWith { map.getDouble(it) },
     )
   }
 

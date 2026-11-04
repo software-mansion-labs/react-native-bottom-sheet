@@ -22,10 +22,18 @@ class BottomSheetViewState final {
   BottomSheetViewState(
       const BottomSheetViewState& previousState,
       folly::dynamic data)
-      : contentOffsetY(
+      : contentOffsetX(
+            data.count("contentOffsetX") != 0
+                ? static_cast<float>(data["contentOffsetX"].getDouble())
+                : previousState.contentOffsetX),
+        contentOffsetY(
             data.count("contentOffsetY") != 0
                 ? static_cast<float>(data["contentOffsetY"].getDouble())
                 : previousState.contentOffsetY),
+        contentScale(
+            data.count("contentScale") != 0
+                ? static_cast<float>(data["contentScale"].getDouble())
+                : previousState.contentScale),
         frameSize(
             data.count("frameWidth") != 0 && data.count("frameHeight") != 0
                 ? Size{static_cast<Float>(data["frameWidth"].getDouble()),
@@ -37,7 +45,13 @@ class BottomSheetViewState final {
                 : previousState.contentRegionInset) {}
 #endif
 
+  // Where the card puts the surface and content. They change as the sheet moves,
+  // and exist so measure follows what is drawn; the native host applies the same
+  // geometry to the views themselves. The offset is of the sheet's coordinate
+  // space, which the scale applies to about the sheet's top-left corner.
+  float contentOffsetX{0};
   float contentOffsetY{0};
+  float contentScale{1};
   // Real measured size (dp) of the sheet in its window, reported natively once
   // it lays out. Consumed by the component descriptor only in native-overlay
   // mode, where the sheet is hoisted out of its in-tree slot; zero until the
@@ -54,7 +68,8 @@ class BottomSheetViewState final {
 
 #ifdef ANDROID
   folly::dynamic getDynamic() const {
-    return folly::dynamic::object("contentOffsetY", contentOffsetY)(
+    return folly::dynamic::object("contentOffsetX", contentOffsetX)(
+        "contentOffsetY", contentOffsetY)("contentScale", contentScale)(
         "frameWidth", frameSize.width)("frameHeight", frameSize.height)(
         "contentRegionInset", contentRegionInset);
   }

@@ -424,6 +424,8 @@ public final class BottomSheetHostingView: UIView {
   /// The settle animation the card is following, kept so the content's keyframes
   /// can be rebuilt when a layout moves the content mid-settle.
   private var cardSettleAnimation: CAKeyframeAnimation?
+  /// The centers and sizes that the running content keyframes were built from.
+  private var contentAnimationLayouts: [CGRect] = []
 
   override public init(frame: CGRect) {
     super.init(frame: frame)
@@ -544,7 +546,6 @@ public final class BottomSheetHostingView: UIView {
     // (the container is translated to the current sheet position), regardless of
     // how short the content becomes. Sized from the top via frame — never via
     // anchorPoint.
-    surfaceView?.frame = sheetContainer.bounds
     shadowView.frame = sheetContainer.bounds
     // From the model translation: mid-settle the card animation drives the
     // presented geometry and the model already holds the target.
@@ -785,6 +786,9 @@ public final class BottomSheetHostingView: UIView {
     if surfaceView === childView {
       surfaceView = nil
     }
+    // Fabric recycles the view, which must not keep the card's scale.
+    childView.layer.removeAnimation(forKey: Self.cardContentAnimationKey)
+    childView.layer.transform = CATransform3DIdentity
     childView.removeFromSuperview()
     refreshContentHeightMarker()
     setNeedsLayout()
@@ -916,6 +920,21 @@ public final class BottomSheetHostingView: UIView {
     let maxHeight = sheetContainerHeight
     let containerTop = bounds.height - maxHeight
     return containerTop + currentTranslationY
+  }
+
+  /// How much the card scales the surface and content.
+  public var currentContentScale: CGFloat {
+    let widest = bounds.width - tightestSideGaps
+    guard hasCardGaps, widest > 0 else { return 1 }
+    return cardRect(forPosition: currentSheetHeight).width / widest
+  }
+
+  /// The sheet coordinate space's horizontal displacement, which the scale applies
+  /// to as well: it puts the widest card's left edge, scaled, on the card's.
+  public var currentContentOffsetX: CGFloat {
+    guard hasCardGaps else { return 0 }
+    let widestLeft = findContentView().map { $0.center.x - $0.bounds.width / 2 } ?? 0
+    return cardRect(forPosition: currentSheetHeight).minX - currentContentScale * widestLeft
   }
 
   public var isModalAccessibilityActive: Bool {
@@ -1971,8 +1990,11 @@ public final class BottomSheetHostingView: UIView {
     // The transform pins the content by its center, which this layout may move.
     applyCardGeometry(forPosition: sheetContainerHeight - sheetContainer.transform.ty)
     // So does a running settle's copy of it: the settle usually starts before
-    // the layout of the same transaction lands.
-    addContentAnimation()
+    // the layout of the same transaction lands. Commits run per frame, so only
+    // rebuild it when the content actually moved.
+    if isContentAnimationStale {
+      addContentAnimation()
+    }
     guard isContentRegionChangePending else { return }
     refreshDetentsFromLayout()
   }
@@ -2251,14 +2273,14 @@ private extension BottomSheetHostingView {
       layer.shadowPath = cardPath(in: rect, outset: shadow.spreadDistance)
       (layer.mask as? CAShapeLayer)?.path = shadowMaskPath(in: rect, for: shadow)
     }
-    if let contentView = findContentView() {
-      contentView.layer.transform = contentTransform(of: contentView, in: rect)
+    for view in clipContainer.subviews {
+      view.layer.transform = contentTransform(of: view, in: rect)
     }
     CATransaction.commit()
   }
 
-  /// Scales the content to the card's width and pins its top-left corner to the
-  /// card's. Layer work only: the content keeps its layout.
+  /// Scales a view (the surface or content) to the card's width and pins its
+  /// top-left corner to the card's. Layer work only: the view keeps its layout.
   func contentTransform(of contentView: UIView, in rect: CGRect) -> CATransform3D {
     let widest = sheetContainer.bounds.width - tightestSideGaps
     guard hasCardGaps, widest > 0 else { return CATransform3DIdentity }
@@ -2402,24 +2424,35 @@ private extension BottomSheetHostingView {
     }
   }
 
-  /// Adds the content's keyframes for the running settle, or replaces them: the
-  /// same `beginTime` keeps them on the settle's clock, so nothing visibly restarts.
+  /// Adds the surface's and content's keyframes for the running settle, or
+  /// replaces them: the same `beginTime` keeps them on the settle's clock, so
+  /// nothing visibly restarts.
   private func addContentAnimation() {
-    guard hasCardGaps, let sheetAnimation = cardSettleAnimation,
-          let contentView = findContentView() else { return }
+    guard hasCardGaps, let sheetAnimation = cardSettleAnimation else { return }
     let samples = (sheetAnimation.values ?? []).compactMap {
       ($0 as? CGFloat) ?? ($0 as? NSNumber).map { CGFloat(truncating: $0) }
     }
-    contentView.layer.add(
-      Self.cardKeyframes(
-        "transform",
-        cardRects(forSamples: samples).map {
-          NSValue(caTransform3D: contentTransform(of: contentView, in: $0))
-        },
-        matching: sheetAnimation
-      ),
-      forKey: Self.cardContentAnimationKey
-    )
+    let rects = cardRects(forSamples: samples)
+    contentAnimationLayouts = currentContentLayouts
+    for view in clipContainer.subviews {
+      view.layer.add(
+        Self.cardKeyframes(
+          "transform",
+          rects.map { NSValue(caTransform3D: contentTransform(of: view, in: $0)) },
+          matching: sheetAnimation
+        ),
+        forKey: Self.cardContentAnimationKey
+      )
+    }
+  }
+
+  private var isContentAnimationStale: Bool {
+    guard cardSettleAnimation != nil else { return false }
+    return contentAnimationLayouts != currentContentLayouts
+  }
+
+  private var currentContentLayouts: [CGRect] {
+    clipContainer.subviews.map { CGRect(origin: $0.center, size: $0.bounds.size) }
   }
 
   private func cardRects(forSamples samples: [CGFloat]) -> [CGRect] {
@@ -2445,10 +2478,11 @@ private extension BottomSheetHostingView {
 
   func removeSettleAnimations() {
     cardSettleAnimation = nil
+    contentAnimationLayouts = []
     sheetContainer.layer.removeAnimation(forKey: Self.springAnimationKey)
     clipContainer.layer.removeAnimation(forKey: Self.cardBoundsAnimationKey)
     clipContainer.layer.removeAnimation(forKey: Self.cardPositionAnimationKey)
-    findContentView()?.layer.removeAnimation(forKey: Self.cardContentAnimationKey)
+    clipContainer.subviews.forEach { $0.layer.removeAnimation(forKey: Self.cardContentAnimationKey) }
     cardMask?.removeAnimation(forKey: Self.cardMaskAnimationKey)
     for layer in shadowLayers {
       layer.removeAnimation(forKey: Self.cardShadowAnimationKey)

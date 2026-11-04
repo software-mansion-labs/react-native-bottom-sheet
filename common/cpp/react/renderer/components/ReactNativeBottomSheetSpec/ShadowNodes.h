@@ -21,6 +21,7 @@ class JSI_EXPORT BottomSheetViewShadowNode final
 
  public:
   Point getContentOriginOffset(bool includeTransform) const override;
+  Transform getTransform() const override;
 
   // Toggles the `RootNodeKind` trait so a native-overlay sheet re-roots its
   // descendants' layout coordinate space (see the definition). Driven from props

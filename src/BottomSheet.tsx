@@ -121,11 +121,12 @@ export interface BottomSheetProps {
    * its inset. `top` defaults to the status bar's overlap with the host; a lower
    * value, or `0`, lets the card go under the status bar.
    *
-   * Insets never relayout the content. It is laid out against the widest card,
-   * the detent with the tightest side insets, and scaled uniformly to fit
-   * narrower ones, so full-width content always touches the card's edges. A
-   * `'content'` detent's card is its scaled height. `measure` reports layout
-   * coordinates, without this scale. The surface fills the card at every detent.
+   * Insets never relayout the surface or content. They are laid out against the
+   * widest card, the detent with the tightest side insets, and scaled uniformly
+   * to fit narrower ones, so full-width content and an image surface always touch
+   * the card's edges. A `'content'` detent's card is its scaled height. `measure`
+   * and `measureInWindow` report the scaled position and size, except that with
+   * `nativeOverlay` only `measureInWindow` includes the scale.
    * Space in an inset isn't part of the sheet: touches there reach the scrim or
    * whatever is behind it.
    */
@@ -306,9 +307,9 @@ export const BottomSheet = (props: BottomSheetProps) => {
     setIsSheetActive(true);
     setHasOpenedFromClosed(true);
   }
-  // The content is laid out against the widest card, and the native host scales
-  // it down to narrower ones. Stated as start/end because insets are physical,
-  // while left/right margins may swap under RTL.
+  // The surface and content are laid out against the widest card, and the native
+  // host scales them down to narrower ones. Stated as start/end because insets are
+  // physical, while left/right may swap under RTL.
   const widestDetent = findWidestDetent(normalizedDetents);
   const contentLeft = widestDetent?.insetLeft ?? 0;
   const contentRight = widestDetent?.insetRight ?? 0;
@@ -436,7 +437,13 @@ export const BottomSheet = (props: BottomSheetProps) => {
             <BottomSheetSurfaceView
               collapsable={false}
               pointerEvents="box-none"
-              style={StyleSheet.absoluteFill}
+              style={[
+                styles.surface,
+                {
+                  start: I18nManager.isRTL ? contentRight : contentLeft,
+                  end: I18nManager.isRTL ? contentLeft : contentRight,
+                },
+              ]}
             >
               {surface}
             </BottomSheetSurfaceView>
@@ -484,5 +491,6 @@ export const BottomSheet = (props: BottomSheetProps) => {
 };
 
 const styles = StyleSheet.create({
+  surface: { position: 'absolute', top: 0, bottom: 0 },
   contentWrapper: { flex: 1 },
 });

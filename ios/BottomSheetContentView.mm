@@ -130,9 +130,19 @@
   [_impl setSurfaceShadows:shadows];
 }
 
+- (CGFloat)currentContentOffsetX
+{
+  return _impl.currentContentOffsetX;
+}
+
 - (CGFloat)currentContentOffsetY
 {
   return _impl.currentContentOffsetY;
+}
+
+- (CGFloat)currentContentScale
+{
+  return _impl.currentContentScale;
 }
 
 - (BOOL)isModalAccessibilityActive

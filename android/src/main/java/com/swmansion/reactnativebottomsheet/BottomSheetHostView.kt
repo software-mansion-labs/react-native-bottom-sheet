@@ -79,7 +79,9 @@ private data class DetentSpec(
 )
 
 private data class StateSnapshot(
+  val contentOffsetX: Double,
   val contentOffsetY: Double,
+  val contentScale: Double,
   val frameWidth: Double,
   val frameHeight: Double,
   val contentRegionInset: Double,
@@ -439,8 +441,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     }
     closeRequestPresentationTracker.onTransitionSettled()
     sheetContainer.translationY = translationY(targetIndex)
-    updateShadowState(sheetContainer.translationY)
     updateCardGeometry()
+    updateShadowState(sheetContainer.translationY)
     notifyCloseRequestStateChanged()
   }
 
@@ -458,14 +460,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     val contentLeft = widestCardInsets.left.toInt()
     for (i in 0 until clipContainer.childCount) {
       val child = clipContainer.getChildAt(i)
-      if (child === surfaceView) {
-        // The surface fills the full container so it always covers the visible
-        // sheet (the container is translated to the current sheet position),
-        // regardless of how short the content becomes.
-        child.layout(0, 0, containerWidth, containerHeight)
-      } else {
-        child.layout(contentLeft, 0, contentLeft + child.measuredWidth, child.measuredHeight)
-      }
+      child.layout(contentLeft, 0, contentLeft + child.measuredWidth, child.measuredHeight)
     }
   }
 
@@ -484,6 +479,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     cardTouchSensor.layout(0, 0, viewWidth, viewHeight)
     layoutSheetChildren(viewWidth, maxHeight.toInt())
     updateCardGeometry()
+    pushStateSnapshot()
   }
 
   // MARK: - Prop setters
@@ -1028,8 +1024,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     updateSheetVisibility(position)
     updateInteractionState()
     listener?.onPositionChange((position / density).toDouble(), detentIndexAt(position).toDouble())
-    updateShadowState(ty)
     updateCardGeometry()
+    updateShadowState(ty)
   }
 
   // MARK: - Card geometry
@@ -1090,19 +1086,20 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     updateCardShadows(left, right, bottom)
   }
 
-  /** Scales the content to the card's width and pins its top-left corner to the card's. */
+  /** Scales the surface and content to the card's width and pins them to its top-left corner. */
   private fun updateContentTransform(cardLeft: Float, cardRight: Float) {
     val widest = sheetContainer.width - widestCardInsets.left - widestCardInsets.right
     val scale = if (widest > 0f) (cardRight - cardLeft) / widest else 1f
     for (i in 0 until clipContainer.childCount) {
       val child = clipContainer.getChildAt(i)
-      if (child === surfaceView) continue
       child.pivotX = 0f
       child.pivotY = 0f
       child.scaleX = scale
       child.scaleY = scale
       child.translationX = cardLeft - child.left
     }
+    shadowContentScale = scale
+    shadowContentOffsetX = cardLeft - scale * widestCardInsets.left
   }
 
   // Fabric recycles the view, which must not keep the card's scale.
@@ -1179,6 +1176,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   }
 
   private var lastShadowOffsetY = Float.NaN
+  private var shadowContentOffsetX = 0f
+  private var shadowContentScale = 1f
   private var lastGeometryStateWidth = 0
   private var lastGeometryStateHeight = 0
   private var lastGeometryStateInsetTop = Float.NaN
@@ -1353,7 +1352,9 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     val sw = stateWrapper ?: return
     val snapshot =
       StateSnapshot(
+        contentOffsetX = (shadowContentOffsetX / density).toDouble(),
         contentOffsetY = if (lastShadowOffsetY.isNaN()) 0.0 else lastShadowOffsetY.toDouble(),
+        contentScale = shadowContentScale.toDouble(),
         frameWidth = (lastGeometryStateWidth / density).toDouble(),
         frameHeight = (lastGeometryStateHeight / density).toDouble(),
         contentRegionInset =
@@ -1365,7 +1366,9 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     // Keep this cache across wrapper replacements, but never mark an unsent snapshot.
     if (snapshot == lastSentStateSnapshot) return
     val map = Arguments.createMap()
+    map.putDouble("contentOffsetX", snapshot.contentOffsetX)
     map.putDouble("contentOffsetY", snapshot.contentOffsetY)
+    map.putDouble("contentScale", snapshot.contentScale)
     map.putDouble("frameWidth", snapshot.frameWidth)
     map.putDouble("frameHeight", snapshot.frameHeight)
     map.putDouble("contentRegionInset", snapshot.contentRegionInset)
@@ -1381,7 +1384,6 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     // the content via Yoga BOTTOM padding, keeping the Yoga origin at zero, so
     // the full displacement is carried here.
     val offsetY = ((containerTop + translationY) / density).toDouble()
-    if (offsetY.toFloat() == lastShadowOffsetY) return
     lastShadowOffsetY = offsetY.toFloat()
     pushStateSnapshot()
   }
@@ -2237,6 +2239,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     clipContainer.removeAllViews()
     stateWrapper = null
     lastShadowOffsetY = Float.NaN
+    shadowContentOffsetX = 0f
+    shadowContentScale = 1f
     closeRequestStateChangedListener = null
     listener = null
   }

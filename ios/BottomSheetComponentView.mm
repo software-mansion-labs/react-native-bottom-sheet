@@ -55,7 +55,9 @@ using namespace facebook::react;
 @implementation BottomSheetComponentView {
   BottomSheetContentView *_sheetView;
   State::Shared _sheetState;
+  float _lastContentOffsetX;
   float _lastContentOffsetY;
+  float _lastContentScale;
   BOOL _needsIndexSyncAfterRecycle;
   BOOL _nativeOverlay;
   NSInteger _openOrder;
@@ -77,6 +79,7 @@ using namespace facebook::react;
     _props = defaultProps;
     _needsIndexSyncAfterRecycle = NO;
     _nativeOverlay = NO;
+    _lastContentScale = 1;
 
     _sheetView = [[BottomSheetContentView alloc] initWithFrame:CGRectZero];
     _sheetView.delegate = self;
@@ -375,7 +378,9 @@ using namespace facebook::react;
   }
   updateBottomSheetState(
       _sheetState,
+      _lastContentOffsetX,
       _lastContentOffsetY,
+      _lastContentScale,
       {static_cast<Float>(_lastGeometryFrameSize.width),
        static_cast<Float>(_lastGeometryFrameSize.height)},
       static_cast<Float>(MAX(_lastGeometryInset, 0)));
@@ -427,6 +432,8 @@ using namespace facebook::react;
                withSurfaceTelemetry:(const facebook::react::SurfaceTelemetry &)surfaceTelemetry
 {
   [_sheetView contentRegionLayoutDidApply];
+  // The content's layout and the detents can move these without the sheet moving.
+  [self pushContentGeometry];
 }
 
 #pragma mark - BottomSheetContentViewDelegate
@@ -457,22 +464,30 @@ using namespace facebook::react;
         {.position = static_cast<double>(position), .index = static_cast<double>(index)});
   }
 
-  // The shadow node applies this as a content-origin offset so descendant
-  // coordinates (measure, hit-testing) follow the sheet content to where it is
-  // physically drawn within the host. In native-overlay mode the content is
-  // re-rooted to a window-level full-screen overlay; the shadow node is marked as
-  // a layout root in that mode (see BottomSheetViewComponentDescriptor), so the
-  // outer-tree origin is dropped structurally and only this in-host displacement
-  // remains to be applied here.
-  float contentOffsetY = static_cast<float>(view.currentContentOffsetY);
-  if (contentOffsetY == _lastContentOffsetY) {
-    [self updateOverlayAccessibilityState];
+  [self pushContentGeometry];
+  [self updateOverlayAccessibilityState];
+}
+
+/// The shadow node applies these as a content-origin offset and scale so descendant
+/// coordinates (measure, hit-testing) follow the sheet content to where it is
+/// physically drawn within the host. In native-overlay mode the content is
+/// re-rooted to a window-level full-screen overlay; the shadow node is marked as
+/// a layout root in that mode (see BottomSheetViewComponentDescriptor), so the
+/// outer-tree origin is dropped structurally and only this in-host displacement
+/// remains to be applied here.
+- (void)pushContentGeometry
+{
+  float contentOffsetX = static_cast<float>(_sheetView.currentContentOffsetX);
+  float contentOffsetY = static_cast<float>(_sheetView.currentContentOffsetY);
+  float contentScale = static_cast<float>(_sheetView.currentContentScale);
+  if (contentOffsetX == _lastContentOffsetX && contentOffsetY == _lastContentOffsetY
+      && contentScale == _lastContentScale) {
     return;
   }
+  _lastContentOffsetX = contentOffsetX;
   _lastContentOffsetY = contentOffsetY;
-
+  _lastContentScale = contentScale;
   [self pushStateSnapshot];
-  [self updateOverlayAccessibilityState];
 }
 
 - (void)bottomSheetView:(BottomSheetContentView *)view didReportError:(NSString *)message
@@ -496,7 +511,9 @@ using namespace facebook::react;
   _needsIndexSyncAfterRecycle = YES;
   [_sheetView resetSheetState];
   _sheetState.reset();
+  _lastContentOffsetX = 0;
   _lastContentOffsetY = 0;
+  _lastContentScale = 1;
   _lastGeometryFrameSize = CGSizeZero;
   _lastGeometryInset = -1;
 }

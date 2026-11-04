@@ -86,6 +86,7 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
   const containerRef = useRef<ViewInstance>(null);
   const cardRef = useRef<ViewInstance>(null);
   const shadowRef = useRef<ViewInstance>(null);
+  const surfaceRef = useRef<ViewInstance>(null);
   const contentRef = useRef<ViewInstance>(null);
   // Detents that fail validation are found while measuring, outside render.
   // Rethrow them during render so error boundaries see them, as the native
@@ -119,9 +120,28 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
     const container = asElement(containerRef.current);
     const card = asElement(cardRef.current);
     const shadow = asElement(shadowRef.current);
+    const surfaceElement = asElement(surfaceRef.current);
     const content = asElement(contentRef.current);
-    if (!host || !scrim || !container || !card || !shadow || !content) return;
-    controller.attach({ host, scrim, container, card, shadow, content });
+    if (
+      !host ||
+      !scrim ||
+      !container ||
+      !card ||
+      !shadow ||
+      !surfaceElement ||
+      !content
+    ) {
+      return;
+    }
+    controller.attach({
+      host,
+      scrim,
+      container,
+      card,
+      shadow,
+      surface: surfaceElement,
+      content,
+    });
     return () => controller.detach();
   }, [controller, isMounted]);
 
@@ -194,7 +214,13 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
       >
         <View ref={shadowRef} style={styles.shadow} pointerEvents="none" />
         <View ref={cardRef} style={StyleSheet.absoluteFill}>
-          {surface}
+          <View
+            ref={surfaceRef}
+            style={StyleSheet.absoluteFill}
+            pointerEvents="box-none"
+          >
+            {surface}
+          </View>
           <View ref={contentRef}>{sheetContent}</View>
         </View>
       </View>

@@ -75,6 +75,8 @@ export type BottomSheetWebElements = Readonly<{
   card: HTMLElement;
   /** Sized to the card behind it, and casts the card's shadows. */
   shadow: HTMLElement;
+  /** Spans the sheet like `content`, so the same transform scales the surface. */
+  surface: HTMLElement;
   content: HTMLElement;
 }>;
 
@@ -983,7 +985,7 @@ export class BottomSheetWebController {
   private updateCardClip() {
     const elements = this.elements;
     if (elements === null || this.config === null) return;
-    const { card, content, host, shadow } = elements;
+    const { card, content, host, shadow, surface } = elements;
     const position = Math.max(
       this.cap - this.translateY,
       this.firstOpenPosition()
@@ -994,19 +996,22 @@ export class BottomSheetWebController {
     const cardHeight = clamp(position - bottom, 0, this.cap);
     const clipInset = this.cap - cardHeight;
 
-    // Scale the content to the card's width, with its top-left corner on the
-    // card's. The transform origin is the content box's, which starts at the
-    // container's left, so the layout margin scales along. Ahead of the check
+    // Scale the surface and content to the card's width, with their top-left
+    // corners on the card's. The transform origin is the box's, which starts at
+    // the container's left, so the layout margin scales along. Ahead of the check
     // below: the widest card can change while this card stays the same.
     const widestCard = findWidestCard(this.rawDetents);
     const widest = host.clientWidth - widestCard.gaps;
     const scale =
       widest > 0 ? Math.max(0, host.clientWidth - left - right) / widest : 1;
-    content.style.transformOrigin = '0 0';
-    content.style.transform =
+    const transform =
       scale === 1 && left === widestCard.left
         ? ''
         : `translateX(${left - scale * widestCard.left}px) scale(${scale})`;
+    for (const element of [surface, content]) {
+      element.style.transformOrigin = '0 0';
+      element.style.transform = transform;
+    }
 
     if (
       cardHeight === this.appliedCardHeight &&

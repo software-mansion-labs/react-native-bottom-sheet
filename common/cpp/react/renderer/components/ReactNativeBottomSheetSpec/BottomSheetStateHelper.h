@@ -7,7 +7,7 @@
 namespace facebook::react {
 
 // Pushes a complete snapshot of the sheet's natively measured state: the
-// content origin offset, the frame size (consumed by the component descriptor
+// content origin offset and scale, the frame size (consumed by the component descriptor
 // only in overlay mode), and the content region's inset (applied as Yoga
 // bottom padding in every mode).
 //
@@ -18,7 +18,9 @@ namespace facebook::react {
 // the geometry forever. Same convention as Android's pushStateSnapshot.
 void updateBottomSheetState(
     const State::Shared& state,
+    float contentOffsetX,
     float contentOffsetY,
+    float contentScale,
     Size frameSize,
     Float contentRegionInset);
 
