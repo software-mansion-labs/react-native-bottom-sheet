@@ -1,0 +1,5 @@
+ios/build/**/*
+ios/build-device/**/*
+ios/Pods/**/*
+android/**/build/**/*
+android/.gradle/**/*
