@@ -348,14 +348,21 @@ type NormalizedDetent = Readonly<{
   value: number;
   kind: 'points' | 'percentage' | 'content';
   programmatic: boolean;
+  usesStatusBarTopInset: boolean;
   insetTop: number;
   insetLeft: number;
   insetRight: number;
   insetBottom: number;
 }>;
 
-/** Tells the native views to use the status bar's overlap as the top inset. */
-const STATUS_BAR_TOP_INSET = -1;
+/** A closed sheet is fully off-screen, whatever its detent's inset says. */
+const CLOSED_INSET = {
+  usesStatusBarTopInset: false,
+  insetTop: 0,
+  insetLeft: 0,
+  insetRight: 0,
+  insetBottom: 0,
+};
 
 const PERCENTAGE_PATTERN = /^\d+(?:\.\d+)?%$/;
 
@@ -392,8 +399,8 @@ const resolveDetentInset = (
     return value;
   };
   return {
-    insetTop:
-      inset.top === undefined ? STATUS_BAR_TOP_INSET : resolveSide('top'),
+    usesStatusBarTopInset: inset.top === undefined,
+    insetTop: resolveSide('top'),
     insetLeft: resolveSide('left'),
     insetRight: resolveSide('right'),
     insetBottom: resolveSide('bottom'),
@@ -423,13 +430,6 @@ export const normalizeDetent = (
   const value = detentValue(detent);
   const isProgrammatic = isDetentProgrammatic(detent);
   const inset = resolveDetentInset(detentInsets, index);
-  // A closed sheet is fully off-screen, whatever its detent's inset says.
-  const closedInset = {
-    insetTop: 0,
-    insetLeft: 0,
-    insetRight: 0,
-    insetBottom: 0,
-  };
 
   if (typeof value === 'number') {
     if (!Number.isFinite(value) || value < 0) {
@@ -440,7 +440,7 @@ export const normalizeDetent = (
       value,
       kind: 'points',
       programmatic: isProgrammatic,
-      ...(value === 0 ? closedInset : inset),
+      ...(value === 0 ? CLOSED_INSET : inset),
     };
   }
 
@@ -458,21 +458,31 @@ export const normalizeDetent = (
     value: ratio,
     kind: 'percentage',
     programmatic: isProgrammatic,
-    ...(ratio === 0 ? closedInset : inset),
+    ...(ratio === 0 ? CLOSED_INSET : inset),
   };
 };
 
 /** Whether a normalized detent represents a fully closed sheet. */
-export const isNormalizedDetentClosed = (detent: NormalizedDetent) =>
-  detent.kind !== 'content' && detent.value === 0;
+export const isNormalizedDetentClosed = (
+  detent: Readonly<{ kind: string; value: number }>
+) => detent.kind !== 'content' && detent.value === 0;
 
 /**
  * The open detent with the widest card, whose tightest side gaps the content is
- * laid out against. On a tie, the tallest detent. Mirrored in the native hosts
- * and the web controller; keep them in sync.
+ * laid out against. On a tie, the tallest detent. Mirrored in the native hosts;
+ * keep them in sync.
  */
-export const findWidestDetent = (detents: ReadonlyArray<NormalizedDetent>) => {
-  let widest: NormalizedDetent | undefined;
+export const findWidestDetent = <
+  T extends Readonly<{
+    kind: string;
+    value: number;
+    insetLeft: number;
+    insetRight: number;
+  }>,
+>(
+  detents: ReadonlyArray<T>
+) => {
+  let widest: T | undefined;
   for (const detent of detents) {
     if (isNormalizedDetentClosed(detent)) continue;
     if (

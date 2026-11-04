@@ -116,6 +116,8 @@ class BottomSheetViewManager :
           "value" to map.getDouble("value"),
           "kind" to (map.getString("kind") ?: "points"),
           "programmatic" to map.getBoolean("programmatic"),
+          "usesStatusBarTopInset" to
+            (map.hasKey("usesStatusBarTopInset") && map.getBoolean("usesStatusBarTopInset")),
           "insetTop" to inset("insetTop"),
           "insetLeft" to inset("insetLeft"),
           "insetRight" to inset("insetRight"),

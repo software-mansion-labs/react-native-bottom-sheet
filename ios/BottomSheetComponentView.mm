@@ -102,6 +102,7 @@ using namespace facebook::react;
         @"value": @(detent.value),
         @"kind": RCTNSStringFromString(detent.kind),
         @"programmatic": @(detent.programmatic),
+        @"usesStatusBarTopInset": @(detent.usesStatusBarTopInset),
         @"insetTop": @(detent.insetTop),
         @"insetLeft": @(detent.insetLeft),
         @"insetRight": @(detent.insetRight),
@@ -222,7 +223,7 @@ using namespace facebook::react;
   // The sheet node's Yoga padding carries the content-region inset for the
   // in-flow content; the base class would shrink the contentView to the
   // padding-inset content frame, feeding the inset back into the natively
-  // measured geometry (host height → cap → inset) in a loop. The native sheet
+  // measured geometry (host height → inset) in a loop. The native sheet
   // host must keep filling the node — padding is for Yoga children only.
   if (_sheetView.superview == self) {
     _sheetView.frame = self.bounds;
@@ -344,7 +345,7 @@ using namespace facebook::react;
 /// mode, where the sheet is hoisted out of its in-tree slot) and the content
 /// region's inset (applied as Yoga bottom padding in every mode, so in-flow
 /// content resolves exactly to the tallest height the sheet can reach — the
-/// tallest detent, clamped to the detent cap). Yoga then lays the sheet
+/// tallest detent, clamped to the space its insets leave). Yoga then lays the sheet
 /// subtree out against measured window geometry instead of JS-provided
 /// dimensions. Driven by the hosting view's didLayout delegate.
 - (void)pushNativeGeometry

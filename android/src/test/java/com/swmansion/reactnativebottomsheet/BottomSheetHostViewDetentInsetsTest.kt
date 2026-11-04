@@ -11,8 +11,8 @@ import com.facebook.react.internal.featureflags.ReactNativeFeatureFlagsForTests
 import com.facebook.react.uimanager.TouchTargetHelper
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -67,10 +67,20 @@ class BottomSheetHostViewDetentInsetsTest {
   }
 
   @Test
-  fun `an unset top inset is the status bar's overlap, not a negative gap`() {
+  fun `an unset top inset is the status bar's overlap`() {
     // Nothing overlaps an unattached host, so the detent reaches its top.
-    withSheet(listOf(points(0.0), percentage(1.0, top = -1.0))) { sheet ->
+    withSheet(listOf(points(0.0), percentage(1.0, top = null))) { sheet ->
       assertEquals(0f, sheet.container.translationY, 0.5f)
+    }
+  }
+
+  @Test
+  fun `only a sheet that clips rejects touches off the card`() {
+    withSheet(listOf(points(0.0), points(300.0))) { sheet ->
+      assertFalse(sheet.clip.clipsContent)
+    }
+    withSheet(listOf(points(0.0), points(300.0, left = 8.0))) { sheet ->
+      assertTrue(sheet.clip.clipsContent)
     }
   }
 
@@ -206,13 +216,13 @@ class BottomSheetHostViewDetentInsetsTest {
     bottom: Double = 0.0,
   ) = detent(value, "points", top, left, right, bottom)
 
-  private fun percentage(ratio: Double, top: Double = 0.0, bottom: Double = 0.0) =
+  private fun percentage(ratio: Double, top: Double? = 0.0, bottom: Double = 0.0) =
     detent(ratio, "percentage", top, 0.0, 0.0, bottom)
 
   private fun detent(
     value: Double,
     kind: String,
-    top: Double,
+    top: Double?,
     left: Double,
     right: Double,
     bottom: Double,
@@ -220,7 +230,8 @@ class BottomSheetHostViewDetentInsetsTest {
     mapOf(
       "value" to value,
       "kind" to kind,
-      "insetTop" to top,
+      "usesStatusBarTopInset" to (top == null),
+      "insetTop" to (top ?: 0.0),
       "insetLeft" to left,
       "insetRight" to right,
       "insetBottom" to bottom,

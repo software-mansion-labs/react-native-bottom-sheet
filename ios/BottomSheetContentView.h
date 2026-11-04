@@ -36,7 +36,7 @@ NS_ASSUME_NONNULL_BEGIN
 // measurable again.
 - (void)contentRegionLayoutDidApply;
 // The natively measured inset of the content region: the gap between the
-// sheet's height and the detent cap.
+// sheet's height and the content region's.
 - (CGFloat)contentRegionInset;
 - (void)setDetentIndex:(NSInteger)newIndex;
 - (void)setScrimColor:(UIColor *_Nullable)color;

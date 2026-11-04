@@ -336,9 +336,12 @@ export const DetachedSheetScreen = () => {
     surface: (
       <View
         // Toggling the modes remounts the sheet, and the old surface can unmount
-        // after the new one mounts, so unmounting doesn't clear this.
+        // after the new one mounts, so it only clears its own view.
         ref={(view) => {
-          if (view !== null) surfaceRef.current = view;
+          surfaceRef.current = view;
+          return () => {
+            if (surfaceRef.current === view) surfaceRef.current = null;
+          };
         }}
         style={[StyleSheet.absoluteFill, { backgroundColor: 'white' }]}
       >

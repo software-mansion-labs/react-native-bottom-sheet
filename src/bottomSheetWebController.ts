@@ -2,7 +2,10 @@
 
 import type { ColorValue } from 'react-native';
 
-import { CONTENT_HEIGHT_MARKER_NATIVE_ID } from './bottomSheetUtils';
+import {
+  CONTENT_HEIGHT_MARKER_NATIVE_ID,
+  findWidestDetent,
+} from './bottomSheetUtils';
 
 // The web counterpart of `BottomSheetHostingView.swift` and
 // `BottomSheetHostView.kt`. It owns the same geometry, snapping, scrim, and
@@ -15,6 +18,7 @@ export type RawDetent = Readonly<{
   value: number;
   kind: string;
   programmatic: boolean;
+  usesStatusBarTopInset: boolean;
   insetTop: number;
   insetLeft: number;
   insetRight: number;
@@ -272,40 +276,22 @@ const isTextEditingTarget = (target: EventTarget | null) =>
     target.tagName === 'SELECT');
 
 /**
- * The tallest the card can be at a detent: the cap, less the detent's top and
- * bottom insets. A negative top inset stands for the status bar's overlap.
- * Percentages resolve against it, so `100%` fits.
+ * The tallest the card can be at a detent: the host's height, less the detent's
+ * top and bottom insets. Percentages resolve against it, so `100%` fits.
  */
 const availableCardHeight = (
   spec: RawDetent,
-  cap: number,
+  hostHeight: number,
   statusBarOverlap: number
 ) =>
   Math.max(
     0,
-    cap -
-      (spec.insetTop < 0 ? statusBarOverlap : spec.insetTop) -
+    hostHeight -
+      (spec.usesStatusBarTopInset ? statusBarOverlap : spec.insetTop) -
       spec.insetBottom
   );
 
-/**
- * The smallest sum of side insets across the open detents, and the left inset
- * that goes with it: the gaps of the widest card, which the content is laid out
- * against. On a tie, the tallest detent.
- */
-const findWidestCard = (detents: ReadonlyArray<RawDetent>) => {
-  let gaps = Infinity;
-  let left = 0;
-  for (const detent of detents) {
-    if (detent.kind !== 'content' && detent.value === 0) continue;
-    const detentGaps = detent.insetLeft + detent.insetRight;
-    if (detentGaps <= gaps) {
-      gaps = detentGaps;
-      left = detent.insetLeft;
-    }
-  }
-  return { gaps: gaps === Infinity ? 0 : gaps, left };
-};
+const NO_INSETS = { insetLeft: 0, insetRight: 0, insetBottom: 0 };
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
@@ -334,13 +320,16 @@ export class BottomSheetWebController {
   private appliedIndex: number | null = null;
 
   private rawDetents: ReadonlyArray<RawDetent> = [];
+  /** The widest card's side gaps, which the content is laid out against. */
+  private widestCardLeft = 0;
+  private widestCardGaps = 0;
   private statusBarOverlap = 0;
   private detents: ResolvedDetent[] = [];
   private targetIndex = 0;
   private pendingIndex: number | null = null;
   private hasLaidOut = false;
-  private cap = 0;
-  private lastAppliedCap = NaN;
+  private hostHeight = 0;
+  private lastAppliedHostHeight = NaN;
   private translateY = 0;
   private lastReportedError: string | null = null;
 
@@ -358,9 +347,10 @@ export class BottomSheetWebController {
   private frameRequest: number | null = null;
   private lastFrameTime = 0;
   private needsLayout = false;
-  /** The card's CSS corner radii, or null while no corner is rounded. */
+  /** The card's CSS corner radii, even while none is rounded. */
   private cardCorners = '';
   private isCardRounded = false;
+  private appliedContentTransform: string | null = null;
   private appliedCardHeight = NaN;
   private appliedCardLeft = NaN;
   private appliedCardRight = NaN;
@@ -372,7 +362,10 @@ export class BottomSheetWebController {
 
   attach(elements: BottomSheetWebElements) {
     this.elements = elements;
-    const { host, scrim, container, content } = elements;
+    const { host, scrim, container, surface, content } = elements;
+    surface.style.transformOrigin = '0 0';
+    content.style.transformOrigin = '0 0';
+    this.appliedContentTransform = null;
     // `clip`, unlike `hidden`, does not make the host a scroll container that
     // focusing an input in the translated sheet could scroll.
     host.style.overflow = 'clip';
@@ -386,7 +379,7 @@ export class BottomSheetWebController {
       // Mode replays effects: restore where the sheet is and resume any settle
       // in flight. The spring is time-based, so it picks up where it would be.
       this.setTranslateY(this.translateY);
-      this.updateSheetVisibility(this.cap - this.translateY);
+      this.updateSheetVisibility(this.hostHeight - this.translateY);
       if (this.spring !== null) {
         this.requestFrame();
       }
@@ -484,6 +477,10 @@ export class BottomSheetWebController {
       !areRawDetentsEqual(previous.detents, config.detents)
     ) {
       this.rawDetents = config.detents;
+      const widest = findWidestDetent(config.detents);
+      this.widestCardLeft = widest?.insetLeft ?? 0;
+      this.widestCardGaps =
+        (widest?.insetLeft ?? 0) + (widest?.insetRight ?? 0);
     }
 
     const indexChanged = this.appliedIndex !== config.index;
@@ -559,10 +556,14 @@ export class BottomSheetWebController {
    * detent is bounded by that space alone, since it is measured from this very
    * region.
    */
-  private contentRegionHeight(cap: number) {
+  private contentRegionHeight() {
     const tallest = this.rawDetents[this.rawDetents.length - 1];
-    if (tallest === undefined) return cap;
-    const available = availableCardHeight(tallest, cap, this.statusBarOverlap);
+    if (tallest === undefined) return this.hostHeight;
+    const available = availableCardHeight(
+      tallest,
+      this.hostHeight,
+      this.statusBarOverlap
+    );
     let bound: number;
     switch (tallest.kind) {
       case 'points':
@@ -576,9 +577,7 @@ export class BottomSheetWebController {
     }
     const height = clamp(bound, 0, available);
     const scale = this.contentScale(tallest);
-    return scale > 0
-      ? Math.min(height / scale, this.elements!.host.clientHeight)
-      : height;
+    return scale > 0 ? Math.min(height / scale, this.hostHeight) : height;
   }
 
   /**
@@ -587,7 +586,7 @@ export class BottomSheetWebController {
    */
   private contentScale(spec: RawDetent) {
     const width = this.elements?.host.clientWidth ?? 0;
-    const widest = width - findWidestCard(this.rawDetents).gaps;
+    const widest = width - this.widestCardGaps;
     if (widest <= 0) return 1;
     return Math.max(0, width - spec.insetLeft - spec.insetRight) / widest;
   }
@@ -623,22 +622,20 @@ export class BottomSheetWebController {
     const hostHeight = host.clientHeight;
     if (hostHeight <= 0 || host.clientWidth <= 0) return;
 
-    const cap = hostHeight;
-    this.cap = cap;
+    this.hostHeight = hostHeight;
     // The part of the top safe-area inset that overlaps the host: the default
     // top inset.
     this.statusBarOverlap = Math.max(
       0,
       readSafeAreaTop() - host.getBoundingClientRect().top
     );
-    container.style.top = '0px';
-    container.style.height = `${cap}px`;
-    content.style.height = `${this.contentRegionHeight(cap)}px`;
+    container.style.height = `${hostHeight}px`;
+    content.style.height = `${this.contentRegionHeight()}px`;
     this.updateCardClip();
 
     this.resolveDetentsFromLayout();
     this.replayPendingIndexIfResolved();
-    this.lastAppliedCap = cap;
+    this.lastAppliedHostHeight = hostHeight;
 
     if (!this.hasLaidOut && this.detents.length > 0) {
       const indexToApply = this.pendingIndex ?? this.targetIndex;
@@ -651,7 +648,7 @@ export class BottomSheetWebController {
         // Wait for the content to be measured before animating in.
         this.targetIndex = clampedIndex;
         this.pendingIndex = clampedIndex;
-        this.setTranslateY(cap);
+        this.setTranslateY(hostHeight);
         this.emitPosition();
         return;
       }
@@ -661,7 +658,7 @@ export class BottomSheetWebController {
       this.targetIndex = clampedIndex;
 
       if (this.config.animateIn) {
-        this.setTranslateY(cap);
+        this.setTranslateY(hostHeight);
         this.emitPosition();
         this.snapToIndex(this.targetIndex, 0, false, true);
       } else {
@@ -679,7 +676,7 @@ export class BottomSheetWebController {
   }
 
   private resolveDetentSpecs(): ResolvedDetent[] | null {
-    const maxHeight = this.cap;
+    const maxHeight = this.hostHeight;
     const contentHeight = this.measureContentHeight();
     const measuredContentHeight =
       maxHeight > 0 && contentHeight !== null
@@ -761,32 +758,32 @@ export class BottomSheetWebController {
     }
     const resolved = this.resolveDetentSpecs();
     if (resolved === null) return;
-    const cap = this.cap;
-    // Also fall through when only the cap changed: translations derive from
-    // the cap, so they must be re-anchored even when the detents are unchanged.
+    const hostHeight = this.hostHeight;
+    // Also fall through when only the host's height changed: translations derive from
+    // it, so they must be re-anchored even when the detents are unchanged.
     if (
       areResolvedDetentsEqual(resolved, this.detents) &&
-      cap === this.lastAppliedCap
+      hostHeight === this.lastAppliedHostHeight
     ) {
       return;
     }
 
     // The re-anchor math preserves the on-screen sheet height across the
-    // geometry change, so relate the current translation to the cap it was
+    // geometry change, so relate the current translation to the height it was
     // computed against.
-    const previousCap = Number.isFinite(this.lastAppliedCap)
-      ? this.lastAppliedCap
-      : cap;
+    const previousHostHeight = Number.isFinite(this.lastAppliedHostHeight)
+      ? this.lastAppliedHostHeight
+      : hostHeight;
     const firstOpenPosition = this.firstOpenPosition();
     const wasScrimFull =
       this.hasLaidOut &&
       !this.isPanning &&
       this.requireConfig().modal &&
       firstOpenPosition > 0 &&
-      previousCap - this.currentTranslateY() + 0.5 >= firstOpenPosition;
+      previousHostHeight - this.currentTranslateY() + 0.5 >= firstOpenPosition;
     this.scrimPinnedFull = this.scrimPinnedFull || wasScrimFull;
     this.detents = resolved;
-    this.lastAppliedCap = cap;
+    this.lastAppliedHostHeight = hostHeight;
 
     if (this.detents.length === 0 || !this.hasLaidOut || this.isPanning) {
       return;
@@ -800,14 +797,14 @@ export class BottomSheetWebController {
       const visualTy = this.cancelSpring();
       // Re-anchor the in-flight position so the sheet keeps the same on-screen
       // height across the resize.
-      const visibleHeight = previousCap - visualTy;
-      this.setTranslateY(clamp(cap - visibleHeight, 0, cap));
+      const visibleHeight = previousHostHeight - visualTy;
+      this.setTranslateY(clamp(hostHeight - visibleHeight, 0, hostHeight));
       this.emitPosition();
       this.snapToIndex(this.targetIndex, 0, false, emitsSettle, true);
       return;
     }
 
-    const currentVisibleHeight = previousCap - this.translateY;
+    const currentVisibleHeight = previousHostHeight - this.translateY;
     const targetHeight = this.detentAt(this.targetIndex).position;
     if (
       Math.abs(targetHeight - currentVisibleHeight) <= 0.5 ||
@@ -820,7 +817,9 @@ export class BottomSheetWebController {
       // The target detent changed height: re-anchor at the current visible
       // height, then animate to the new one. The surface covers the full
       // sheet, so a shrink never exposes blank space.
-      this.setTranslateY(clamp(cap - currentVisibleHeight, 0, cap));
+      this.setTranslateY(
+        clamp(hostHeight - currentVisibleHeight, 0, hostHeight)
+      );
       this.emitPosition();
       this.snapToIndex(this.targetIndex, 0, false, false, true);
     }
@@ -853,7 +852,7 @@ export class BottomSheetWebController {
   }
 
   private translationY(index: number) {
-    return this.cap - this.detentAt(index).position;
+    return this.hostHeight - this.detentAt(index).position;
   }
 
   private snapCandidateIndices(
@@ -879,7 +878,7 @@ export class BottomSheetWebController {
     const candidates = this.snapCandidateIndices(including, detents);
     if (candidates.length === 0) return { minTy: 0, maxTy: 0 };
     const translations = candidates.map(
-      (index) => this.cap - detents[index]!.position
+      (index) => this.hostHeight - detents[index]!.position
     );
     return {
       minTy: Math.min(...translations),
@@ -938,7 +937,7 @@ export class BottomSheetWebController {
   }
 
   private currentSheetHeight() {
-    return this.cap - this.currentTranslateY();
+    return this.hostHeight - this.currentTranslateY();
   }
 
   private setTranslateY(ty: number) {
@@ -987,30 +986,32 @@ export class BottomSheetWebController {
     if (elements === null || this.config === null) return;
     const { card, content, host, shadow, surface } = elements;
     const position = Math.max(
-      this.cap - this.translateY,
+      this.hostHeight - this.translateY,
       this.firstOpenPosition()
     );
-    const left = this.interpolateInset(position, 'insetLeft');
-    const right = this.interpolateInset(position, 'insetRight');
-    const bottom = this.interpolateInset(position, 'insetBottom');
-    const cardHeight = clamp(position - bottom, 0, this.cap);
-    const clipInset = this.cap - cardHeight;
+    const {
+      insetLeft: left,
+      insetRight: right,
+      insetBottom: bottom,
+    } = this.cardInsets(position);
+    const cardHeight = clamp(position - bottom, 0, this.hostHeight);
+    const clipInset = this.hostHeight - cardHeight;
 
     // Scale the surface and content to the card's width, with their top-left
     // corners on the card's. The transform origin is the box's, which starts at
     // the container's left, so the layout margin scales along. Ahead of the check
     // below: the widest card can change while this card stays the same.
-    const widestCard = findWidestCard(this.rawDetents);
-    const widest = host.clientWidth - widestCard.gaps;
+    const widest = host.clientWidth - this.widestCardGaps;
     const scale =
       widest > 0 ? Math.max(0, host.clientWidth - left - right) / widest : 1;
     const transform =
-      scale === 1 && left === widestCard.left
+      scale === 1 && left === this.widestCardLeft
         ? ''
-        : `translateX(${left - scale * widestCard.left}px) scale(${scale})`;
-    for (const element of [surface, content]) {
-      element.style.transformOrigin = '0 0';
-      element.style.transform = transform;
+        : `translateX(${left - scale * this.widestCardLeft}px) scale(${scale})`;
+    if (transform !== this.appliedContentTransform) {
+      this.appliedContentTransform = transform;
+      surface.style.transform = transform;
+      content.style.transform = transform;
     }
 
     if (
@@ -1038,14 +1039,27 @@ export class BottomSheetWebController {
     return this.detents.find((detent) => detent.position > 0)?.position ?? 0;
   }
 
-  private interpolateInset(
-    position: number,
-    side: 'insetLeft' | 'insetRight' | 'insetBottom'
-  ) {
-    return this.interpolate(
-      position,
-      this.detents.map((detent) => detent[side])
+  /**
+   * The card's gaps at a sheet position, blended between the detents around it.
+   * Resolved detents ascend by position.
+   */
+  private cardInsets(position: number) {
+    const detents = this.detents;
+    const upperIndex = detents.findIndex(
+      (detent) => position <= detent.position
     );
+    if (upperIndex <= 0)
+      return detents[upperIndex] ?? detents[detents.length - 1] ?? NO_INSETS;
+    const upper = detents[upperIndex]!;
+    const lower = detents[upperIndex - 1]!;
+    const span = upper.position - lower.position;
+    const t = span <= 0 ? 1 : (position - lower.position) / span;
+    const blend = (from: number, to: number) => from + (to - from) * t;
+    return {
+      insetLeft: blend(lower.insetLeft, upper.insetLeft),
+      insetRight: blend(lower.insetRight, upper.insetRight),
+      insetBottom: blend(lower.insetBottom, upper.insetBottom),
+    };
   }
 
   /** Whether the card is cut out of the surface: rounded, or keeping gaps. */
@@ -1196,7 +1210,7 @@ export class BottomSheetWebController {
   // MARK: Position, scrim, and visibility
 
   private emitPosition() {
-    const position = this.cap - this.translateY;
+    const position = this.hostHeight - this.translateY;
     this.updateScrim(position);
     this.updateSheetVisibility(position);
     const index = this.detentIndex(position);
@@ -1666,7 +1680,7 @@ export class BottomSheetWebController {
       return;
     }
 
-    const height = this.cap - this.translateY;
+    const height = this.hostHeight - this.translateY;
     const detents =
       gesture.dragDetents.length === this.detents.length
         ? gesture.dragDetents
@@ -1774,6 +1788,7 @@ const areRawDetentsEqual = (
       detent.value === b[index]!.value &&
       detent.kind === b[index]!.kind &&
       detent.programmatic === b[index]!.programmatic &&
+      detent.usesStatusBarTopInset === b[index]!.usesStatusBarTopInset &&
       detent.insetTop === b[index]!.insetTop &&
       detent.insetLeft === b[index]!.insetLeft &&
       detent.insetRight === b[index]!.insetRight &&

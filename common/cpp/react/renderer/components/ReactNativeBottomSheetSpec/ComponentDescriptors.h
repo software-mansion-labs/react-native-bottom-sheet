@@ -38,7 +38,7 @@ class BottomSheetViewComponentDescriptor final
 
     // The natively measured inset of the content region — the gap between the
     // sheet's height and the tallest height the sheet can reach (the tallest
-    // detent, clamped to the detent cap) — applied as Yoga BOTTOM padding in
+    // detent, clamped to the space its insets leave) — applied as Yoga BOTTOM padding in
     // every mode. In-flow content (the flex: 1 wrapper) then resolves to
     // exactly that height; absolutely positioned children (the surface)
     // ignore padding and keep filling the node. Bottom rather than top keeps

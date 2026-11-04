@@ -179,16 +179,16 @@ One state channel on the sheet node (`BottomSheetViewState`), fields all in dp:
 | -------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `contentOffsetY`     | host, on every sheet movement (`containerTop + translationY`) | `getContentOriginOffset()` — shadow-tree coordinates for `measure()`/`measureInWindow`                                                                               |
 | `frameSize`          | host, once measured in its window                             | `adopt()`: `setSize` + `YGPositionTypeAbsolute`, **gated on `nativeOverlay`** (inline stays Fabric-owned)                                                            |
-| `contentRegionInset` | host: `height − cap`                                          | `adopt()`: **Yoga bottom padding, every mode** — the in-flow `flex: 1` wrapper resolves to exactly the detent cap; the absolutely-positioned surface ignores padding |
+| `contentRegionInset` | host: `height − region`                                       | `adopt()`: **Yoga bottom padding, every mode** — the in-flow `flex: 1` wrapper resolves to exactly the detent cap; the absolutely-positioned surface ignores padding |
 
-- **The native detent cap** replaces the `maxDetentHeight` prop entirely: the
-  cap is the host's height, and a detent's top inset defaults to
-  `max(0, topInset − originYInWindow)`, where `topInset` = status bars + display
-  cutout from `rootWindowInsets` (Android) / `window.safeAreaInsets.top` (iOS),
-  and the origin term means only the _overlapping_ part of the inset counts — a
-  sheet inside a container that starts below the status bar keeps its full
-  height. Recomputed on attach / size change / inset change / layout; JS no
-  longer clamps detents (native `resolveDetentSpecs` always did).
+- **The host's height** replaces the `maxDetentHeight` prop entirely, and a
+  detent's top inset defaults to `max(0, topInset − originYInWindow)`, where
+  `topInset` = status bars + display cutout from `rootWindowInsets` (Android) /
+  `window.safeAreaInsets.top` (iOS), and the origin term means only the
+  _overlapping_ part of the inset counts — a sheet inside a container that
+  starts below the status bar keeps its full height. Recomputed on attach / size
+  change / inset change / layout; JS no longer clamps detents (native
+  `resolveDetentSpecs` always did).
 - JS retains exactly two geometry roles: the **inline/portal host style is
   fill-parent** (the portal host spans the provider, laid out by Fabric in the
   same window — exact by construction), and `useWindowDimensions` provides the

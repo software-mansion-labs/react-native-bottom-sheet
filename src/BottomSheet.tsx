@@ -281,14 +281,14 @@ export const BottomSheet = (props: BottomSheetProps) => {
   const usesNativeOverlay = modal && nativeOverlay;
   // All real geometry — the sheet's frame, the content wrapper's bounds, and
   // the default top inset (the overlapping status-bar inset) — is measured
-  // natively from the window the sheet actually lives in and flows into the shadow tree through state (see
-  // BottomSheetHostView / BottomSheetHostingView). The window dimensions here
+  // natively from the window the sheet actually lives in and flows into the
+  // shadow tree through state (see BottomSheetHostView / BottomSheetHostingView). The window dimensions here
   // only size the native-overlay host for the first frame, before the overlay
   // window reports its measured geometry.
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   // Percentage detents stay as unitless ratios and are resolved against the
-  // current native cap whenever detents are refreshed. Point detents retain
-  // their requested height; native layout clamps both kinds to that cap.
+  // host's height whenever detents are refreshed. Point detents retain
+  // their requested height; native layout clamps both kinds to it.
   validateIndex(index, detents.length);
   const normalizedDetents = detents.map((detent, detentIndex) =>
     normalizeDetent(detent, detentIndex, detentInsets)
@@ -452,7 +452,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
             collapsable={false}
             // The wrapper fills the sheet's content region exactly: the native
             // side reports the region's inset (the gap between the sheet's
-            // height and the tallest detent, clamped to the detent cap) into
+            // height and the tallest detent, clamped to the space its insets leave) into
             // the shadow tree, where it is applied as Yoga bottom padding on
             // the sheet node — so this in-flow flex: 1 child resolves to the
             // region the sheet can actually show, on every device and in

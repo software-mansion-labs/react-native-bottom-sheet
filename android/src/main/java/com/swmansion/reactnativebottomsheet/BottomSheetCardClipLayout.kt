@@ -62,7 +62,6 @@ internal class BottomSheetCardClipLayout(context: Context) :
 
   override val pointerEvents: PointerEvents = PointerEvents.BOX_NONE
 
-
   init {
     clipChildren = false
     clipToPadding = false
@@ -114,6 +113,10 @@ internal class BottomSheetCardClipLayout(context: Context) :
     radii.copyInto(cornerRadii)
     updateClipMode()
   }
+
+  /** Whether anything outside the card is cut away, and so can't be touched either. */
+  val clipsContent: Boolean
+    get() = clipMode != ClipMode.NONE
 
   /** Whether the card keeps gaps, and so clips even with square corners. */
   fun setClipsToCard(value: Boolean) {
@@ -222,7 +225,11 @@ internal class BottomSheetCardClipLayout(context: Context) :
 
   override fun dispatchTouchEvent(event: MotionEvent): Boolean {
     // Native views under a gap or clipped corner, like a scrollable, don't take the touch either.
-    if (event.actionMasked == MotionEvent.ACTION_DOWN && !cardContains(event.x, event.y)) {
+    if (
+      clipsContent &&
+        event.actionMasked == MotionEvent.ACTION_DOWN &&
+        !cardContains(event.x, event.y)
+    ) {
       return false
     }
     return super.dispatchTouchEvent(event)
