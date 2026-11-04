@@ -1,5 +1,13 @@
-import { useState } from 'react';
-import { Button, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useRef, useState } from 'react';
+import {
+  Animated,
+  Button,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import {
   GestureHandlerRootView,
   Pressable as GesturePressable,
@@ -25,7 +33,20 @@ export const CornerTouchesScreen = () => {
   const [behindPresses, setBehindPresses] = useState(0);
   const [sheetPresses, setSheetPresses] = useState(0);
   const sheetBottomPadding = useSheetBottomPadding();
-  const pressBehind = () => setBehindPresses((count) => count + 1);
+  // Each control flashes when pressed, as little of it shows through a corner.
+  const flashes = useRef([
+    new Animated.Value(0),
+    new Animated.Value(0),
+  ]).current;
+  const pressBehind = (side: number) => {
+    setBehindPresses((count) => count + 1);
+    flashes[side]!.setValue(1);
+    Animated.timing(flashes[side]!, {
+      toValue: 0,
+      duration: 700,
+      useNativeDriver: Platform.OS !== 'web',
+    }).start();
+  };
   const pressSheet = () => setSheetPresses((count) => count + 1);
 
   return (
@@ -34,27 +55,35 @@ export const CornerTouchesScreen = () => {
         title="Corner touches"
         sheet={
           <>
-            {[styles.left, styles.right].map((side, index) => (
-              <View key={index} style={[styles.behind, side]}>
+            {[styles.left, styles.right].map((position, side) => (
+              <View key={side} style={[styles.behind, position]}>
                 {target === 'RN Pressable' ? (
                   <Pressable
-                    testID={`behind-pressable-${index}`}
+                    testID={`behind-pressable-${side}`}
                     style={styles.fill}
-                    onPress={pressBehind}
+                    onPress={() => pressBehind(side)}
                   />
                 ) : target === 'RN Button' ? (
                   <Button
                     title="Behind"
                     color="#f97316"
-                    onPress={pressBehind}
+                    onPress={() => pressBehind(side)}
                   />
                 ) : (
                   <GesturePressable
-                    testID={`behind-gesture-${index}`}
+                    testID={`behind-gesture-${side}`}
                     style={styles.fill}
-                    onPress={pressBehind}
+                    onPress={() => pressBehind(side)}
                   />
                 )}
+                <Animated.View
+                  pointerEvents="none"
+                  style={[
+                    StyleSheet.absoluteFill,
+                    styles.flash,
+                    { opacity: flashes[side] },
+                  ]}
+                />
               </View>
             ))}
             <BottomSheet
@@ -136,6 +165,7 @@ const styles = StyleSheet.create({
   left: { left: 0 },
   right: { right: 0 },
   fill: { flex: 1 },
+  flash: { backgroundColor: '#22c55e' },
   band: {
     height: 72,
     backgroundColor: '#3b82f6',
