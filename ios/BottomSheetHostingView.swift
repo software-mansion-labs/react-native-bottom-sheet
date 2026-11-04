@@ -42,6 +42,9 @@ private struct RawDetentSpec: Equatable {
   let kind: DetentKind
   let programmatic: Bool
   let insets: DetentInsets
+  /// The widest open card, which the content is laid out against. Flagged in JS,
+  /// which lays the content out.
+  let widestCard: Bool
 }
 
 private struct PendingSnapRequest {
@@ -345,9 +348,9 @@ public final class BottomSheetHostingView: UIView {
   /// is narrower or shorter than the surface and has to clip it. A top inset
   /// only lowers the detent's height, which needs no clip.
   private var hasCardGaps = false
-  /// The smallest sum of side insets across the open detents: the gaps of the
-  /// widest card, which the content is laid out against.
-  private var tightestSideGaps: CGFloat = 0
+  /// The sum of the side insets of the widest card, which the content is laid
+  /// out against.
+  private var widestCardSideGaps: CGFloat = 0
   private var detentSpecs: [DetentSpec] = [] {
     didSet {
       setNeedsLayout()
@@ -648,6 +651,7 @@ public final class BottomSheetHostingView: UIView {
         kind = .points
       }
       let programmatic = (dict["programmatic"] as? Bool) ?? (dict["programmatic"] as? NSNumber)?.boolValue ?? false
+      let widestCard = (dict["widestCard"] as? Bool) ?? (dict["widestCard"] as? NSNumber)?.boolValue ?? false
       let inset = { (key: String) in max(0, CGFloat(truncating: dict[key] as? NSNumber ?? 0)) }
       let usesStatusBarTopInset = (dict["usesStatusBarTopInset"] as? Bool)
         ?? (dict["usesStatusBarTopInset"] as? NSNumber)?.boolValue ?? false
@@ -660,14 +664,14 @@ public final class BottomSheetHostingView: UIView {
           left: inset("insetLeft"),
           right: inset("insetRight"),
           bottom: inset("insetBottom")
-        )
+        ),
+        widestCard: widestCard
       )
     }
-    let previousTightestSideGaps = tightestSideGaps
-    tightestSideGaps = rawDetentSpecs
-      .filter { $0.kind == .content || $0.value > 0 }
-      .map { $0.insets.left + $0.insets.right }
-      .min() ?? 0
+    let previousWidestCardSideGaps = widestCardSideGaps
+    widestCardSideGaps = rawDetentSpecs
+      .first(where: \.widestCard)
+      .map { $0.insets.left + $0.insets.right } ?? 0
     let hasGaps = rawDetentSpecs.contains {
       $0.insets.left > 0 || $0.insets.right > 0 || $0.insets.bottom > 0
     }
@@ -679,7 +683,7 @@ public final class BottomSheetHostingView: UIView {
     // against the previous region until Fabric commits the new inset; hold its
     // measurement until then. Decided from the detents alone so it also holds
     // while detached, when the status bar's overlap is not computable.
-    if hasLaidOut, rawDetentSpecs.last != previousTallestDetent || tightestSideGaps != previousTightestSideGaps {
+    if hasLaidOut, rawDetentSpecs.last != previousTallestDetent || widestCardSideGaps != previousWidestCardSideGaps {
       isContentRegionChangePending = true
     }
     refreshDetentsFromLayout()
@@ -1707,7 +1711,7 @@ public final class BottomSheetHostingView: UIView {
   /// How much the content is scaled for a card this wide: its width over the
   /// width of the widest card, which the content is laid out against.
   private func contentScale(forCardWidth width: CGFloat) -> CGFloat {
-    let widest = bounds.width - tightestSideGaps
+    let widest = bounds.width - widestCardSideGaps
     return widest > 0 ? width / widest : 1
   }
 

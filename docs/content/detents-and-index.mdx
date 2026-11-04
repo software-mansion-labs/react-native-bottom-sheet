@@ -25,9 +25,9 @@ measured content or exceed the available height; native layout caps its resolved
 height to the available geometry.
 
 Pass detents in ascending order, from shortest to tallest. Detent forms can be
-mixed, but they must remain ordered by their resolved heights at every layout
-size your app supports. The library validates the resolved order during native
-layout.
+mixed, but they must remain ordered by their resolved heights (plus their bottom
+[insets](#insets), if any) at every layout size your app supports. The library
+validates the resolved order during native layout.
 
 Sheet children are laid out in a flex container. For a full-height sheet, apply
 `flex: 1` to your content and use the `'content'` detent. `surface` is sized by
@@ -54,14 +54,45 @@ fills 500pt and scrolls all the way to its last item; with a `'content'` detent
 as the tallest, the container spans the full available height, so a filling
 scrollable resolves `'content'` to that height.
 
-By default, full-height detents stop below the status bar: the top of
-`detentInsets` defaults to the part of the status bar that overlaps the host. It
-is measured from the host's top, so a lower value goes partly under the status
-bar, and `0` lets the sheet occupy the full screen height:
+## Insets
+
+`insets` keeps space around the sheet at each detent, so it can float as a card.
+Each entry has optional `top`, `left`, `right`, and `bottom` values, and the
+gaps blend as the sheet moves between detents. Like `scrimOpacities`, `insets`
+is indexed to match `detents`: a shorter array reuses its last entry for any
+remaining detents, and extra entries are ignored. A closed detent ignores its
+inset, so the card leaves through the gap with its shape intact.
+
+```tsx
+<ModalBottomSheet
+  detents={[0, 320, '100%']}
+  insets={[{}, { left: 16, right: 16, bottom: 32 }, {}]}
+  surfaceStyle={{ borderRadius: 28, borderCurve: 'continuous' }}
+  index={index}
+  onIndexChange={setIndex}
+  surface={/* ... */}
+>
+  {/* ... */}
+</ModalBottomSheet>
+```
+
+With insets, a detent's value is the card's height, and percentages resolve
+against the available space: the host's height minus that detent's top and
+bottom insets. So `'100%'` fills the space between the gaps and never covers
+them, just as it stops below the status bar by default. Detents ascend by the
+position of the card's top: its height plus its bottom inset. The surface and
+content are laid out once, against the widest card, and scaled uniformly to fit
+narrower ones, as with iOS sheets, so content never reflows as the card's edges
+move. Touches in the gaps reach the scrim or whatever is behind the sheet.
+
+By default, full-height detents stop below the status bar: `top` defaults to the
+part of the status bar that overlaps the host. It is measured from the host's
+top, so a lower value goes partly under the status bar, and `0` lets the sheet
+occupy the full screen height:
 
 ```tsx
 <BottomSheet // Or `ModalBottomSheet`.
-  detentInsets={[{ top: 0 }]}
+  insets={[{ top: 0 }]}
   index={index}
   onIndexChange={setIndex}
   surface={/* ... */}

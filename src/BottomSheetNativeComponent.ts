@@ -18,6 +18,9 @@ type NativeDetent = Readonly<{
   insetLeft: CodegenTypes.Double;
   insetRight: CodegenTypes.Double;
   insetBottom: CodegenTypes.Double;
+  // The widest open card, which the content is laid out against. Flagged in JS,
+  // which lays the content out, so every platform agrees on it.
+  widestCard: boolean;
 }>;
 
 export interface NativeProps extends ViewProps {

@@ -68,6 +68,9 @@ private data class RawDetentSpec(
   val kind: DetentKind,
   val programmatic: Boolean,
   val insets: DetentInsets,
+  // The widest open card, which the content is laid out against. Flagged in JS, which lays the
+  // content out.
+  val widestCard: Boolean,
 )
 
 /**
@@ -516,15 +519,10 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
             right = inset("insetRight"),
             bottom = inset("insetBottom"),
           ),
+        widestCard = dict["widestCard"] as? Boolean ?: false,
       )
     }
-    // On a tie, the tallest detent. Mirrored in `bottomSheetUtils.ts`.
-    widestCardInsets =
-      rawDetentSpecs
-        .filter { it.kind == DetentKind.CONTENT || it.value > 0f }
-        .asReversed()
-        .minByOrNull { it.insets.left + it.insets.right }
-        ?.insets ?: DetentInsets()
+    widestCardInsets = rawDetentSpecs.firstOrNull { it.widestCard }?.insets ?: DetentInsets()
     hasCardGaps = rawDetentSpecs.any {
       it.insets.left > 0f || it.insets.right > 0f || it.insets.bottom > 0f
     }

@@ -2,10 +2,7 @@
 
 import type { ColorValue } from 'react-native';
 
-import {
-  CONTENT_HEIGHT_MARKER_NATIVE_ID,
-  findWidestDetent,
-} from './bottomSheetUtils';
+import { CONTENT_HEIGHT_MARKER_NATIVE_ID } from './bottomSheetUtils';
 
 // The web counterpart of `BottomSheetHostingView.swift` and
 // `BottomSheetHostView.kt`. It owns the same geometry, snapping, scrim, and
@@ -23,6 +20,8 @@ export type RawDetent = Readonly<{
   insetLeft: number;
   insetRight: number;
   insetBottom: number;
+  /** The widest open card, which the content is laid out against. */
+  widestCard: boolean;
 }>;
 
 type ResolvedDetent = Readonly<{
@@ -79,7 +78,7 @@ export type BottomSheetWebElements = Readonly<{
   card: HTMLElement;
   /** Sized to the card behind it, and casts the card's shadows. */
   shadow: HTMLElement;
-  /** Spans the sheet like `content`, so the same transform scales the surface. */
+  /** Spans the sheet like `content`, so one transform scales the surface. */
   surface: HTMLElement;
   content: HTMLElement;
 }>;
@@ -477,7 +476,8 @@ export class BottomSheetWebController {
       !areRawDetentsEqual(previous.detents, config.detents)
     ) {
       this.rawDetents = config.detents;
-      const widest = findWidestDetent(config.detents);
+      // Flagged in `normalizeDetents`, which lays the content out against it.
+      const widest = config.detents.find((detent) => detent.widestCard);
       this.widestCardLeft = widest?.insetLeft ?? 0;
       this.widestCardGaps =
         (widest?.insetLeft ?? 0) + (widest?.insetRight ?? 0);
@@ -999,8 +999,8 @@ export class BottomSheetWebController {
 
     // Scale the surface and content to the card's width, with their top-left
     // corners on the card's. The transform origin is the box's, which starts at
-    // the container's left, so the layout margin scales along. Ahead of the check
-    // below: the widest card can change while this card stays the same.
+    // the container's left, so the layout margin scales along. Ahead of the
+    // check below: the widest card can change while this card stays the same.
     const widest = host.clientWidth - this.widestCardGaps;
     const scale =
       widest > 0 ? Math.max(0, host.clientWidth - left - right) / widest : 1;
@@ -1792,7 +1792,8 @@ const areRawDetentsEqual = (
       detent.insetTop === b[index]!.insetTop &&
       detent.insetLeft === b[index]!.insetLeft &&
       detent.insetRight === b[index]!.insetRight &&
-      detent.insetBottom === b[index]!.insetBottom
+      detent.insetBottom === b[index]!.insetBottom &&
+      detent.widestCard === b[index]!.widestCard
   );
 
 const areResolvedDetentsEqual = (a: ResolvedDetent[], b: ResolvedDetent[]) =>

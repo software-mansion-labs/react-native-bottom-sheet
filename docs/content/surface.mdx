@@ -12,9 +12,9 @@ Decoupling the surface this way keeps the sheet covered as the content height
 changes. When content shrinks, the sheet animates to its new height without the
 background briefly exposing blank space behind the content.
 
-With `detentInsets`, the surface is laid out against the widest card and scaled
-with the content to fit narrower ones, so an image keeps its aspect ratio and
-touches the card's edges at every detent.
+With `insets`, the surface is laid out against the widest card and scaled with
+the content to fit narrower ones, so an image keeps its aspect ratio and touches
+the card's edges at every detent.
 
 If your sheet content animates its own height, pass
 `animateContentHeight={false}` to update the sheet position immediately when the

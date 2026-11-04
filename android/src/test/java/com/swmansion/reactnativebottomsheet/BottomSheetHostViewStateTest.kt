@@ -104,7 +104,11 @@ class BottomSheetHostViewStateTest {
 
       // Laid out against the full-width detent, so the floating card scales it down.
       sheet.setDetents(
-        listOf(mapOf("value" to 0.0), floating, mapOf("value" to 1.0, "kind" to "percentage")),
+        listOf(
+          mapOf("value" to 0.0),
+          floating,
+          mapOf("value" to 1.0, "kind" to "percentage", "widestCard" to true),
+        ),
       )
       sheet.setIndex(1)
       shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(5))
@@ -114,7 +118,7 @@ class BottomSheetHostViewStateTest {
       assertEquals(16.0, scaled.getValue("contentOffsetX"), 0.01)
 
       // Laid out against the floating card itself: its margin is what places it.
-      sheet.setDetents(listOf(mapOf("value" to 0.0), floating))
+      sheet.setDetents(listOf(mapOf("value" to 0.0), floating + ("widestCard" to true)))
       shadowOf(Looper.getMainLooper()).idle()
       layout(sheet)
       val unscaled = wrapper.updates.last()

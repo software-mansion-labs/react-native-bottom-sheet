@@ -333,9 +333,9 @@ export const isDetentProgrammatic = (detent: Detent): boolean => {
  */
 export type DetentInset = Readonly<{
   /**
-   * The minimum space between the card's top and the host's top. Defaults to the
-   * part of the status bar that overlaps the host, so the card stops below it;
-   * pass a lower value, or `0`, to go under the status bar.
+   * The minimum space between the card's top and the host's top. Defaults to
+   * the part of the status bar that overlaps the host, so the card stops below
+   * it; pass a lower value, or `0`, to go under the status bar.
    */
   top?: number;
   left?: number;
@@ -353,6 +353,8 @@ type NormalizedDetent = Readonly<{
   insetLeft: number;
   insetRight: number;
   insetBottom: number;
+  /** Whether this is the widest open card, which content is laid out against. */
+  widestCard: boolean;
 }>;
 
 /** A closed sheet is fully off-screen, whatever its detent's inset says. */
@@ -378,19 +380,20 @@ const invalidPointDetentError = (value: number, index: number) =>
 
 const invalidDetentInsetError = (side: string, value: unknown, index: number) =>
   new Error(
-    `Invalid bottom sheet detent inset at index ${index}: \`${side}\` received ${String(value)}. Expected a finite, non-negative number.`
+    `Invalid bottom sheet inset at index ${index}: \`${side}\` received ${String(value)}. Expected a finite, non-negative number.`
   );
 
 /**
- * The inset of a detent. A shorter array than `detents` reuses its last entry
- * for any remaining detents.
+ * The inset of a detent, read from `insets` like `scrimOpacities`: by index,
+ * with a shorter array than `detents` reusing its last entry for any remaining
+ * detents, and an empty or missing one leaving every side at its default.
  */
 const resolveDetentInset = (
-  detentInsets: ReadonlyArray<DetentInset> | undefined,
+  insets: ReadonlyArray<DetentInset> | undefined,
   index: number
 ) => {
-  const insetIndex = Math.min(index, (detentInsets?.length ?? 0) - 1);
-  const inset = detentInsets?.[insetIndex] ?? {};
+  const insetIndex = Math.min(index, (insets?.length ?? 0) - 1);
+  const inset = insets?.[insetIndex] ?? {};
   const resolveSide = (side: keyof DetentInset) => {
     const value = inset[side] ?? 0;
     if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
@@ -425,11 +428,11 @@ const parseDetentPercentage = (value: string, index: number) => {
 export const normalizeDetent = (
   detent: Detent,
   index: number,
-  detentInsets?: ReadonlyArray<DetentInset>
+  insets?: ReadonlyArray<DetentInset>
 ): NormalizedDetent => {
   const value = detentValue(detent);
   const isProgrammatic = isDetentProgrammatic(detent);
-  const inset = resolveDetentInset(detentInsets, index);
+  const inset = resolveDetentInset(insets, index);
 
   if (typeof value === 'number') {
     if (!Number.isFinite(value) || value < 0) {
@@ -441,6 +444,7 @@ export const normalizeDetent = (
       kind: 'points',
       programmatic: isProgrammatic,
       ...(value === 0 ? CLOSED_INSET : inset),
+      widestCard: false,
     };
   }
 
@@ -450,6 +454,7 @@ export const normalizeDetent = (
       kind: 'content',
       programmatic: isProgrammatic,
       ...inset,
+      widestCard: false,
     };
   }
 
@@ -459,7 +464,26 @@ export const normalizeDetent = (
     kind: 'percentage',
     programmatic: isProgrammatic,
     ...(ratio === 0 ? CLOSED_INSET : inset),
+    widestCard: false,
   };
+};
+
+/**
+ * Serializes the public detents and their insets, flagging the widest card.
+ * The native hosts and the web controller read that flag rather than finding
+ * the widest card themselves, so every platform lays out against the same one.
+ */
+export const normalizeDetents = (
+  detents: ReadonlyArray<Detent>,
+  insets?: ReadonlyArray<DetentInset>
+): NormalizedDetent[] => {
+  const normalized = detents.map((detent, index) =>
+    normalizeDetent(detent, index, insets)
+  );
+  const widest = findWidestDetent(normalized);
+  return normalized.map((detent) =>
+    detent === widest ? { ...detent, widestCard: true } : detent
+  );
 };
 
 /** Whether a normalized detent represents a fully closed sheet. */
@@ -469,20 +493,10 @@ export const isNormalizedDetentClosed = (
 
 /**
  * The open detent with the widest card, whose tightest side gaps the content is
- * laid out against. On a tie, the tallest detent. Mirrored in the native hosts;
- * keep them in sync.
+ * laid out against. On a tie, the tallest detent.
  */
-export const findWidestDetent = <
-  T extends Readonly<{
-    kind: string;
-    value: number;
-    insetLeft: number;
-    insetRight: number;
-  }>,
->(
-  detents: ReadonlyArray<T>
-) => {
-  let widest: T | undefined;
+const findWidestDetent = (detents: ReadonlyArray<NormalizedDetent>) => {
+  let widest: NormalizedDetent | undefined;
   for (const detent of detents) {
     if (isNormalizedDetentClosed(detent)) continue;
     if (

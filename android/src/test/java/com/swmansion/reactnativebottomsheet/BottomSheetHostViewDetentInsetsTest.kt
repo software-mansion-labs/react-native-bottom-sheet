@@ -119,7 +119,7 @@ class BottomSheetHostViewDetentInsetsTest {
 
   @Test
   fun `the content is laid out at the widest card's left inset`() {
-    val detents = listOf(points(100.0, left = 24.0), points(300.0, left = 8.0))
+    val detents = listOf(points(100.0, left = 24.0), points(300.0, left = 8.0, widest = true))
     withSheet(detents, index = 1) { sheet ->
       assertEquals((8 * sheet.density).toInt(), sheet.getSheetChildAt(0)!!.left)
     }
@@ -128,7 +128,10 @@ class BottomSheetHostViewDetentInsetsTest {
   @Test
   fun `the content scales to the card and pins to its left edge`() {
     val detents =
-      listOf(points(100.0, left = 40.0, right = 40.0), points(300.0, left = 8.0, right = 8.0))
+      listOf(
+        points(100.0, left = 40.0, right = 40.0),
+        points(300.0, left = 8.0, right = 8.0, widest = true),
+      )
     withSheet(detents, index = 0) { sheet ->
       val d = sheet.density
       val content = sheet.getSheetChildAt(0)!!
@@ -142,11 +145,26 @@ class BottomSheetHostViewDetentInsetsTest {
   @Test
   fun `the content is unscaled at the widest card`() {
     val detents =
-      listOf(points(100.0, left = 40.0, right = 40.0), points(300.0, left = 8.0, right = 8.0))
+      listOf(
+        points(100.0, left = 40.0, right = 40.0),
+        points(300.0, left = 8.0, right = 8.0, widest = true),
+      )
     withSheet(detents, index = 1) { sheet ->
       val content = sheet.getSheetChildAt(0)!!
       assertEquals(1f, content.scaleX, 0.001f)
       assertEquals(8 * sheet.density, content.left + content.translationX, 0.5f)
+    }
+  }
+
+  @Test
+  fun `the content follows the detent flagged as widest`() {
+    // Native doesn't pick the widest card itself: JS flags the one it lays the content out against.
+    val detents =
+      listOf(points(100.0, left = 8.0), points(300.0, left = 24.0, right = 24.0, widest = true))
+    withSheet(detents, index = 1) { sheet ->
+      val content = sheet.getSheetChildAt(0)!!
+      assertEquals((24 * sheet.density).toInt(), content.left)
+      assertEquals(1f, content.scaleX, 0.001f)
     }
   }
 
@@ -214,10 +232,11 @@ class BottomSheetHostViewDetentInsetsTest {
     left: Double = 0.0,
     right: Double = 0.0,
     bottom: Double = 0.0,
-  ) = detent(value, "points", top, left, right, bottom)
+    widest: Boolean = false,
+  ) = detent(value, "points", top, left, right, bottom, widest)
 
   private fun percentage(ratio: Double, top: Double? = 0.0, bottom: Double = 0.0) =
-    detent(ratio, "percentage", top, 0.0, 0.0, bottom)
+    detent(ratio, "percentage", top, 0.0, 0.0, bottom, widest = false)
 
   private fun detent(
     value: Double,
@@ -226,6 +245,7 @@ class BottomSheetHostViewDetentInsetsTest {
     left: Double,
     right: Double,
     bottom: Double,
+    widest: Boolean,
   ): Map<String, Any> =
     mapOf(
       "value" to value,
@@ -235,6 +255,7 @@ class BottomSheetHostViewDetentInsetsTest {
       "insetLeft" to left,
       "insetRight" to right,
       "insetBottom" to bottom,
+      "widestCard" to widest,
     )
 
   private fun withSheet(

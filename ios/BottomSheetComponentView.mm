@@ -107,6 +107,7 @@ using namespace facebook::react;
         @"insetLeft": @(detent.insetLeft),
         @"insetRight": @(detent.insetRight),
         @"insetBottom": @(detent.insetBottom),
+        @"widestCard": @(detent.widestCard),
       }];
     }
     [_sheetView setDetents:detentsArray];

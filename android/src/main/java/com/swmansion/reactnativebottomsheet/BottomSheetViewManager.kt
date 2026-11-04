@@ -122,6 +122,7 @@ class BottomSheetViewManager :
           "insetLeft" to inset("insetLeft"),
           "insetRight" to inset("insetRight"),
           "insetBottom" to inset("insetBottom"),
+          "widestCard" to (map.hasKey("widestCard") && map.getBoolean("widestCard")),
         ),
       )
     }

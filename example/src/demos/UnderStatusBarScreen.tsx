@@ -27,7 +27,7 @@ export const UnderStatusBarScreen = () => {
       sheet={
         <BottomSheet
           detents={[0, 'content']}
-          detentInsets={isUnderStatusBar ? [{ top: 0 }] : undefined}
+          insets={isUnderStatusBar ? [{ top: 0 }] : undefined}
           index={index}
           onIndexChange={setIndex}
           surface={

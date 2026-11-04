@@ -8,28 +8,43 @@ Point BottomSheetViewShadowNode::getContentOriginOffset(
   auto state =
       std::static_pointer_cast<const BottomSheetViewShadowNode::ConcreteState>(
           getState());
-  return {state->getData().contentOffsetX, state->getData().contentOffsetY};
+  // The horizontal offset belongs to the card's children, with its scale (see
+  // BottomSheetCardContent).
+  return {0, state->getData().contentOffsetY};
 }
 
-Transform BottomSheetViewShadowNode::getTransform() const {
-  auto scale =
-      std::static_pointer_cast<const BottomSheetViewShadowNode::ConcreteState>(
-          getState())
-          ->getData()
-          .contentScale;
-  if (scale == 1) {
-    return Transform::Identity();
+void BottomSheetViewShadowNode::appendChild(
+    const std::shared_ptr<const ShadowNode>& child) {
+  // React appends the children of a clone after `adopt` has run on it.
+  ConcreteViewShadowNode::appendChild(withCardGeometry(child));
+}
+
+void BottomSheetViewShadowNode::syncCardContent() {
+  // A copy: `replaceChild` swaps the list being iterated.
+  auto children = getChildren();
+  for (size_t index = 0; index < children.size(); index++) {
+    const auto& child = children[index];
+    auto synced = withCardGeometry(child);
+    if (synced != child) {
+      replaceChild(*child, synced, index);
+    }
   }
-  // Transforms apply about the node's center; this pins its top-left corner.
-  // It only reaches measure and the like: the host scales the native views, and
-  // Fabric never mounts a shadow node's `getTransform`. A native-overlay sheet is
-  // a layout root, whose transform `measure` skips, so there only
-  // `measureInWindow` includes the scale.
-  auto size = getLayoutMetrics().frame.size;
-  auto transform = Transform::Scale(scale, scale, 1);
-  transform.matrix[12] = -size.width / 2 * (1 - scale);
-  transform.matrix[13] = -size.height / 2 * (1 - scale);
-  return transform;
+}
+
+std::shared_ptr<const ShadowNode> BottomSheetViewShadowNode::withCardGeometry(
+    const std::shared_ptr<const ShadowNode>& child) const {
+  auto content = bottomSheetCardContentOf(*child);
+  const auto& state =
+      static_cast<const ConcreteState&>(*getState()).getData();
+  if (content == nullptr ||
+      content->hasCardGeometry(state.contentOffsetX, state.contentScale)) {
+    return child;
+  }
+  // Props, state and layout stay shared, so the mounting layer sees no change.
+  auto clone = child->clone({});
+  bottomSheetCardContentOf(*clone)->setCardGeometry(
+      state.contentOffsetX, state.contentScale);
+  return clone;
 }
 
 void BottomSheetViewShadowNode::setIsOverlayRoot(bool isOverlayRoot) {

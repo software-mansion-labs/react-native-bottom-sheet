@@ -33,7 +33,7 @@ type Scenario = {
   /** What to look for when trying this scenario. */
   expect: string;
   detents: Detent[];
-  detentInsets?: DetentInset[];
+  insets?: DetentInset[];
   shape?: SurfaceStyle;
   scrollable?: boolean;
   keyboard?: boolean;
@@ -52,63 +52,63 @@ const SCENARIOS: Scenario[] = [
     label: 'Floating, attached when full',
     expect: 'Gaps at 320 blend away while dragging up to the full detent.',
     detents: [0, 320, '100%'],
-    detentInsets: [{}, FLOATING, {}],
+    insets: [{}, FLOATING, {}],
   },
   {
     label: 'Always floating',
     expect: 'The same gaps at every detent. Closing slides through the gap.',
     detents: [0, 320, '100%'],
-    detentInsets: [FLOATING],
+    insets: [FLOATING],
   },
   {
     label: 'Top inset at full',
     expect: 'The full detent stops 120 below the top and 32 above the bottom.',
     detents: [0, 320, '100%'],
-    detentInsets: [{ ...FLOATING, top: 120 }],
+    insets: [{ ...FLOATING, top: 120 }],
   },
   {
     label: 'Percentage detents',
     expect: 'Percentages resolve against the space the insets leave.',
     detents: [0, '25%', '50%', '100%'],
-    detentInsets: [{ ...FLOATING, top: 80 }],
+    insets: [{ ...FLOATING, top: 80 }],
   },
   {
     label: 'Content height',
     expect: 'The card hugs its content and floats above the gap.',
     detents: [0, 'content'],
-    detentInsets: [FLOATING],
+    insets: [FLOATING],
   },
   {
     label: 'Scaled content height',
     expect: 'The card fits its scaled content, then grows to the full width.',
     detents: [0, 'content', '100%'],
-    detentInsets: [{}, FLOATING, {}],
+    insets: [{}, FLOATING, {}],
   },
   {
     label: 'Scrollable, narrows when full',
     expect: 'The last row reaches the bottom of the narrower full card.',
     detents: [0, 320, '100%'],
-    detentInsets: [{}, {}, FLOATING],
+    insets: [{}, {}, FLOATING],
     scrollable: true,
   },
   {
     label: 'Lopsided gaps',
     expect: 'The gap moves across. The blue band keeps touching the card.',
     detents: [0, 240, '60%'],
-    detentInsets: [{}, { left: 48, bottom: 16 }, { right: 48, bottom: 64 }],
+    insets: [{}, { left: 48, bottom: 16 }, { right: 48, bottom: 64 }],
   },
   {
     label: 'Square corners',
     expect: 'Gaps clip the surface even with no radius.',
     detents: [0, 320, '100%'],
-    detentInsets: [{}, FLOATING, {}],
+    insets: [{}, FLOATING, {}],
     shape: {},
   },
   {
     label: 'Mixed radii',
     expect: 'Each corner keeps its own radius as the edges move.',
     detents: [0, 320, '100%'],
-    detentInsets: [{}, FLOATING, { left: 8, right: 8, bottom: 8, top: 8 }],
+    insets: [{}, FLOATING, { left: 8, right: 8, bottom: 8, top: 8 }],
     shape: {
       borderTopLeftRadius: 48,
       borderTopRightRadius: 12,
@@ -120,28 +120,28 @@ const SCENARIOS: Scenario[] = [
     label: 'Huge gaps',
     expect: 'Scale 0.68 on a 402-wide screen. Tap a button to compare.',
     detents: [0, 400, '100%'],
-    detentInsets: [{}, { left: 64, right: 64, bottom: 96 }, {}],
+    insets: [{}, { left: 64, right: 64, bottom: 96 }, {}],
     hugeGaps: true,
   },
   {
     label: 'Patterned surface',
     expect: 'The border and circle scale with the card, like an image would.',
     detents: [0, 320, '100%'],
-    detentInsets: [{}, FLOATING, {}],
+    insets: [{}, FLOATING, {}],
     patternedSurface: true,
   },
   {
     label: 'Scrollable content',
     expect: 'The last row is reachable above the gap at the full detent.',
     detents: [0, 320, '100%'],
-    detentInsets: [FLOATING],
+    insets: [FLOATING],
     scrollable: true,
   },
   {
     label: 'Keyboard input',
     expect: 'The field stays above the keyboard as the card grows behind it.',
     detents: [0, 'content'],
-    detentInsets: [FLOATING],
+    insets: [FLOATING],
     keyboard: true,
   },
   {
@@ -149,7 +149,7 @@ const SCENARIOS: Scenario[] = [
     expect:
       'Drags stop at 160. No detent hides it, so the X unmounts the sheet.',
     detents: [160, '50%'],
-    detentInsets: [FLOATING, { left: 32, right: 32, bottom: 64 }],
+    insets: [FLOATING, { left: 32, right: 32, bottom: 64 }],
   },
 ];
 
@@ -323,9 +323,9 @@ export const DetachedSheetScreen = () => {
 
   const sheetProps = {
     detents: scenario.detents,
-    detentInsets: isUnderStatusBar
-      ? (scenario.detentInsets ?? [{}]).map((inset) => ({ ...inset, top: 0 }))
-      : scenario.detentInsets,
+    insets: isUnderStatusBar
+      ? (scenario.insets ?? [{}]).map((inset) => ({ ...inset, top: 0 }))
+      : scenario.insets,
     index: Math.min(index, scenario.detents.length - 1),
     onIndexChange: setIndex,
     animateContentHeight: !scenario.keyboard,

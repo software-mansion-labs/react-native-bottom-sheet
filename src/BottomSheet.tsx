@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 
 import {
+  BottomSheetContentWrapperView,
   BottomSheetView,
   BottomSheetSurfaceView,
 } from './BottomSheetHostViews';
@@ -17,9 +18,8 @@ import {
   CONTENT_HEIGHT_MARKER_NATIVE_ID,
   type Detent,
   type DetentInset,
-  findWidestDetent,
   isNormalizedDetentClosed,
-  normalizeDetent,
+  normalizeDetents,
   resolveSurfaceStyle,
   type SurfaceStyle,
   validateIndex,
@@ -42,7 +42,7 @@ export type PositionChangeEventData = Readonly<{
   /**
    * Fractional detent index in `0..(detents.length - 1)`: `0` at the shortest
    * detent, `1` at the next, and so on, interpolated as the sheet moves between
-   * them. Detents are required to be in ascending order by height. The
+   * them. Detents are required to be in ascending order by position. The
    * continuous counterpart of `onIndexChange`, so a backdrop or per-detent
    * animation can be driven without knowing the sheet's height.
    */
@@ -99,40 +99,43 @@ export interface BottomSheetProps {
   /** Additional style applied to the native sheet host view. */
   style?: StyleProp<ViewStyle>;
   /**
-   * Snap points for the sheet, in ascending order by height. Defaults to
+   * Snap points for the sheet, in ascending order by position. Defaults to
    * `[0, 'content']` and must contain at least one value. Numbers must be finite
    * and non-negative. Percentage strings must be unsigned values from `0%`
    * through `100%` and resolve against the native usable height. Fixed detents
    * may be taller than the measured content or available height; native layout
    * caps them to the available geometry.
    *
-   * With `detentInsets`, a detent's value is the height of the card, and
-   * percentages resolve against the space left by that detent's top and bottom
-   * insets, so `'100%'` never overshoots them. Detents ascend by the position of
-   * the card's top: its height plus its bottom inset.
+   * With `insets`, a detent's value is the height of the card, and percentages
+   * resolve against the available space: the host's height minus that detent's
+   * top and bottom insets. So `'100%'` fills the space between the gaps and
+   * never covers them. Detents ascend by the position of the card's top: its
+   * height plus its bottom inset.
    */
   detents?: Detent[];
   /**
    * The space around the card per detent, indexed to match `detents`, so the
    * sheet can float as a card. Insets are linearly interpolated as the sheet
    * moves between detents; below the first open detent the card keeps its shape
-   * and slides down through the bottom inset. A shorter array than `detents`
-   * reuses its last value for any remaining detents, and a closed detent ignores
-   * its inset. `top` defaults to the status bar's overlap with the host; a lower
-   * value, or `0`, lets the card go under the status bar.
+   * and slides down through the bottom inset. Like `scrimOpacities`, a shorter
+   * array than `detents` reuses its last value for any remaining detents, and
+   * extra values are ignored. A closed detent ignores its inset. `top` defaults
+   * to the status bar's overlap with the host; a lower value, or `0`, lets the
+   * card go under the status bar.
    *
-   * Insets never relayout the surface or content. They are laid out against the
-   * widest card, the detent with the tightest side insets, and scaled uniformly
-   * to fit narrower ones, so full-width content and an image surface always touch
-   * the card's edges. A `'content'` detent's card is its scaled height. `measure`
-   * and `measureInWindow` report the scaled position and size, except that only
-   * `measureInWindow` follows the card with `nativeOverlay`, where `measure` omits
-   * the scale, and on the web, where React Native Web's `measure` ignores
-   * transforms.
+   * Insets never relayout the surface or content. They are laid out against
+   * the widest card, the detent with the tightest side insets, and scaled
+   * uniformly to fit narrower ones, so full-width content and an image surface
+   * always touch the card's edges. A `'content'` detent's card is its scaled
+   * height. `measure` and `measureInWindow` report the scaled position and
+   * size, `nativeOverlay` included, except on the web, where React Native
+   * Web's `measure` ignores transforms and only `measureInWindow` follows the
+   * card.
+   *
    * Space in an inset isn't part of the sheet: touches there reach the scrim or
    * whatever is behind it.
    */
-  detentInsets?: DetentInset[];
+  insets?: DetentInset[];
   /**
    * Finite, zero-based integer in `0..(detents.length - 1)`. When shortening
    * `detents`, update `index` to remain in range in the same render.
@@ -250,7 +253,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
     surfaceStyle,
     style,
     detents = [0, 'content'],
-    detentInsets,
+    insets,
     index,
     animateIn = true,
     animateContentHeight = true,
@@ -284,7 +287,8 @@ export const BottomSheet = (props: BottomSheetProps) => {
   // All real geometry — the sheet's frame, the content wrapper's bounds, and
   // the default top inset (the overlapping status-bar inset) — is measured
   // natively from the window the sheet actually lives in and flows into the
-  // shadow tree through state (see BottomSheetHostView / BottomSheetHostingView). The window dimensions here
+  // shadow tree through state (see BottomSheetHostView /
+  // BottomSheetHostingView). The window dimensions here
   // only size the native-overlay host for the first frame, before the overlay
   // window reports its measured geometry.
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
@@ -292,9 +296,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
   // host's height whenever detents are refreshed. Point detents retain
   // their requested height; native layout clamps both kinds to it.
   validateIndex(index, detents.length);
-  const normalizedDetents = detents.map((detent, detentIndex) =>
-    normalizeDetent(detent, detentIndex, detentInsets)
-  );
+  const normalizedDetents = normalizeDetents(detents, insets);
 
   const selectedNormalizedDetent = normalizedDetents[index]!;
   const isSheetClosed = isNormalizedDetentClosed(selectedNormalizedDetent);
@@ -309,10 +311,10 @@ export const BottomSheet = (props: BottomSheetProps) => {
     setIsSheetActive(true);
     setHasOpenedFromClosed(true);
   }
-  // The surface and content are laid out against the widest card, and the native
-  // host scales them down to narrower ones. Stated as start/end because insets are
-  // physical, while left/right may swap under RTL.
-  const widestDetent = findWidestDetent(normalizedDetents);
+  // The surface and content are laid out against the widest card, and the
+  // native host scales them down to narrower ones. Stated as start/end because
+  // insets are physical, while left/right may swap under RTL.
+  const widestDetent = normalizedDetents.find((detent) => detent.widestCard);
   const contentLeft = widestDetent?.insetLeft ?? 0;
   const contentRight = widestDetent?.insetRight ?? 0;
   // When the sheet last opened, relative to other sheets: 0 until it first
@@ -450,7 +452,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
               {surface}
             </BottomSheetSurfaceView>
           )}
-          <View
+          <BottomSheetContentWrapperView
             collapsable={false}
             // The wrapper fills the sheet's content region exactly: the native
             // side reports the region's inset (the gap between the sheet's
@@ -458,7 +460,8 @@ export const BottomSheet = (props: BottomSheetProps) => {
             // the shadow tree, where it is applied as Yoga bottom padding on
             // the sheet node — so this in-flow flex: 1 child resolves to the
             // region the sheet can actually show, on every device and in
-            // every mode.
+            // every mode. Its own component so `measure` includes the card's
+            // scale, which its shadow node reports.
             style={[
               styles.contentWrapper,
               {
@@ -473,7 +476,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
               nativeID={CONTENT_HEIGHT_MARKER_NATIVE_ID}
               pointerEvents="none"
             />
-          </View>
+          </BottomSheetContentWrapperView>
         </NativeView>
       </View>
     </View>

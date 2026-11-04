@@ -62,12 +62,22 @@ class BottomSheetViewComponentDescriptor final
       layoutableShadowNode.setPositionType(YGPositionTypeAbsolute);
     }
 
+    // The card's geometry rides the state, which this node's children report
+    // as their transform. A clone with new state or new children copies it into
+    // them here; React appends the children of its own clones later, which
+    // `appendChild` covers.
+    node.syncCardContent();
+
     ConcreteComponentDescriptor::adopt(shadowNode);
   }
 };
 
-// The surface needs no custom initial state, so this mirrors the codegen alias.
+// The surface and the content wrapper need no custom initial state, so these
+// mirror the codegen aliases.
 using BottomSheetSurfaceViewComponentDescriptor =
     ConcreteComponentDescriptor<BottomSheetSurfaceViewShadowNode>;
+
+using BottomSheetContentWrapperViewComponentDescriptor =
+    ConcreteComponentDescriptor<BottomSheetContentWrapperViewShadowNode>;
 
 } // namespace facebook::react

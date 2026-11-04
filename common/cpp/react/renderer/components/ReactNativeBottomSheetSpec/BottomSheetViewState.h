@@ -47,8 +47,11 @@ class BottomSheetViewState final {
 
   // Where the card puts the surface and content. They change as the sheet moves,
   // and exist so measure follows what is drawn; the native host applies the same
-  // geometry to the views themselves. The offset is of the sheet's coordinate
-  // space, which the scale applies to about the sheet's top-left corner.
+  // geometry to the views themselves. The sheet's children are scaled by
+  // `contentScale` about the sheet's top-left corner and then shifted right by
+  // `contentOffsetX`; they, rather than the sheet, report that as their
+  // transform (see BottomSheetCardContent). `contentOffsetY` moves the whole
+  // sheet coordinate space down to the container's current top.
   float contentOffsetX{0};
   float contentOffsetY{0};
   float contentScale{1};
@@ -58,12 +61,11 @@ class BottomSheetViewState final {
   // first native report.
   Size frameSize{};
   // The natively measured inset of the content region (dp): the gap between
-  // the sheet's height and the tallest height the sheet can reach — the
-  // tallest detent's upper bound, clamped to the space its insets leave (the height minus
-  // the overlapping status-bar inset unless extend-under-status-bar). Applied
-  // as Yoga bottom padding on the sheet node in every mode, so in-flow content
-  // (the flex: 1 wrapper) resolves to exactly the region the sheet can
-  // actually show.
+  // the sheet's height and the tallest height the sheet can reach — the card's
+  // height at the tallest detent, clamped to the space its insets leave, in
+  // layout units. Applied as Yoga bottom padding on the sheet node in every
+  // mode, so in-flow content (the flex: 1 wrapper) resolves to exactly the
+  // region the sheet can actually show.
   Float contentRegionInset{0};
 
 #ifdef ANDROID

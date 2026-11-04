@@ -6,6 +6,7 @@ module.exports = {
         componentDescriptors: [
           'BottomSheetViewComponentDescriptor',
           'BottomSheetSurfaceViewComponentDescriptor',
+          'BottomSheetContentWrapperViewComponentDescriptor',
         ],
         cmakeListsPath: 'src/main/jni/CMakeLists.txt',
       },
