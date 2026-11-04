@@ -57,6 +57,7 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
     animateContentHeight,
     modal,
     nativeOverlay = false,
+    openOrder = 0,
     hasCloseRequestHandler,
     extendUnderStatusBar,
     scrollableExpandNegotiation,
@@ -145,6 +146,7 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
       animateContentHeight: animateContentHeight !== false,
       modal: modal === true,
       hasCloseRequestHandler: hasCloseRequestHandler === true,
+      openOrder,
       extendUnderStatusBar: extendUnderStatusBar === true,
       scrollableExpandNegotiation,
       scrollableCollapseNegotiation,
@@ -203,13 +205,38 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
 
   if (nativeOverlay) {
     return createPortal(
-      <View style={styles.overlay} pointerEvents="box-none">
+      <View
+        style={[styles.overlay, { zIndex: openOrder }]}
+        pointerEvents="box-none"
+      >
         {sheet}
       </View>,
-      document.body
+      getOverlayLayer()
     );
   }
   return sheet;
+};
+
+let overlayLayer: HTMLDivElement | null = null;
+
+/**
+ * The layer that holds every native-overlay sheet. It sits above React Native
+ * for Web's `Modal` layer (z-index 9999), matching the native overlay's place
+ * above modal screens. As its own stacking context, it keeps the sheets'
+ * open-order z-indexes from competing with the app's.
+ */
+const getOverlayLayer = () => {
+  if (overlayLayer === null || !overlayLayer.isConnected) {
+    overlayLayer = document.createElement('div');
+    Object.assign(overlayLayer.style, {
+      position: 'fixed',
+      inset: '0',
+      zIndex: '10000',
+      pointerEvents: 'none',
+    });
+    document.body.appendChild(overlayLayer);
+  }
+  return overlayLayer;
 };
 
 const styles = StyleSheet.create({
@@ -224,8 +251,5 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    // Above React Native for Web's `Modal` layer (z-index 9999), matching the
-    // native overlay's place above modal screens.
-    zIndex: 10000,
   },
 });

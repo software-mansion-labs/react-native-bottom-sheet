@@ -28,8 +28,8 @@ const insets = useSafeAreaInsets();
 
 ## Lazy content
 
-By default, a sheet’s `children` and `surface` stay mounted while it is closed.
-Set `lazy` to render them only while the sheet is open:
+By default, a sheet’s native view, `children` and `surface` stay mounted while
+it is closed. Set `lazy` to keep them in the tree only while the sheet is open:
 
 ```tsx
 <ModalBottomSheet
@@ -42,11 +42,20 @@ Set `lazy` to render them only while the sheet is open:
 </ModalBottomSheet>
 ```
 
-The content mounts in the same render that `index` selects an open detent, so it
-is in place before the sheet starts opening, and unmounts once the sheet settles
-at a closed detent, so it stays visible throughout the closing animation.
-Content state is reset each time the sheet opens. `lazy` is also available on
-`BottomSheet` and has no effect when no detent is closed.
+The sheet mounts in the same render that `index` selects an open detent, so its
+content is in place before it starts opening, and unmounts once it settles at a
+closed detent, so the content stays visible throughout the closing animation.
+Content state is reset each time the sheet opens. While unmounted, the sheet
+emits no `onPositionChange` events. `lazy` is also available on `BottomSheet`
+and has no effect when no detent is closed.
+
+## Stacking
+
+When several modal sheets are open, the one opened most recently is on top,
+whatever order they appear in your tree. Reopening a sheet, even while it is
+still closing, brings it back to the top. `nativeOverlay` sheets are always
+above portal sheets and stack among themselves the same way. Close requests
+(Android Back, and Escape on Android and the web) go to the top sheet.
 
 ## Scrim
 
@@ -127,7 +136,7 @@ leaving the sheet open.
 
 ### Presentation ordering
 
-Portal presentations in the same Android window follow their portal order. The
+Portal presentations in the same Android window follow their open order. The
 topmost active portal receives the close request. A portal whose target is
 initially unresolved, already settled at zero height, or closed without a
 visible animation is skipped. A portal that is visibly animating closed remains

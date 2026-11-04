@@ -54,6 +54,8 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   private var overlayDialog: ComponentDialog? = null
   private var overlayRoot: BottomSheetDialogRootView? = null
   private var nativeOverlay = false
+  // When the sheet last opened, relative to other sheets (0 until it first opens).
+  private var openOrder = 0
   // Cached only while a dialog is present, so per-frame interaction callbacks
   // don't thrash the window flags.
   private var overlayInteractive: Boolean? = null
@@ -72,6 +74,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
         }
       },
       emitCloseRequest = ::emitCloseRequest,
+      openOrder = { openOrder },
     )
   private val overlayCloseRequestController =
     OverlayCloseRequestController(emitCloseRequest = ::emitCloseRequest)
@@ -205,6 +208,14 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     refreshCloseRequestControllers()
   }
 
+  fun setOpenOrder(value: Int) {
+    if (value == openOrder) return
+    val didOpen = value > openOrder
+    openOrder = value
+    portalCloseRequestController.onOpenOrderChanged()
+    if (didOpen) bringOverlayToFront()
+  }
+
   // MARK: - Inline vs overlay presentation
 
   override fun onAttachedToWindow() {
@@ -308,6 +319,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       // so no interaction-listener transition is guaranteed after show(). Reapply the current
       // state after the final window configuration resets the dialog to its safe initial flags.
       overlayInteractive = host.isInteractive
+      presentedOverlays.add(this)
       refreshCloseRequestControllers()
     } catch (_: RuntimeException) {
       // Show failed (e.g. the activity went away mid-present). Dismiss so the
@@ -323,7 +335,26 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     }
   }
 
+  /**
+   * Moves this overlay's window above the overlays presented after it, so the most recently opened
+   * sheet is in front. Windows stack in the order they are added, so the window is re-added. That
+   * happens as the sheet starts opening, while it is still off-screen.
+   */
+  private fun bringOverlayToFront() {
+    if (presentedOverlays.lastOrNull() === this) return
+    val window = overlayDialog?.window ?: return
+    val decorView = window.peekDecorView() ?: return
+    val windowManager = themedReactContext?.currentActivity?.windowManager ?: return
+    runCatching {
+      windowManager.removeViewImmediate(decorView)
+      windowManager.addView(decorView, window.attributes)
+      presentedOverlays.remove(this)
+      presentedOverlays.add(this)
+    }
+  }
+
   private fun dismissOverlay() {
+    presentedOverlays.remove(this)
     overlayCloseRequestController.unbind()
     overlayDialog?.let { dialog ->
       (host.parent as? ViewGroup)?.removeView(host)
@@ -491,6 +522,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     themedReactContext?.removeLifecycleEventListener(this)
     host.interactionListener = null
     host.closeRequestStateChangedListener = null
+    presentedOverlays.remove(this)
     overlayDialog?.let { if (it.isShowing) it.dismiss() }
     overlayDialog = null
     overlayRoot = null
@@ -499,6 +531,9 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   }
 
   private companion object {
+    // Presented overlays, in window order: the last one is in front.
+    val presentedOverlays = mutableListOf<BottomSheetView>()
+
     const val NON_INTERACTIVE_FLAGS =
       WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
   }

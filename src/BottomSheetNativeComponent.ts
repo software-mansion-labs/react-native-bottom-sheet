@@ -18,6 +18,10 @@ export interface NativeProps extends ViewProps {
   animateContentHeight?: CodegenTypes.WithDefault<boolean, true>;
   modal: boolean;
   nativeOverlay?: boolean;
+  // When the sheet last opened, relative to other sheets (0 until it first
+  // opens). A higher value raises a native-overlay sheet above the others and
+  // ranks it first for Android portal close requests.
+  openOrder?: CodegenTypes.Int32;
   // Signal that JS supplied `onCloseRequest`. Native event-handler presence is
   // not otherwise observable, so Android (and the web host) use this to decide
   // whether a modal should own Back/Escape input.

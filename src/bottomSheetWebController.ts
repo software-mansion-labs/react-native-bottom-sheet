@@ -26,6 +26,8 @@ export type BottomSheetWebConfig = Readonly<{
   animateContentHeight: boolean;
   modal: boolean;
   hasCloseRequestHandler: boolean;
+  /** When the sheet last opened, relative to other sheets. */
+  openOrder: number;
   extendUnderStatusBar: boolean;
   scrollableExpandNegotiation: number;
   scrollableCollapseNegotiation: number;
@@ -406,6 +408,9 @@ export class BottomSheetWebController {
   private applyConfig(config: BottomSheetWebConfig) {
     const previous = this.config;
     this.config = config;
+    if (previous !== null && config.openOrder > previous.openOrder) {
+      this.raiseCloseRequestRegistration();
+    }
     if (
       previous !== null &&
       previous.scrimOpacities !== config.scrimOpacities
@@ -1147,6 +1152,17 @@ export class BottomSheetWebController {
         this.hasLaidOut &&
         (!this.isTargetClosed() || this.spring !== null)
     );
+  }
+
+  /**
+   * Escape goes to the most recently opened sheet. One that reopens while
+   * still closing is already registered, so it moves to the top.
+   */
+  private raiseCloseRequestRegistration() {
+    const index = closeRequestStack.indexOf(this);
+    if (index === -1 || index === closeRequestStack.length - 1) return;
+    closeRequestStack.splice(index, 1);
+    closeRequestStack.push(this);
   }
 
   private setCloseRequestRegistration(isRegistered: boolean) {

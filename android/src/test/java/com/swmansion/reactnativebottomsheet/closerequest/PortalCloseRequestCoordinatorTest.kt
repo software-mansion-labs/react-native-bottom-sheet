@@ -54,6 +54,75 @@ class PortalCloseRequestCoordinatorTest {
   }
 
   @Test
+  fun `open order outranks registration order`() {
+    withActivity { activity ->
+      val root = FrameLayout(activity)
+      val openedSecond = TestParticipant()
+      val openedFirst = TestParticipant()
+      val secondRegistration =
+        PortalCloseRequestCoordinator.register(
+          root,
+          openedSecond,
+          portalState(routingOwnerCandidate = true),
+          openOrder = 2,
+        )
+      val firstRegistration =
+        PortalCloseRequestCoordinator.register(
+          root,
+          openedFirst,
+          portalState(routingOwnerCandidate = true),
+          openOrder = 1,
+        )
+
+      try {
+        assertTrue(openedSecond.isInputHandlingEnabled)
+        assertFalse(openedFirst.isInputHandlingEnabled)
+
+        secondRegistration.remove()
+        assertTrue(openedFirst.isInputHandlingEnabled)
+      } finally {
+        secondRegistration.remove()
+        firstRegistration.remove()
+      }
+    }
+  }
+
+  @Test
+  fun `reopening a lower portal moves it to the top`() {
+    withActivity { activity ->
+      val root = FrameLayout(activity)
+      val lower = TestParticipant()
+      val upper = TestParticipant()
+      val lowerRegistration =
+        PortalCloseRequestCoordinator.register(
+          root,
+          lower,
+          portalState(routingOwnerCandidate = true),
+          openOrder = 1,
+        )
+      val upperRegistration =
+        PortalCloseRequestCoordinator.register(
+          root,
+          upper,
+          portalState(routingOwnerCandidate = true),
+          openOrder = 2,
+        )
+
+      try {
+        assertTrue(upper.isInputHandlingEnabled)
+        assertFalse(lower.isInputHandlingEnabled)
+
+        lowerRegistration.updateOpenOrder(3)
+        assertTrue(lower.isInputHandlingEnabled)
+        assertFalse(upper.isInputHandlingEnabled)
+      } finally {
+        upperRegistration.remove()
+        lowerRegistration.remove()
+      }
+    }
+  }
+
+  @Test
   fun `routing owner without a handler blocks lower and handler toggles do not reorder it`() {
     withActivity { activity ->
       val root = FrameLayout(activity)

@@ -58,6 +58,7 @@ using namespace facebook::react;
   float _lastContentOffsetY;
   BOOL _needsIndexSyncAfterRecycle;
   BOOL _nativeOverlay;
+  NSInteger _openOrder;
   BOOL _extendUnderStatusBar;
   BottomSheetOverlayContainerView *_overlayContainer;
   RCTSurfaceTouchHandler *_overlayTouchHandler;
@@ -134,6 +135,16 @@ using namespace facebook::react;
   if (newViewProps.nativeOverlay != _nativeOverlay) {
     _nativeOverlay = newViewProps.nativeOverlay;
     [self updateOverlayPresentation];
+  }
+
+  // Diffed against the ivar for the same reason. A native-overlay sheet that
+  // opens moves to the front of its window.
+  if (newViewProps.openOrder != _openOrder) {
+    BOOL didOpen = newViewProps.openOrder > _openOrder;
+    _openOrder = newViewProps.openOrder;
+    if (didOpen) {
+      [self bringOverlayToFront];
+    }
   }
 
   if (newViewProps.extendUnderStatusBar != _extendUnderStatusBar) {
@@ -285,9 +296,8 @@ using namespace facebook::react;
       [self detachOverlayTouchHandler];
       [_overlayContainer removeFromSuperview];
       // Added as the topmost window subview so it floats above modal content in
-      // the same window. With multiple native-overlay sheets active at once, the
-      // last one presented wins the z-order; the feature assumes a single overlay
-      // sheet visible at a time.
+      // the same window. Opening a sheet brings it back to the top (see
+      // `bringOverlayToFront`), so the most recently opened overlay is in front.
       [window addSubview:_overlayContainer];
       [self attachOverlayTouchHandler];
     }
@@ -297,6 +307,14 @@ using namespace facebook::react;
     if (_overlayContainer != nil) {
       [self restoreInlinePresentation];
     }
+  }
+}
+
+- (void)bringOverlayToFront
+{
+  UIView *window = _overlayContainer.superview;
+  if (window != nil && window.subviews.lastObject != _overlayContainer) {
+    [window bringSubviewToFront:_overlayContainer];
   }
 }
 
@@ -478,6 +496,7 @@ using namespace facebook::react;
   // reused instance starts from the default presentation.
   _nativeOverlay = NO;
   _extendUnderStatusBar = NO;
+  _openOrder = 0;
   [self restoreInlinePresentation];
   _needsIndexSyncAfterRecycle = YES;
   [_sheetView resetSheetState];

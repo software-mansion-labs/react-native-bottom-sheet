@@ -148,6 +148,10 @@ class BottomSheetViewManager :
     view.setNativeOverlay(value)
   }
 
+  override fun setOpenOrder(view: BottomSheetView, value: Int) {
+    view.setOpenOrder(value)
+  }
+
   override fun setHasCloseRequestHandler(view: BottomSheetView, value: Boolean) {
     view.setHasCloseRequestHandler(value)
   }
