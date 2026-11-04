@@ -90,7 +90,10 @@ export interface BottomSheetProps {
    * `detents`, update `index` to remain in range in the same render.
    */
   index: number;
-  /** Whether the sheet should animate in on first layout. */
+  /**
+   * Whether the sheet should animate in on first layout. With `lazy`, this only
+   * applies to a sheet that starts open; opening from closed always animates.
+   */
   animateIn?: boolean;
   /**
    * Whether the sheet should animate when the active `'content'` detent changes
@@ -105,11 +108,12 @@ export interface BottomSheetProps {
    */
   extendUnderStatusBar?: boolean;
   /**
-   * Whether to render `children` and `surface` only while the sheet is open.
-   * The content mounts in the same render that `index` selects an open detent,
-   * so it is in place before the sheet starts opening, and unmounts once the
-   * sheet settles at a closed detent, so it stays visible throughout the closing
-   * animation. Has no effect when no detent is closed.
+   * Whether to keep the sheet in the tree only while it is open. The native
+   * sheet view and its content mount in the same render that `index` selects an
+   * open detent, so the content is in place before the sheet starts opening, and
+   * unmount once the sheet settles at a closed detent, so the content stays
+   * visible throughout the closing animation. While unmounted, the sheet emits
+   * no `onPositionChange` events. Has no effect when no detent is closed.
    *
    * @default false
    */
@@ -191,6 +195,8 @@ type ModalOnlyBottomSheetProps = {
 export type BottomSheetInternalProps = BottomSheetProps &
   ModalOnlyBottomSheetProps;
 
+let nextOverlayOrder = 0;
+
 /** Native bottom sheet that renders inline within the current screen layout. */
 export const BottomSheet = (props: BottomSheetProps) => {
   const {
@@ -246,13 +252,17 @@ export const BottomSheet = (props: BottomSheetProps) => {
   const selectedNormalizedDetent = normalizedDetents[index]!;
   const isSheetClosed = isNormalizedDetentClosed(selectedNormalizedDetent);
   const hasCloseRequestHandler = onCloseRequest != null;
-  // Whether the sheet is open or still closing. Set during render so lazy
-  // content mounts in the same commit as the open index.
-  const [isContentActive, setIsContentActive] = useState(!isSheetClosed);
-  if (!isSheetClosed && !isContentActive) {
-    setIsContentActive(true);
+  // Whether the sheet is open or still closing. Set during render so a lazy
+  // sheet mounts in the same commit as the open index.
+  const [isSheetActive, setIsSheetActive] = useState(!isSheetClosed);
+  // `animateIn` only covers the initial presentation, but a lazy sheet's native
+  // view also runs its first layout on every later open, which must animate.
+  const [hasOpenedFromClosed, setHasOpenedFromClosed] = useState(false);
+  const [overlayOrder] = useState(() => nextOverlayOrder++);
+  if (!isSheetClosed && !isSheetActive) {
+    setIsSheetActive(true);
+    setHasOpenedFromClosed(true);
   }
-  const shouldRenderContent = !lazy || isContentActive;
   // Default the scrim opacity per detent: transparent at any closed detent,
   // fully opaque at every open one.
   const resolvedScrimOpacities =
@@ -267,10 +277,10 @@ export const BottomSheet = (props: BottomSheetProps) => {
     // Don't compare against `index`: the settle can arrive in the same batch as
     // the `onIndexChange` that closes the sheet, before `index` catches up. If
     // a newer open index superseded this settle, the render-time check above
-    // reactivates the content before commit, so it never unmounts.
+    // reactivates the sheet before commit, so it never unmounts.
     const settledDetent = normalizedDetents[event.nativeEvent.index];
     if (settledDetent != null && isNormalizedDetentClosed(settledDetent)) {
-      setIsContentActive(false);
+      setIsSheetActive(false);
     }
     onSettle?.(event.nativeEvent.index);
   };
@@ -288,6 +298,11 @@ export const BottomSheet = (props: BottomSheetProps) => {
         NativeProps & { children?: ReactNode }
       >
   );
+
+  if (lazy && !isSheetActive) {
+    // An empty portal entry keeps the sheet's place in the stacking order.
+    return modal && !usesNativeOverlay ? <Portal>{null}</Portal> : null;
+  }
 
   const sheet = (
     <View
@@ -330,10 +345,11 @@ export const BottomSheet = (props: BottomSheetProps) => {
           detents={normalizedDetents}
           extendUnderStatusBar={extendUnderStatusBar}
           index={index}
-          animateIn={animateIn}
+          animateIn={animateIn || (lazy && hasOpenedFromClosed)}
           animateContentHeight={animateContentHeight}
           modal={modal}
           nativeOverlay={usesNativeOverlay}
+          overlayOrder={overlayOrder}
           hasCloseRequestHandler={hasCloseRequestHandler}
           scrollableExpandNegotiation={
             SCROLLABLE_NEGOTIATION_LEVEL[resolvedExpandNegotiation]
@@ -348,7 +364,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
           onPositionChange={onPositionChange}
           onCloseRequest={onCloseRequest}
         >
-          {shouldRenderContent && surface != null && (
+          {surface != null && (
             <BottomSheetSurfaceView
               collapsable={false}
               pointerEvents="box-none"
@@ -368,7 +384,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
             // every mode.
             style={styles.contentWrapper}
           >
-            {shouldRenderContent && children}
+            {children}
             <View
               collapsable={false}
               nativeID={CONTENT_HEIGHT_MARKER_NATIVE_ID}

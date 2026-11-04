@@ -55,6 +55,7 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
     animateContentHeight,
     modal,
     nativeOverlay = false,
+    overlayOrder = 0,
     hasCloseRequestHandler,
     extendUnderStatusBar,
     scrollableExpandNegotiation,
@@ -177,7 +178,10 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
 
   if (nativeOverlay) {
     return createPortal(
-      <View style={styles.overlay} pointerEvents="box-none">
+      <View
+        style={[styles.overlay, { zIndex: OVERLAY_Z_INDEX + overlayOrder }]}
+        pointerEvents="box-none"
+      >
         {sheet}
       </View>,
       document.body
@@ -185,6 +189,10 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
   }
   return sheet;
 };
+
+// Above React Native for Web's `Modal` layer (z-index 9999), matching the native
+// overlay's place above modal screens.
+const OVERLAY_Z_INDEX = 10000;
 
 const styles = StyleSheet.create({
   host: { overflow: 'hidden' },
@@ -197,8 +205,5 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    // Above React Native for Web's `Modal` layer (z-index 9999), matching the
-    // native overlay's place above modal screens.
-    zIndex: 10000,
   },
 });

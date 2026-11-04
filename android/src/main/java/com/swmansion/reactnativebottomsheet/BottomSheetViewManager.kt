@@ -151,6 +151,11 @@ class BottomSheetViewManager :
     view.setNativeOverlay(value)
   }
 
+  @ReactProp(name = "overlayOrder")
+  override fun setOverlayOrder(view: BottomSheetView, value: Int) {
+    view.setOverlayOrder(value)
+  }
+
   @ReactProp(name = "hasCloseRequestHandler")
   override fun setHasCloseRequestHandler(view: BottomSheetView, value: Boolean) {
     view.setHasCloseRequestHandler(value)

@@ -20,6 +20,7 @@ using namespace facebook::react;
 /// and forwards hit-testing to its single subview—the sheet—so touches outside
 /// the sheet and its scrim fall through to the content underneath.
 @interface BottomSheetOverlayContainerView : UIView
+@property (nonatomic) NSInteger overlayOrder;
 @end
 
 @implementation BottomSheetOverlayContainerView
@@ -58,6 +59,7 @@ using namespace facebook::react;
   float _lastContentOffsetY;
   BOOL _needsIndexSyncAfterRecycle;
   BOOL _nativeOverlay;
+  NSInteger _overlayOrder;
   BOOL _extendUnderStatusBar;
   BottomSheetOverlayContainerView *_overlayContainer;
   RCTSurfaceTouchHandler *_overlayTouchHandler;
@@ -131,6 +133,8 @@ using namespace facebook::react;
   // place, so the sheet renders inline with no overlay or scrim. The ivar is the
   // genuine current presentation state, reset in both `init` and
   // `prepareForRecycle`, so it diffs correctly across recycling.
+  _overlayOrder = newViewProps.overlayOrder;
+
   if (newViewProps.nativeOverlay != _nativeOverlay) {
     _nativeOverlay = newViewProps.nativeOverlay;
     [self updateOverlayPresentation];
@@ -258,10 +262,22 @@ using namespace facebook::react;
       [self detachOverlayTouchHandler];
       [_overlayContainer removeFromSuperview];
       // Added as the topmost window subview so it floats above modal content in
-      // the same window. With multiple native-overlay sheets active at once, the
-      // last one presented wins the z-order; the feature assumes a single overlay
-      // sheet visible at a time.
-      [window addSubview:_overlayContainer];
+      // the same window, but below any native-overlay sheet rendered after this
+      // one, so that sheets stack in render order however late they mount.
+      _overlayContainer.overlayOrder = _overlayOrder;
+      UIView *nextOverlay = nil;
+      for (UIView *subview in window.subviews) {
+        if ([subview isKindOfClass:BottomSheetOverlayContainerView.class] &&
+            ((BottomSheetOverlayContainerView *)subview).overlayOrder > _overlayOrder) {
+          nextOverlay = subview;
+          break;
+        }
+      }
+      if (nextOverlay != nil) {
+        [window insertSubview:_overlayContainer belowSubview:nextOverlay];
+      } else {
+        [window addSubview:_overlayContainer];
+      }
       [self attachOverlayTouchHandler];
     }
     [self pushNativeGeometry];

@@ -28,7 +28,10 @@ const PortalHost = () => {
     context.getSnapshot
   );
 
-  return portals.map(([key, element]) => (
+  // A closed lazy sheet holds an empty entry, which needs no wrapper.
+  const mountedPortals = portals.filter(([, element]) => element != null);
+
+  return mountedPortals.map(([key, element]) => (
     <View
       key={key}
       style={StyleSheet.absoluteFill}
