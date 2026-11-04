@@ -61,8 +61,14 @@ sheet normally.
 On iOS and Android, a drag that starts diagonally inside a vertical scrollable
 is resolved like a vertical one: the sheet takes any start the scrollable would
 have accepted as a scroll, so a shallow angle cannot scroll content the sheet
-would otherwise move. A horizontal scrollable under the touch keeps sideways
-gestures as before. On web, a sideways start is left to the browser.
+would otherwise move, although on iOS the content may move briefly before the
+sheet takes the drag. A horizontal scrollable under the touch keeps sideways
+gestures as before. On iOS, a vertical start in a direction the sheet cannot
+move, such as downward at its lowest draggable detent, stays with the
+scrollable. If the drag reverses into a `handoff` direction, the sheet can take
+over without lifting once any bounce or refresh pull has scrolled back, an
+`initial` direction keeps the original owner. On web, a sideways start is left
+to the browser.
 
 ## Platform support
 

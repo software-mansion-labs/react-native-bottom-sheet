@@ -148,6 +148,10 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
+              name="scroll-interaction"
+              options={{ title: 'Scroll interaction', headerShown: false }}
+            />
+            <Stack.Screen
               name="programmatic-detent-drag"
               options={{
                 title: 'Programmatic detent drag',
