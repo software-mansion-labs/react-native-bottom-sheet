@@ -38,15 +38,15 @@ export interface NativeProps extends ViewProps {
     'circular' | 'continuous',
     'circular'
   >;
-  // Outset shadows cast by the card, drawn outside its clipped shape. Colors
-  // are processed ARGB integers.
+  // Outset shadows cast by the card, drawn outside its clipped shape. Nested
+  // colors are not processed by the view config, so JS passes them processed.
   surfaceShadows?: ReadonlyArray<
     Readonly<{
       offsetX: CodegenTypes.Double;
       offsetY: CodegenTypes.Double;
       blurRadius: CodegenTypes.Double;
       spreadDistance: CodegenTypes.Double;
-      color: CodegenTypes.Int32;
+      color: ColorValue;
     }>
   >;
   onIndexChange?: CodegenTypes.DirectEventHandler<

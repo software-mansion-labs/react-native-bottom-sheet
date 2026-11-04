@@ -1,5 +1,7 @@
 /// <reference lib="dom" />
 
+import type { ColorValue } from 'react-native';
+
 import { CONTENT_HEIGHT_MARKER_NATIVE_ID } from './bottomSheetUtils';
 
 // The web counterpart of `BottomSheetHostingView.swift` and
@@ -36,8 +38,8 @@ export type BottomSheetWebConfig = Readonly<{
       offsetY: number;
       blurRadius: number;
       spreadDistance: number;
-      /** A processed ARGB color. */
-      color: number;
+      /** Usually processed: ARGB, or a platform color object. */
+      color: ColorValue;
     }>
   >;
 }>;
@@ -255,8 +257,13 @@ const isTextEditingTarget = (target: EventTarget | null) =>
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
 
-/** Formats a processed ARGB color for CSS. */
-const argbToCss = (color: number) => {
+/**
+ * Formats a color for CSS. Platform color objects have no web equivalent and
+ * draw transparent.
+ */
+const processedColorToCss = (color: ColorValue) => {
+  if (typeof color === 'string') return color;
+  if (typeof color !== 'number') return 'transparent';
   // Processed colors may arrive as signed 32-bit integers.
   const argb = ((color % 2 ** 32) + 2 ** 32) % 2 ** 32;
   const channel = (shift: number) => Math.floor(argb / 2 ** shift) % 256;
@@ -297,6 +304,10 @@ export class BottomSheetWebController {
   private frameRequest: number | null = null;
   private lastFrameTime = 0;
   private needsLayout = false;
+  /** The card's CSS corner radii, or null while no corner is rounded. */
+  private cardCorners: string | null = null;
+  private appliedCardHeight = NaN;
+  private appliedClipInset = NaN;
   private resizeObserver: ResizeObserver | null = null;
   private mutationObserver: MutationObserver | null = null;
 
@@ -312,6 +323,7 @@ export class BottomSheetWebController {
     scrim.style.visibility = 'hidden';
     scrim.style.opacity = '0';
     scrim.style.pointerEvents = 'none';
+    this.updateCardShape();
     if (this.hasLaidOut) {
       // Reattached after a detach that kept the sheet's state, as when Strict
       // Mode replays effects: restore where the sheet is and resume any settle
@@ -402,12 +414,10 @@ export class BottomSheetWebController {
     }
     if (
       previous === null ||
-      previous.cornerRadii.some(
-        (radius, corner) => radius !== config.cornerRadii[corner]
-      ) ||
-      previous.shadows !== config.shadows
+      !areNumbersEqual(previous.cornerRadii, config.cornerRadii) ||
+      !areShadowsEqual(previous.shadows, config.shadows)
     ) {
-      this.updateCardClip();
+      this.updateCardShape();
     }
     if (
       previous === null ||
@@ -846,6 +856,33 @@ export class BottomSheetWebController {
   }
 
   /**
+   * Applies the card's corners and shadows. They change only with the props,
+   * so per-frame updates touch the card's height and clip alone.
+   */
+  private updateCardShape() {
+    const elements = this.elements;
+    const config = this.config;
+    if (elements === null || config === null) return;
+    const { card, shadow } = elements;
+    const corners = [0, 1, 2, 3]
+      .map((corner) => `${config.cornerRadii[corner] ?? 0}px`)
+      .join(' ');
+    this.cardCorners = config.cornerRadii.some((radius) => radius > 0)
+      ? corners
+      : null;
+    shadow.style.borderRadius = corners;
+    shadow.style.boxShadow = config.shadows
+      .map(
+        ({ offsetX, offsetY, blurRadius, spreadDistance, color }) =>
+          `${offsetX}px ${offsetY}px ${blurRadius}px ${spreadDistance}px ${processedColorToCss(color)}`
+      )
+      .join(', ');
+    if (this.cardCorners === null) card.style.clipPath = '';
+    this.appliedCardHeight = NaN;
+    this.updateCardClip();
+  }
+
+  /**
    * Clips the surface and content to the card. At or above the first open
    * detent the card reaches the host's bottom edge; below it, it keeps that
    * detent's height and slides down rigidly, so a closing sheet leaves with
@@ -853,29 +890,26 @@ export class BottomSheetWebController {
    */
   private updateCardClip() {
     const elements = this.elements;
-    const config = this.config;
-    if (elements === null || config === null) return;
+    if (elements === null || this.config === null) return;
     const { card, shadow } = elements;
     const firstOpenHeight =
       this.detents.find((detent) => detent.height > 0)?.height ?? 0;
     const position = this.cap - this.translateY;
     const cardHeight = clamp(Math.max(position, firstOpenHeight), 0, this.cap);
-    const corners = [0, 1, 2, 3]
-      .map((corner) => `${config.cornerRadii[corner] ?? 0}px`)
-      .join(' ');
+    const clipInset = this.cap - cardHeight;
+    if (
+      cardHeight === this.appliedCardHeight &&
+      clipInset === this.appliedClipInset
+    ) {
+      return;
+    }
+    this.appliedCardHeight = cardHeight;
+    this.appliedClipInset = clipInset;
 
     shadow.style.height = `${cardHeight}px`;
-    shadow.style.borderRadius = corners;
-    shadow.style.boxShadow = config.shadows
-      .map(
-        ({ offsetX, offsetY, blurRadius, spreadDistance, color }) =>
-          `${offsetX}px ${offsetY}px ${blurRadius}px ${spreadDistance}px ${argbToCss(color)}`
-      )
-      .join(', ');
-
-    card.style.clipPath = config.cornerRadii.some((radius) => radius > 0)
-      ? `inset(0px 0px ${this.cap - cardHeight}px 0px round ${corners})`
-      : '';
+    if (this.cardCorners !== null) {
+      card.style.clipPath = `inset(0px 0px ${clipInset}px 0px round ${this.cardCorners})`;
+    }
   }
 
   private setDetentIndex(newIndex: number) {
@@ -1550,6 +1584,25 @@ export class BottomSheetWebController {
     }
   }
 }
+
+const areNumbersEqual = (a: ReadonlyArray<number>, b: ReadonlyArray<number>) =>
+  a.length === b.length && a.every((value, index) => value === b[index]);
+
+const areShadowsEqual = (
+  a: BottomSheetWebConfig['shadows'],
+  b: BottomSheetWebConfig['shadows']
+) =>
+  a.length === b.length &&
+  a.every((shadow, index) => {
+    const other = b[index]!;
+    return (
+      shadow.offsetX === other.offsetX &&
+      shadow.offsetY === other.offsetY &&
+      shadow.blurRadius === other.blurRadius &&
+      shadow.spreadDistance === other.spreadDistance &&
+      shadow.color === other.color
+    );
+  });
 
 const areRawDetentsEqual = (
   a: ReadonlyArray<RawDetent>,

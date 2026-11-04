@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Outline
 import android.graphics.Path
+import android.graphics.Rect
 import android.graphics.RectF
 import android.os.Build
 import android.view.View
@@ -28,6 +29,7 @@ internal class BottomSheetCardClipLayout(context: Context) :
   private val cornerRadii = FloatArray(4)
   private val clipPath = Path()
   private val pathRadii = FloatArray(8)
+  private val clipRect = Rect()
 
   private enum class ClipMode {
     /** No corner is rounded: the sheet stays unclipped. */
@@ -38,8 +40,9 @@ internal class BottomSheetCardClipLayout(context: Context) :
 
     /**
      * Only the top corners are rounded, sharing one radius: an outline round rect extended below
-     * the card by that radius, cut back to the card with a rect clip. Keeps the outline's
-     * antialiased corners on every API level.
+     * the card by that radius, cut back to the card with clip bounds. Keeps the outline's
+     * antialiased corners on every API level, and like the outline, the clip bounds are a
+     * RenderNode property, so moving the card never redraws.
      */
     TOP,
 
@@ -99,6 +102,7 @@ internal class BottomSheetCardClipLayout(context: Context) :
         else -> ClipMode.CANVAS_PATH
       }
     clipToOutline = clipMode != ClipMode.NONE && clipMode != ClipMode.CANVAS_PATH
+    updateClipBounds()
     invalidateOutline()
     invalidate()
   }
@@ -114,36 +118,63 @@ internal class BottomSheetCardClipLayout(context: Context) :
     }
     cardRect.set(left, top, right, bottom)
     if (clipToOutline) invalidateOutline()
-    if (clipMode == ClipMode.TOP || clipMode == ClipMode.CANVAS_PATH) invalidate()
+    updateClipBounds()
+    if (clipMode == ClipMode.CANVAS_PATH) invalidate()
   }
 
-  /** Whether `(x, y)`, in this view's coordinates, falls on the card shape. */
+  private fun updateClipBounds() {
+    if (clipMode == ClipMode.TOP) {
+      cardRect.roundOut(clipRect)
+      clipBounds = clipRect
+    } else if (clipBounds != null) {
+      clipBounds = null
+    }
+  }
+
+  /**
+   * Whether `(x, y)`, in this view's coordinates, falls on the card shape. Plain arithmetic, as it
+   * runs on every touch down and on every move over the scrim.
+   */
   fun cardContains(x: Float, y: Float): Boolean {
     if (!cardRect.contains(x, y)) return false
     if (!isShaped) return true
-    val path = buildCardPath()
-    val bounds = RectF()
-    path.computeBounds(bounds, true)
-    val region = android.graphics.Region()
-    region.setPath(
-      path,
-      android.graphics.Region(
-        bounds.left.toInt(),
-        bounds.top.toInt(),
-        bounds.right.toInt(),
-        bounds.bottom.toInt(),
-      ),
-    )
-    return region.contains(x.toInt(), y.toInt())
+    val limit = minOf(cardRect.width(), cardRect.height()) / 2f
+    val topLeft = cornerRadii[0].coerceAtMost(limit)
+    val topRight = cornerRadii[1].coerceAtMost(limit)
+    val bottomRight = cornerRadii[2].coerceAtMost(limit)
+    val bottomLeft = cornerRadii[3].coerceAtMost(limit)
+    val left = cardRect.left
+    val top = cardRect.top
+    val right = cardRect.right
+    val bottom = cardRect.bottom
+    return when {
+      x < left + topLeft && y < top + topLeft ->
+        isInCorner(x, y, left + topLeft, top + topLeft, topLeft)
+      x > right - topRight && y < top + topRight ->
+        isInCorner(x, y, right - topRight, top + topRight, topRight)
+      x > right - bottomRight && y > bottom - bottomRight ->
+        isInCorner(x, y, right - bottomRight, bottom - bottomRight, bottomRight)
+      x < left + bottomLeft && y > bottom - bottomLeft ->
+        isInCorner(x, y, left + bottomLeft, bottom - bottomLeft, bottomLeft)
+      else -> true
+    }
+  }
+
+  private fun isInCorner(
+    x: Float,
+    y: Float,
+    centerX: Float,
+    centerY: Float,
+    radius: Float,
+  ): Boolean {
+    val dx = x - centerX
+    val dy = y - centerY
+    return dx * dx + dy * dy <= radius * radius
   }
 
   override fun dispatchDraw(canvas: Canvas) {
     val saveCount = canvas.save()
-    when (clipMode) {
-      ClipMode.TOP -> canvas.clipRect(cardRect)
-      ClipMode.CANVAS_PATH -> canvas.clipPath(buildCardPath())
-      else -> {}
-    }
+    if (clipMode == ClipMode.CANVAS_PATH) canvas.clipPath(buildCardPath())
     super.dispatchDraw(canvas)
     canvas.restoreToCount(saveCount)
   }

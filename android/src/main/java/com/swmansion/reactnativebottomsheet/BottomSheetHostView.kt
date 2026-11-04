@@ -150,7 +150,11 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
 
   private val sheetContainer = FrameLayout(context)
   private val clipContainer = BottomSheetCardClipLayout(context)
-  private val shadowView = BottomSheetCardShadowView(context)
+  // The card's shadow, stitched from two copies drawn at a fixed height: the top copy shows the
+  // card's top half and the bottom copy, translated to the card's bottom edge, its bottom half.
+  private val shadowTop = BottomSheetCardShadowView(context)
+  private val shadowBottom = BottomSheetCardShadowView(context)
+  private val shadowViews = listOf(shadowTop, shadowBottom)
   private val scrimPaint = Paint(Paint.ANTI_ALIAS_FLAG)
   private var activeAnimation: SpringAnimation? = null
   private var activeAnimationEmitsSettle = false
@@ -210,10 +214,12 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
       LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
     )
     // Below the clip container, so the clip never cuts the shadows.
-    sheetContainer.addView(
-      shadowView,
-      LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
-    )
+    for (shadowView in shadowViews) {
+      sheetContainer.addView(
+        shadowView,
+        LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
+      )
+    }
     sheetContainer.addView(
       clipContainer,
       LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
@@ -409,7 +415,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   private fun layoutSheetChildren(containerWidth: Int, containerHeight: Int) {
     // The clip container keeps the sheet container's full size, so its
     // children keep sheet-container coordinates; only its clip follows the card.
-    shadowView.layout(0, 0, containerWidth, containerHeight)
+    for (shadowView in shadowViews) shadowView.layout(0, 0, containerWidth, containerHeight)
     clipContainer.layout(0, 0, containerWidth, containerHeight)
     for (i in 0 until clipContainer.childCount) {
       val child = clipContainer.getChildAt(i)
@@ -946,22 +952,22 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   fun setSurfaceCornerRadii(values: List<Float>) {
     val radii = FloatArray(4) { (values.getOrNull(it) ?: 0f).coerceAtLeast(0f) * density }
     clipContainer.setCornerRadii(radii)
-    shadowView.setCornerRadii(radii)
+    for (shadowView in shadowViews) shadowView.setCornerRadii(radii)
     updateCardGeometry()
   }
 
   /** Outset card shadows, with lengths in dp. */
   internal fun setSurfaceShadows(values: List<CardShadow>) {
-    shadowView.setShadows(
-      values.map {
-        it.copy(
-          offsetX = it.offsetX * density,
-          offsetY = it.offsetY * density,
-          blurRadius = it.blurRadius * density,
-          spreadDistance = it.spreadDistance * density,
-        )
-      },
-    )
+    val shadows = values.map {
+      it.copy(
+        offsetX = it.offsetX * density,
+        offsetY = it.offsetY * density,
+        blurRadius = it.blurRadius * density,
+        spreadDistance = it.spreadDistance * density,
+      )
+    }
+    for (shadowView in shadowViews) shadowView.setShadows(shadows)
+    updateCardGeometry()
   }
 
   /**
@@ -973,13 +979,36 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   private fun cardBottom(position: Float): Float =
     maxOf(position, firstNonZeroDetentHeight, 0f).coerceAtMost(sheetContainer.height.toFloat())
 
-  /** Keeps the card clip in step with the sheet. RenderNode work only. */
+  /**
+   * Keeps the card clip and shadows in step with the sheet. RenderNode work only: the clip is an
+   * outline (or clip bounds), and the shadow halves are moved and clipped, not redrawn.
+   */
   private fun updateCardGeometry() {
     val position = resolvedMaxDetentHeight() - sheetContainer.translationY
     val right = sheetContainer.width.toFloat()
     val bottom = cardBottom(position)
     clipContainer.setCard(0f, 0f, right, bottom)
-    shadowView.setCard(0f, 0f, right, bottom)
+    updateCardShadows(bottom)
+  }
+
+  private fun updateCardShadows(cardBottom: Float) {
+    if (!shadowTop.hasShadows) {
+      for (shadowView in shadowViews) shadowView.visibility = View.INVISIBLE
+      return
+    }
+    for (shadowView in shadowViews) shadowView.visibility = View.VISIBLE
+    val shapeHeight = sheetContainer.height.toFloat()
+    val split = cardBottom / 2f
+    if (split >= shadowTop.edgeBand && shapeHeight >= cardBottom) {
+      // Both copies are drawn at the container's height, which only changes with the layout.
+      // The join is far enough from both edges that the copies match there.
+      shadowTop.place(shapeHeight, 0f, Float.NEGATIVE_INFINITY, split)
+      shadowBottom.place(shapeHeight, cardBottom - shapeHeight, split, Float.POSITIVE_INFINITY)
+    } else {
+      // Too short to join: draw the card as it is, redrawing as it changes.
+      shadowTop.place(cardBottom, 0f, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY)
+      shadowBottom.visibility = View.INVISIBLE
+    }
   }
 
   /** Whether `(x, y)`, in host coordinates, falls on the card as it is drawn. */

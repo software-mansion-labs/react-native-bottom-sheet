@@ -1,5 +1,13 @@
 import { useState } from 'react';
-import { Button, StyleSheet, Text, View } from 'react-native';
+import {
+  Button,
+  DynamicColorIOS,
+  Platform,
+  PlatformColor,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import {
   ModalBottomSheet,
   type SurfaceStyle,
@@ -11,6 +19,19 @@ import {
   SheetHeader,
   useSheetBottomPadding,
 } from '../demoShared';
+
+// Platform colors resolve natively. Only the current platform's factory may
+// run: the others throw.
+const PLATFORM_SHADOW_COLOR =
+  Platform.OS === 'ios'
+    ? // Flips with the system appearance.
+      DynamicColorIOS({
+        light: 'rgba(0, 0, 0, 0.5)',
+        dark: 'rgba(255, 200, 0, 0.7)',
+      })
+    : Platform.OS === 'android'
+      ? PlatformColor('@android:color/holo_orange_dark')
+      : 'rgba(0, 0, 0, 0.5)';
 
 const SHAPES: { label: string; style: SurfaceStyle | undefined }[] = [
   {
@@ -38,6 +59,22 @@ const SHAPES: { label: string; style: SurfaceStyle | undefined }[] = [
           blurRadius: 32,
           spreadDistance: 4,
           color: 'rgba(0, 120, 255, 0.5)',
+        },
+      ],
+    },
+  },
+  {
+    label: 'Continuous, platform color',
+    style: {
+      borderTopLeftRadius: 48,
+      borderTopRightRadius: 20,
+      borderCurve: 'continuous',
+      boxShadow: [
+        {
+          offsetX: 0,
+          offsetY: -8,
+          blurRadius: 32,
+          color: PLATFORM_SHADOW_COLOR,
         },
       ],
     },

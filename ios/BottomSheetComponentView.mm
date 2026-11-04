@@ -184,7 +184,7 @@ using namespace facebook::react;
         @"offsetY" : @(shadow.offsetY),
         @"blurRadius" : @(shadow.blurRadius),
         @"spreadDistance" : @(shadow.spreadDistance),
-        @"color" : @(shadow.color),
+        @"color" : RCTUIColorFromSharedColor(shadow.color) ?: UIColor.blackColor,
       }];
     }
     [_sheetView setSurfaceShadows:shadows];

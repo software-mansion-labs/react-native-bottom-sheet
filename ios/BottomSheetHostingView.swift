@@ -210,16 +210,40 @@ private struct CardShadow: Equatable {
   let offset: CGSize
   let blurRadius: CGFloat
   let spreadDistance: CGFloat
-  /// ARGB, as React Native processes colors.
-  let color: Int32
+  /// May be dynamic (`DynamicColorIOS`, `PlatformColor`); resolved against
+  /// the host's trait collection when applied.
+  let color: UIColor
+}
 
-  var uiColor: UIColor {
-    let argb = UInt32(bitPattern: color)
-    return UIColor(
-      red: CGFloat((argb >> 16) & 0xFF) / 255,
-      green: CGFloat((argb >> 8) & 0xFF) / 255,
-      blue: CGFloat(argb & 0xFF) / 255,
-      alpha: CGFloat((argb >> 24) & 0xFF) / 255
+/// The continuous ("squircle") corner `CALayer` draws for
+/// `cornerCurve = .continuous`, as three cubic Béziers per corner. The
+/// coefficients scale with the radius and reproduce the layer's rendering to
+/// within antialiasing.
+private enum ContinuousCorner {
+  /// How far along each edge the corner curve begins, in radii.
+  static let extent: CGFloat = 1.528665
+
+  /// Adds the top-right-shaped corner, mapped onto a corner by `transform`,
+  /// starting with the line along the edge before it.
+  static func add(to path: CGMutablePath, radius r: CGFloat, transform: CGAffineTransform) {
+    func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+      CGPoint(x: x * r, y: y * r).applying(transform)
+    }
+    path.addLine(to: point(-extent, 0))
+    path.addCurve(
+      to: point(-0.631494, 0.074911),
+      control1: point(-1.088493, 0),
+      control2: point(-0.868407, 0)
+    )
+    path.addCurve(
+      to: point(-0.074911, 0.631494),
+      control1: point(-0.372824, 0.169060),
+      control2: point(-0.169060, 0.372824)
+    )
+    path.addCurve(
+      to: point(0, extent),
+      control1: point(0, 0.868407),
+      control2: point(0, 1.088493)
     )
   }
 }
@@ -274,7 +298,7 @@ public final class BottomSheetHostingView: UIView {
         offset: CGSize(width: number("offsetX"), height: number("offsetY")),
         blurRadius: max(0, number("blurRadius")),
         spreadDistance: number("spreadDistance"),
-        color: (value["color"] as? NSNumber)?.int32Value ?? 0
+        color: value["color"] as? UIColor ?? .black
       )
     }
     guard shadows != cardShadows else { return }
@@ -414,6 +438,25 @@ public final class BottomSheetHostingView: UIView {
     panGesture.delaysTouchesBegan = false
     panGesture.delaysTouchesEnded = false
     sheetContainer.addGestureRecognizer(panGesture)
+
+    if #available(iOS 17.0, *) {
+      registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (self: Self, _) in
+        self.updateCardShadowColors()
+      }
+    }
+  }
+
+  /// Deprecated itself so overriding the deprecated callback does not warn;
+  /// iOS 17 and later observe the style with `registerForTraitChanges`.
+  @available(iOS, deprecated: 17.0)
+  override public func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+    super.traitCollectionDidChange(previousTraitCollection)
+    if #available(iOS 17.0, *) {
+      return
+    }
+    if traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
+      updateCardShadowColors()
+    }
   }
 
   @available(*, unavailable)
@@ -2042,38 +2085,42 @@ private extension BottomSheetHostingView {
 
   /// The card's outline in `rect`. A positive `outset` grows the outline and
   /// its rounded corners, as a `boxShadow` spread does; sharp corners stay
-  /// sharp.
+  /// sharp. Clip, shadows and hit testing all read this one outline, so they
+  /// share the corner curve: continuous corners trace the same curve as
+  /// `CALayer.cornerCurve = .continuous`.
   func cardPath(in cardRect: CGRect, outset: CGFloat = 0) -> CGPath {
     let rect = cardRect.insetBy(dx: -outset, dy: -outset)
-    let limit = max(0, min(rect.width, rect.height) / 2)
-    let r = cornerRadii.map { $0 > 0 ? min(max(0, $0 + outset), limit) : 0 }
-    let (topLeft, topRight, bottomRight, bottomLeft) = (r[0], r[1], r[2], r[3])
+    let grown = cornerRadii.map { $0 > 0 ? max(0, $0 + outset) : 0 }
+    // Corner transforms map the top-right corner's local frame (origin at the
+    // corner, x leftward-negative along the top edge, y down the right edge)
+    // onto each corner, clockwise from the top right.
+    let corners: [(radius: CGFloat, transform: CGAffineTransform)] = [
+      (grown[1], CGAffineTransform(a: 1, b: 0, c: 0, d: 1, tx: rect.maxX, ty: rect.minY)),
+      (grown[2], CGAffineTransform(a: 0, b: 1, c: -1, d: 0, tx: rect.maxX, ty: rect.maxY)),
+      (grown[3], CGAffineTransform(a: -1, b: 0, c: 0, d: -1, tx: rect.minX, ty: rect.maxY)),
+      (grown[0], CGAffineTransform(a: 0, b: -1, c: 1, d: 0, tx: rect.minX, ty: rect.minY)),
+    ]
     let path = CGMutablePath()
-    path.move(to: CGPoint(x: rect.minX + topLeft, y: rect.minY))
-    path.addLine(to: CGPoint(x: rect.maxX - topRight, y: rect.minY))
-    path.addArc(
-      tangent1End: CGPoint(x: rect.maxX, y: rect.minY),
-      tangent2End: CGPoint(x: rect.maxX, y: rect.minY + topRight),
-      radius: topRight
-    )
-    path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - bottomRight))
-    path.addArc(
-      tangent1End: CGPoint(x: rect.maxX, y: rect.maxY),
-      tangent2End: CGPoint(x: rect.maxX - bottomRight, y: rect.maxY),
-      radius: bottomRight
-    )
-    path.addLine(to: CGPoint(x: rect.minX + bottomLeft, y: rect.maxY))
-    path.addArc(
-      tangent1End: CGPoint(x: rect.minX, y: rect.maxY),
-      tangent2End: CGPoint(x: rect.minX, y: rect.maxY - bottomLeft),
-      radius: bottomLeft
-    )
-    path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + topLeft))
-    path.addArc(
-      tangent1End: CGPoint(x: rect.minX, y: rect.minY),
-      tangent2End: CGPoint(x: rect.minX + topLeft, y: rect.minY),
-      radius: topLeft
-    )
+    if cornerCurve == .continuous {
+      // Like the layer's own continuous corners, these are not clamped to the
+      // rect: a radius past half the side overlaps, as it does there.
+      path.move(to: CGPoint(x: rect.minX + ContinuousCorner.extent * grown[0], y: rect.minY))
+      for corner in corners {
+        ContinuousCorner.add(to: path, radius: corner.radius, transform: corner.transform)
+      }
+    } else {
+      let limit = max(0, min(rect.width, rect.height) / 2)
+      let clamped = corners.map { (min($0.radius, limit), $0.transform) }
+      path.move(to: CGPoint(x: rect.minX + clamped[3].0, y: rect.minY))
+      for (radius, transform) in clamped {
+        path.addLine(to: CGPoint(x: -radius, y: 0).applying(transform))
+        path.addArc(
+          tangent1End: CGPoint.zero.applying(transform),
+          tangent2End: CGPoint(x: 0, y: radius).applying(transform),
+          radius: radius
+        )
+      }
+    }
     path.closeSubpath()
     return path
   }
@@ -2093,26 +2140,45 @@ private extension BottomSheetHostingView {
     CATransaction.commit()
   }
 
-  /// Rebuilds the shadow layers. CSS blur radius is twice the Gaussian
-  /// sigma, which is what `shadowRadius` approximates.
+  /// Matches the shadow layers to `cardShadows`, reusing existing layers.
+  /// CSS blur radius is twice the Gaussian sigma, which is what
+  /// `shadowRadius` approximates.
   func updateCardShadows() {
-    shadowLayers.forEach { $0.removeFromSuperlayer() }
-    shadowLayers = cardShadows.map { shadow in
+    while shadowLayers.count > cardShadows.count {
+      shadowLayers.removeLast().removeFromSuperlayer()
+    }
+    while shadowLayers.count < cardShadows.count {
       let layer = CALayer()
+      layer.shadowOpacity = 1
+      shadowView.layer.addSublayer(layer)
+      shadowLayers.append(layer)
+    }
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    for (layer, shadow) in zip(shadowLayers, cardShadows) {
       layer.frame = shadowView.bounds
       layer.shadowOffset = shadow.offset
       layer.shadowRadius = shadow.blurRadius / 2
-      layer.shadowColor = shadow.uiColor.cgColor
-      layer.shadowOpacity = 1
-      shadowView.layer.addSublayer(layer)
-      return layer
     }
+    CATransaction.commit()
+    updateCardShadowColors()
     applyCardGeometry(forPosition: sheetContainerHeight - sheetContainer.transform.ty)
+  }
+
+  /// Resolves the shadow colors for the current appearance. Layers take plain
+  /// `CGColor`s, so dynamic colors are re-resolved when the appearance flips.
+  func updateCardShadowColors() {
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    for (layer, shadow) in zip(shadowLayers, cardShadows) {
+      layer.shadowColor = shadow.color.resolvedColor(with: traitCollection).cgColor
+    }
+    CATransaction.commit()
   }
 
   /// Chooses how the card is clipped. Corners sharing one radius use the
   /// layer's own corner rounding (which honors `cornerCurve`); differing radii
-  /// fall back to a mask, drawn with circular corners.
+  /// fall back to a mask drawn from `cardPath`, in the same curve.
   func updateCardShape() {
     let rounded = cornerRadii.filter { $0 > 0 }
     clipContainer.clipsToBounds = !rounded.isEmpty
@@ -2156,6 +2222,9 @@ private extension BottomSheetHostingView {
   /// sheet's settle animation, so the card's height follows the sheet frame
   /// for frame on the render server.
   func addCardAnimations(matching sheetAnimation: CAKeyframeAnimation) {
+    // An unclipped card without shadows draws nothing that follows its
+    // geometry; the model geometry is enough.
+    guard isCardShaped || !cardShadows.isEmpty else { return }
     let samples = (sheetAnimation.values ?? []).compactMap {
       ($0 as? CGFloat) ?? ($0 as? NSNumber).map { CGFloat(truncating: $0) }
     }

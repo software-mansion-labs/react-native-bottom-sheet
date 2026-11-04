@@ -1,6 +1,7 @@
 import {
   processColor,
   StyleSheet,
+  type ProcessedColorValue,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
@@ -44,8 +45,11 @@ type NativeShadow = Readonly<{
   offsetY: number;
   blurRadius: number;
   spreadDistance: number;
-  /** A processed color: an ARGB integer. */
-  color: number;
+  /**
+   * A processed color: an ARGB integer, or a platform color object
+   * (`PlatformColor`, `DynamicColorIOS`) that the native host resolves.
+   */
+  color: ProcessedColorValue;
 }>;
 
 type ResolvedSurfaceStyle = Readonly<{
@@ -65,7 +69,7 @@ type BoxShadowObject = Exclude<
 const COMMA_SPLIT_PATTERN = /,(?![^()]*\))/;
 const WHITESPACE_SPLIT_PATTERN = /\s+(?![^(]*\))/;
 const LENGTH_PATTERN = /^([+-]?\d*\.?\d+)(px)?$/;
-const DEFAULT_SHADOW_COLOR = 0xff000000;
+const DEFAULT_SHADOW_COLOR = 'black';
 
 const invalidBoxShadowError = (value: unknown) =>
   new Error(
@@ -135,11 +139,10 @@ const resolveShadows = (boxShadow: ViewStyle['boxShadow']): NativeShadow[] => {
     ) {
       throw invalidBoxShadowError(boxShadow);
     }
-    const color =
-      shadow.color == null ? DEFAULT_SHADOW_COLOR : processColor(shadow.color);
-    if (typeof color !== 'number') {
-      // Platform and dynamic colors resolve natively and cannot be passed as
-      // a plain ARGB value.
+    // Nested colors skip the view config's color processing, so process them
+    // here. Platform and dynamic colors stay objects the native host resolves.
+    const color = processColor(shadow.color ?? DEFAULT_SHADOW_COLOR);
+    if (color == null) {
       throw invalidBoxShadowError(boxShadow);
     }
     return [{ offsetX, offsetY, blurRadius, spreadDistance, color }];

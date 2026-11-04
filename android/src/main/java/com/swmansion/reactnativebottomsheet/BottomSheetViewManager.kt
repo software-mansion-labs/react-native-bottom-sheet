@@ -1,8 +1,12 @@
 package com.swmansion.reactnativebottomsheet
 
+import android.graphics.Color
 import android.view.View
 import com.facebook.react.bridge.Arguments
+import com.facebook.react.bridge.ColorPropConverter
 import com.facebook.react.bridge.ReadableArray
+import com.facebook.react.bridge.ReadableMap
+import com.facebook.react.bridge.ReadableType
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.module.annotations.ReactModule
 import com.facebook.react.uimanager.ReactStylesDiffMap
@@ -197,12 +201,23 @@ class BottomSheetViewManager :
             offsetY = shadow.getDouble("offsetY").toFloat(),
             blurRadius = shadow.getDouble("blurRadius").toFloat(),
             spreadDistance = shadow.getDouble("spreadDistance").toFloat(),
-            color = shadow.getInt("color"),
+            color = shadowColor(view, shadow),
           ),
         )
       }
     }
     view.setSurfaceShadows(shadows)
+  }
+
+  // Processed colors arrive as numbers, or as maps for `PlatformColor`.
+  private fun shadowColor(view: BottomSheetView, shadow: ReadableMap): Int {
+    val value: Any? =
+      when (shadow.getType("color")) {
+        ReadableType.Number -> shadow.getDouble("color")
+        ReadableType.Map -> shadow.getMap("color")
+        else -> null
+      }
+    return ColorPropConverter.getColor(value, view.context, Color.BLACK)
   }
 
   // Android always draws circular corners; the curve applies on iOS only.
