@@ -90,15 +90,6 @@ class BottomSheetCardClipLayoutTest {
   }
 
   @Test
-  fun `only a corner the card clips away counts as clipped`() {
-    val card = layout(floatArrayOf(20f, 20f, 0f, 0f))
-    assertTrue(card.isInClippedCorner(2f, 2f))
-    assertFalse(card.isInClippedCorner(100f, 2f))
-    // Outside the card altogether is not a clipped corner.
-    assertFalse(card.isInClippedCorner(100f, 150f))
-  }
-
-  @Test
   fun `touches in a clipped corner skip the card's children`() {
     val card = layout(floatArrayOf(20f, 20f, 0f, 0f))
     val time = SystemClock.uptimeMillis()

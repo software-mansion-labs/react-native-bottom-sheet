@@ -14,9 +14,21 @@ import UIKit.UIGestureRecognizerSubclass
   func bottomSheetHostingViewDidLayout(_ view: BottomSheetHostingView)
 }
 
+/// The space kept around the card at a detent.
+private struct DetentInsets: Equatable {
+  /// Nil for the status bar's overlap with the host, which can change.
+  var top: CGFloat?
+  var left: CGFloat = 0
+  var right: CGFloat = 0
+  var bottom: CGFloat = 0
+}
+
 private struct DetentSpec: Equatable {
-  let height: CGFloat
+  /// How far the card's top rests above the host's bottom: the card's height
+  /// plus its bottom inset. Zero when closed, whatever the inset.
+  let position: CGFloat
   let programmatic: Bool
+  let insets: DetentInsets
 }
 
 private enum DetentKind {
@@ -29,6 +41,10 @@ private struct RawDetentSpec: Equatable {
   let value: CGFloat
   let kind: DetentKind
   let programmatic: Bool
+  let insets: DetentInsets
+  /// The widest open card, which the content is laid out against. Flagged in JS,
+  /// which lays the content out.
+  let widestCard: Bool
 }
 
 private struct PendingSnapRequest {
@@ -277,9 +293,9 @@ public final class BottomSheetHostingView: UIView {
   }
 
   /// Physical corner radii of the card: top-left, top-right, bottom-right,
-  /// bottom-left. All zero leaves the sheet unclipped, as before cards existed,
-  /// so content drawn outside the sheet (e.g., a surface's own shadow) stays
-  /// visible.
+  /// bottom-left. With all zero and no gaps around the card, the sheet stays
+  /// unclipped, as before cards existed, so content drawn outside the sheet
+  /// (e.g., a surface's own shadow) stays visible.
   private var cornerRadii: [CGFloat] = [0, 0, 0, 0]
   private var cornerCurve: CALayerCornerCurve = .circular
 
@@ -319,25 +335,22 @@ public final class BottomSheetHostingView: UIView {
     updateCardShape()
   }
 
-  /// The cap value the container geometry and translations are currently
-  /// anchored to; used to detect cap-only geometry changes and to re-anchor
-  /// against the value the current translation was computed with.
+  /// The height the container geometry and translations are currently anchored
+  /// to; used to detect height-only geometry changes and to re-anchor against
+  /// the value the current translation was computed with.
   private var lastAppliedMaxDetentHeight: CGFloat = .nan
-
-  /// Whether full-height detents may extend under the status bar. Feeds the
-  /// natively computed detent cap; there is no JS-provided cap anymore.
-  public var extendUnderStatusBar: Bool = false {
-    didSet {
-      guard extendUnderStatusBar != oldValue else { return }
-      refreshDetentsFromLayout()
-      setNeedsLayout()
-    }
-  }
 
   public var scrollableExpandNegotiation: Int = ScrollableNegotiationLevel.handoff.rawValue
   public var scrollableCollapseNegotiation: Int = ScrollableNegotiationLevel.initial.rawValue
 
   private var rawDetentSpecs: [RawDetentSpec] = []
+  /// Whether any detent keeps a gap at the card's sides or bottom, so the card
+  /// is narrower or shorter than the surface and has to clip it. A top inset
+  /// only lowers the detent's height, which needs no clip.
+  private var hasCardGaps = false
+  /// The sum of the side insets of the widest card, which the content is laid
+  /// out against.
+  private var widestCardSideGaps: CGFloat = 0
   private var detentSpecs: [DetentSpec] = [] {
     didSet {
       setNeedsLayout()
@@ -410,6 +423,12 @@ public final class BottomSheetHostingView: UIView {
   private static let cardMaskAnimationKey = "bottomSheetCardMask"
   private static let cardShadowAnimationKey = "bottomSheetCardShadow"
   private static let cardShadowMaskAnimationKey = "bottomSheetCardShadowMask"
+  private static let cardContentAnimationKey = "bottomSheetCardContent"
+  /// The settle animation the card is following, kept so the content's keyframes
+  /// can be rebuilt when a layout moves the content mid-settle.
+  private var cardSettleAnimation: CAKeyframeAnimation?
+  /// The centers and sizes that the running content keyframes were built from.
+  private var contentAnimationLayouts: [CGRect] = []
 
   override public init(frame: CGRect) {
     super.init(frame: frame)
@@ -481,8 +500,10 @@ public final class BottomSheetHostingView: UIView {
 
   override public func safeAreaInsetsDidChange() {
     super.safeAreaInsetsDidChange()
-    // The native detent cap depends on the window's top inset.
-    refreshDetentsFromLayout()
+    // The default top inset depends on the window's. Resolved in the layout pass
+    // rather than here: UIKit calls this from inside `setFrame:`, and the base
+    // component view briefly shrinks this view to its padding-inset frame (see
+    // `updateLayoutMetrics:`), which would read as a much smaller host.
     setNeedsLayout()
   }
 
@@ -490,7 +511,7 @@ public final class BottomSheetHostingView: UIView {
     super.didMoveToWindow()
     surfaceTouchHandler = nil
     guard window != nil else { return }
-    // The native detent cap becomes computable once a window exists.
+    // The default top inset becomes computable once a window exists.
     refreshDetentsFromLayout()
     setNeedsLayout()
     var current: UIView? = superview
@@ -512,8 +533,8 @@ public final class BottomSheetHostingView: UIView {
   override public func layoutSubviews() {
     super.layoutSubviews()
     guard bounds.width > 0, bounds.height > 0 else { return }
-    // See refreshDetentsFromLayout: without a window the detent cap falls back
-    // to the full height, which must not be applied to the container geometry.
+    // See refreshDetentsFromLayout: without a window the status bar's overlap
+    // falls back to zero, which must not be applied to the container geometry.
     if hasLaidOut, window == nil {
       return
     }
@@ -529,7 +550,6 @@ public final class BottomSheetHostingView: UIView {
     // (the container is translated to the current sheet position), regardless of
     // how short the content becomes. Sized from the top via frame — never via
     // anchorPoint.
-    surfaceView?.frame = sheetContainer.bounds
     shadowView.frame = sheetContainer.bounds
     // From the model translation: mid-settle the card animation drives the
     // presented geometry and the model already holds the target.
@@ -631,13 +651,39 @@ public final class BottomSheetHostingView: UIView {
         kind = .points
       }
       let programmatic = (dict["programmatic"] as? Bool) ?? (dict["programmatic"] as? NSNumber)?.boolValue ?? false
-      return RawDetentSpec(value: CGFloat(value), kind: kind, programmatic: programmatic)
+      let widestCard = (dict["widestCard"] as? Bool) ?? (dict["widestCard"] as? NSNumber)?.boolValue ?? false
+      let inset = { (key: String) in max(0, CGFloat(truncating: dict[key] as? NSNumber ?? 0)) }
+      let usesStatusBarTopInset = (dict["usesStatusBarTopInset"] as? Bool)
+        ?? (dict["usesStatusBarTopInset"] as? NSNumber)?.boolValue ?? false
+      return RawDetentSpec(
+        value: CGFloat(value),
+        kind: kind,
+        programmatic: programmatic,
+        insets: DetentInsets(
+          top: usesStatusBarTopInset ? nil : inset("insetTop"),
+          left: inset("insetLeft"),
+          right: inset("insetRight"),
+          bottom: inset("insetBottom")
+        ),
+        widestCard: widestCard
+      )
+    }
+    let previousWidestCardSideGaps = widestCardSideGaps
+    widestCardSideGaps = rawDetentSpecs
+      .first(where: \.widestCard)
+      .map { $0.insets.left + $0.insets.right } ?? 0
+    let hasGaps = rawDetentSpecs.contains {
+      $0.insets.left > 0 || $0.insets.right > 0 || $0.insets.bottom > 0
+    }
+    if hasGaps != hasCardGaps {
+      hasCardGaps = hasGaps
+      updateCardShape()
     }
     // The tallest detent bounds the content region. The content stays laid out
     // against the previous region until Fabric commits the new inset; hold its
     // measurement until then. Decided from the detents alone so it also holds
-    // while detached, when the cap is not computable.
-    if hasLaidOut, rawDetentSpecs.last != previousTallestDetent {
+    // while detached, when the status bar's overlap is not computable.
+    if hasLaidOut, rawDetentSpecs.last != previousTallestDetent || widestCardSideGaps != previousWidestCardSideGaps {
       isContentRegionChangePending = true
     }
     refreshDetentsFromLayout()
@@ -728,6 +774,9 @@ public final class BottomSheetHostingView: UIView {
   }
 
   public func unmountChildComponentView(_ childView: UIView) {
+    // Fabric recycles the view, which must not keep the card's scale.
+    childView.layer.removeAnimation(forKey: Self.cardContentAnimationKey)
+    childView.layer.transform = CATransform3DIdentity
     childView.removeFromSuperview()
     refreshContentHeightMarker()
     setNeedsLayout()
@@ -744,6 +793,9 @@ public final class BottomSheetHostingView: UIView {
     if surfaceView === childView {
       surfaceView = nil
     }
+    // Fabric recycles the view, which must not keep the card's scale.
+    childView.layer.removeAnimation(forKey: Self.cardContentAnimationKey)
+    childView.layer.transform = CATransform3DIdentity
     childView.removeFromSuperview()
     refreshContentHeightMarker()
     setNeedsLayout()
@@ -776,21 +828,21 @@ public final class BottomSheetHostingView: UIView {
     scrimView.alpha = 0
     scrimView.isHidden = true
     for subview in clipContainer.subviews {
+      subview.layer.removeAnimation(forKey: Self.cardContentAnimationKey)
+      subview.layer.transform = CATransform3DIdentity
       subview.removeFromSuperview()
     }
   }
 
   private func detent(at index: Int) -> DetentSpec {
     guard detentSpecs.indices.contains(index) else {
-      return DetentSpec(height: 0, programmatic: false)
+      return DetentSpec(position: 0, programmatic: false, insets: DetentInsets())
     }
     return detentSpecs[index]
   }
 
   private func translationY(for index: Int) -> CGFloat {
-    let maxHeight = sheetContainerHeight
-    let snapHeight = detent(at: index).height
-    return maxHeight - snapHeight
+    sheetContainerHeight - detent(at: index).position
   }
 
   private func snapCandidateIndices(including index: Int? = nil) -> [Int] {
@@ -803,7 +855,7 @@ public final class BottomSheetHostingView: UIView {
       indices.append(index)
     }
     return Array(Set(indices)).sorted {
-      detentSpecs[$0].height < detentSpecs[$1].height
+      detentSpecs[$0].position < detentSpecs[$1].position
     }
   }
 
@@ -817,9 +869,7 @@ public final class BottomSheetHostingView: UIView {
   }
 
   private func snapshotTranslationY(for index: Int, in specs: [DetentSpec]) -> CGFloat {
-    let maxHeight = sheetContainerHeight
-    let snapHeight = specs.indices.contains(index) ? specs[index].height : 0
-    return maxHeight - snapHeight
+    sheetContainerHeight - (specs.indices.contains(index) ? specs[index].position : 0)
   }
 
   private func snapshotCandidateIndices(including index: Int?, in specs: [DetentSpec]) -> [Int] {
@@ -832,7 +882,7 @@ public final class BottomSheetHostingView: UIView {
       indices.append(index)
     }
     return Array(Set(indices)).sorted {
-      specs[$0].height < specs[$1].height
+      specs[$0].position < specs[$1].position
     }
   }
 
@@ -849,7 +899,7 @@ public final class BottomSheetHostingView: UIView {
   }
 
   private var closedIndex: Int? {
-    detentSpecs.firstIndex(where: { $0.height == 0 })
+    detentSpecs.firstIndex(where: { $0.position == 0 })
   }
 
   private var scrimDismissIndex: Int? {
@@ -859,8 +909,8 @@ public final class BottomSheetHostingView: UIView {
     return closedIndex
   }
 
-  private var firstNonZeroDetentHeight: CGFloat {
-    detentSpecs.first(where: { $0.height > 0 })?.height ?? 0
+  private var firstOpenDetentPosition: CGFloat {
+    detentSpecs.first(where: { $0.position > 0 })?.position ?? 0
   }
 
   private var currentSheetHeight: CGFloat {
@@ -870,13 +920,26 @@ public final class BottomSheetHostingView: UIView {
   }
 
   public var currentContentOffsetY: CGFloat {
-    // The content's in-host displacement from its Yoga position: the container
-    // offset plus the sheet's translation. The content-region inset shrinks
+    // The content's in-host displacement from its Yoga position: the sheet's
+    // translation. The content-region inset shrinks
     // the content via Yoga BOTTOM padding, keeping the Yoga origin at zero, so
     // the full displacement is carried here.
-    let maxHeight = sheetContainerHeight
-    let containerTop = bounds.height - maxHeight
-    return containerTop + currentTranslationY
+    return currentTranslationY
+  }
+
+  /// How much the card scales the surface and content.
+  public var currentContentScale: CGFloat {
+    guard hasCardGaps else { return 1 }
+    return contentScale(forCardWidth: cardRect(forPosition: currentSheetHeight).width)
+  }
+
+  /// The sheet coordinate space's horizontal displacement, which the scale applies
+  /// to as well: it puts the widest card's left edge, scaled, on the card's.
+  public var currentContentOffsetX: CGFloat {
+    guard hasCardGaps else { return 0 }
+    let card = cardRect(forPosition: currentSheetHeight)
+    let widestLeft = findContentView().map { $0.center.x - $0.bounds.width / 2 } ?? 0
+    return card.minX - contentScale(forCardWidth: card.width) * widestLeft
   }
 
   public var isModalAccessibilityActive: Bool {
@@ -1391,7 +1454,7 @@ public final class BottomSheetHostingView: UIView {
   }
 
   private func bestSnapIndex(
-    for height: CGFloat,
+    for position: CGFloat,
     velocity: CGFloat,
     including index: Int? = nil
   ) -> Int {
@@ -1401,21 +1464,21 @@ public final class BottomSheetHostingView: UIView {
     let flickThreshold: CGFloat = 600
 
     if velocity < -flickThreshold {
-      return candidates.first(where: { detentSpecs[$0].height > height })
+      return candidates.first(where: { detentSpecs[$0].position > position })
         ?? candidates.last ?? targetIndex
     }
     if velocity > flickThreshold {
-      return candidates.last(where: { detentSpecs[$0].height < height })
+      return candidates.last(where: { detentSpecs[$0].position < position })
         ?? candidates.first ?? targetIndex
     }
 
     return candidates.min(by: {
-      abs(detentSpecs[$0].height - height) < abs(detentSpecs[$1].height - height)
+      abs(detentSpecs[$0].position - position) < abs(detentSpecs[$1].position - position)
     }) ?? targetIndex
   }
 
   private func snapshotBestSnapIndex(
-    for height: CGFloat,
+    for position: CGFloat,
     velocity: CGFloat,
     including index: Int?,
     in specs: [DetentSpec]
@@ -1426,16 +1489,16 @@ public final class BottomSheetHostingView: UIView {
     let flickThreshold: CGFloat = 600
 
     if velocity < -flickThreshold {
-      return candidates.first(where: { specs[$0].height > height })
+      return candidates.first(where: { specs[$0].position > position })
         ?? candidates.last ?? targetIndex
     }
     if velocity > flickThreshold {
-      return candidates.last(where: { specs[$0].height < height })
+      return candidates.last(where: { specs[$0].position < position })
         ?? candidates.first ?? targetIndex
     }
 
     return candidates.min(by: {
-      abs(specs[$0].height - height) < abs(specs[$1].height - height)
+      abs(specs[$0].position - position) < abs(specs[$1].position - position)
     }) ?? targetIndex
   }
 
@@ -1635,42 +1698,59 @@ public final class BottomSheetHostingView: UIView {
     return true
   }
 
-  private var resolvedMaxDetentHeight: CGFloat {
-    // The detent cap is computed natively: the sheet's own height minus the
-    // part of the window's top (status bar / notch) inset that actually
-    // overlaps this view. Measured from real window geometry in every mode —
-    // inline, portal, and overlay — so no JS-estimated dimensions are
-    // involved. Before the view is in a window, fall back to full height.
-    guard !extendUnderStatusBar, let window else {
-      return bounds.height
-    }
+  /// The default top inset: the part of the window's top (status bar / notch)
+  /// inset that actually overlaps this view. Measured from real window geometry
+  /// in every mode — inline, portal, and overlay — so no JS-estimated dimensions
+  /// are involved. Before the view is in a window, nothing overlaps it.
+  private var statusBarOverlap: CGFloat {
+    guard let window else { return 0 }
     let originYInWindow = convert(CGPoint.zero, to: window).y
-    let topOverlap = max(0, window.safeAreaInsets.top - originYInWindow)
-    return min(max(0, bounds.height - topOverlap), bounds.height)
+    return min(max(0, window.safeAreaInsets.top - originYInWindow), bounds.height)
+  }
+
+  /// How much the content is scaled for a card this wide: its width over the
+  /// width of the widest card, which the content is laid out against.
+  private func contentScale(forCardWidth width: CGFloat) -> CGFloat {
+    let widest = bounds.width - widestCardSideGaps
+    return widest > 0 ? width / widest : 1
+  }
+
+  private func contentScale(for insets: DetentInsets) -> CGFloat {
+    contentScale(forCardWidth: max(0, bounds.width - insets.left - insets.right))
   }
 
   /// The height of the content region: the Yoga box the sheet's in-flow
   /// children (the `flex: 1` content wrapper) are laid out in. It is the
-  /// tallest height the sheet can reach — the tallest detent's upper bound,
-  /// clamped to the cap — rather than the cap itself, so a scrollable under a
-  /// fixed or percentage tallest detent is laid out against the height it can
-  /// actually show instead of leaving its last rows below the screen edge.
-  /// A trailing `content` detent is bounded by the cap alone:
-  /// its resolved height is measured from this very region, so bounding
-  /// the region by it would be circular.
+  /// tallest height the sheet can reach — the card's height at the tallest
+  /// detent, clamped to the space its insets leave — rather than the host's,
+  /// so a scrollable under a fixed or percentage tallest detent is laid out
+  /// against the height it can actually show instead of leaving its last rows
+  /// below the card's edge. A trailing `content` detent is bounded by that space
+  /// alone: its resolved height is measured from this very region, so bounding
+  /// the region by it would be circular. In layout units, so divided by the scale
+  /// at that detent, and never taller than the sheet's node.
   private var contentRegionHeight: CGFloat {
-    let cap = resolvedMaxDetentHeight
-    guard let tallest = rawDetentSpecs.last else { return cap }
+    guard let tallest = rawDetentSpecs.last else { return bounds.height }
+    let available = availableCardHeight(for: tallest)
     let bound: CGFloat
     switch tallest.kind {
     case .points:
       bound = tallest.value
     case .percentage:
-      bound = cap * tallest.value
+      bound = available * tallest.value
     case .content:
-      bound = cap
+      bound = available
     }
-    return min(max(0, bound), cap)
+    let height = min(max(0, bound), available)
+    let scale = contentScale(for: tallest.insets)
+    return scale > 0 ? min(height / scale, bounds.height) : height
+  }
+
+  /// The tallest the card can be at a detent: the host's height, less the
+  /// detent's top and bottom insets. Percentages resolve against it, so `100%`
+  /// fits.
+  private func availableCardHeight(for spec: RawDetentSpec) -> CGFloat {
+    max(0, bounds.height - (spec.insets.top ?? statusBarOverlap) - spec.insets.bottom)
   }
 
   /// The natively measured inset of the content region: the gap between the
@@ -1687,37 +1767,42 @@ public final class BottomSheetHostingView: UIView {
   /// animate the sheet down to its new height. The surface fills this canvas, so
   /// the area below the shrunken content stays covered throughout.
   private var sheetContainerHeight: CGFloat {
-    resolvedMaxDetentHeight
+    bounds.height
   }
 
   private func resolveDetentSpecs() -> [DetentSpec]? {
-    let maxHeight = resolvedMaxDetentHeight
+    let maxHeight = sheetContainerHeight
     let measuredContentHeight = maxHeight > 0 ? validContentHeight.map { min($0, maxHeight) } : nil
     var resolvedDetents: [DetentSpec] = []
     resolvedDetents.reserveCapacity(rawDetentSpecs.count)
 
     for (index, spec) in rawDetentSpecs.enumerated() {
+      let available = availableCardHeight(for: spec)
       let height: CGFloat
       switch spec.kind {
       case .points:
         height = spec.value
       case .percentage:
-        height = maxHeight * spec.value
+        height = available * spec.value
       case .content:
         height =
-          measuredContentHeight ?? unresolvedContentDetentHeight(after: index, maxHeight: maxHeight)
+          measuredContentHeight.map { $0 * contentScale(for: spec.insets) }
+            ?? unresolvedContentDetentHeight(after: index, maxHeight: maxHeight)
       }
-      let resolvedHeight = min(max(0, height), maxHeight)
-      if let previous = resolvedDetents.last, resolvedHeight < previous.height {
+      let resolvedHeight = min(max(0, height), available)
+      let position = resolvedHeight > 0 ? resolvedHeight + spec.insets.bottom : 0
+      if let previous = resolvedDetents.last, position < previous.position {
         let message =
-          "Invalid bottom sheet detent at index \(index): resolved height \(resolvedHeight) is lower than previous detent height \(previous.height). Detents must be passed in ascending order."
+          "Invalid bottom sheet detent at index \(index): resolved position \(position) is lower than previous detent position \(previous.position). Detents must be passed in ascending order."
         if lastReportedInvalidDetentMessage != message {
           lastReportedInvalidDetentMessage = message
           eventDelegate?.bottomSheetHostingView(self, didReportError: message)
         }
         return nil
       }
-      resolvedDetents.append(DetentSpec(height: resolvedHeight, programmatic: spec.programmatic))
+      resolvedDetents.append(
+        DetentSpec(position: position, programmatic: spec.programmatic, insets: spec.insets)
+      )
     }
 
     lastReportedInvalidDetentMessage = nil
@@ -1729,14 +1814,19 @@ public final class BottomSheetHostingView: UIView {
       return maxHeight
     }
     for spec in rawDetentSpecs[(index + 1)...] {
+      let available = availableCardHeight(for: spec)
+      let height: CGFloat
       switch spec.kind {
       case .points:
-        return min(max(0, spec.value), maxHeight)
+        height = spec.value
       case .percentage:
-        return min(max(0, maxHeight * spec.value), maxHeight)
+        height = available * spec.value
       case .content:
         continue
       }
+      // Whatever its inset, this detent must not rise above the next one's top.
+      return min(max(0, height), available) + spec.insets.bottom
+        - rawDetentSpecs[index].insets.bottom
     }
     return maxHeight
   }
@@ -1748,8 +1838,8 @@ public final class BottomSheetHostingView: UIView {
 
   private func resolveDetentsFromLayout() {
     // While detached from a window (e.g. mid-commit, when Fabric reparents the
-    // host as ancestor view flattening changes), the native detent cap is not
-    // computable — its full-height fallback would register as a cap change and
+    // host as ancestor view flattening changes), the status bar's overlap is not
+    // computable — its zero fallback would register as a detents change and
     // trigger a spurious re-anchor snap that clobbers any queued snap request.
     // Stay inert; didMoveToWindow refreshes geometry on reattach.
     if hasLaidOut, window == nil {
@@ -1769,8 +1859,8 @@ public final class BottomSheetHostingView: UIView {
       updateScrim()
       return
     }
-    // Also fall through when only the cap changed: the specs store heights,
-    // but translations derive from the cap, so they must be re-anchored even
+    // Also fall through when only the height changed: the specs store positions,
+    // but translations derive from it, so they must be re-anchored even
     // when the resolved detents are unchanged.
     guard resolvedDetents != detentSpecs || sheetContainerHeight != lastAppliedMaxDetentHeight
     else {
@@ -1779,7 +1869,7 @@ public final class BottomSheetHostingView: UIView {
     }
 
     // The re-anchor math below preserves the on-screen sheet height across the
-    // geometry change, so it must relate the current translation to the cap it
+    // geometry change, so it must relate the current translation to the height it
     // was computed against — not the freshly resolved one.
     let previousMaxHeight =
       lastAppliedMaxDetentHeight.isFinite ? lastAppliedMaxDetentHeight : sheetContainerHeight
@@ -1789,8 +1879,8 @@ public final class BottomSheetHostingView: UIView {
     let wasScrimFull = hasLaidOut
       && !isPanning
       && modal
-      && firstNonZeroDetentHeight > 0
-      && currentSheetHeight + 0.5 >= firstNonZeroDetentHeight
+      && firstOpenDetentPosition > 0
+      && currentSheetHeight + 0.5 >= firstOpenDetentPosition
     scrimPinnedFull = scrimPinnedFull || wasScrimFull
     detentSpecs = resolvedDetents
 
@@ -1821,7 +1911,7 @@ public final class BottomSheetHostingView: UIView {
         )
       } else {
         let currentVisibleHeight = previousMaxHeight - currentTranslationY
-        let targetHeight = detent(at: targetIndex).height
+        let targetHeight = detent(at: targetIndex).position
         let shouldAnimateHeight = shouldAnimateContentHeight(at: targetIndex)
         if abs(targetHeight - currentVisibleHeight) <= 0.5 {
           // No meaningful change.
@@ -1898,6 +1988,14 @@ public final class BottomSheetHostingView: UIView {
   /// for intrinsic content.
   public func contentRegionLayoutDidApply() {
     appliedContentRegionInset = committedContentRegionInset
+    // The transform pins the content by its center, which this layout may move.
+    applyCardGeometry(forPosition: sheetContainerHeight - sheetContainer.transform.ty)
+    // So does a running settle's copy of it: the settle usually starts before
+    // the layout of the same transaction lands. Commits run per frame, so only
+    // rebuild it when the content actually moved.
+    if isContentAnimationStale {
+      addContentAnimation()
+    }
     guard isContentRegionChangePending else { return }
     refreshDetentsFromLayout()
   }
@@ -2071,7 +2169,7 @@ extension BottomSheetHostingView: UIGestureRecognizerDelegate {
 
 private extension BottomSheetHostingView {
   var isCardShaped: Bool {
-    cornerRadii.contains { $0 > 0 }
+    hasCardGaps || cornerRadii.contains { $0 > 0 }
   }
 
   /// Moves the sheet and keeps the card in step with it.
@@ -2082,12 +2180,37 @@ private extension BottomSheetHostingView {
 
   /// The card in sheet-container coordinates for a sheet position (the height
   /// of the sheet's top above the host's bottom). At or above the first open
-  /// detent the card reaches the host's bottom edge; below it, it keeps that
-  /// detent's height and slides down rigidly, so a closing sheet leaves with
-  /// its shape intact.
+  /// detent the card's bottom stays above the bottom gap and its side gaps blend
+  /// between detents; below it, it keeps that detent's shape and slides down
+  /// rigidly, so a closing sheet leaves through the gap with its shape intact.
   func cardRect(forPosition position: CGFloat) -> CGRect {
-    let height = min(max(position, firstNonZeroDetentHeight, 0), sheetContainerHeight)
-    return CGRect(x: 0, y: 0, width: sheetContainer.bounds.width, height: height)
+    let anchored = max(position, firstOpenDetentPosition, 0)
+    let insets = cardInsets(forPosition: anchored)
+    return CGRect(
+      x: insets.left,
+      y: 0,
+      width: max(0, sheetContainer.bounds.width - insets.left - insets.right),
+      height: min(max(0, anchored - insets.bottom), sheetContainerHeight)
+    )
+  }
+
+  /// The card's gaps at a sheet position, blended between the detents around it.
+  /// Resolved detents ascend by position.
+  func cardInsets(forPosition position: CGFloat) -> DetentInsets {
+    guard hasCardGaps,
+          let upperIndex = detentSpecs.firstIndex(where: { position <= $0.position })
+    else { return hasCardGaps ? detentSpecs.last?.insets ?? DetentInsets() : DetentInsets() }
+    guard upperIndex > 0 else { return detentSpecs[upperIndex].insets }
+    let lower = detentSpecs[upperIndex - 1]
+    let upper = detentSpecs[upperIndex]
+    let span = upper.position - lower.position
+    let t = span <= 0 ? 1 : (position - lower.position) / span
+    let blend = { (from: CGFloat, to: CGFloat) in from + (to - from) * t }
+    return DetentInsets(
+      left: blend(lower.insets.left, upper.insets.left),
+      right: blend(lower.insets.right, upper.insets.right),
+      bottom: blend(lower.insets.bottom, upper.insets.bottom)
+    )
   }
 
   /// The card's outline in `rect`. A positive `outset` grows the outline and
@@ -2163,7 +2286,26 @@ private extension BottomSheetHostingView {
       layer.shadowPath = cardPath(in: rect, outset: shadow.spreadDistance)
       (layer.mask as? CAShapeLayer)?.path = shadowMaskPath(in: rect, for: shadow)
     }
+    for view in clipContainer.subviews {
+      view.layer.transform = contentTransform(of: view, in: rect)
+    }
     CATransaction.commit()
+  }
+
+  /// Scales a view (the surface or content) to the card's width and pins its
+  /// top-left corner to the card's. Layer work only: the view keeps its layout.
+  func contentTransform(of contentView: UIView, in rect: CGRect) -> CATransform3D {
+    guard hasCardGaps else { return CATransform3DIdentity }
+    let scale = contentScale(forCardWidth: rect.width)
+    // The layer scales about its center, which Fabric's layout owns.
+    let center = contentView.center
+    let size = contentView.bounds.size
+    let dx = rect.minX - (center.x - scale * size.width / 2)
+    let dy = rect.minY - (center.y - scale * size.height / 2)
+    return CATransform3DConcat(
+      CATransform3DMakeScale(scale, scale, 1),
+      CATransform3DMakeTranslation(dx, dy, 0)
+    )
   }
 
   /// Matches the shadow layers to `cardShadows`, reusing existing layers.
@@ -2215,7 +2357,7 @@ private extension BottomSheetHostingView {
   /// fall back to a mask drawn from `cardPath`, in the same curve.
   func updateCardShape() {
     let rounded = cornerRadii.filter { $0 > 0 }
-    clipContainer.clipsToBounds = !rounded.isEmpty
+    clipContainer.clipsToBounds = isCardShaped
     if let radius = rounded.first, rounded.allSatisfy({ abs($0 - radius) < 0.01 }) {
       var corners: CACornerMask = []
       if cornerRadii[0] > 0 {
@@ -2263,19 +2405,9 @@ private extension BottomSheetHostingView {
       ($0 as? CGFloat) ?? ($0 as? NSNumber).map { CGFloat(truncating: $0) }
     }
     guard !samples.isEmpty else { return }
-    let maxHeight = sheetContainerHeight
-    let rects = samples.map { cardRect(forPosition: maxHeight - $0) }
-
-    func keyframes(_ keyPath: String, _ values: [Any]) -> CAKeyframeAnimation {
-      let animation = CAKeyframeAnimation(keyPath: keyPath)
-      animation.values = values
-      animation.keyTimes = sheetAnimation.keyTimes
-      animation.duration = sheetAnimation.duration
-      animation.calculationMode = sheetAnimation.calculationMode
-      animation.beginTime = sheetAnimation.beginTime
-      animation.isRemovedOnCompletion = false
-      animation.fillMode = .forwards
-      return animation
+    let rects = cardRects(forSamples: samples)
+    let keyframes = { (keyPath: String, values: [Any]) in
+      Self.cardKeyframes(keyPath, values, matching: sheetAnimation)
     }
 
     clipContainer.layer.add(
@@ -2286,6 +2418,8 @@ private extension BottomSheetHostingView {
       keyframes("position", rects.map { NSValue(cgPoint: $0.origin) }),
       forKey: Self.cardPositionAnimationKey
     )
+    cardSettleAnimation = sheetAnimation
+    addContentAnimation()
     cardMask?.add(
       keyframes("path", rects.map { cardPath(in: $0) }),
       forKey: Self.cardMaskAnimationKey
@@ -2302,10 +2436,65 @@ private extension BottomSheetHostingView {
     }
   }
 
+  /// Adds the surface's and content's keyframes for the running settle, or
+  /// replaces them: the same `beginTime` keeps them on the settle's clock, so
+  /// nothing visibly restarts.
+  private func addContentAnimation() {
+    guard hasCardGaps, let sheetAnimation = cardSettleAnimation else { return }
+    let samples = (sheetAnimation.values ?? []).compactMap {
+      ($0 as? CGFloat) ?? ($0 as? NSNumber).map { CGFloat(truncating: $0) }
+    }
+    let rects = cardRects(forSamples: samples)
+    contentAnimationLayouts = currentContentLayouts
+    for view in clipContainer.subviews {
+      view.layer.add(
+        Self.cardKeyframes(
+          "transform",
+          rects.map { NSValue(caTransform3D: contentTransform(of: view, in: $0)) },
+          matching: sheetAnimation
+        ),
+        forKey: Self.cardContentAnimationKey
+      )
+    }
+  }
+
+  private var isContentAnimationStale: Bool {
+    guard cardSettleAnimation != nil else { return false }
+    return contentAnimationLayouts != currentContentLayouts
+  }
+
+  private var currentContentLayouts: [CGRect] {
+    clipContainer.subviews.map { CGRect(origin: $0.center, size: $0.bounds.size) }
+  }
+
+  private func cardRects(forSamples samples: [CGFloat]) -> [CGRect] {
+    let maxHeight = sheetContainerHeight
+    return samples.map { cardRect(forPosition: maxHeight - $0) }
+  }
+
+  private static func cardKeyframes(
+    _ keyPath: String,
+    _ values: [Any],
+    matching sheetAnimation: CAKeyframeAnimation
+  ) -> CAKeyframeAnimation {
+    let animation = CAKeyframeAnimation(keyPath: keyPath)
+    animation.values = values
+    animation.keyTimes = sheetAnimation.keyTimes
+    animation.duration = sheetAnimation.duration
+    animation.calculationMode = sheetAnimation.calculationMode
+    animation.beginTime = sheetAnimation.beginTime
+    animation.isRemovedOnCompletion = false
+    animation.fillMode = .forwards
+    return animation
+  }
+
   func removeSettleAnimations() {
+    cardSettleAnimation = nil
+    contentAnimationLayouts = []
     sheetContainer.layer.removeAnimation(forKey: Self.springAnimationKey)
     clipContainer.layer.removeAnimation(forKey: Self.cardBoundsAnimationKey)
     clipContainer.layer.removeAnimation(forKey: Self.cardPositionAnimationKey)
+    clipContainer.subviews.forEach { $0.layer.removeAnimation(forKey: Self.cardContentAnimationKey) }
     cardMask?.removeAnimation(forKey: Self.cardMaskAnimationKey)
     for layer in shadowLayers {
       layer.removeAnimation(forKey: Self.cardShadowAnimationKey)
@@ -2386,8 +2575,8 @@ private extension BottomSheetHostingView {
 
   /// The opacity at the tallest detent, held while the sheet re-anchors.
   private var fullyOpenScrimOpacity: CGFloat {
-    guard let maxHeight = detentSpecs.map({ $0.height }).max() else { return 1 }
-    return scrimOpacity(forPosition: maxHeight)
+    guard let maxPosition = detentSpecs.map({ $0.position }).max() else { return 1 }
+    return scrimOpacity(forPosition: maxPosition)
   }
 
   /// Interpolates the scrim opacity for a sheet height by bracketing it between
@@ -2410,25 +2599,25 @@ private extension BottomSheetHostingView {
   }
 
   /// Interpolates a per-detent value (one per detent, by index) by the sheet
-  /// position, using each detent's resolved height as the breakpoint.
+  /// position, using each detent's resolved position as the breakpoint.
   private func interpolate(forPosition position: CGFloat, values: [CGFloat]) -> CGFloat {
-    let pairs = zip(detentSpecs.map(\.height), values)
-      .map { (height: $0, value: $1) }
-      .sorted { $0.height < $1.height }
+    let pairs = zip(detentSpecs.map(\.position), values)
+      .map { (position: $0, value: $1) }
+      .sorted { $0.position < $1.position }
 
     guard let first = pairs.first, let last = pairs.last else { return 0 }
-    if position <= first.height {
+    if position <= first.position {
       return first.value
     }
-    if position >= last.height {
+    if position >= last.position {
       return last.value
     }
 
-    for i in 1 ..< pairs.count where position <= pairs[i].height {
+    for i in 1 ..< pairs.count where position <= pairs[i].position {
       let lower = pairs[i - 1]
       let upper = pairs[i]
-      let span = upper.height - lower.height
-      let t = span <= 0 ? 1 : (position - lower.height) / span
+      let span = upper.position - lower.position
+      let t = span <= 0 ? 1 : (position - lower.position) / span
       return lower.value + (upper.value - lower.value) * t
     }
     return last.value

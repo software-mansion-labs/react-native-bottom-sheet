@@ -4,3 +4,4 @@
 // Metro's platform resolution over their compiled web counterparts.
 export { default as BottomSheetView } from './BottomSheetNativeComponent';
 export { default as BottomSheetSurfaceView } from './BottomSheetSurfaceNativeComponent';
+export { default as BottomSheetContentWrapperView } from './BottomSheetContentWrapperNativeComponent';

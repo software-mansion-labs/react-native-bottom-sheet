@@ -37,7 +37,7 @@ internal class BottomSheetCardTouchSensor(
   }
 }
 
-/** The sheet container, which can leave the walk for a touch in a clipped corner. */
+/** The sheet container, which can leave the walk for a touch off the card. */
 internal class BottomSheetCardContainer(context: Context) :
   FrameLayout(context), ReactPointerEventsView {
   var skipsTouchTargeting = false

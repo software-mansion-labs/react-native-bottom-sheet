@@ -35,11 +35,8 @@ NS_ASSUME_NONNULL_BEGIN
 // layout, so content laid out against the committed content-region inset is
 // measurable again.
 - (void)contentRegionLayoutDidApply;
-// Whether full-height detents may extend under the status bar; feeds the
-// natively computed detent cap.
-- (void)setExtendUnderStatusBar:(BOOL)extendUnderStatusBar;
 // The natively measured inset of the content region: the gap between the
-// sheet's height and the detent cap.
+// sheet's height and the content region's.
 - (CGFloat)contentRegionInset;
 - (void)setDetentIndex:(NSInteger)newIndex;
 - (void)setScrimColor:(UIColor *_Nullable)color;
@@ -51,7 +48,9 @@ NS_ASSUME_NONNULL_BEGIN
 // Outset card shadows: dictionaries of offsetX, offsetY, blurRadius,
 // spreadDistance, a UIColor (possibly dynamic), opacity and excludesInterior.
 - (void)setSurfaceShadows:(NSArray<NSDictionary *> *)shadows;
+- (CGFloat)currentContentOffsetX;
 - (CGFloat)currentContentOffsetY;
+- (CGFloat)currentContentScale;
 - (void)mountChildComponentView:(UIView *)childView atIndex:(NSInteger)index;
 - (void)unmountChildComponentView:(UIView *)childView;
 - (void)mountSurfaceComponentView:(UIView *)surfaceView atIndex:(NSInteger)index;

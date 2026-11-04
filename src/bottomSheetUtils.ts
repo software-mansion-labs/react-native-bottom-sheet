@@ -327,11 +327,44 @@ export const isDetentProgrammatic = (detent: Detent): boolean => {
   return false;
 };
 
+/**
+ * The space kept around the card at a detent, in points. All sides default
+ * to 0.
+ */
+export type DetentInset = Readonly<{
+  /**
+   * The minimum space between the card's top and the host's top. Defaults to
+   * the part of the status bar that overlaps the host, so the card stops below
+   * it; pass a lower value, or `0`, to go under the status bar.
+   */
+  top?: number;
+  left?: number;
+  right?: number;
+  /** The space between the card's bottom and the host's bottom. */
+  bottom?: number;
+}>;
+
 type NormalizedDetent = Readonly<{
   value: number;
   kind: 'points' | 'percentage' | 'content';
   programmatic: boolean;
+  usesStatusBarTopInset: boolean;
+  insetTop: number;
+  insetLeft: number;
+  insetRight: number;
+  insetBottom: number;
+  /** Whether this is the widest open card, which content is laid out against. */
+  widestCard: boolean;
 }>;
+
+/** A closed sheet is fully off-screen, whatever its detent's inset says. */
+const CLOSED_INSET = {
+  usesStatusBarTopInset: false,
+  insetTop: 0,
+  insetLeft: 0,
+  insetRight: 0,
+  insetBottom: 0,
+};
 
 const PERCENTAGE_PATTERN = /^\d+(?:\.\d+)?%$/;
 
@@ -344,6 +377,38 @@ const invalidPointDetentError = (value: number, index: number) =>
   new Error(
     `Invalid bottom sheet detent at index ${index}: received ${String(value)}. Expected a finite, non-negative number.`
   );
+
+const invalidDetentInsetError = (side: string, value: unknown, index: number) =>
+  new Error(
+    `Invalid bottom sheet inset at index ${index}: \`${side}\` received ${String(value)}. Expected a finite, non-negative number.`
+  );
+
+/**
+ * The inset of a detent, read from `insets` like `scrimOpacities`: by index,
+ * with a shorter array than `detents` reusing its last entry for any remaining
+ * detents, and an empty or missing one leaving every side at its default.
+ */
+const resolveDetentInset = (
+  insets: ReadonlyArray<DetentInset> | undefined,
+  index: number
+) => {
+  const insetIndex = Math.min(index, (insets?.length ?? 0) - 1);
+  const inset = insets?.[insetIndex] ?? {};
+  const resolveSide = (side: keyof DetentInset) => {
+    const value = inset[side] ?? 0;
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+      throw invalidDetentInsetError(side, value, insetIndex);
+    }
+    return value;
+  };
+  return {
+    usesStatusBarTopInset: inset.top === undefined,
+    insetTop: resolveSide('top'),
+    insetLeft: resolveSide('left'),
+    insetRight: resolveSide('right'),
+    insetBottom: resolveSide('bottom'),
+  };
+};
 
 /** Parses a percentage detent into a unitless ratio for native resolution. */
 const parseDetentPercentage = (value: string, index: number) => {
@@ -362,10 +427,12 @@ const parseDetentPercentage = (value: string, index: number) => {
 /** Serializes a public detent into the shape consumed by the native views. */
 export const normalizeDetent = (
   detent: Detent,
-  index: number
+  index: number,
+  insets?: ReadonlyArray<DetentInset>
 ): NormalizedDetent => {
   const value = detentValue(detent);
   const isProgrammatic = isDetentProgrammatic(detent);
+  const inset = resolveDetentInset(insets, index);
 
   if (typeof value === 'number') {
     if (!Number.isFinite(value) || value < 0) {
@@ -376,6 +443,8 @@ export const normalizeDetent = (
       value,
       kind: 'points',
       programmatic: isProgrammatic,
+      ...(value === 0 ? CLOSED_INSET : inset),
+      widestCard: false,
     };
   }
 
@@ -384,19 +453,62 @@ export const normalizeDetent = (
       value: 0,
       kind: 'content',
       programmatic: isProgrammatic,
+      ...inset,
+      widestCard: false,
     };
   }
 
+  const ratio = parseDetentPercentage(value, index);
   return {
-    value: parseDetentPercentage(value, index),
+    value: ratio,
     kind: 'percentage',
     programmatic: isProgrammatic,
+    ...(ratio === 0 ? CLOSED_INSET : inset),
+    widestCard: false,
   };
 };
 
+/**
+ * Serializes the public detents and their insets, flagging the widest card.
+ * The native hosts and the web controller read that flag rather than finding
+ * the widest card themselves, so every platform lays out against the same one.
+ */
+export const normalizeDetents = (
+  detents: ReadonlyArray<Detent>,
+  insets?: ReadonlyArray<DetentInset>
+): NormalizedDetent[] => {
+  const normalized = detents.map((detent, index) =>
+    normalizeDetent(detent, index, insets)
+  );
+  const widest = findWidestDetent(normalized);
+  return normalized.map((detent) =>
+    detent === widest ? { ...detent, widestCard: true } : detent
+  );
+};
+
 /** Whether a normalized detent represents a fully closed sheet. */
-export const isNormalizedDetentClosed = (detent: NormalizedDetent) =>
-  detent.kind !== 'content' && detent.value === 0;
+export const isNormalizedDetentClosed = (
+  detent: Readonly<{ kind: string; value: number }>
+) => detent.kind !== 'content' && detent.value === 0;
+
+/**
+ * The open detent with the widest card, whose tightest side gaps the content is
+ * laid out against. On a tie, the tallest detent.
+ */
+const findWidestDetent = (detents: ReadonlyArray<NormalizedDetent>) => {
+  let widest: NormalizedDetent | undefined;
+  for (const detent of detents) {
+    if (isNormalizedDetentClosed(detent)) continue;
+    if (
+      widest === undefined ||
+      detent.insetLeft + detent.insetRight <=
+        widest.insetLeft + widest.insetRight
+    ) {
+      widest = detent;
+    }
+  }
+  return widest;
+};
 
 /** Validates a controlled index before props are passed to the native view. */
 export const validateIndex = (index: number, detentCount: number) => {

@@ -55,11 +55,12 @@ using namespace facebook::react;
 @implementation BottomSheetComponentView {
   BottomSheetContentView *_sheetView;
   State::Shared _sheetState;
+  float _lastContentOffsetX;
   float _lastContentOffsetY;
+  float _lastContentScale;
   BOOL _needsIndexSyncAfterRecycle;
   BOOL _nativeOverlay;
   NSInteger _openOrder;
-  BOOL _extendUnderStatusBar;
   BottomSheetOverlayContainerView *_overlayContainer;
   RCTSurfaceTouchHandler *_overlayTouchHandler;
   CGSize _lastGeometryFrameSize;
@@ -78,6 +79,7 @@ using namespace facebook::react;
     _props = defaultProps;
     _needsIndexSyncAfterRecycle = NO;
     _nativeOverlay = NO;
+    _lastContentScale = 1;
 
     _sheetView = [[BottomSheetContentView alloc] initWithFrame:CGRectZero];
     _sheetView.delegate = self;
@@ -100,6 +102,12 @@ using namespace facebook::react;
         @"value": @(detent.value),
         @"kind": RCTNSStringFromString(detent.kind),
         @"programmatic": @(detent.programmatic),
+        @"usesStatusBarTopInset": @(detent.usesStatusBarTopInset),
+        @"insetTop": @(detent.insetTop),
+        @"insetLeft": @(detent.insetLeft),
+        @"insetRight": @(detent.insetRight),
+        @"insetBottom": @(detent.insetBottom),
+        @"widestCard": @(detent.widestCard),
       }];
     }
     [_sheetView setDetents:detentsArray];
@@ -145,13 +153,6 @@ using namespace facebook::react;
     if (didOpen) {
       [self bringOverlayToFront];
     }
-  }
-
-  if (newViewProps.extendUnderStatusBar != _extendUnderStatusBar) {
-    _extendUnderStatusBar = newViewProps.extendUnderStatusBar;
-    // The hosting view recomputes its native detent cap and re-lays out, which
-    // fires the didLayout delegate that refreshes the pushed geometry.
-    [_sheetView setExtendUnderStatusBar:newViewProps.extendUnderStatusBar];
   }
 
   // Compare against native state: codegen defaults to 0 (none), while the
@@ -223,7 +224,7 @@ using namespace facebook::react;
   // The sheet node's Yoga padding carries the content-region inset for the
   // in-flow content; the base class would shrink the contentView to the
   // padding-inset content frame, feeding the inset back into the natively
-  // measured geometry (host height → cap → inset) in a loop. The native sheet
+  // measured geometry (host height → inset) in a loop. The native sheet
   // host must keep filling the node — padding is for Yoga children only.
   if (_sheetView.superview == self) {
     _sheetView.frame = self.bounds;
@@ -345,7 +346,7 @@ using namespace facebook::react;
 /// mode, where the sheet is hoisted out of its in-tree slot) and the content
 /// region's inset (applied as Yoga bottom padding in every mode, so in-flow
 /// content resolves exactly to the tallest height the sheet can reach — the
-/// tallest detent, clamped to the detent cap). Yoga then lays the sheet
+/// tallest detent, clamped to the space its insets leave). Yoga then lays the sheet
 /// subtree out against measured window geometry instead of JS-provided
 /// dimensions. Driven by the hosting view's didLayout delegate.
 - (void)pushNativeGeometry
@@ -379,7 +380,9 @@ using namespace facebook::react;
   }
   updateBottomSheetState(
       _sheetState,
+      _lastContentOffsetX,
       _lastContentOffsetY,
+      _lastContentScale,
       {static_cast<Float>(_lastGeometryFrameSize.width),
        static_cast<Float>(_lastGeometryFrameSize.height)},
       static_cast<Float>(MAX(_lastGeometryInset, 0)));
@@ -431,6 +434,8 @@ using namespace facebook::react;
                withSurfaceTelemetry:(const facebook::react::SurfaceTelemetry &)surfaceTelemetry
 {
   [_sheetView contentRegionLayoutDidApply];
+  // The content's layout and the detents can move these without the sheet moving.
+  [self pushContentGeometry];
 }
 
 #pragma mark - BottomSheetContentViewDelegate
@@ -461,22 +466,30 @@ using namespace facebook::react;
         {.position = static_cast<double>(position), .index = static_cast<double>(index)});
   }
 
-  // The shadow node applies this as a content-origin offset so descendant
-  // coordinates (measure, hit-testing) follow the sheet content to where it is
-  // physically drawn within the host. In native-overlay mode the content is
-  // re-rooted to a window-level full-screen overlay; the shadow node is marked as
-  // a layout root in that mode (see BottomSheetViewComponentDescriptor), so the
-  // outer-tree origin is dropped structurally and only this in-host displacement
-  // remains to be applied here.
-  float contentOffsetY = static_cast<float>(view.currentContentOffsetY);
-  if (contentOffsetY == _lastContentOffsetY) {
-    [self updateOverlayAccessibilityState];
+  [self pushContentGeometry];
+  [self updateOverlayAccessibilityState];
+}
+
+/// The shadow node applies these as a content-origin offset and scale so descendant
+/// coordinates (measure, hit-testing) follow the sheet content to where it is
+/// physically drawn within the host. In native-overlay mode the content is
+/// re-rooted to a window-level full-screen overlay; the shadow node is marked as
+/// a layout root in that mode (see BottomSheetViewComponentDescriptor), so the
+/// outer-tree origin is dropped structurally and only this in-host displacement
+/// remains to be applied here.
+- (void)pushContentGeometry
+{
+  float contentOffsetX = static_cast<float>(_sheetView.currentContentOffsetX);
+  float contentOffsetY = static_cast<float>(_sheetView.currentContentOffsetY);
+  float contentScale = static_cast<float>(_sheetView.currentContentScale);
+  if (contentOffsetX == _lastContentOffsetX && contentOffsetY == _lastContentOffsetY
+      && contentScale == _lastContentScale) {
     return;
   }
+  _lastContentOffsetX = contentOffsetX;
   _lastContentOffsetY = contentOffsetY;
-
+  _lastContentScale = contentScale;
   [self pushStateSnapshot];
-  [self updateOverlayAccessibilityState];
 }
 
 - (void)bottomSheetView:(BottomSheetContentView *)view didReportError:(NSString *)message
@@ -495,16 +508,14 @@ using namespace facebook::react;
   // Restore inline parenting after the base class resets Fabric view state so a
   // reused instance starts from the default presentation.
   _nativeOverlay = NO;
-  _extendUnderStatusBar = NO;
   _openOrder = 0;
   [self restoreInlinePresentation];
   _needsIndexSyncAfterRecycle = YES;
   [_sheetView resetSheetState];
-  // `_extendUnderStatusBar` is the diff baseline for the prop, so the hosting
-  // view has to be reset with it or a recycled sheet keeps the previous flag.
-  [_sheetView setExtendUnderStatusBar:NO];
   _sheetState.reset();
+  _lastContentOffsetX = 0;
   _lastContentOffsetY = 0;
+  _lastContentScale = 1;
   _lastGeometryFrameSize = CGSizeZero;
   _lastGeometryInset = -1;
 }

@@ -31,10 +31,14 @@ internal class BottomSheetCardClipLayout(context: Context) :
   private val clipPath = Path()
   private val pathRadii = FloatArray(8)
   private val clipRect = Rect()
+  private var clipsToCard = false
 
   private enum class ClipMode {
-    /** No corner is rounded: the sheet stays unclipped. */
+    /** No corner is rounded and the card fills the sheet: the sheet stays unclipped. */
     NONE,
+
+    /** No corner is rounded, but the card keeps gaps: clip bounds, a RenderNode property. */
+    RECT,
 
     /** Every corner shares one radius: an outline round rect. */
     UNIFORM,
@@ -78,7 +82,8 @@ internal class BottomSheetCardClipLayout(context: Context) :
               if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 outline.setPath(buildCardPath())
               }
-            ClipMode.NONE -> outline.setRect(left, top, right, bottom)
+            ClipMode.NONE,
+            ClipMode.RECT -> outline.setRect(left, top, right, bottom)
             // Never clipped to, as `clipToOutline` stays off, but casts the elevation shadow.
             ClipMode.CANVAS_PATH -> setShadowOutline(outline, left, top, right, bottom)
           }
@@ -106,18 +111,34 @@ internal class BottomSheetCardClipLayout(context: Context) :
   fun setCornerRadii(radii: FloatArray) {
     if (radii.contentEquals(cornerRadii)) return
     radii.copyInto(cornerRadii)
+    updateClipMode()
+  }
+
+  /** Whether anything outside the card is cut away, and so can't be touched either. */
+  val clipsContent: Boolean
+    get() = clipMode != ClipMode.NONE
+
+  /** Whether the card keeps gaps, and so clips even with square corners. */
+  fun setClipsToCard(value: Boolean) {
+    if (value == clipsToCard) return
+    clipsToCard = value
+    updateClipMode()
+  }
+
+  private fun updateClipMode() {
     val (topLeft, topRight, bottomRight, bottomLeft) = cornerRadii.toList()
-    // All-zero radii leave the sheet unclipped, as before cards existed, so
-    // content drawn outside the sheet stays visible.
+    // Without radii or gaps the sheet stays unclipped, as before cards existed,
+    // so content drawn outside the sheet stays visible.
     clipMode =
       when {
-        !isShaped -> ClipMode.NONE
+        !isShaped -> if (clipsToCard) ClipMode.RECT else ClipMode.NONE
         cornerRadii.all { it == topLeft } -> ClipMode.UNIFORM
         topLeft == topRight && bottomRight == 0f && bottomLeft == 0f -> ClipMode.TOP
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> ClipMode.OUTLINE_PATH
         else -> ClipMode.CANVAS_PATH
       }
-    clipToOutline = clipMode != ClipMode.NONE && clipMode != ClipMode.CANVAS_PATH
+    clipToOutline =
+      clipMode != ClipMode.NONE && clipMode != ClipMode.RECT && clipMode != ClipMode.CANVAS_PATH
     updateClipBounds()
     invalidateOutline()
     invalidate()
@@ -154,7 +175,7 @@ internal class BottomSheetCardClipLayout(context: Context) :
   }
 
   private fun updateClipBounds() {
-    if (clipMode == ClipMode.TOP) {
+    if (clipMode == ClipMode.TOP || clipMode == ClipMode.RECT) {
       cardRect.roundOut(clipRect)
       clipBounds = clipRect
     } else if (clipBounds != null) {
@@ -190,18 +211,6 @@ internal class BottomSheetCardClipLayout(context: Context) :
     }
   }
 
-  /** Whether `(x, y)`, in this view's coordinates, falls in a corner the card clips away. */
-  fun isInClippedCorner(x: Float, y: Float): Boolean =
-    cardRect.contains(x, y) && !cardContains(x, y)
-
-  /** The clipped corners are not on the card, so touches there skip its children. */
-  override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-    if (event.actionMasked == MotionEvent.ACTION_DOWN && isInClippedCorner(event.x, event.y)) {
-      return false
-    }
-    return super.dispatchTouchEvent(event)
-  }
-
   private fun isInCorner(
     x: Float,
     y: Float,
@@ -212,6 +221,18 @@ internal class BottomSheetCardClipLayout(context: Context) :
     val dx = x - centerX
     val dy = y - centerY
     return dx * dx + dy * dy <= radius * radius
+  }
+
+  override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+    // Native views under a gap or clipped corner, like a scrollable, don't take the touch either.
+    if (
+      clipsContent &&
+        event.actionMasked == MotionEvent.ACTION_DOWN &&
+        !cardContains(event.x, event.y)
+    ) {
+      return false
+    }
+    return super.dispatchTouchEvent(event)
   }
 
   override fun dispatchDraw(canvas: Canvas) {

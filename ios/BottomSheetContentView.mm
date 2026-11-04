@@ -95,11 +95,6 @@
   [_impl contentRegionLayoutDidApply];
 }
 
-- (void)setExtendUnderStatusBar:(BOOL)extendUnderStatusBar
-{
-  _impl.extendUnderStatusBar = extendUnderStatusBar;
-}
-
 - (CGFloat)contentRegionInset
 {
   return _impl.contentRegionInset;
@@ -135,9 +130,19 @@
   [_impl setSurfaceShadows:shadows];
 }
 
+- (CGFloat)currentContentOffsetX
+{
+  return _impl.currentContentOffsetX;
+}
+
 - (CGFloat)currentContentOffsetY
 {
   return _impl.currentContentOffsetY;
+}
+
+- (CGFloat)currentContentScale
+{
+  return _impl.currentContentScale;
 }
 
 - (BOOL)isModalAccessibilityActive

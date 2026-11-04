@@ -8,7 +8,43 @@ Point BottomSheetViewShadowNode::getContentOriginOffset(
   auto state =
       std::static_pointer_cast<const BottomSheetViewShadowNode::ConcreteState>(
           getState());
+  // The horizontal offset belongs to the card's children, with its scale (see
+  // BottomSheetCardContent).
   return {0, state->getData().contentOffsetY};
+}
+
+void BottomSheetViewShadowNode::appendChild(
+    const std::shared_ptr<const ShadowNode>& child) {
+  // React appends the children of a clone after `adopt` has run on it.
+  ConcreteViewShadowNode::appendChild(withCardGeometry(child));
+}
+
+void BottomSheetViewShadowNode::syncCardContent() {
+  // A copy: `replaceChild` swaps the list being iterated.
+  auto children = getChildren();
+  for (size_t index = 0; index < children.size(); index++) {
+    const auto& child = children[index];
+    auto synced = withCardGeometry(child);
+    if (synced != child) {
+      replaceChild(*child, synced, index);
+    }
+  }
+}
+
+std::shared_ptr<const ShadowNode> BottomSheetViewShadowNode::withCardGeometry(
+    const std::shared_ptr<const ShadowNode>& child) const {
+  auto content = bottomSheetCardContentOf(*child);
+  const auto& state =
+      static_cast<const ConcreteState&>(*getState()).getData();
+  if (content == nullptr ||
+      content->hasCardGeometry(state.contentOffsetX, state.contentScale)) {
+    return child;
+  }
+  // Props, state and layout stay shared, so the mounting layer sees no change.
+  auto clone = child->clone({});
+  bottomSheetCardContentOf(*clone)->setCardGeometry(
+      state.contentOffsetX, state.contentScale);
+  return clone;
 }
 
 void BottomSheetViewShadowNode::setIsOverlayRoot(bool isOverlayRoot) {
@@ -28,21 +64,25 @@ void BottomSheetViewShadowNode::setIsOverlayRoot(bool isOverlayRoot) {
 
 void updateBottomSheetState(
     const State::Shared& state,
+    float contentOffsetX,
     float contentOffsetY,
+    float contentScale,
     Size frameSize,
     Float contentRegionInset) {
   auto concreteState =
       std::static_pointer_cast<const BottomSheetViewShadowNode::ConcreteState>(
           state);
   concreteState->updateState(
-      [contentOffsetY, frameSize, contentRegionInset](
+      [contentOffsetX, contentOffsetY, contentScale, frameSize, contentRegionInset](
           const BottomSheetViewState& /*oldState*/)
           -> BottomSheetViewShadowNode::ConcreteState::SharedData {
         // Every field is set: updates coalesce by wholesale replacement (see
         // BottomSheetStateHelper.h), so nothing may rely on the old state.
         auto newState = std::make_shared<BottomSheetViewState>();
         auto& mutableState = const_cast<BottomSheetViewState&>(*newState);
+        mutableState.contentOffsetX = contentOffsetX;
         mutableState.contentOffsetY = contentOffsetY;
+        mutableState.contentScale = contentScale;
         mutableState.frameSize = frameSize;
         mutableState.contentRegionInset = contentRegionInset;
         return newState;
