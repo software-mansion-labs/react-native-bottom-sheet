@@ -79,6 +79,30 @@ const SHAPES: { label: string; style: SurfaceStyle | undefined }[] = [
       ],
     },
   },
+  {
+    label: 'Elevation and shadow props',
+    style: {
+      borderTopLeftRadius: 32,
+      borderTopRightRadius: 32,
+      elevation: 24,
+      shadowColor: 'rgb(255, 0, 0)',
+      shadowOffset: { width: 0, height: -6 },
+      shadowOpacity: 0.6,
+      shadowRadius: 12,
+    },
+  },
+  {
+    label: 'Mixed radii, elevation',
+    style: {
+      borderTopLeftRadius: 48,
+      borderTopRightRadius: 12,
+      elevation: 24,
+      shadowColor: 'rgb(0, 120, 255)',
+      shadowOffset: { width: 0, height: -6 },
+      shadowOpacity: 0.6,
+      shadowRadius: 12,
+    },
+  },
   { label: 'No surfaceStyle', style: undefined },
 ];
 

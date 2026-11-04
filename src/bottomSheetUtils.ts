@@ -1,4 +1,5 @@
 import {
+  Platform,
   processColor,
   StyleSheet,
   type ProcessedColorValue,
@@ -34,9 +35,20 @@ export type SurfaceStyle = Readonly<{
   borderCurve?: 'circular' | 'continuous';
   /**
    * Shadows cast by the card, outside its clipped shape. Outset shadows only;
-   * `inset` shadows are ignored. Android draws them on API 28 and later.
+   * `inset` shadows are ignored. As with React Native's own `boxShadow`,
+   * Android skips them before API 28: use `elevation` for those versions.
    */
   boxShadow?: ViewStyle['boxShadow'];
+  /** Android only. Casts a system shadow from the card, on every API level. */
+  elevation?: ViewStyle['elevation'];
+  /** The color of the iOS shadow, and of `elevation` on Android API 28+. */
+  shadowColor?: ViewStyle['shadowColor'];
+  /** iOS only. */
+  shadowOffset?: ViewStyle['shadowOffset'];
+  /** iOS only. Without an opacity above zero, there is no iOS shadow. */
+  shadowOpacity?: ViewStyle['shadowOpacity'];
+  /** iOS only. */
+  shadowRadius?: ViewStyle['shadowRadius'];
 }>;
 
 /** A card shadow in the shape the native hosts consume. */
@@ -50,6 +62,8 @@ type NativeShadow = Readonly<{
    * (`PlatformColor`, `DynamicColorIOS`) that the native host resolves.
    */
   color: ProcessedColorValue;
+  /** Multiplied into the color. A dynamic color's alpha is unknown to JS. */
+  opacity: number;
 }>;
 
 type ResolvedSurfaceStyle = Readonly<{
@@ -57,6 +71,8 @@ type ResolvedSurfaceStyle = Readonly<{
   cornerRadii: number[];
   cornerCurve: 'circular' | 'continuous';
   shadows: NativeShadow[];
+  elevation: number;
+  shadowColor: SurfaceStyle['shadowColor'];
 }>;
 
 type BoxShadowObject = Exclude<
@@ -145,8 +161,37 @@ const resolveShadows = (boxShadow: ViewStyle['boxShadow']): NativeShadow[] => {
     if (color == null) {
       throw invalidBoxShadowError(boxShadow);
     }
-    return [{ offsetX, offsetY, blurRadius, spreadDistance, color }];
+    return [
+      { offsetX, offsetY, blurRadius, spreadDistance, color, opacity: 1 },
+    ];
   });
+};
+
+/**
+ * The iOS `shadow*` props as one more card shadow, with React Native's defaults
+ * for a view. They only apply on iOS: the clip would cut a shadow on the view.
+ */
+const resolveIOSShadow = ({
+  shadowColor,
+  shadowOffset,
+  shadowOpacity,
+  shadowRadius,
+}: SurfaceStyle): NativeShadow[] => {
+  if (Platform.OS !== 'ios' || !shadowOpacity) return [];
+  const color = processColor(shadowColor ?? DEFAULT_SHADOW_COLOR);
+  return color == null
+    ? []
+    : [
+        {
+          offsetX: shadowOffset?.width ?? 0,
+          offsetY: shadowOffset?.height ?? -3,
+          // A layer's shadow radius is the sigma, half of a CSS blur radius.
+          blurRadius: (shadowRadius ?? 3) * 2,
+          spreadDistance: 0,
+          color,
+          opacity: shadowOpacity,
+        },
+      ];
 };
 
 const invalidCornerRadiusError = (key: string, value: unknown) =>
@@ -198,7 +243,12 @@ export const resolveSurfaceStyle = (
       bottomLeft ?? borderBottomLeftRadius ?? borderRadius ?? 0,
     ],
     cornerCurve: flattened.borderCurve ?? 'circular',
-    shadows: resolveShadows(flattened.boxShadow),
+    shadows: [
+      ...resolveIOSShadow(flattened),
+      ...resolveShadows(flattened.boxShadow),
+    ],
+    elevation: flattened.elevation ?? 0,
+    shadowColor: flattened.shadowColor,
   };
 };
 

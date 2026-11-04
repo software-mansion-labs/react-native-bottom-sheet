@@ -47,8 +47,13 @@ export interface NativeProps extends ViewProps {
       blurRadius: CodegenTypes.Double;
       spreadDistance: CodegenTypes.Double;
       color: ColorValue;
+      opacity: CodegenTypes.Double;
     }>
   >;
+  // Android only. Casts a system shadow from the card's shape.
+  surfaceElevation?: CodegenTypes.WithDefault<CodegenTypes.Double, 0>;
+  // Android only, API 28+. The color of the elevation shadow.
+  surfaceShadowColor?: ColorValue;
   onIndexChange?: CodegenTypes.DirectEventHandler<
     Readonly<{ index: CodegenTypes.Int32 }>
   >;

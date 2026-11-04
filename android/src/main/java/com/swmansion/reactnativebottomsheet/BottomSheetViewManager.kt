@@ -209,6 +209,16 @@ class BottomSheetViewManager :
     view.setSurfaceShadows(shadows)
   }
 
+  @ReactProp(name = "surfaceElevation", defaultDouble = 0.0)
+  override fun setSurfaceElevation(view: BottomSheetView, value: Double) {
+    view.setSurfaceElevation(value.toFloat())
+  }
+
+  @ReactProp(name = "surfaceShadowColor", customType = "Color")
+  override fun setSurfaceShadowColor(view: BottomSheetView, value: Int?) {
+    view.setSurfaceShadowColor(value ?: Color.BLACK)
+  }
+
   // Processed colors arrive as numbers, or as maps for `PlatformColor`.
   private fun shadowColor(view: BottomSheetView, shadow: ReadableMap): Int {
     val value: Any? =

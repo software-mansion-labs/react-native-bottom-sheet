@@ -205,7 +205,7 @@ private final class CardClipView: UIView {
   }
 }
 
-/// An outset shadow of the card, as `boxShadow` describes it.
+/// An outset shadow of the card, as `boxShadow` or the `shadow*` props describe it.
 private struct CardShadow: Equatable {
   let offset: CGSize
   let blurRadius: CGFloat
@@ -213,6 +213,7 @@ private struct CardShadow: Equatable {
   /// May be dynamic (`DynamicColorIOS`, `PlatformColor`); resolved against
   /// the host's trait collection when applied.
   let color: UIColor
+  let opacity: CGFloat
 }
 
 /// The continuous ("squircle") corner `CALayer` draws for
@@ -298,7 +299,8 @@ public final class BottomSheetHostingView: UIView {
         offset: CGSize(width: number("offsetX"), height: number("offsetY")),
         blurRadius: max(0, number("blurRadius")),
         spreadDistance: number("spreadDistance"),
-        color: value["color"] as? UIColor ?? .black
+        color: value["color"] as? UIColor ?? .black,
+        opacity: number("opacity")
       )
     }
     guard shadows != cardShadows else { return }
@@ -2149,7 +2151,6 @@ private extension BottomSheetHostingView {
     }
     while shadowLayers.count < cardShadows.count {
       let layer = CALayer()
-      layer.shadowOpacity = 1
       shadowView.layer.addSublayer(layer)
       shadowLayers.append(layer)
     }
@@ -2159,6 +2160,7 @@ private extension BottomSheetHostingView {
       layer.frame = shadowView.bounds
       layer.shadowOffset = shadow.offset
       layer.shadowRadius = shadow.blurRadius / 2
+      layer.shadowOpacity = Float(shadow.opacity)
     }
     CATransaction.commit()
     updateCardShadowColors()

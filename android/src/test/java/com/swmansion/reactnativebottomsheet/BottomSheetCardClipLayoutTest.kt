@@ -1,6 +1,8 @@
 package com.swmansion.reactnativebottomsheet
 
 import android.app.Activity
+import android.graphics.Outline
+import android.graphics.Rect
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -60,5 +62,17 @@ class BottomSheetCardClipLayoutTest {
     // Limited to 50: a capsule, so the middle of the top edge is on the card.
     assertTrue(card.cardContains(100f, 1f))
     assertFalse(card.cardContains(2f, 2f))
+  }
+
+  /** An elevation shadow is cast from the outline, so it must carry the card's rounded corners. */
+  @Test
+  @Config(sdk = [29])
+  fun `mixed radii that clip on the canvas still outline the rounded card`() {
+    val card = layout(floatArrayOf(40f, 10f, 0f, 0f))
+    val outline = Outline()
+    card.outlineProvider.getOutline(card, outline)
+    assertFalse(card.clipToOutline)
+    assertFalse(outline.getRect(Rect()))
+    assertFalse(outline.isEmpty)
   }
 }

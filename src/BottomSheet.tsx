@@ -82,11 +82,11 @@ export interface BottomSheetProps {
    */
   surface?: ReactNode;
   /**
-   * The card shape of the sheet: corner radii, `borderCurve`, and
-   * `boxShadow`. The native host clips both `surface` and `children` to this
-   * shape, so content near a rounded corner is cut to it, and casts the
-   * shadows outside it. State the shape here rather than on the `surface`
-   * element, which only paints the background.
+   * The card shape of the sheet: corner radii, `borderCurve`, and shadows
+   * (`boxShadow`, `elevation`, and the `shadow*` props). The native host clips
+   * both `surface` and `children` to this shape, so content near a rounded
+   * corner is cut to it, and casts the shadows outside it. State the shape here
+   * rather than on the `surface` element, which only paints the background.
    */
   surfaceStyle?: StyleProp<SurfaceStyle>;
   /** Additional style applied to the native sheet host view. */
@@ -269,10 +269,8 @@ export const BottomSheet = (props: BottomSheetProps) => {
     setIsContentActive(true);
   }
   const shouldRenderContent = !lazy || isContentActive;
-  const { cornerRadii, cornerCurve, shadows } = resolveSurfaceStyle(
-    surfaceStyle,
-    I18nManager.isRTL
-  );
+  const { cornerRadii, cornerCurve, shadows, elevation, shadowColor } =
+    resolveSurfaceStyle(surfaceStyle, I18nManager.isRTL);
   // Default the scrim opacity per detent: transparent at any closed detent,
   // fully opaque at every open one.
   const resolvedScrimOpacities =
@@ -366,6 +364,8 @@ export const BottomSheet = (props: BottomSheetProps) => {
           surfaceCornerRadii={cornerRadii}
           surfaceCornerCurve={cornerCurve}
           surfaceShadows={shadows}
+          surfaceElevation={elevation}
+          surfaceShadowColor={shadowColor}
           onIndexChange={handleIndexChange}
           onSettle={handleSettle}
           onPositionChange={onPositionChange}

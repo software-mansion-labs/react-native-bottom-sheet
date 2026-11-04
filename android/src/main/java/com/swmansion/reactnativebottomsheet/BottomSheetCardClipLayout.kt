@@ -77,11 +77,22 @@ internal class BottomSheetCardClipLayout(context: Context) :
               if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 outline.setPath(buildCardPath())
               }
-            ClipMode.NONE,
-            ClipMode.CANVAS_PATH -> outline.setRect(left, top, right, bottom)
+            ClipMode.NONE -> outline.setRect(left, top, right, bottom)
+            // Never clipped to, as `clipToOutline` stays off, but casts the elevation shadow.
+            ClipMode.CANVAS_PATH -> setShadowOutline(outline, left, top, right, bottom)
           }
         }
       }
+  }
+
+  @Suppress("DEPRECATION")
+  private fun setShadowOutline(outline: Outline, left: Int, top: Int, right: Int, bottom: Int) {
+    val path = buildCardPath()
+    when {
+      Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> outline.setPath(path)
+      path.isConvex -> outline.setConvexPath(path)
+      else -> outline.setRect(left, top, right, bottom)
+    }
   }
 
   val isShaped: Boolean
@@ -117,9 +128,24 @@ internal class BottomSheetCardClipLayout(context: Context) :
       return
     }
     cardRect.set(left, top, right, bottom)
-    if (clipToOutline) invalidateOutline()
+    if (clipToOutline || elevation > 0f) invalidateOutline()
     updateClipBounds()
     if (clipMode == ClipMode.CANVAS_PATH) invalidate()
+  }
+
+  /** The elevation shadow, cast from the card's outline, in px. */
+  fun setCardElevation(value: Float) {
+    if (value == elevation) return
+    elevation = value
+    invalidateOutline()
+  }
+
+  /** Before API 28 elevation shadows are always black, as in React Native. */
+  fun setCardShadowColor(color: Int) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+      outlineAmbientShadowColor = color
+      outlineSpotShadowColor = color
+    }
   }
 
   private fun updateClipBounds() {

@@ -970,6 +970,15 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     updateCardGeometry()
   }
 
+  /** The card's elevation shadow, with its length in dp. */
+  fun setSurfaceElevation(value: Float) {
+    clipContainer.setCardElevation(value.coerceAtLeast(0f) * density)
+  }
+
+  fun setSurfaceShadowColor(color: Int) {
+    clipContainer.setCardShadowColor(color)
+  }
+
   /**
    * The card's bottom edge in sheet-container coordinates for a sheet position (the height of the
    * sheet's top above the host's bottom). At or above the first open detent the card reaches the
