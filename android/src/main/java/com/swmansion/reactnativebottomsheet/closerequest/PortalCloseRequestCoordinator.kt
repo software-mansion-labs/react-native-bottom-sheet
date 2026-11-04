@@ -23,14 +23,16 @@ internal interface PortalCloseRequestParticipant {
 /**
  * Coordinates portal close request ownership across every provider mounted in one Android root.
  *
- * Membership order is structural: portals rank by render order, however late they register, and the
- * newest registered portal is highest among equals. State updates never move an entry. The highest
- * current routing owner candidate blocks every lower portal, even when it has no `onCloseRequest`
- * handler and therefore cannot emit a request itself.
+ * Portals rank by open order, so the most recently opened portal is highest, and the newest
+ * registered portal is highest among equals. Only opening moves an entry; state updates never do.
+ * The highest current routing owner candidate blocks every lower portal, even when it has no
+ * `onCloseRequest` handler and therefore cannot emit a request itself.
  */
 internal object PortalCloseRequestCoordinator {
   internal interface Registration {
     fun update(state: PortalCloseRequestState)
+
+    fun updateOpenOrder(openOrder: Int)
 
     fun remove()
   }
@@ -38,7 +40,7 @@ internal object PortalCloseRequestCoordinator {
   private class Entry(
     participant: PortalCloseRequestParticipant,
     initialState: PortalCloseRequestState,
-    val renderOrder: Int,
+    var openOrder: Int,
   ) {
     val participant = WeakReference(participant)
     var state = initialState
@@ -51,6 +53,12 @@ internal object PortalCloseRequestCoordinator {
     val escapeDispatcher = EscapeCloseRequestDispatcher()
     var routingOwner: Entry? = null
     var capturedEscapeRoutingOwner: WeakReference<Entry>? = null
+
+    /** Inserts [entry] above every entry with the same or a lower open order. */
+    fun insert(entry: Entry) {
+      val nextEntryIndex = entries.indexOfFirst { it.openOrder > entry.openOrder }
+      entries.add(if (nextEntryIndex == -1) entries.size else nextEntryIndex, entry)
+    }
   }
 
   private class RegistrationImpl(
@@ -64,6 +72,16 @@ internal object PortalCloseRequestCoordinator {
       entry.state = state
       val currentRoot = rootReference.get() ?: return
       val currentRootState = statesByRoot[currentRoot] ?: return
+      reconcileRoutingOwnership(currentRoot, currentRootState)
+    }
+
+    override fun updateOpenOrder(openOrder: Int) {
+      if (!entry.isRegistered || entry.openOrder == openOrder) return
+      entry.openOrder = openOrder
+      val currentRoot = rootReference.get() ?: return
+      val currentRootState = statesByRoot[currentRoot] ?: return
+      currentRootState.entries.remove(entry)
+      currentRootState.insert(entry)
       reconcileRoutingOwnership(currentRoot, currentRootState)
     }
 
@@ -92,16 +110,12 @@ internal object PortalCloseRequestCoordinator {
     root: View,
     participant: PortalCloseRequestParticipant,
     initialState: PortalCloseRequestState,
-    renderOrder: Int = Int.MAX_VALUE,
+    openOrder: Int = 0,
   ): Registration {
     statesByRoot[root]?.let { reconcileRoutingOwnership(root, it) }
     val rootState = statesByRoot.getOrPut(root, ::RootState)
-    val entry = Entry(participant, initialState, renderOrder)
-    val nextEntryIndex = rootState.entries.indexOfFirst { it.renderOrder > renderOrder }
-    rootState.entries.add(
-      if (nextEntryIndex == -1) rootState.entries.size else nextEntryIndex,
-      entry,
-    )
+    val entry = Entry(participant, initialState, openOrder)
+    rootState.insert(entry)
     reconcileRoutingOwnership(root, rootState)
     return RegistrationImpl(entry, root)
   }

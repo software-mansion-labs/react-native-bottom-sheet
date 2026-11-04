@@ -54,9 +54,8 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   private var overlayDialog: ComponentDialog? = null
   private var overlayRoot: BottomSheetDialogRootView? = null
   private var nativeOverlay = false
-  // Unset until the prop arrives. Props apply in no fixed order, so a dialog presented before this
-  // is set stays on top, and setRenderOrder then restacks the overlays that belong above it.
-  private var renderOrder = Int.MAX_VALUE
+  // When the sheet last opened, relative to other sheets (0 until it first opens).
+  private var openOrder = 0
   // Cached only while a dialog is present, so per-frame interaction callbacks
   // don't thrash the window flags.
   private var overlayInteractive: Boolean? = null
@@ -75,7 +74,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
         }
       },
       emitCloseRequest = ::emitCloseRequest,
-      renderOrder = { renderOrder },
+      openOrder = { openOrder },
     )
   private val overlayCloseRequestController =
     OverlayCloseRequestController(emitCloseRequest = ::emitCloseRequest)
@@ -209,10 +208,12 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     refreshCloseRequestControllers()
   }
 
-  fun setRenderOrder(value: Int) {
-    if (value == renderOrder) return
-    renderOrder = value
-    if (overlayDialog != null) restackOverlaysAbove()
+  fun setOpenOrder(value: Int) {
+    if (value == openOrder) return
+    val didOpen = value > openOrder
+    openOrder = value
+    portalCloseRequestController.onOpenOrderChanged()
+    if (didOpen) bringOverlayToFront()
   }
 
   // MARK: - Inline vs overlay presentation
@@ -319,7 +320,6 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       // state after the final window configuration resets the dialog to its safe initial flags.
       overlayInteractive = host.isInteractive
       presentedOverlays.add(this)
-      restackOverlaysAbove()
       refreshCloseRequestControllers()
     } catch (_: RuntimeException) {
       // Show failed (e.g. the activity went away mid-present). Dismiss so the
@@ -336,24 +336,20 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   }
 
   /**
-   * Windows stack in the order they are added, with no way to insert one lower, so sheets rendered
-   * after this one are re-added on top of it to keep overlays in render order however late they
-   * mount.
+   * Moves this overlay's window above the overlays presented after it, so the most recently opened
+   * sheet is in front. Windows stack in the order they are added, so the window is re-added. That
+   * happens as the sheet starts opening, while it is still off-screen.
    */
-  private fun restackOverlaysAbove() {
-    presentedOverlays
-      .filter { it.renderOrder > renderOrder }
-      .sortedBy { it.renderOrder }
-      .forEach { it.moveOverlayWindowToTop() }
-  }
-
-  private fun moveOverlayWindowToTop() {
+  private fun bringOverlayToFront() {
+    if (presentedOverlays.lastOrNull() === this) return
     val window = overlayDialog?.window ?: return
     val decorView = window.peekDecorView() ?: return
     val windowManager = themedReactContext?.currentActivity?.windowManager ?: return
     runCatching {
       windowManager.removeViewImmediate(decorView)
       windowManager.addView(decorView, window.attributes)
+      presentedOverlays.remove(this)
+      presentedOverlays.add(this)
     }
   }
 
@@ -535,6 +531,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   }
 
   private companion object {
+    // Presented overlays, in window order: the last one is in front.
     val presentedOverlays = mutableListOf<BottomSheetView>()
 
     const val NON_INTERACTIVE_FLAGS =

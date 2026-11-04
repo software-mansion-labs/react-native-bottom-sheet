@@ -13,7 +13,7 @@ internal class PortalCloseRequestController(
   private val view: View,
   private val currentActivity: () -> Activity?,
   private val emitCloseRequest: () -> Boolean,
-  private val renderOrder: () -> Int = { Int.MAX_VALUE },
+  private val openOrder: () -> Int = { 0 },
 ) : PortalCloseRequestParticipant {
   private var inputState = CloseRequestInputState.INACTIVE
   private var usesPortalPresentation = false
@@ -56,6 +56,11 @@ internal class PortalCloseRequestController(
     inputState = state
     this.usesPortalPresentation = usesPortalPresentation
     syncRoutingContext()
+  }
+
+  fun onOpenOrderChanged() {
+    if (disposed) return
+    closeRequestRegistration?.updateOpenOrder(openOrder())
   }
 
   fun scheduleRoutingContextSync() {
@@ -125,7 +130,7 @@ internal class PortalCloseRequestController(
               resolvedRoutingContext.rootView,
               this,
               currentPortalState(),
-              renderOrder(),
+              openOrder(),
             )
         }
       } else if (resolvedRoutingContext != null && closeRequestRegistration == null) {
@@ -134,7 +139,7 @@ internal class PortalCloseRequestController(
             resolvedRoutingContext.rootView,
             this,
             currentPortalState(),
-            renderOrder(),
+            openOrder(),
           )
       }
     }

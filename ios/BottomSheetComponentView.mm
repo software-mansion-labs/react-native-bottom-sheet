@@ -20,7 +20,6 @@ using namespace facebook::react;
 /// and forwards hit-testing to its single subview—the sheet—so touches outside
 /// the sheet and its scrim fall through to the content underneath.
 @interface BottomSheetOverlayContainerView : UIView
-@property (nonatomic) NSInteger renderOrder;
 @end
 
 @implementation BottomSheetOverlayContainerView
@@ -59,7 +58,7 @@ using namespace facebook::react;
   float _lastContentOffsetY;
   BOOL _needsIndexSyncAfterRecycle;
   BOOL _nativeOverlay;
-  NSInteger _renderOrder;
+  NSInteger _openOrder;
   BOOL _extendUnderStatusBar;
   BottomSheetOverlayContainerView *_overlayContainer;
   RCTSurfaceTouchHandler *_overlayTouchHandler;
@@ -133,11 +132,19 @@ using namespace facebook::react;
   // place, so the sheet renders inline with no overlay or scrim. The ivar is the
   // genuine current presentation state, reset in both `init` and
   // `prepareForRecycle`, so it diffs correctly across recycling.
-  _renderOrder = newViewProps.renderOrder;
-
   if (newViewProps.nativeOverlay != _nativeOverlay) {
     _nativeOverlay = newViewProps.nativeOverlay;
     [self updateOverlayPresentation];
+  }
+
+  // Diffed against the ivar for the same reason. A native-overlay sheet that
+  // opens moves to the front of its window.
+  if (newViewProps.openOrder != _openOrder) {
+    BOOL didOpen = newViewProps.openOrder > _openOrder;
+    _openOrder = newViewProps.openOrder;
+    if (didOpen) {
+      [self bringOverlayToFront];
+    }
   }
 
   if (newViewProps.extendUnderStatusBar != _extendUnderStatusBar) {
@@ -289,22 +296,9 @@ using namespace facebook::react;
       [self detachOverlayTouchHandler];
       [_overlayContainer removeFromSuperview];
       // Added as the topmost window subview so it floats above modal content in
-      // the same window, but below any native-overlay sheet rendered after this
-      // one, so that sheets stack in render order however late they mount.
-      _overlayContainer.renderOrder = _renderOrder;
-      UIView *nextOverlay = nil;
-      for (UIView *subview in window.subviews) {
-        if ([subview isKindOfClass:BottomSheetOverlayContainerView.class] &&
-            ((BottomSheetOverlayContainerView *)subview).renderOrder > _renderOrder) {
-          nextOverlay = subview;
-          break;
-        }
-      }
-      if (nextOverlay != nil) {
-        [window insertSubview:_overlayContainer belowSubview:nextOverlay];
-      } else {
-        [window addSubview:_overlayContainer];
-      }
+      // the same window. Opening a sheet brings it back to the top (see
+      // `bringOverlayToFront`), so the most recently opened overlay is in front.
+      [window addSubview:_overlayContainer];
       [self attachOverlayTouchHandler];
     }
     [self pushNativeGeometry];
@@ -313,6 +307,14 @@ using namespace facebook::react;
     if (_overlayContainer != nil) {
       [self restoreInlinePresentation];
     }
+  }
+}
+
+- (void)bringOverlayToFront
+{
+  UIView *window = _overlayContainer.superview;
+  if (window != nil && window.subviews.lastObject != _overlayContainer) {
+    [window bringSubviewToFront:_overlayContainer];
   }
 }
 
@@ -494,6 +496,7 @@ using namespace facebook::react;
   // reused instance starts from the default presentation.
   _nativeOverlay = NO;
   _extendUnderStatusBar = NO;
+  _openOrder = 0;
   [self restoreInlinePresentation];
   _needsIndexSyncAfterRecycle = YES;
   [_sheetView resetSheetState];

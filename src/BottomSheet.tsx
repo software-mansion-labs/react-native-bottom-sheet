@@ -106,8 +106,8 @@ export interface BottomSheetProps {
    */
   index: number;
   /**
-   * Whether the sheet should animate in on first layout. With `lazy`, this only
-   * applies to a sheet that starts open; opening from closed always animates.
+   * Whether a sheet that is open when it first appears, such as at app launch,
+   * animates in. Opening a closed sheet always animates.
    */
   animateIn?: boolean;
   /**
@@ -210,7 +210,9 @@ type ModalOnlyBottomSheetProps = {
 export type BottomSheetInternalProps = BottomSheetProps &
   ModalOnlyBottomSheetProps;
 
-let nextRenderOrder = 0;
+// Incremented whenever any sheet opens, so the most recently opened sheet
+// stacks on top and receives Back and Escape.
+let lastOpenOrder = 0;
 
 /** Native bottom sheet that renders inline within the current screen layout. */
 export const BottomSheet = (props: BottomSheetProps) => {
@@ -274,10 +276,21 @@ export const BottomSheet = (props: BottomSheetProps) => {
   // `animateIn` only covers the initial presentation, but a lazy sheet's native
   // view also runs its first layout on every later open, which must animate.
   const [hasOpenedFromClosed, setHasOpenedFromClosed] = useState(false);
-  const [renderOrder] = useState(() => nextRenderOrder++);
   if (!isSheetClosed && !isSheetActive) {
     setIsSheetActive(true);
     setHasOpenedFromClosed(true);
+  }
+  // When the sheet last opened, relative to other sheets: 0 until it first
+  // opens. This includes reopening while it is still closing.
+  const [wasSheetClosed, setWasSheetClosed] = useState(isSheetClosed);
+  const [openOrder, setOpenOrder] = useState(() =>
+    isSheetClosed ? 0 : ++lastOpenOrder
+  );
+  if (isSheetClosed !== wasSheetClosed) {
+    setWasSheetClosed(isSheetClosed);
+    if (!isSheetClosed) {
+      setOpenOrder(++lastOpenOrder);
+    }
   }
   const { cornerRadii, cornerCurve, shadows, elevation, shadowColor } = useMemo(
     () => resolveSurfaceStyle(surfaceStyle, I18nManager.isRTL),
@@ -320,8 +333,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
   );
 
   if (lazy && !isSheetActive) {
-    // An empty portal entry keeps the sheet's place in the stacking order.
-    return modal && !usesNativeOverlay ? <Portal>{null}</Portal> : null;
+    return null;
   }
 
   const sheet = (
@@ -369,7 +381,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
           animateContentHeight={animateContentHeight}
           modal={modal}
           nativeOverlay={usesNativeOverlay}
-          renderOrder={renderOrder}
+          openOrder={openOrder}
           hasCloseRequestHandler={hasCloseRequestHandler}
           scrollableExpandNegotiation={
             SCROLLABLE_NEGOTIATION_LEVEL[resolvedExpandNegotiation]
@@ -428,7 +440,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
     if (usesNativeOverlay) {
       return sheet;
     }
-    return <Portal>{sheet}</Portal>;
+    return <Portal order={openOrder}>{sheet}</Portal>;
   }
 
   return sheet;

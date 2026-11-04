@@ -54,35 +54,70 @@ class PortalCloseRequestCoordinatorTest {
   }
 
   @Test
-  fun `render order outranks registration order`() {
+  fun `open order outranks registration order`() {
     withActivity { activity ->
       val root = FrameLayout(activity)
-      val renderedSecond = TestParticipant()
-      val renderedFirst = TestParticipant()
+      val openedSecond = TestParticipant()
+      val openedFirst = TestParticipant()
       val secondRegistration =
         PortalCloseRequestCoordinator.register(
           root,
-          renderedSecond,
+          openedSecond,
           portalState(routingOwnerCandidate = true),
-          renderOrder = 1,
+          openOrder = 2,
         )
       val firstRegistration =
         PortalCloseRequestCoordinator.register(
           root,
-          renderedFirst,
+          openedFirst,
           portalState(routingOwnerCandidate = true),
-          renderOrder = 0,
+          openOrder = 1,
         )
 
       try {
-        assertTrue(renderedSecond.isInputHandlingEnabled)
-        assertFalse(renderedFirst.isInputHandlingEnabled)
+        assertTrue(openedSecond.isInputHandlingEnabled)
+        assertFalse(openedFirst.isInputHandlingEnabled)
 
         secondRegistration.remove()
-        assertTrue(renderedFirst.isInputHandlingEnabled)
+        assertTrue(openedFirst.isInputHandlingEnabled)
       } finally {
         secondRegistration.remove()
         firstRegistration.remove()
+      }
+    }
+  }
+
+  @Test
+  fun `reopening a lower portal moves it to the top`() {
+    withActivity { activity ->
+      val root = FrameLayout(activity)
+      val lower = TestParticipant()
+      val upper = TestParticipant()
+      val lowerRegistration =
+        PortalCloseRequestCoordinator.register(
+          root,
+          lower,
+          portalState(routingOwnerCandidate = true),
+          openOrder = 1,
+        )
+      val upperRegistration =
+        PortalCloseRequestCoordinator.register(
+          root,
+          upper,
+          portalState(routingOwnerCandidate = true),
+          openOrder = 2,
+        )
+
+      try {
+        assertTrue(upper.isInputHandlingEnabled)
+        assertFalse(lower.isInputHandlingEnabled)
+
+        lowerRegistration.updateOpenOrder(3)
+        assertTrue(lower.isInputHandlingEnabled)
+        assertFalse(upper.isInputHandlingEnabled)
+      } finally {
+        upperRegistration.remove()
+        lowerRegistration.remove()
       }
     }
   }
