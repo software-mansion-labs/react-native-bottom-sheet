@@ -1,14 +1,18 @@
 import { useState } from 'react';
 import {
   Button,
+  I18nManager,
   Pressable,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import {
   BottomSheet,
   type Detent,
@@ -31,6 +35,7 @@ type Scenario = {
   detentInsets?: DetentInset[];
   shape?: SurfaceStyle;
   scrollable?: boolean;
+  keyboard?: boolean;
 };
 
 const SCENARIOS: Scenario[] = [
@@ -104,6 +109,13 @@ const SCENARIOS: Scenario[] = [
     scrollable: true,
   },
   {
+    label: 'Keyboard input',
+    expect: 'The field stays above the keyboard as the card grows behind it.',
+    detents: [0, 'content'],
+    detentInsets: [FLOATING],
+    keyboard: true,
+  },
+  {
     label: 'No closed detent',
     expect: 'Stays open: the card never leaves, and drags stop at 160.',
     detents: [160, '50%'],
@@ -126,6 +138,28 @@ const Toggle = ({
   </View>
 );
 
+/**
+ * The sheet doesn't avoid the keyboard: as the docs describe, content pads
+ * itself. The card's bottom gap already clears part of the keyboard.
+ */
+const KeyboardBody = () => {
+  const { height } = useReanimatedKeyboardAnimation();
+  const paddingStyle = useAnimatedStyle(() => ({
+    paddingBottom: 16 + Math.max(0, -height.value - (FLOATING.bottom ?? 0)),
+  }));
+
+  return (
+    <Animated.View style={[styles.body, paddingStyle]}>
+      <Text>Type here:</Text>
+      <TextInput
+        accessibilityLabel="Sheet input"
+        placeholder="Sheet input"
+        style={styles.input}
+      />
+    </Animated.View>
+  );
+};
+
 export const DetachedSheetScreen = () => {
   const [index, setIndex] = useState(0);
   const [scenarioIndex, setScenarioIndex] = useState(0);
@@ -134,6 +168,7 @@ export const DetachedSheetScreen = () => {
   const [extendUnderStatusBar, setExtendUnderStatusBar] = useState(false);
   const [hasShadow, setHasShadow] = useState(true);
   const [behindPresses, setBehindPresses] = useState(0);
+  const [isRTLOnNextLaunch, setIsRTLOnNextLaunch] = useState(I18nManager.isRTL);
   const scenario = SCENARIOS[scenarioIndex]!;
   const openIndex = scenario.detents[0] === 0 ? 1 : 0;
 
@@ -143,6 +178,7 @@ export const DetachedSheetScreen = () => {
     index: Math.min(index, scenario.detents.length - 1),
     onIndexChange: setIndex,
     extendUnderStatusBar,
+    animateContentHeight: !scenario.keyboard,
     surfaceStyle: {
       ...(scenario.shape ?? ROUNDED),
       boxShadow: hasShadow ? SHADOW : undefined,
@@ -156,7 +192,9 @@ export const DetachedSheetScreen = () => {
         <View style={styles.band}>
           <SheetHeader title={scenario.label} onClose={() => setIndex(0)} />
         </View>
-        {scenario.scrollable ? (
+        {scenario.keyboard ? (
+          <KeyboardBody />
+        ) : scenario.scrollable ? (
           <ScrollView style={{ flex: 1 }}>
             {Array.from({ length: 40 }, (_, row) => (
               <Text key={row} style={styles.row}>
@@ -236,6 +274,16 @@ export const DetachedSheetScreen = () => {
           onValueChange={setExtendUnderStatusBar}
         />
         <Toggle label="Shadow" value={hasShadow} onValueChange={setHasShadow} />
+        <Toggle
+          // Applies on the next app launch.
+          label={`RTL (now ${I18nManager.isRTL ? 'on' : 'off'})`}
+          value={isRTLOnNextLaunch}
+          onValueChange={(value) => {
+            I18nManager.allowRTL(value);
+            I18nManager.forceRTL(value);
+            setIsRTLOnNextLaunch(value);
+          }}
+        />
       </View>
       <Button title="Open sheet" onPress={() => setIndex(openIndex)} />
     </DemoScreen>
@@ -243,7 +291,7 @@ export const DetachedSheetScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  picker: { maxHeight: 370 },
+  picker: { maxHeight: 400 },
   scenario: {
     paddingVertical: 8,
     paddingHorizontal: 12,
@@ -260,13 +308,19 @@ const styles = StyleSheet.create({
   band: { height: 72, backgroundColor: '#3b82f6' },
   body: { padding: 16, gap: 12 },
   detentButtons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    padding: 8,
+  },
   row: { padding: 16, borderBottomWidth: 1, borderBottomColor: '#ededed' },
   behind: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    height: 110,
+    height: 210,
     padding: 8,
     justifyContent: 'center',
     alignItems: 'center',
