@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { type RefObject, useRef, useState } from 'react';
 import {
   Button,
   I18nManager,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -36,6 +37,8 @@ type Scenario = {
   shape?: SurfaceStyle;
   scrollable?: boolean;
   keyboard?: boolean;
+  patternedSurface?: boolean;
+  hugeGaps?: boolean;
 };
 
 const SCENARIOS: Scenario[] = [
@@ -114,6 +117,20 @@ const SCENARIOS: Scenario[] = [
     },
   },
   {
+    label: 'Huge gaps',
+    expect: 'Scale 0.68 on a 402-wide screen. Tap a button to compare.',
+    detents: [0, 400, '100%'],
+    detentInsets: [{}, { left: 64, right: 64, bottom: 96 }, {}],
+    hugeGaps: true,
+  },
+  {
+    label: 'Patterned surface',
+    expect: 'The border and circle scale with the card, like an image would.',
+    detents: [0, 320, '100%'],
+    detentInsets: [{}, FLOATING, {}],
+    patternedSurface: true,
+  },
+  {
     label: 'Scrollable content',
     expect: 'The last row is reachable above the gap at the full detent.',
     detents: [0, 320, '100%'],
@@ -150,6 +167,121 @@ const Toggle = ({
   </View>
 );
 
+/** Taps report what `measure` and `measureInWindow` return, to compare with the screen. */
+const MeasureProbe = ({
+  surfaceRef,
+}: {
+  surfaceRef: RefObject<View | null>;
+}) => {
+  const ref = useRef<View>(null);
+  const [presses, setPresses] = useState(0);
+  const [report, setReport] = useState({
+    page: '-',
+    window: '-',
+    surface: '-',
+  });
+  const measure = () => {
+    setPresses((count) => count + 1);
+    ref.current?.measure((_x, _y, width, height, pageX, pageY) =>
+      setReport((previous) => ({
+        ...previous,
+        page: roundedFrame([pageX, pageY, width, height]),
+      }))
+    );
+    ref.current?.measureInWindow((x, y, width, height) =>
+      setReport((previous) => ({
+        ...previous,
+        window: roundedFrame([x, y, width, height]),
+      }))
+    );
+    surfaceRef.current?.measure((_x, _y, width, height, pageX, pageY) =>
+      setReport((previous) => ({
+        ...previous,
+        surface: roundedFrame([pageX, pageY, width, height]),
+      }))
+    );
+  };
+  return (
+    <Pressable
+      ref={ref}
+      accessibilityLabel="Measure probe"
+      onPress={measure}
+      style={({ pressed }) => [styles.probe, pressed && styles.probePressed]}
+    >
+      <Text>
+        {presses}: page {report.page}
+        {'\n'}window {report.window}
+        {'\n'}surface {report.surface}
+      </Text>
+    </Pressable>
+  );
+};
+
+const roundedFrame = (values: number[]) =>
+  values.map((value) => Math.round(value * 10) / 10).join(', ');
+
+/**
+ * Each press reports the button's and the image's measurements. Sliding off a
+ * button and releasing must not count as a press.
+ */
+const MeasuredButtons = ({
+  imageRef,
+}: {
+  imageRef: RefObject<Image | null>;
+}) => {
+  const [report, setReport] = useState('Tap a button');
+  const [presses, setPresses] = useState({ A: 0, B: 0 });
+  const refs = { A: useRef<View>(null), B: useRef<View>(null) };
+
+  const onPress = (name: 'A' | 'B') => {
+    setPresses((previous) => ({ ...previous, [name]: previous[name] + 1 }));
+    refs[name].current?.measure((_x, _y, width, height, pageX, pageY) => {
+      refs[name].current?.measureInWindow((x, y, windowWidth, windowHeight) => {
+        imageRef.current?.measure(
+          (
+            _imageX,
+            _imageY,
+            imageWidth,
+            imageHeight,
+            imagePageX,
+            imagePageY
+          ) => {
+            setReport(
+              `${name} page ${roundedFrame([pageX, pageY, width, height])}\n` +
+                `${name} window ${roundedFrame([x, y, windowWidth, windowHeight])}\n` +
+                `image ${roundedFrame([imagePageX, imagePageY, imageWidth, imageHeight])}`
+            );
+          }
+        );
+      });
+    });
+  };
+
+  return (
+    <>
+      <View style={styles.measuredButtons}>
+        {(['A', 'B'] as const).map((name) => (
+          <Pressable
+            key={name}
+            ref={refs[name]}
+            accessibilityLabel={`Measured button ${name}`}
+            onPress={() => onPress(name)}
+            style={({ pressed }) => [
+              styles.measuredButton,
+              pressed && styles.measuredButtonPressed,
+            ]}
+          >
+            <Text style={styles.measuredButtonText}>
+              {name} ({presses[name]})
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+      <Text style={styles.measuredReport}>{report}</Text>
+    </>
+  );
+};
+
 /**
  * The sheet doesn't avoid the keyboard: as the docs describe, content pads
  * itself. The card's bottom gap already clears part of the keyboard.
@@ -180,6 +312,8 @@ export const DetachedSheetScreen = () => {
   const [isUnderStatusBar, setIsUnderStatusBar] = useState(false);
   const [hasShadow, setHasShadow] = useState(true);
   const [behindPresses, setBehindPresses] = useState(0);
+  const surfaceRef = useRef<View>(null);
+  const imageRef = useRef<Image>(null);
   const [isRTLOnNextLaunch, setIsRTLOnNextLaunch] = useState(I18nManager.isRTL);
   const scenario = SCENARIOS[scenarioIndex]!;
   const openIndex = scenario.detents[0] === 0 ? 1 : 0;
@@ -197,7 +331,20 @@ export const DetachedSheetScreen = () => {
       boxShadow: hasShadow ? SHADOW : undefined,
     },
     surface: (
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'white' }]} />
+      <View
+        // Toggling the modes remounts the sheet, and the old surface can unmount
+        // after the new one mounts, so unmounting doesn't clear this.
+        ref={(view) => {
+          if (view !== null) surfaceRef.current = view;
+        }}
+        style={[StyleSheet.absoluteFill, { backgroundColor: 'white' }]}
+      >
+        {scenario.patternedSurface && (
+          <View style={[StyleSheet.absoluteFill, styles.pattern]}>
+            <View style={styles.patternCircle} />
+          </View>
+        )}
+      </View>
     ),
     children: (
       <>
@@ -205,6 +352,16 @@ export const DetachedSheetScreen = () => {
         <View style={styles.band}>
           <SheetHeader title={scenario.label} onClose={() => setIndex(0)} />
         </View>
+        {scenario.hugeGaps && (
+          // Full-bleed too: it must touch the card's edges at every detent.
+          <Image
+            ref={imageRef}
+            accessibilityLabel="Measured image"
+            resizeMode="cover"
+            source={require('../../assets/icon.png')}
+            style={styles.measuredImage}
+          />
+        )}
         {scenario.keyboard ? (
           <KeyboardBody />
         ) : scenario.scrollable ? (
@@ -218,6 +375,11 @@ export const DetachedSheetScreen = () => {
         ) : (
           <View style={styles.body}>
             <Text>{scenario.expect}</Text>
+            {scenario.hugeGaps ? (
+              <MeasuredButtons imageRef={imageRef} />
+            ) : (
+              <MeasureProbe surfaceRef={surfaceRef} />
+            )}
             <View style={styles.detentButtons}>
               {scenario.detents.map((detent, detentIndex) => (
                 <Button
@@ -317,6 +479,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  measuredImage: { height: 150, width: '100%' },
+  measuredButtons: { flexDirection: 'row', gap: 8 },
+  measuredButton: {
+    alignItems: 'center',
+    backgroundColor: '#2563eb',
+    borderRadius: 8,
+    flex: 1,
+    padding: 12,
+  },
+  measuredButtonPressed: { backgroundColor: '#1e3a8a' },
+  measuredButtonText: { color: 'white', fontWeight: '600' },
+  measuredReport: { minHeight: 56 },
+  probe: { backgroundColor: '#eef2ff', padding: 8, minHeight: 72 },
+  probePressed: { backgroundColor: '#c7d2fe' },
+  pattern: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderColor: '#ef4444',
+    borderWidth: 6,
+  },
+  patternCircle: {
+    backgroundColor: '#fde68a',
+    borderRadius: 60,
+    height: 120,
+    width: 120,
   },
   band: { height: 72, backgroundColor: '#3b82f6' },
   body: { padding: 16, gap: 12 },
