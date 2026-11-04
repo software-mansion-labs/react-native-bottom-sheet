@@ -31,7 +31,7 @@
     },
     "example": {
       "name": "@swmansion/react-native-bottom-sheet-example",
-      "version": "0.18.0-next.2",
+      "version": "0.18.0-next.3",
       "dependencies": {
         "@expo/metro-runtime": "~58.0.14",
         "@expo/vector-icons": "^15.1.1",
