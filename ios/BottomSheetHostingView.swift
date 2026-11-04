@@ -97,9 +97,13 @@ private final class SheetPanGestureRecognizer: UIPanGestureRecognizer {
   /// threshold UIKit's pan recognizers apply to total travel.
   private static let verticalSlop: CGFloat = 10
 
-  /// Whether the start is held: a single touch inside a vertical scrollable
-  /// the sheet negotiates with.
+  /// Whether the start is held: a touch inside a vertical scrollable the sheet
+  /// negotiates with.
   private(set) var isHoldingStart = false
+  /// The contact the hold follows. A pull toward the edge of the screen can land
+  /// a second contact and end the first; the gesture continues on the one left,
+  /// as the scrollable's own pan does.
+  private var heldTouch: UITouch?
   private var usableDirections = UsableDirections(up: false, down: false)
   private var handoffDirections = UsableDirections(up: false, down: false)
   /// The far point of travel in the decided direction, the touch-down point
@@ -136,6 +140,7 @@ private final class SheetPanGestureRecognizer: UIPanGestureRecognizer {
   ) {
     usableDirections = directions
     handoffDirections = handoff
+    heldTouch = touch
     farY = holdY(of: touch)
     decidedVerticalDirection = 0
     isHoldingStart = directions.up || directions.down
@@ -148,23 +153,34 @@ private final class SheetPanGestureRecognizer: UIPanGestureRecognizer {
     touch.location(in: view?.superview).y
   }
 
-  override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
-    if isHoldingStart, numberOfTouches + touches.count > 1 {
-      // Only a single finger is held.
-      isHoldingStart = false
-    }
-    super.touchesBegan(touches, with: event)
-  }
-
   override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
-    if isHoldingStart {
-      if numberOfTouches != 1 {
-        isHoldingStart = false
-      } else if state == .possible, let touch = touches.first {
-        guard shouldDeliver(moveAt: holdY(of: touch)) else { return }
+    if isHoldingStart, state == .possible {
+      guard let heldTouch, touches.contains(heldTouch), shouldDeliver(moveAt: holdY(of: heldTouch)) else {
+        return
       }
     }
     super.touchesMoved(touches, with: event)
+  }
+
+  override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+    holdNextTouch(after: touches, with: event)
+    super.touchesEnded(touches, with: event)
+  }
+
+  override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
+    holdNextTouch(after: touches, with: event)
+    super.touchesCancelled(touches, with: event)
+  }
+
+  /// Follows a remaining contact when the held one lifts. Its position is not
+  /// travel, so the far point moves to it and the decided direction stands.
+  private func holdNextTouch(after touches: Set<UITouch>, with event: UIEvent) {
+    guard let heldTouch, touches.contains(heldTouch) else { return }
+    let remaining = event.touches(for: self)?.first { !touches.contains($0) }
+    self.heldTouch = remaining
+    if let remaining {
+      farY = holdY(of: remaining)
+    }
   }
 
   /// Whether a move, while the pan is possible, reaches UIKit: only moves along
@@ -201,6 +217,7 @@ private final class SheetPanGestureRecognizer: UIPanGestureRecognizer {
 
   override func reset() {
     isHoldingStart = false
+    heldTouch = nil
     usableDirections = UsableDirections(up: false, down: false)
     handoffDirections = UsableDirections(up: false, down: false)
     farY = 0
@@ -1089,8 +1106,14 @@ public final class BottomSheetHostingView: UIView {
   /// its visual start when asked for all of them, when it reached that start
   /// while released, or, for the lock that begins the pan, when it was there
   /// as the touch landed; otherwise where it rests now. Returns how far that
-  /// moves their content on screen, positive down.
-  private func lockActiveScrollViews(pinToStart: Bool = false, pinInitialStarts: Bool = false) -> CGFloat {
+  /// moves their content on screen, positive down. Pulled scroll views the
+  /// finger is bringing back stay where they are.
+  @discardableResult
+  private func lockActiveScrollViews(
+    pinToStart: Bool = false,
+    pinInitialStarts: Bool = false,
+    inPlace: Bool = false
+  ) -> CGFloat {
     guard !activeScrollViewStates.isEmpty else { return 0 }
     var contentTravel: CGFloat = 0
 
@@ -1106,7 +1129,9 @@ public final class BottomSheetHostingView: UIView {
         || state.reachedStartWhileReleased
         || (pinInitialStarts && state.wasAtStartWhenTouched)
       state.reachedStartWhileReleased = false
-      let pinnedOffset = pinnedToStart
+      let pinnedOffset = inPlace
+        ? scrollView.contentOffset
+        : pinnedToStart
         ? scrollStartOffset(for: scrollView, inverted: state.inverted)
         : restingOffset(for: scrollView)
       let pinDistance = pinnedOffset.y - scrollView.contentOffset.y
@@ -1145,6 +1170,24 @@ public final class BottomSheetHostingView: UIView {
     }
   }
 
+  /// Follows the finger back up with the scroll views pulled past their start.
+  /// A refresh that begins during a pull changes the inset UIKit rubber-bands
+  /// against, so its own pan steps the content against the finger on the way
+  /// back. Pinning leaves the offset to the finger.
+  private func movePulledScrollViewsBack(by distance: CGFloat) {
+    if !activeScrollViewsLocked {
+      lockActiveScrollViews(inPlace: true)
+    }
+    for state in activeScrollViewStates {
+      guard let scrollView = state.scrollView else { continue }
+      let startY = scrollStartOffset(for: scrollView, inverted: state.inverted).y
+      state.pinnedOffset.y = state.inverted
+        ? max(startY, state.pinnedOffset.y - distance)
+        : min(startY, state.pinnedOffset.y + distance)
+      state.restorePinnedOffset()
+    }
+  }
+
   private func unlockActiveScrollViews() {
     guard activeScrollViewsLocked else { return }
     for state in activeScrollViewStates {
@@ -1174,14 +1217,39 @@ public final class BottomSheetHostingView: UIView {
         scrollView.setContentOffset(state.pinnedOffset, animated: false)
         scrollView.panGestureRecognizer.isEnabled = true
         // The resting range can change under a pin: a refresh that ends removes
-        // its inset. With its pan cancelled, the scroll view would not bounce
-        // back on its own, as it does when released mid-drag.
+        // its inset. Setting the offset above stops a fling, and with it the
+        // bounce a scroll view released mid-drag would make, so this makes it.
         let restingOffset = CGPoint(x: state.pinnedOffset.x, y: scrollView.restingY(for: state.pinnedOffset.y))
         if restingOffset != state.pinnedOffset {
-          scrollView.setContentOffset(restingOffset, animated: true)
+          Self.bounceBack(scrollView, to: restingOffset)
         }
       }
     }
+  }
+
+  /// Moves the scroll view with the decay of its native bounce: an exponential,
+  /// at the rate measured from a released UIScrollView. That is a critically
+  /// damped spring whose initial velocity cancels its ease-in. Additive, so a
+  /// touch that lands during it moves the content from where it is on screen.
+  private static func bounceBack(_ scrollView: UIScrollView, to offset: CGPoint) {
+    let omega: CGFloat = 7.5
+    let duration: CFTimeInterval = 0.8
+    let distance = scrollView.contentOffset.y - offset.y
+    let spring = CriticalSpring(
+      from: distance,
+      target: 0,
+      v0: -omega * distance,
+      omega: omega,
+      startTime: 0,
+      duration: duration
+    )
+    let animation = CAKeyframeAnimation(keyPath: "bounds.origin.y")
+    animation.values = spring.keyframeValues(count: Int((duration * 120).rounded()))
+    animation.duration = duration
+    animation.calculationMode = .linear
+    animation.isAdditive = true
+    scrollView.setContentOffset(offset, animated: false)
+    scrollView.layer.add(animation, forKey: "bounceBack")
   }
 
   private func finishScrollViewCoordination() {
@@ -1466,7 +1534,11 @@ public final class BottomSheetHostingView: UIView {
           // there: the two pans handle one update in no defined order, so the
           // reversal may already have scrolled it when the sheet sees it.
           noteReleasedScrollViewsAtStart()
-          if delta < 0, !activeScrollViewsArePulledPastStart() {
+          if delta >= 0 {
+            unlockActiveScrollViews()
+          } else if activeScrollViewsArePulledPastStart() {
+            movePulledScrollViewsBack(by: -delta)
+          } else {
             scrollViewOwnsLowerBoundary = false
             panCoordinationMode = .sheet
             lockActiveScrollViewsForSheet(verticalDirection: delta, range: range)
