@@ -21,6 +21,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import com.facebook.react.bridge.LifecycleEventListener
 import com.facebook.react.common.LifecycleState
+import com.facebook.react.common.annotations.UnstableReactNativeAPI
 import com.facebook.react.config.ReactFeatureFlags
 import com.facebook.react.uimanager.JSPointerDispatcher
 import com.facebook.react.uimanager.JSTouchDispatcher
@@ -59,6 +60,8 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   private var overlayDialog: ComponentDialog? = null
   private var overlayRoot: BottomSheetDialogRootView? = null
   private var nativeOverlay = false
+  // When the sheet last opened, relative to other sheets (0 until it first opens).
+  private var openOrder = 0
   // Cached only while a dialog is present, so per-frame interaction callbacks
   // don't thrash the window flags.
   private var overlayInteractive: Boolean? = null
@@ -178,15 +181,17 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       host.scrollableCollapseNegotiation = value
     }
 
-  var extendUnderStatusBar: Boolean
-    get() = host.extendUnderStatusBar
-    set(value) {
-      host.extendUnderStatusBar = value
-    }
-
   fun setScrimColor(color: Int?) = host.setScrimColor(color)
 
   fun setScrimOpacities(values: List<Float>) = host.setScrimOpacities(values)
+
+  fun setSurfaceCornerRadii(values: List<Float>) = host.setSurfaceCornerRadii(values)
+
+  internal fun setSurfaceShadows(values: List<CardShadow>) = host.setSurfaceShadows(values)
+
+  fun setSurfaceElevation(value: Float) = host.setSurfaceElevation(value)
+
+  fun setSurfaceShadowColor(color: Int) = host.setSurfaceShadowColor(color)
 
   fun setHasCloseRequestHandler(value: Boolean) {
     if (value == hasCloseRequestHandler) return
@@ -206,6 +211,14 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       dismissOverlay()
     }
     refreshPresentationRouting()
+  }
+
+  fun setOpenOrder(value: Int) {
+    if (value == openOrder) return
+    val didOpen = value > openOrder
+    openOrder = value
+    refreshPresentationRouting()
+    if (didOpen) bringOverlayToFront()
   }
 
   // MARK: - Inline vs overlay presentation
@@ -322,6 +335,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       // so no interaction-listener transition is guaranteed after show(). Reapply the current
       // state after the final window configuration resets the dialog to its safe initial flags.
       overlayInteractive = host.isInteractive
+      presentedOverlays.add(this)
       refreshPresentationRouting()
     } catch (_: RuntimeException) {
       // Show failed (e.g. the activity went away mid-present). Dismiss so the
@@ -338,8 +352,27 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     }
   }
 
+  /**
+   * Moves this overlay's window above the overlays presented after it, so the most recently opened
+   * sheet is in front. Windows stack in the order they are added, so the window is re-added. That
+   * happens as the sheet starts opening, while it is still off-screen.
+   */
+  private fun bringOverlayToFront() {
+    if (presentedOverlays.lastOrNull() === this) return
+    val window = overlayDialog?.window ?: return
+    val decorView = window.peekDecorView() ?: return
+    val windowManager = themedReactContext?.currentActivity?.windowManager ?: return
+    runCatching {
+      windowManager.removeViewImmediate(decorView)
+      windowManager.addView(decorView, window.attributes)
+      presentedOverlays.remove(this)
+      presentedOverlays.add(this)
+    }
+  }
+
   private fun dismissOverlay() {
     overlayRoot?.invalidatePortalNativeOwner()
+    presentedOverlays.remove(this)
     overlayCloseRequestController.unbind()
     overlayDialog?.let { dialog ->
       (host.parent as? ViewGroup)?.removeView(host)
@@ -528,6 +561,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     host.interactionListener = null
     host.presentationStateChangedListener = null
     overlayRoot?.invalidatePortalNativeOwner()
+    presentedOverlays.remove(this)
     overlayDialog?.let { if (it.isShowing) it.dismiss() }
     overlayDialog = null
     overlayRoot = null
@@ -536,6 +570,9 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   }
 
   private companion object {
+    // Presented overlays, in window order: the last one is in front.
+    val presentedOverlays = mutableListOf<BottomSheetView>()
+
     const val NON_INTERACTIVE_FLAGS =
       WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
   }
@@ -611,13 +648,12 @@ private class BottomSheetDialogRootView(context: ThemedReactContext, owner: View
     return super.onHoverEvent(event)
   }
 
+  @OptIn(UnstableReactNativeAPI::class)
   override fun onChildStartedNativeGesture(childView: View?, ev: MotionEvent) {
     eventDispatcher?.let { dispatcher ->
       // Sweeps the active touch marked by handleTouchEvent when a native child takes over the
-      // gesture. The 3-arg overload that performs the sweep only exists on RN 0.82+, so it is
-      // resolved through a compat shim (see JSTouchDispatcherCompat) that uses it when present
-      // and falls back to the 2-arg overload on RN 0.76-0.81 (issue #35).
-      jSTouchDispatcher.onChildStartedNativeGestureCompat(ev, dispatcher, reactContext)
+      // gesture.
+      jSTouchDispatcher.onChildStartedNativeGesture(ev, dispatcher, reactContext)
       jSPointerDispatcher?.onChildStartedNativeGesture(childView, ev, dispatcher)
     }
   }

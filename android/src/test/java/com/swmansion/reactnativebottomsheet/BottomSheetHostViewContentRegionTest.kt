@@ -65,6 +65,22 @@ class BottomSheetHostViewContentRegionTest {
   }
 
   @Test
+  fun `the insets of the tallest detent bound the content region`() {
+    val detent = { kind: String, value: Double ->
+      mapOf("value" to value, "kind" to kind, "insetTop" to 20.0, "insetBottom" to 40.0)
+    }
+    withSheet(listOf(points(0.0), detent("percentage", 1.0))) { sheet ->
+      assertEquals(60.0, publishedInset(sheet), 0.001)
+    }
+    withSheet(listOf(points(0.0), detent("content", 0.0))) { sheet ->
+      assertEquals(60.0, publishedInset(sheet), 0.001)
+    }
+    withSheet(listOf(points(0.0), detent("points", 300.0))) { sheet ->
+      assertEquals(HEIGHT_PX / sheet.density - 300.0, publishedInset(sheet), 0.001)
+    }
+  }
+
+  @Test
   fun `fixed tallest detent above the cap leaves the whole cap as the content region`() {
     withSheet(listOf(points(0.0), points(HEIGHT_PX / 2.0 * 3))) { sheet ->
       assertEquals(0.0, publishedInset(sheet), 0.001)
@@ -352,7 +368,6 @@ class BottomSheetHostViewContentRegionTest {
     val sheet = BottomSheetHostView(controller.get())
     try {
       // Give these content-region tests an explicit full-frame cap, independent of system insets.
-      sheet.extendUnderStatusBar = true
       sheet.animateIn = false
       sheet.setDetents(detents)
       sheet.setIndex(0)

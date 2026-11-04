@@ -12,13 +12,17 @@ Decoupling the surface this way keeps the sheet covered as the content height
 changes. When content shrinks, the sheet animates to its new height without the
 background briefly exposing blank space behind the content.
 
+With `insets`, the surface is laid out against the widest card and scaled with
+the content to fit narrower ones, so an image keeps its aspect ratio and touches
+the card's edges at every detent.
+
 If your sheet content animates its own height, pass
 `animateContentHeight={false}` to update the sheet position immediately when the
 active `'content'` detent changes height.
 
 Give the surface a filling style such as `StyleSheet.absoluteFill`. It is
-mounted in a full-size host, so a surface sized only by its own
-content would collapse and not show.
+mounted in a full-size host, so a surface sized only by its own content would
+collapse and not show.
 
 ```tsx
 <BottomSheet // Or `ModalBottomSheet`.
@@ -31,3 +35,46 @@ content would collapse and not show.
   <Text>Sheet content</Text>
 </BottomSheet>
 ```
+
+## Card shape and shadows
+
+Use `surfaceStyle` to round the sheet and give it a shadow. The sheet clips both
+`surface` and your content to this shape, so state corners here rather than on
+the `surface` element, which only paints the background. A shadow on the
+`surface` element would be clipped too.
+
+```tsx
+<BottomSheet // Or `ModalBottomSheet`.
+  index={index}
+  onIndexChange={setIndex}
+  surface={
+    <View style={[StyleSheet.absoluteFill, { backgroundColor: 'white' }]} />
+  }
+  surfaceStyle={{
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderCurve: 'continuous',
+    boxShadow: '0 -4 16 rgba(0, 0, 0, 0.2)',
+    elevation: 16,
+  }}
+>
+  <Text>Sheet content</Text>
+</BottomSheet>
+```
+
+`surfaceStyle` takes corner radii, `borderCurve`, and these shadow props. They
+follow React Native's support on each platform:
+
+| Prop                                            | iOS | Android                      | Web |
+| ----------------------------------------------- | --- | ---------------------------- | --- |
+| `boxShadow` (outset only)                       | Yes | API 28 and later             | Yes |
+| `elevation`                                     | No  | Yes                          | No  |
+| `shadowColor`                                   | Yes | Tints `elevation` on API 28+ | No  |
+| `shadowOffset`, `shadowOpacity`, `shadowRadius` | Yes | No                           | No  |
+
+`borderCurve` applies on iOS only. To cover older Android versions, set
+`elevation` next to `boxShadow`. Android casts `elevation` from a light above
+the screen, so it is faint along a sheet's top edge.
+
+A press in a clipped corner isn't on the card. It reaches whatever shows through
+the corner, or closes a modal sheet through its scrim.

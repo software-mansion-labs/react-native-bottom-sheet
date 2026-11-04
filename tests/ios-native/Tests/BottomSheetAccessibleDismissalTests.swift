@@ -57,7 +57,7 @@ final class BottomSheetAccessibleDismissalTests: XCTestCase {
     XCTAssertNil(findDismiss(in: host), "programmatic-only close must not expose Dismiss")
 
     host.setDetents([
-      ["value": 320.0, "kind": "points", "programmatic": false]
+      ["value": 320.0, "kind": "points", "programmatic": false],
     ])
     host.layoutIfNeeded()
     XCTAssertNil(findDismiss(in: host), "a sheet without a closed detent must not expose Dismiss")
@@ -69,6 +69,34 @@ final class BottomSheetAccessibleDismissalTests: XCTestCase {
     ])
     host.layoutIfNeeded()
     XCTAssertNil(findDismiss(in: host), "an empty outside-sheet area must not expose Dismiss")
+  }
+
+  func testRoundedFullHeightCardKeepsScrimTouchWithoutEmptyDismissControl() async throws {
+    let fixture = BottomSheetHostFixture()
+    defer { fixture.tearDown() }
+    let host = fixture.host
+    host.animateContentHeight = false
+    host.setSurfaceCornerRadii([48, 48, 48, 48])
+    host.setDetents([
+      ["value": 0.0, "kind": "points", "programmatic": false],
+      ["value": 1.0, "kind": "percentage", "programmatic": false,
+       "usesStatusBarTopInset": false],
+    ])
+    host.layoutIfNeeded()
+    let scrim = try XCTUnwrap(
+      host.subviews.first { $0.accessibilityLabel == "Dismiss" } as? UIControl
+    )
+    XCTAssertNil(findDismiss(in: host))
+    XCTAssertFalse(scrim.accessibilityActivate())
+    XCTAssertTrue(host.hitTest(CGPoint(x: 2, y: 2), with: nil) === scrim)
+    XCTAssertFalse(host.hitTest(CGPoint(x: 195, y: 200), with: nil) === scrim)
+
+    let settle = expectation(description: "rounded corner scrim tap closes the full-height card")
+    fixture.events.didSettleExpectation = settle
+    scrim.sendActions(for: .touchUpInside)
+    XCTAssertEqual(fixture.events.changedIndices, [0])
+    await fulfillment(of: [settle], timeout: 2.0)
+    XCTAssertFalse(host.isModalAccessibilityActive)
   }
 
   func testActivationRemovesDismissAtCloseCommitAndRejectsRetries() async throws {
@@ -217,7 +245,6 @@ final class BottomSheetAccessibleDismissalTests: XCTestCase {
     let host = fixture.host
     let events = fixture.events
     let dismiss = try XCTUnwrap(host.subviews.first { $0.accessibilityLabel == "Dismiss" })
-    host.extendUnderStatusBar = true
     host.layoutIfNeeded()
     let opened = expectation(description: "full-height host finishes opening before Escape")
     events.didSettleExpectation = opened
@@ -258,5 +285,4 @@ final class BottomSheetAccessibleDismissalTests: XCTestCase {
     XCTAssertNil(findDismiss(in: host))
     XCTAssertFalse(host.accessibilityPerformEscape())
   }
-
 }

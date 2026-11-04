@@ -30,7 +30,7 @@ class BottomSheetViewManagerChildMappingTest {
       val second = View(controller.get())
 
       val host = sheet.getChildAt(0) as ViewGroup
-      assertEquals(3, host.childCount)
+      assertEquals(4, host.childCount)
       assertEquals(0, manager.getChildCount(sheet))
 
       manager.addView(sheet, first, 0)
@@ -44,7 +44,7 @@ class BottomSheetViewManagerChildMappingTest {
 
       assertEquals(1, manager.getChildCount(sheet))
       assertSame(second, manager.getChildAt(sheet, 0))
-      assertEquals(3, host.childCount)
+      assertEquals(4, host.childCount)
       sheet.destroy()
     }
   }

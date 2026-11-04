@@ -232,7 +232,11 @@ final class BottomSheetHostingViewLifecycleTests: XCTestCase {
 
     BottomSheetAccessibilityObservation.resetNotificationCount()
     let frameBeforeInsetRefresh = dismiss.accessibilityFrame
-    host.extendUnderStatusBar.toggle()
+    host.setDetents([
+      ["value": 0.0, "kind": "points", "programmatic": false],
+      ["value": 0.0, "kind": "content", "programmatic": false,
+       "usesStatusBarTopInset": false],
+    ])
     host.layoutIfNeeded()
     let frameAfterInsetRefresh = dismiss.accessibilityFrame
 
@@ -265,7 +269,7 @@ final class BottomSheetHostingViewLifecycleTests: XCTestCase {
     host.setScrimOpacities([0, 1])
     host.setDetents([
       ["value": 0.0, "kind": "points", "programmatic": false],
-      ["value": 0.0, "kind": "content", "programmatic": false],
+      ["value": 0.0, "kind": "content", "programmatic": false, "usesStatusBarTopInset": true],
     ])
     host.setDetentIndex(1)
     window.makeKeyAndVisible()

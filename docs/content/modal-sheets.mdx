@@ -26,6 +26,37 @@ const insets = useSafeAreaInsets();
 </ModalBottomSheet>
 ```
 
+## Lazy content
+
+By default, a sheet’s native view, `children` and `surface` stay mounted while
+it is closed. Set `lazy` to keep them in the tree only while the sheet is open:
+
+```tsx
+<ModalBottomSheet
+  lazy
+  index={index}
+  onIndexChange={setIndex}
+  surface={/* ... */}
+>
+  <ExpensiveContent />
+</ModalBottomSheet>
+```
+
+The sheet mounts in the same render that `index` selects an open detent, so its
+content is in place before it starts opening, and unmounts once it settles at a
+closed detent, so the content stays visible throughout the closing animation.
+Content state is reset each time the sheet opens. While unmounted, the sheet
+emits no `onPositionChange` events. `lazy` is also available on `BottomSheet`
+and has no effect when no detent is closed.
+
+## Stacking
+
+When several modal sheets are open, the one opened most recently is on top,
+whatever order they appear in your tree. Reopening a sheet, even while it is
+still closing, brings it back to the top. `nativeOverlay` sheets are always
+above portal sheets and stack among themselves the same way. Close requests
+(Android Back, and Escape on Android and the web) go to the top sheet.
+
 ## Scrim
 
 Tapping the scrim collapses the sheet to the closed detent. Use `scrimColor` to

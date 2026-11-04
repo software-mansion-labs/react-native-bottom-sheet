@@ -179,16 +179,29 @@ One state channel on the sheet node (`BottomSheetViewState`), fields all in dp:
 | -------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `contentOffsetY`     | host, on every sheet movement (`containerTop + translationY`) | `getContentOriginOffset()` — shadow-tree coordinates for `measure()`/`measureInWindow`                                                                               |
 | `frameSize`          | host, once measured in its window                             | `adopt()`: `setSize` + `YGPositionTypeAbsolute`, **gated on `nativeOverlay`** (inline stays Fabric-owned)                                                            |
-| `contentRegionInset` | host: `height − cap`                                          | `adopt()`: **Yoga bottom padding, every mode** — the in-flow `flex: 1` wrapper resolves to exactly the detent cap; the absolutely-positioned surface ignores padding |
+| `contentRegionInset` | host: `height − region`                                       | `adopt()`: **Yoga bottom padding, every mode** — the in-flow `flex: 1` wrapper resolves to exactly the detent cap; the absolutely-positioned surface ignores padding |
 
-- **The native detent cap** replaces the `maxDetentHeight` prop entirely:
-  `cap = height − max(0, topInset − originYInWindow)` (unless
-  `extendUnderStatusBar`), where `topInset` = status bars + display cutout from
-  `rootWindowInsets` (Android) / `window.safeAreaInsets.top` (iOS), and the
-  origin term means only the _overlapping_ part of the inset counts — a sheet
-  inside a container that starts below the status bar keeps its full height.
-  Recomputed on attach / size change / inset change / layout; JS no longer
-  clamps detents (native `resolveDetentSpecs` always did).
+`contentOffsetX` and `contentScale` (the card's horizontal shift and scale) ride
+the same snapshot, but the sheet node doesn't apply them. A native-overlay sheet
+is a `RootNodeKind` node, and `computeRelativeLayoutMetrics` skips a root's
+transform for `measure` (it applies it only for `measureInWindow`'s viewport
+offset), so a transform on the sheet left `measure` unscaled there — enough to
+make `Pressable`'s press-retention check, which uses `measure`, drop presses
+whenever the finger moved. Instead the two children that follow the card, the
+surface and `BottomSheetContentWrapperView`, report it from `getTransform()`. A
+node can't read its parent's state, so the sheet copies the geometry into them:
+`adopt()` covers clones that already have children, and an `appendChild`
+override covers React's clones, whose children arrive after `adopt()`. The copy
+rides the sheet's own state update, so it adds no commits.
+
+- **The host's height** replaces the `maxDetentHeight` prop entirely, and a
+  detent's top inset defaults to `max(0, topInset − originYInWindow)`, where
+  `topInset` = status bars + display cutout from `rootWindowInsets` (Android) /
+  `window.safeAreaInsets.top` (iOS), and the origin term means only the
+  _overlapping_ part of the inset counts — a sheet inside a container that
+  starts below the status bar keeps its full height. Recomputed on attach / size
+  change / inset change / layout; JS no longer clamps detents (native
+  `resolveDetentSpecs` always did).
 - JS retains exactly two geometry roles: the **inline/portal host style is
   fill-parent** (the portal host spans the provider, laid out by Fabric in the
   same window — exact by construction), and `useWindowDimensions` provides the

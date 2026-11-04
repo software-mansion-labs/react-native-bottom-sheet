@@ -10,8 +10,13 @@ import type { ReactNode } from 'react';
 
 import { renderPortalHost, type PortalSnapshot } from './PortalHost';
 
+interface PortalEntry {
+  element: ReactNode;
+  order: number;
+}
+
 interface PortalContextType {
-  addPortal: (key: string, element: ReactNode) => void;
+  addPortal: (key: string, element: ReactNode, order: number) => void;
   removePortal: (key: string) => void;
   subscribe: (callback: () => void) => () => void;
   getSnapshot: () => PortalSnapshot;
@@ -33,16 +38,20 @@ const PortalHost = () => {
 /** Provides the portal host required for modal bottom sheets. */
 export const BottomSheetProvider = ({ children }: { children: ReactNode }) => {
   const [context] = useState<PortalContextType>(() => {
-    const portals = new Map<string, ReactNode>();
+    const portals = new Map<string, PortalEntry>();
     const subscribers = new Set<() => void>();
     let snapshot: PortalSnapshot = [];
     const notify = () => {
-      snapshot = Array.from(portals.entries());
+      // Higher orders render later, so on top. The sort is stable, so equal
+      // orders keep the order in which their portals mounted.
+      snapshot = Array.from(portals.entries())
+        .sort(([, a], [, b]) => a.order - b.order)
+        .map(([key, { element }]) => [key, element]);
       subscribers.forEach((subscriber) => subscriber());
     };
     return {
-      addPortal: (key, element) => {
-        portals.set(key, element);
+      addPortal: (key, element, order) => {
+        portals.set(key, { element, order });
         notify();
       },
       removePortal: (key) => {
@@ -67,7 +76,14 @@ export const BottomSheetProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
-export const Portal = ({ children }: { children: ReactNode }) => {
+export const Portal = ({
+  children,
+  order = 0,
+}: {
+  children: ReactNode;
+  /** Stacking order among portals: higher renders on top. */
+  order?: number;
+}) => {
   const context = useContext(PortalContext);
   if (context === null) {
     throw new Error('`Portal` must be used within `BottomSheetProvider`.');
@@ -77,8 +93,8 @@ export const Portal = ({ children }: { children: ReactNode }) => {
   const id = useId();
 
   useLayoutEffect(() => {
-    addPortal(id, children);
-  }, [id, children, addPortal]);
+    addPortal(id, children, order);
+  }, [id, children, order, addPortal]);
   useLayoutEffect(() => {
     return () => {
       removePortal(id);

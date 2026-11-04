@@ -56,7 +56,7 @@ class BottomSheetHostViewScrimTest {
       val visualScrim = visualScrim(host)
       val dismiss = dismissAccessibilityView(host)
       val sheetContainer = sheetContainer(host)
-      assertEquals(3, host.childCount)
+      assertEquals(4, host.childCount)
       assertSame(visualScrim, host.getChildAt(0))
       assertSame(dismiss, host.getChildAt(1))
       assertSame(sheetContainer, host.getChildAt(2))
@@ -640,7 +640,7 @@ class BottomSheetHostViewScrimTest {
           activity,
           openDetent = 1.0,
           openDetentKind = "percentage",
-          extendUnderStatusBar = false,
+          usesStatusBarTopInset = true,
         )
       activity.setContentView(host)
       layout(host)
@@ -658,9 +658,10 @@ class BottomSheetHostViewScrimTest {
           .setVisible(WindowInsets.Type.statusBars(), true)
           .build()
       host.onApplyWindowInsets(insets)
+      activeAnimationDriver(host).finish()
 
-      assertEquals(100, sheetContainer(host).top)
-      assertEquals(0f, sheetContainer(host).translationY, 0.001f)
+      assertEquals(0, sheetContainer(host).top)
+      assertEquals(100f, sheetContainer(host).translationY, 0.001f)
       assertEquals(100f, sheetContainer(host).top + sheetContainer(host).translationY, 0.001f)
       assertEquals(0.1f, dismiss.scaleY, 0.001f)
       assertEquals(View.VISIBLE, dismiss.visibility)
@@ -685,7 +686,7 @@ class BottomSheetHostViewScrimTest {
       assertFalse(dismiss.isFocusable)
       assertFalse(dismiss.isClickable)
       assertEquals(View.INVISIBLE, dismiss.visibility)
-      assertEquals(3, host.childCount)
+      assertEquals(4, host.childCount)
       host.dispatchKeyEvent(confirmKeyEvent(KeyEvent.ACTION_UP))
       assertTrue(listener.indexChanges.isEmpty())
       assertEquals(0, listener.closeRequestCount)
@@ -702,13 +703,12 @@ class BottomSheetHostViewScrimTest {
     closedDetentProgrammatic: Boolean = false,
     scrimOpacity: Float = 1f,
     includeClosedDetent: Boolean = true,
-    extendUnderStatusBar: Boolean = false,
+    usesStatusBarTopInset: Boolean = true,
   ) =
     BottomSheetHostView(activity).apply {
       this.listener = listener
       animateIn = false
       this.modal = modal
-      this.extendUnderStatusBar = extendUnderStatusBar
       setScrimOpacities(listOf(0f, scrimOpacity))
       val closedDetents =
         if (includeClosedDetent) {
@@ -725,6 +725,7 @@ class BottomSheetHostViewScrimTest {
       setDetents(
         closedDetents +
           mapOf<String, Any>(
+            "usesStatusBarTopInset" to usesStatusBarTopInset,
             "value" to openDetent,
             "kind" to openDetentKind,
             "programmatic" to false,

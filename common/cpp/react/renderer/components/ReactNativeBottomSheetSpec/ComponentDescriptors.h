@@ -38,7 +38,7 @@ class BottomSheetViewComponentDescriptor final
 
     // The natively measured inset of the content region — the gap between the
     // sheet's height and the tallest height the sheet can reach (the tallest
-    // detent, clamped to the detent cap) — applied as Yoga BOTTOM padding in
+    // detent, clamped to the space its insets leave) — applied as Yoga BOTTOM padding in
     // every mode. In-flow content (the flex: 1 wrapper) then resolves to
     // exactly that height; absolutely positioned children (the surface)
     // ignore padding and keep filling the node. Bottom rather than top keeps
@@ -62,12 +62,22 @@ class BottomSheetViewComponentDescriptor final
       layoutableShadowNode.setPositionType(YGPositionTypeAbsolute);
     }
 
+    // The card's geometry rides the state, which this node's children report
+    // as their transform. A clone with new state or new children copies it into
+    // them here; React appends the children of its own clones later, which
+    // `appendChild` covers.
+    node.syncCardContent();
+
     ConcreteComponentDescriptor::adopt(shadowNode);
   }
 };
 
-// The surface needs no custom initial state, so this mirrors the codegen alias.
+// The surface and the content wrapper need no custom initial state, so these
+// mirror the codegen aliases.
 using BottomSheetSurfaceViewComponentDescriptor =
     ConcreteComponentDescriptor<BottomSheetSurfaceViewShadowNode>;
+
+using BottomSheetContentWrapperViewComponentDescriptor =
+    ConcreteComponentDescriptor<BottomSheetContentWrapperViewShadowNode>;
 
 } // namespace facebook::react
