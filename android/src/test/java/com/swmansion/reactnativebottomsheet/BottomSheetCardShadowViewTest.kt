@@ -23,8 +23,8 @@ class BottomSheetCardShadowViewTest {
     val bottom = shadowView()
     val split = 160f
     val offset = -479f
-    top.place(800f, 0f, Float.NEGATIVE_INFINITY, split)
-    bottom.place(800f, offset, split, Float.POSITIVE_INFINITY)
+    top.place(0f, 400f, 800f, 0f, Float.NEGATIVE_INFINITY, split)
+    bottom.place(0f, 400f, 800f, offset, split, Float.POSITIVE_INFINITY)
 
     val topEnd = top.clipBounds!!.bottom + top.translationY
     val bottomStart = bottom.clipBounds!!.top + bottom.translationY

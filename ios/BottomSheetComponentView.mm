@@ -100,6 +100,10 @@ using namespace facebook::react;
         @"value": @(detent.value),
         @"kind": RCTNSStringFromString(detent.kind),
         @"programmatic": @(detent.programmatic),
+        @"insetTop": @(detent.insetTop),
+        @"insetLeft": @(detent.insetLeft),
+        @"insetRight": @(detent.insetRight),
+        @"insetBottom": @(detent.insetBottom),
       }];
     }
     [_sheetView setDetents:detentsArray];

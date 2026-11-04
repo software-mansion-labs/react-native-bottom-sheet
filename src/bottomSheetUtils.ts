@@ -327,10 +327,30 @@ export const isDetentProgrammatic = (detent: Detent): boolean => {
   return false;
 };
 
+/**
+ * The space kept around the card at a detent, in points. All sides default
+ * to 0.
+ */
+export type DetentInset = Readonly<{
+  /**
+   * The minimum space between the card's top and the top of the space the sheet
+   * can reach: the status bar's edge or, with `extendUnderStatusBar`, the host's.
+   */
+  top?: number;
+  left?: number;
+  right?: number;
+  /** The space between the card's bottom and the host's bottom. */
+  bottom?: number;
+}>;
+
 type NormalizedDetent = Readonly<{
   value: number;
   kind: 'points' | 'percentage' | 'content';
   programmatic: boolean;
+  insetTop: number;
+  insetLeft: number;
+  insetRight: number;
+  insetBottom: number;
 }>;
 
 const PERCENTAGE_PATTERN = /^\d+(?:\.\d+)?%$/;
@@ -344,6 +364,36 @@ const invalidPointDetentError = (value: number, index: number) =>
   new Error(
     `Invalid bottom sheet detent at index ${index}: received ${String(value)}. Expected a finite, non-negative number.`
   );
+
+const invalidDetentInsetError = (side: string, value: unknown, index: number) =>
+  new Error(
+    `Invalid bottom sheet detent inset at index ${index}: \`${side}\` received ${String(value)}. Expected a finite, non-negative number.`
+  );
+
+/**
+ * The inset of a detent. A shorter array than `detents` reuses its last entry
+ * for any remaining detents.
+ */
+const resolveDetentInset = (
+  detentInsets: ReadonlyArray<DetentInset> | undefined,
+  index: number
+) => {
+  const insetIndex = Math.min(index, (detentInsets?.length ?? 0) - 1);
+  const inset = detentInsets?.[insetIndex] ?? {};
+  const resolveSide = (side: keyof DetentInset) => {
+    const value = inset[side] ?? 0;
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+      throw invalidDetentInsetError(side, value, insetIndex);
+    }
+    return value;
+  };
+  return {
+    insetTop: resolveSide('top'),
+    insetLeft: resolveSide('left'),
+    insetRight: resolveSide('right'),
+    insetBottom: resolveSide('bottom'),
+  };
+};
 
 /** Parses a percentage detent into a unitless ratio for native resolution. */
 const parseDetentPercentage = (value: string, index: number) => {
@@ -362,10 +412,19 @@ const parseDetentPercentage = (value: string, index: number) => {
 /** Serializes a public detent into the shape consumed by the native views. */
 export const normalizeDetent = (
   detent: Detent,
-  index: number
+  index: number,
+  detentInsets?: ReadonlyArray<DetentInset>
 ): NormalizedDetent => {
   const value = detentValue(detent);
   const isProgrammatic = isDetentProgrammatic(detent);
+  const inset = resolveDetentInset(detentInsets, index);
+  // A closed sheet is fully off-screen, whatever its detent's inset says.
+  const closedInset = {
+    insetTop: 0,
+    insetLeft: 0,
+    insetRight: 0,
+    insetBottom: 0,
+  };
 
   if (typeof value === 'number') {
     if (!Number.isFinite(value) || value < 0) {
@@ -376,6 +435,7 @@ export const normalizeDetent = (
       value,
       kind: 'points',
       programmatic: isProgrammatic,
+      ...(value === 0 ? closedInset : inset),
     };
   }
 
@@ -384,13 +444,16 @@ export const normalizeDetent = (
       value: 0,
       kind: 'content',
       programmatic: isProgrammatic,
+      ...inset,
     };
   }
 
+  const ratio = parseDetentPercentage(value, index);
   return {
-    value: parseDetentPercentage(value, index),
+    value: ratio,
     kind: 'percentage',
     programmatic: isProgrammatic,
+    ...(ratio === 0 ? closedInset : inset),
   };
 };
 

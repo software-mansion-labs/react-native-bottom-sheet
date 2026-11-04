@@ -52,9 +52,30 @@ private enum class ScrollableNegotiationLevel(val value: Int) {
   }
 }
 
-private data class RawDetentSpec(val value: Float, val kind: DetentKind, val programmatic: Boolean)
+/** The space kept around the card at a detent, in px. */
+private data class DetentInsets(
+  val top: Float = 0f,
+  val left: Float = 0f,
+  val right: Float = 0f,
+  val bottom: Float = 0f,
+)
 
-private data class DetentSpec(val height: Float, val programmatic: Boolean)
+private data class RawDetentSpec(
+  val value: Float,
+  val kind: DetentKind,
+  val programmatic: Boolean,
+  val insets: DetentInsets,
+)
+
+/**
+ * [position] is how far the card's top rests above the host's bottom: the card's height plus its
+ * bottom inset. Zero when closed, whatever the inset.
+ */
+private data class DetentSpec(
+  val position: Float,
+  val programmatic: Boolean,
+  val insets: DetentInsets,
+)
 
 private data class StateSnapshot(
   val contentOffsetY: Double,
@@ -126,6 +147,9 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   // MARK: - State
 
   private var rawDetentSpecs: List<RawDetentSpec> = emptyList()
+  // Whether any detent keeps a gap at the card's sides or bottom, so the card is narrower or
+  // shorter than the surface and has to clip it. A top inset only lowers the detent's height.
+  private var hasCardGaps = false
   private var detentSpecs: List<DetentSpec> = emptyList()
   private var targetIndex: Int = 0
   var animateIn: Boolean = true
@@ -424,6 +448,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     // children keep sheet-container coordinates; only its clip follows the card.
     for (shadowView in shadowViews) shadowView.layout(0, 0, containerWidth, containerHeight)
     clipContainer.layout(0, 0, containerWidth, containerHeight)
+    // Fabric only measures the children, so the host applies the content's Yoga margin.
+    val contentLeft = rawDetentSpecs.maxOfOrNull { it.insets.left }?.toInt() ?: 0
     for (i in 0 until clipContainer.childCount) {
       val child = clipContainer.getChildAt(i)
       if (child === surfaceView) {
@@ -432,7 +458,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
         // regardless of how short the content becomes.
         child.layout(0, 0, containerWidth, containerHeight)
       } else {
-        child.layout(0, 0, child.measuredWidth, child.measuredHeight)
+        child.layout(contentLeft, 0, contentLeft + child.measuredWidth, child.measuredHeight)
       }
     }
   }
@@ -469,8 +495,24 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
       val programmatic = dict["programmatic"] as? Boolean ?: false
       val nativeValue =
         if (kind == DetentKind.POINTS) (value * density).toFloat() else value.toFloat()
-      RawDetentSpec(value = nativeValue, kind = kind, programmatic = programmatic)
+      val inset = { key: String -> ((dict[key] as? Number)?.toFloat() ?: 0f) * density }
+      RawDetentSpec(
+        value = nativeValue,
+        kind = kind,
+        programmatic = programmatic,
+        insets =
+          DetentInsets(
+            top = inset("insetTop"),
+            left = inset("insetLeft"),
+            right = inset("insetRight"),
+            bottom = inset("insetBottom"),
+          ),
+      )
     }
+    hasCardGaps = rawDetentSpecs.any {
+      it.insets.left > 0f || it.insets.right > 0f || it.insets.bottom > 0f
+    }
+    clipContainer.setClipsToCard(hasCardGaps)
     // The tallest detent bounds the content region, so its inset must be
     // re-derived — and republished when it changed — before the detents are
     // re-resolved against the current layout.
@@ -567,38 +609,48 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     val maxHeight = resolvedMaxDetentHeight()
     val measuredContentHeight =
       validContentHeight().takeIf { maxHeight > 0f && it.isFinite() }?.coerceAtMost(maxHeight)
-    var previousHeight: Float? = null
+    var previousPosition: Float? = null
     return rawDetentSpecs.mapIndexed { index, spec ->
+      val available = availableCardHeight(spec, maxHeight)
       val height =
         when (spec.kind) {
           DetentKind.POINTS -> spec.value
-          DetentKind.PERCENTAGE -> maxHeight * spec.value
+          DetentKind.PERCENTAGE -> available * spec.value
           DetentKind.CONTENT ->
             measuredContentHeight ?: unresolvedContentDetentHeight(index, maxHeight)
-        }.coerceIn(0f, maxHeight)
-      previousHeight?.let {
-        if (height < it) {
+        }.coerceIn(0f, available)
+      val position = if (height > 0f) height + spec.insets.bottom else 0f
+      previousPosition?.let {
+        if (position < it) {
           throw IllegalArgumentException(
-            "Invalid bottom sheet detent at index $index: resolved height ${height / density} is lower than previous detent height ${it / density}. Detents must be passed in ascending order.",
+            "Invalid bottom sheet detent at index $index: resolved position ${position / density} is lower than previous detent position ${it / density}. Detents must be passed in ascending order.",
           )
         }
       }
-      previousHeight = height
-      DetentSpec(height = height, programmatic = spec.programmatic)
+      previousPosition = position
+      DetentSpec(position = position, programmatic = spec.programmatic, insets = spec.insets)
     }
   }
+
+  // The tallest the card can be at a detent: the cap, less the detent's top and bottom insets.
+  // Percentages resolve against it, so `100%` fits.
+  private fun availableCardHeight(spec: RawDetentSpec, capPx: Float): Float =
+    (capPx - spec.insets.top - spec.insets.bottom).coerceAtLeast(0f)
 
   private fun unresolvedContentDetentHeight(index: Int, maxHeight: Float): Float {
     val nextBound =
       rawDetentSpecs.drop(index + 1).firstOrNull { it.kind != DetentKind.CONTENT }
         ?: return maxHeight
+    val available = availableCardHeight(nextBound, maxHeight)
     val nextBoundHeight =
       when (nextBound.kind) {
         DetentKind.POINTS -> nextBound.value
-        DetentKind.PERCENTAGE -> maxHeight * nextBound.value
-        DetentKind.CONTENT -> maxHeight
+        DetentKind.PERCENTAGE -> available * nextBound.value
+        DetentKind.CONTENT -> available
       }
-    return nextBoundHeight.coerceIn(0f, maxHeight)
+    // Whatever its inset, this detent must not rise above the next one's top.
+    return nextBoundHeight.coerceIn(0f, available) + nextBound.insets.bottom -
+      rawDetentSpecs[index].insets.bottom
   }
 
   private fun refreshDetentsFromLayout() {
@@ -639,8 +691,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     // the scrim while the sheet re-anchors to the new geometry.
     val wasScrimFull =
       modal &&
-        firstNonZeroDetentHeight > 0f &&
-        currentSheetHeight() + 0.5f >= firstNonZeroDetentHeight
+        firstOpenDetentPosition > 0f &&
+        currentSheetHeight() + 0.5f >= firstOpenDetentPosition
     detentSpecs = resolvedDetents
     if (width > 0 && height > 0 && detentSpecs.isNotEmpty()) {
       layoutSheetContainer(width, height)
@@ -677,7 +729,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
           )
         } else {
           val currentVisibleHeight = previousMaxHeight - sheetContainer.translationY
-          val targetHeight = detentSpecs.getOrNull(targetIndex)?.height ?: 0f
+          val targetHeight = detentSpecs.getOrNull(targetIndex)?.position ?: 0f
           val shouldAnimateHeight = shouldAnimateContentHeight(targetIndex)
           if (kotlin.math.abs(targetHeight - currentVisibleHeight) <= 0.5f) {
             // No meaningful change.
@@ -844,9 +896,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   // MARK: - Snap logic
 
   private fun translationY(index: Int): Float {
-    val maxHeight = resolvedMaxDetentHeight()
-    val snapHeight = detentSpecs.getOrNull(index)?.height ?: 0f
-    return maxHeight - snapHeight
+    return resolvedMaxDetentHeight() - (detentSpecs.getOrNull(index)?.position ?: 0f)
   }
 
   private val minDetentTranslationY: Float
@@ -856,16 +906,16 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     get() = detentSpecs.indices.maxOfOrNull(::translationY) ?: 0f
 
   private val closedIndex: Int?
-    get() = detentSpecs.indexOfFirst { it.height == 0f }.takeIf { it >= 0 }
+    get() = detentSpecs.indexOfFirst { it.position == 0f }.takeIf { it >= 0 }
 
   private val scrimDismissIndex: Int?
     get() = closedIndex?.takeIf { !detentSpecs[it].programmatic }
 
-  private val firstNonZeroDetentHeight: Float
-    get() = detentSpecs.firstOrNull { it.height > 0f }?.height ?: 0f
+  private val firstOpenDetentPosition: Float
+    get() = detentSpecs.firstOrNull { it.position > 0f }?.position ?: 0f
 
   private val isTargetingClosedDetent: Boolean
-    get() = detentSpecs.getOrNull(targetIndex)?.height == 0f
+    get() = detentSpecs.getOrNull(targetIndex)?.position == 0f
 
   private val isCloseRequestLayoutReady: Boolean
     get() =
@@ -876,7 +926,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
         !isInvalidContentDetentTarget(targetIndex)
 
   private val isTargetDetentOpen: Boolean
-    get() = detentSpecs.getOrNull(targetIndex)?.height?.let { it > 0f } == true
+    get() = detentSpecs.getOrNull(targetIndex)?.position?.let { it > 0f } == true
 
   // Request emission follows the resolved target rather than the transient animated position.
   val isCloseRequestTargetResolvedAndOpen: Boolean
@@ -903,7 +953,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     ) {
       indices.add(includeIndex)
     }
-    return indices.distinct().sortedBy { detentSpecs[it].height }
+    return indices.distinct().sortedBy { detentSpecs[it].position }
   }
 
   private fun draggableRange(includeIndex: Int? = null): ClosedFloatingPointRange<Float> {
@@ -914,9 +964,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   }
 
   private fun snapshotTranslationY(index: Int, specs: List<DetentSpec>): Float {
-    val maxHeight = resolvedMaxDetentHeight()
-    val snapHeight = specs.getOrNull(index)?.height ?: 0f
-    return maxHeight - snapHeight
+    return resolvedMaxDetentHeight() - (specs.getOrNull(index)?.position ?: 0f)
   }
 
   private fun snapshotCandidateIndices(includeIndex: Int?, specs: List<DetentSpec>): List<Int> {
@@ -924,7 +972,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     if (includeIndex != null && includeIndex in specs.indices && specs[includeIndex].programmatic) {
       indices.add(includeIndex)
     }
-    return indices.distinct().sortedBy { specs[it].height }
+    return indices.distinct().sortedBy { specs[it].position }
   }
 
   private fun snapshotDraggableRange(
@@ -987,28 +1035,31 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     clipContainer.setCardShadowColor(color)
   }
 
-  /**
-   * The card's bottom edge in sheet-container coordinates for a sheet position (the height of the
-   * sheet's top above the host's bottom). At or above the first open detent the card reaches the
-   * host's bottom edge; below it, it keeps that detent's height and slides down rigidly, so a
-   * closing sheet leaves with its shape intact.
-   */
-  private fun cardBottom(position: Float): Float =
-    maxOf(position, firstNonZeroDetentHeight, 0f).coerceAtMost(sheetContainer.height.toFloat())
+  private fun cardGap(position: Float, side: (DetentInsets) -> Float): Float =
+    if (hasCardGaps) interpolateAtPosition(position, detentSpecs.map { side(it.insets) }) else 0f
 
   /**
-   * Keeps the card clip and shadows in step with the sheet. RenderNode work only: the clip is an
-   * outline (or clip bounds), and the shadow halves are moved and clipped, not redrawn.
+   * Keeps the card clip and shadows in step with the sheet, in sheet-container coordinates. For a
+   * sheet position (the height of the sheet's top above the host's bottom) at or above the first
+   * open detent, the card's bottom stays above the bottom gap and its side gaps blend between
+   * detents; below it, it keeps that detent's shape and slides down rigidly, so a closing sheet
+   * leaves through the gap with its shape intact.
+   *
+   * RenderNode work, never layout: the clip is an outline (or clip bounds), and the shadow halves
+   * are moved and clipped. Only side gaps that change as the sheet moves redraw the shadows.
    */
   private fun updateCardGeometry() {
-    val position = resolvedMaxDetentHeight() - sheetContainer.translationY
-    val right = sheetContainer.width.toFloat()
-    val bottom = cardBottom(position)
-    clipContainer.setCard(0f, 0f, right, bottom)
-    updateCardShadows(bottom)
+    val position =
+      maxOf(resolvedMaxDetentHeight() - sheetContainer.translationY, firstOpenDetentPosition, 0f)
+    val left = cardGap(position) { it.left }
+    val right = (sheetContainer.width - cardGap(position) { it.right }).coerceAtLeast(left)
+    val bottom =
+      (position - cardGap(position) { it.bottom }).coerceIn(0f, sheetContainer.height.toFloat())
+    clipContainer.setCard(left, 0f, right, bottom)
+    updateCardShadows(left, right, bottom)
   }
 
-  private fun updateCardShadows(cardBottom: Float) {
+  private fun updateCardShadows(cardLeft: Float, cardRight: Float, cardBottom: Float) {
     if (!shadowTop.hasShadows) {
       for (shadowView in shadowViews) shadowView.visibility = View.INVISIBLE
       return
@@ -1020,8 +1071,10 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     if (split >= shadowTop.edgeBand && shapeHeight >= cardBottom) {
       // Both copies are drawn at the container's height, which only changes with the layout.
       // The join is far enough from both edges that the copies match there.
-      shadowTop.place(shapeHeight, 0f, Float.NEGATIVE_INFINITY, split)
+      shadowTop.place(cardLeft, cardRight, shapeHeight, 0f, Float.NEGATIVE_INFINITY, split)
       shadowBottom.place(
+        cardLeft,
+        cardRight,
         shapeHeight,
         round(cardBottom - shapeHeight),
         split,
@@ -1029,7 +1082,14 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
       )
     } else {
       // Too short to join: draw the card as it is, redrawing as it changes.
-      shadowTop.place(cardBottom, 0f, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY)
+      shadowTop.place(
+        cardLeft,
+        cardRight,
+        cardBottom,
+        0f,
+        Float.NEGATIVE_INFINITY,
+        Float.POSITIVE_INFINITY,
+      )
       shadowBottom.visibility = View.INVISIBLE
     }
   }
@@ -1093,22 +1153,23 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
 
   /**
    * The height of the content region: the Yoga box the sheet's in-flow children (the `flex: 1`
-   * content wrapper) are laid out in. It is the tallest height the sheet can reach — the tallest
-   * detent's upper bound, clamped to the cap — rather than the cap itself, so a scrollable under a
-   * fixed or percentage tallest detent is laid out against the height it can actually show instead
-   * of leaving its last rows below the screen edge. A trailing `content` detent is bounded by the
-   * cap alone: its resolved height is measured from this very region, so bounding the region by it
-   * would be circular.
+   * content wrapper) are laid out in. It is the tallest height the sheet can reach — the card's
+   * height at the tallest detent, clamped to the space its insets leave — rather than the cap
+   * itself, so a scrollable under a fixed or percentage tallest detent is laid out against the
+   * height it can actually show instead of leaving its last rows below the card's edge. A trailing
+   * `content` detent is bounded by that space alone: its resolved height is measured from this very
+   * region, so bounding the region by it would be circular.
    */
   private fun contentRegionHeightPx(capPx: Float): Float {
     val tallest = rawDetentSpecs.lastOrNull() ?: return capPx
+    val available = availableCardHeight(tallest, capPx)
     val bound =
       when (tallest.kind) {
         DetentKind.POINTS -> tallest.value
-        DetentKind.PERCENTAGE -> capPx * tallest.value
-        DetentKind.CONTENT -> capPx
+        DetentKind.PERCENTAGE -> available * tallest.value
+        DetentKind.CONTENT -> available
       }
-    return bound.coerceIn(0f, capPx)
+    return bound.coerceIn(0f, available)
   }
 
   /**
@@ -1370,17 +1431,17 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     val flickThreshold = 600f * density
 
     if (velocity < -flickThreshold) {
-      return candidates.firstOrNull { detentSpecs[it].height > currentHeight }
+      return candidates.firstOrNull { detentSpecs[it].position > currentHeight }
         ?: candidates.lastOrNull()
         ?: targetIndex
     }
     if (velocity > flickThreshold) {
-      return candidates.lastOrNull { detentSpecs[it].height < currentHeight }
+      return candidates.lastOrNull { detentSpecs[it].position < currentHeight }
         ?: candidates.firstOrNull()
         ?: targetIndex
     }
 
-    return candidates.minByOrNull { abs(detentSpecs[it].height - currentHeight) } ?: targetIndex
+    return candidates.minByOrNull { abs(detentSpecs[it].position - currentHeight) } ?: targetIndex
   }
 
   private fun snapshotBestSnapIndex(
@@ -1395,17 +1456,17 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     val flickThreshold = 600f * density
 
     if (velocity < -flickThreshold) {
-      return candidates.firstOrNull { specs[it].height > currentHeight }
+      return candidates.firstOrNull { specs[it].position > currentHeight }
         ?: candidates.lastOrNull()
         ?: targetIndex
     }
     if (velocity > flickThreshold) {
-      return candidates.lastOrNull { specs[it].height < currentHeight }
+      return candidates.lastOrNull { specs[it].position < currentHeight }
         ?: candidates.firstOrNull()
         ?: targetIndex
     }
 
-    return candidates.minByOrNull { abs(specs[it].height - currentHeight) } ?: targetIndex
+    return candidates.minByOrNull { abs(specs[it].position - currentHeight) } ?: targetIndex
   }
 
   // MARK: - Touch handling
@@ -2164,8 +2225,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
 
   /** The opacity at the tallest detent, held while the sheet re-anchors. */
   private fun fullyOpenScrimOpacity(): Float {
-    val maxHeight = detentSpecs.maxOfOrNull { it.height } ?: return 1f
-    return scrimOpacityAt(maxHeight)
+    val maxPosition = detentSpecs.maxOfOrNull { it.position } ?: return 1f
+    return scrimOpacityAt(maxPosition)
   }
 
   /**
@@ -2181,11 +2242,11 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     )
 
   // Interpolates a per-detent value (one per detent, by index) by the sheet
-  // position, using each detent's resolved height as the breakpoint.
+  // position, using each detent's resolved position as the breakpoint.
   private fun interpolateAtPosition(position: Float, values: List<Float>): Float {
     if (detentSpecs.isEmpty()) return 0f
     val pairs =
-      detentSpecs.indices.map { detentSpecs[it].height to values[it] }.sortedBy { it.first }
+      detentSpecs.indices.map { detentSpecs[it].position to values[it] }.sortedBy { it.first }
 
     val first = pairs.first()
     val last = pairs.last()

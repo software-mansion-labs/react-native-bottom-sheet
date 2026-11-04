@@ -34,6 +34,10 @@ export default function RootLayout() {
               options={{ title: 'Corner touches', headerShown: false }}
             />
             <Stack.Screen
+              name="detached-sheet"
+              options={{ title: 'Detached sheet', headerShown: false }}
+            />
+            <Stack.Screen
               name="lazy-mounted-modal"
               options={{ title: 'Lazy mounted modal', headerShown: false }}
             />

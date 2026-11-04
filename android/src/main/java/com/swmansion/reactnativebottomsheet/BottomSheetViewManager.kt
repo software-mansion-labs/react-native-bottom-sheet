@@ -110,11 +110,16 @@ class BottomSheetViewManager :
     val list = mutableListOf<Map<String, Any>>()
     for (i in 0 until detents.size()) {
       val map = detents.getMap(i) ?: continue
+      val inset = { key: String -> if (map.hasKey(key)) map.getDouble(key) else 0.0 }
       list.add(
         mapOf<String, Any>(
           "value" to map.getDouble("value"),
           "kind" to (map.getString("kind") ?: "points"),
           "programmatic" to map.getBoolean("programmatic"),
+          "insetTop" to inset("insetTop"),
+          "insetLeft" to inset("insetLeft"),
+          "insetRight" to inset("insetRight"),
+          "insetBottom" to inset("insetBottom"),
         ),
       )
     }

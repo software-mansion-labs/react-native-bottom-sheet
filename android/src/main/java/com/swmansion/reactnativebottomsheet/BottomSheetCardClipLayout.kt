@@ -11,6 +11,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewOutlineProvider
 import android.widget.FrameLayout
+import com.facebook.react.touch.ReactHitSlopView
 import com.facebook.react.uimanager.PointerEvents
 import com.facebook.react.uimanager.ReactPointerEventsView
 
@@ -22,7 +23,7 @@ import com.facebook.react.uimanager.ReactPointerEventsView
  * clip), never a relayout of the Fabric-managed children.
  */
 internal class BottomSheetCardClipLayout(context: Context) :
-  FrameLayout(context), ReactPointerEventsView {
+  FrameLayout(context), ReactPointerEventsView, ReactHitSlopView {
   /** The card in this view's coordinates. */
   private val cardRect = RectF()
 
@@ -31,10 +32,15 @@ internal class BottomSheetCardClipLayout(context: Context) :
   private val clipPath = Path()
   private val pathRadii = FloatArray(8)
   private val clipRect = Rect()
+  private var clipsToCard = false
+  private val cardHitSlop = Rect()
 
   private enum class ClipMode {
-    /** No corner is rounded: the sheet stays unclipped. */
+    /** No corner is rounded and the card fills the sheet: the sheet stays unclipped. */
     NONE,
+
+    /** No corner is rounded, but the card keeps gaps: clip bounds, a RenderNode property. */
+    RECT,
 
     /** Every corner shares one radius: an outline round rect. */
     UNIFORM,
@@ -58,6 +64,21 @@ internal class BottomSheetCardClipLayout(context: Context) :
 
   override val pointerEvents: PointerEvents = PointerEvents.BOX_NONE
 
+  /**
+   * Keeps React Native's touch targeting on the card: a touch in a gap isn't on the sheet, even
+   * where the surface or content extends under it.
+   */
+  override val hitSlopRect: Rect
+    get() {
+      cardHitSlop.set(
+        -cardRect.left.toInt(),
+        -cardRect.top.toInt(),
+        cardRect.right.toInt() - width,
+        cardRect.bottom.toInt() - height,
+      )
+      return cardHitSlop
+    }
+
   init {
     clipChildren = false
     clipToPadding = false
@@ -78,7 +99,8 @@ internal class BottomSheetCardClipLayout(context: Context) :
               if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 outline.setPath(buildCardPath())
               }
-            ClipMode.NONE -> outline.setRect(left, top, right, bottom)
+            ClipMode.NONE,
+            ClipMode.RECT -> outline.setRect(left, top, right, bottom)
             // Never clipped to, as `clipToOutline` stays off, but casts the elevation shadow.
             ClipMode.CANVAS_PATH -> setShadowOutline(outline, left, top, right, bottom)
           }
@@ -106,18 +128,33 @@ internal class BottomSheetCardClipLayout(context: Context) :
   fun setCornerRadii(radii: FloatArray) {
     if (radii.contentEquals(cornerRadii)) return
     radii.copyInto(cornerRadii)
+    updateClipMode()
+  }
+
+  /** Whether the card keeps gaps, and so clips even with square corners. */
+  fun setClipsToCard(value: Boolean) {
+    if (value == clipsToCard) return
+    clipsToCard = value
+    updateClipMode()
+  }
+
+  private fun updateClipMode() {
     val (topLeft, topRight, bottomRight, bottomLeft) = cornerRadii.toList()
-    // All-zero radii leave the sheet unclipped, as before cards existed, so
-    // content drawn outside the sheet stays visible.
+    // Without radii or gaps the sheet stays unclipped, as before cards existed,
+    // so content drawn outside the sheet stays visible.
     clipMode =
       when {
-        !isShaped -> ClipMode.NONE
+        !isShaped -> if (clipsToCard) ClipMode.RECT else ClipMode.NONE
         cornerRadii.all { it == topLeft } -> ClipMode.UNIFORM
         topLeft == topRight && bottomRight == 0f && bottomLeft == 0f -> ClipMode.TOP
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> ClipMode.OUTLINE_PATH
         else -> ClipMode.CANVAS_PATH
       }
-    clipToOutline = clipMode != ClipMode.NONE && clipMode != ClipMode.CANVAS_PATH
+    clipToOutline =
+      clipMode != ClipMode.NONE && clipMode != ClipMode.RECT && clipMode != ClipMode.CANVAS_PATH
+    // React Native's touch targeting only stops at a view's bounds (here, the card's through
+    // `hitSlopRect`) when it clips its children. Drawing is cut to the card anyway.
+    clipChildren = clipMode != ClipMode.NONE
     updateClipBounds()
     invalidateOutline()
     invalidate()
@@ -154,7 +191,7 @@ internal class BottomSheetCardClipLayout(context: Context) :
   }
 
   private fun updateClipBounds() {
-    if (clipMode == ClipMode.TOP) {
+    if (clipMode == ClipMode.TOP || clipMode == ClipMode.RECT) {
       cardRect.roundOut(clipRect)
       clipBounds = clipRect
     } else if (clipBounds != null) {
@@ -212,6 +249,14 @@ internal class BottomSheetCardClipLayout(context: Context) :
     val dx = x - centerX
     val dy = y - centerY
     return dx * dx + dy * dy <= radius * radius
+  }
+
+  override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+    // Native views under a gap or clipped corner, like a scrollable, don't take the touch either.
+    if (event.actionMasked == MotionEvent.ACTION_DOWN && !cardContains(event.x, event.y)) {
+      return false
+    }
+    return super.dispatchTouchEvent(event)
   }
 
   override fun dispatchDraw(canvas: Canvas) {

@@ -23,8 +23,8 @@ internal data class CardShadow(
 )
 
 /**
- * Draws the shadows of a card `shapeHeight` tall, spanning the view's width, with its top at the
- * view's top. It sits below the clipping container, so the clip never cuts the shadows.
+ * Draws the shadows of a card `shapeHeight` tall, between `shapeLeft` and `shapeRight`, with its
+ * top at the view's top. It sits below the clipping container, so the clip never cuts the shadows.
  *
  * Blurred shadows are expensive to draw, so the host keeps `shapeHeight` fixed while the sheet
  * moves and stitches the card's shadow from two of these views instead: one for the card's top half
@@ -38,6 +38,8 @@ internal class BottomSheetCardShadowView(context: Context) : View(context) {
   private val cornerRadii = FloatArray(4)
   private var shadows: List<CardShadow> = emptyList()
   private var blurFilters: List<BlurMaskFilter?> = emptyList()
+  private var shapeLeft = 0f
+  private var shapeRight = 0f
   private var shapeHeight = 0f
   private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
   private val path = Path()
@@ -84,11 +86,25 @@ internal class BottomSheetCardShadowView(context: Context) : View(context) {
   }
 
   /**
-   * Draws the card's shadows `shapeHeight` tall, moved down by `offsetY` and shown only between
-   * `clipTop` and `clipBottom`, all in the parent's coordinates. Only a new `shapeHeight` redraws.
+   * Draws the card's shadows `shapeHeight` tall between `shapeLeft` and `shapeRight`, moved down by
+   * `offsetY` and shown only between `clipTop` and `clipBottom`, all in the parent's coordinates.
+   * Only a new shape redraws.
    */
-  fun place(shapeHeight: Float, offsetY: Float, clipTop: Float, clipBottom: Float) {
-    if (shapeHeight != this.shapeHeight) {
+  fun place(
+    shapeLeft: Float,
+    shapeRight: Float,
+    shapeHeight: Float,
+    offsetY: Float,
+    clipTop: Float,
+    clipBottom: Float,
+  ) {
+    if (
+      shapeLeft != this.shapeLeft ||
+        shapeRight != this.shapeRight ||
+        shapeHeight != this.shapeHeight
+    ) {
+      this.shapeLeft = shapeLeft
+      this.shapeRight = shapeRight
       this.shapeHeight = shapeHeight
       invalidate()
     }
@@ -129,7 +145,7 @@ internal class BottomSheetCardShadowView(context: Context) : View(context) {
    * spread leaves no shape, which then casts no shadow.
    */
   private fun buildPath(outset: Float): Boolean {
-    shapeRect.set(0f, 0f, width.toFloat(), shapeHeight)
+    shapeRect.set(shapeLeft, 0f, shapeRight, shapeHeight)
     shapeRect.inset(-outset, -outset)
     if (shapeRect.width() <= 0f || shapeRect.height() <= 0f) return false
     val limit = minOf(shapeRect.width(), shapeRect.height()) / 2f

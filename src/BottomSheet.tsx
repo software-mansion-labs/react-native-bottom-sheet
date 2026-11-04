@@ -16,13 +16,19 @@ import { Portal } from './BottomSheetProvider';
 import {
   CONTENT_HEIGHT_MARKER_NATIVE_ID,
   type Detent,
+  type DetentInset,
   isNormalizedDetentClosed,
   normalizeDetent,
   resolveSurfaceStyle,
   type SurfaceStyle,
   validateIndex,
 } from './bottomSheetUtils';
-export type { Detent, DetentValue, SurfaceStyle } from './bottomSheetUtils';
+export type {
+  Detent,
+  DetentInset,
+  DetentValue,
+  SurfaceStyle,
+} from './bottomSheetUtils';
 export { programmatic } from './bottomSheetUtils';
 
 /**
@@ -98,8 +104,27 @@ export interface BottomSheetProps {
    * through `100%` and resolve against the native usable height. Fixed detents
    * may be taller than the measured content or available height; native layout
    * caps them to the available geometry.
+   *
+   * With `detentInsets`, a detent's value is the height of the card, and
+   * percentages resolve against the space left by that detent's top and bottom
+   * insets, so `'100%'` never overshoots them. Detents ascend by the position of
+   * the card's top: its height plus its bottom inset.
    */
   detents?: Detent[];
+  /**
+   * The space around the card per detent, indexed to match `detents`, so the
+   * sheet can float as a card. Insets are linearly interpolated as the sheet
+   * moves between detents; below the first open detent the card keeps its shape
+   * and slides down through the bottom inset. A shorter array than `detents`
+   * reuses its last value for any remaining detents, and a closed detent ignores
+   * its inset.
+   *
+   * Insets only move the card's edges and never relayout the content, whose
+   * width is fixed to the host's width minus the largest `left` and `right`
+   * insets. The surface fills the card at every detent. Space in an inset isn't
+   * part of the sheet: touches there reach the scrim or whatever is behind it.
+   */
+  detentInsets?: DetentInset[];
   /**
    * Finite, zero-based integer in `0..(detents.length - 1)`. When shortening
    * `detents`, update `index` to remain in range in the same render.
@@ -222,6 +247,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
     surfaceStyle,
     style,
     detents = [0, 'content'],
+    detentInsets,
     index,
     animateIn = true,
     animateContentHeight = true,
@@ -265,7 +291,9 @@ export const BottomSheet = (props: BottomSheetProps) => {
   // current native cap whenever detents are refreshed. Point detents retain
   // their requested height; native layout clamps both kinds to that cap.
   validateIndex(index, detents.length);
-  const normalizedDetents = detents.map(normalizeDetent);
+  const normalizedDetents = detents.map((detent, detentIndex) =>
+    normalizeDetent(detent, detentIndex, detentInsets)
+  );
 
   const selectedNormalizedDetent = normalizedDetents[index]!;
   const isSheetClosed = isNormalizedDetentClosed(selectedNormalizedDetent);
@@ -280,6 +308,15 @@ export const BottomSheet = (props: BottomSheetProps) => {
     setIsSheetActive(true);
     setHasOpenedFromClosed(true);
   }
+  // The content keeps one width at every detent, so it fits the narrowest card.
+  // Stated as start/end because insets are physical, while left/right margins
+  // may swap under RTL.
+  const contentLeft = Math.max(
+    ...normalizedDetents.map((detent) => detent.insetLeft)
+  );
+  const contentRight = Math.max(
+    ...normalizedDetents.map((detent) => detent.insetRight)
+  );
   // When the sheet last opened, relative to other sheets: 0 until it first
   // opens. This includes reopening while it is still closing.
   const [wasSheetClosed, setWasSheetClosed] = useState(isSheetClosed);
@@ -419,7 +456,13 @@ export const BottomSheet = (props: BottomSheetProps) => {
             // the sheet node — so this in-flow flex: 1 child resolves to the
             // region the sheet can actually show, on every device and in
             // every mode.
-            style={styles.contentWrapper}
+            style={[
+              styles.contentWrapper,
+              {
+                marginStart: I18nManager.isRTL ? contentRight : contentLeft,
+                marginEnd: I18nManager.isRTL ? contentLeft : contentRight,
+              },
+            ]}
           >
             {children}
             <View

@@ -9,6 +9,13 @@ type NativeDetent = Readonly<{
   value: CodegenTypes.Double;
   kind: string;
   programmatic: boolean;
+  // Carried with the detent, not in a prop of their own, so a detents change
+  // reaches the host in one piece: props within an update arrive in no
+  // particular order on Android, and detents are validated as they resolve.
+  insetTop: CodegenTypes.Double;
+  insetLeft: CodegenTypes.Double;
+  insetRight: CodegenTypes.Double;
+  insetBottom: CodegenTypes.Double;
 }>;
 
 export interface NativeProps extends ViewProps {
