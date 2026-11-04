@@ -20,7 +20,7 @@ using namespace facebook::react;
 /// and forwards hit-testing to its single subview—the sheet—so touches outside
 /// the sheet and its scrim fall through to the content underneath.
 @interface BottomSheetOverlayContainerView : UIView
-@property (nonatomic) NSInteger overlayOrder;
+@property (nonatomic) NSInteger renderOrder;
 @end
 
 @implementation BottomSheetOverlayContainerView
@@ -59,7 +59,7 @@ using namespace facebook::react;
   float _lastContentOffsetY;
   BOOL _needsIndexSyncAfterRecycle;
   BOOL _nativeOverlay;
-  NSInteger _overlayOrder;
+  NSInteger _renderOrder;
   BOOL _extendUnderStatusBar;
   BottomSheetOverlayContainerView *_overlayContainer;
   RCTSurfaceTouchHandler *_overlayTouchHandler;
@@ -133,7 +133,7 @@ using namespace facebook::react;
   // place, so the sheet renders inline with no overlay or scrim. The ivar is the
   // genuine current presentation state, reset in both `init` and
   // `prepareForRecycle`, so it diffs correctly across recycling.
-  _overlayOrder = newViewProps.overlayOrder;
+  _renderOrder = newViewProps.renderOrder;
 
   if (newViewProps.nativeOverlay != _nativeOverlay) {
     _nativeOverlay = newViewProps.nativeOverlay;
@@ -291,11 +291,11 @@ using namespace facebook::react;
       // Added as the topmost window subview so it floats above modal content in
       // the same window, but below any native-overlay sheet rendered after this
       // one, so that sheets stack in render order however late they mount.
-      _overlayContainer.overlayOrder = _overlayOrder;
+      _overlayContainer.renderOrder = _renderOrder;
       UIView *nextOverlay = nil;
       for (UIView *subview in window.subviews) {
         if ([subview isKindOfClass:BottomSheetOverlayContainerView.class] &&
-            ((BottomSheetOverlayContainerView *)subview).overlayOrder > _overlayOrder) {
+            ((BottomSheetOverlayContainerView *)subview).renderOrder > _renderOrder) {
           nextOverlay = subview;
           break;
         }

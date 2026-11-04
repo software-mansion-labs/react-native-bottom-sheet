@@ -210,7 +210,7 @@ type ModalOnlyBottomSheetProps = {
 export type BottomSheetInternalProps = BottomSheetProps &
   ModalOnlyBottomSheetProps;
 
-let nextOverlayOrder = 0;
+let nextRenderOrder = 0;
 
 /** Native bottom sheet that renders inline within the current screen layout. */
 export const BottomSheet = (props: BottomSheetProps) => {
@@ -274,7 +274,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
   // `animateIn` only covers the initial presentation, but a lazy sheet's native
   // view also runs its first layout on every later open, which must animate.
   const [hasOpenedFromClosed, setHasOpenedFromClosed] = useState(false);
-  const [overlayOrder] = useState(() => nextOverlayOrder++);
+  const [renderOrder] = useState(() => nextRenderOrder++);
   if (!isSheetClosed && !isSheetActive) {
     setIsSheetActive(true);
     setHasOpenedFromClosed(true);
@@ -369,7 +369,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
           animateContentHeight={animateContentHeight}
           modal={modal}
           nativeOverlay={usesNativeOverlay}
-          overlayOrder={overlayOrder}
+          renderOrder={renderOrder}
           hasCloseRequestHandler={hasCloseRequestHandler}
           scrollableExpandNegotiation={
             SCROLLABLE_NEGOTIATION_LEVEL[resolvedExpandNegotiation]

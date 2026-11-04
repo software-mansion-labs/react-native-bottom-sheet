@@ -57,7 +57,7 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
     animateContentHeight,
     modal,
     nativeOverlay = false,
-    overlayOrder = 0,
+    renderOrder = 0,
     hasCloseRequestHandler,
     extendUnderStatusBar,
     scrollableExpandNegotiation,
@@ -205,7 +205,7 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
   if (nativeOverlay) {
     return createPortal(
       <View
-        style={[styles.overlay, { zIndex: OVERLAY_Z_INDEX + overlayOrder }]}
+        style={[styles.overlay, { zIndex: OVERLAY_Z_INDEX + renderOrder }]}
         pointerEvents="box-none"
       >
         {sheet}

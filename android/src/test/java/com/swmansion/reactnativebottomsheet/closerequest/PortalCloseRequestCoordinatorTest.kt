@@ -54,6 +54,40 @@ class PortalCloseRequestCoordinatorTest {
   }
 
   @Test
+  fun `render order outranks registration order`() {
+    withActivity { activity ->
+      val root = FrameLayout(activity)
+      val renderedSecond = TestParticipant()
+      val renderedFirst = TestParticipant()
+      val secondRegistration =
+        PortalCloseRequestCoordinator.register(
+          root,
+          renderedSecond,
+          portalState(routingOwnerCandidate = true),
+          renderOrder = 1,
+        )
+      val firstRegistration =
+        PortalCloseRequestCoordinator.register(
+          root,
+          renderedFirst,
+          portalState(routingOwnerCandidate = true),
+          renderOrder = 0,
+        )
+
+      try {
+        assertTrue(renderedSecond.isInputHandlingEnabled)
+        assertFalse(renderedFirst.isInputHandlingEnabled)
+
+        secondRegistration.remove()
+        assertTrue(renderedFirst.isInputHandlingEnabled)
+      } finally {
+        secondRegistration.remove()
+        firstRegistration.remove()
+      }
+    }
+  }
+
+  @Test
   fun `routing owner without a handler blocks lower and handler toggles do not reorder it`() {
     withActivity { activity ->
       val root = FrameLayout(activity)

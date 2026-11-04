@@ -55,8 +55,8 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   private var overlayRoot: BottomSheetDialogRootView? = null
   private var nativeOverlay = false
   // Unset until the prop arrives. Props apply in no fixed order, so a dialog presented before this
-  // is set stays on top, and setOverlayOrder then restacks the overlays that belong above it.
-  private var overlayOrder = Int.MAX_VALUE
+  // is set stays on top, and setRenderOrder then restacks the overlays that belong above it.
+  private var renderOrder = Int.MAX_VALUE
   // Cached only while a dialog is present, so per-frame interaction callbacks
   // don't thrash the window flags.
   private var overlayInteractive: Boolean? = null
@@ -75,6 +75,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
         }
       },
       emitCloseRequest = ::emitCloseRequest,
+      renderOrder = { renderOrder },
     )
   private val overlayCloseRequestController =
     OverlayCloseRequestController(emitCloseRequest = ::emitCloseRequest)
@@ -208,9 +209,9 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     refreshCloseRequestControllers()
   }
 
-  fun setOverlayOrder(value: Int) {
-    if (value == overlayOrder) return
-    overlayOrder = value
+  fun setRenderOrder(value: Int) {
+    if (value == renderOrder) return
+    renderOrder = value
     if (overlayDialog != null) restackOverlaysAbove()
   }
 
@@ -341,8 +342,8 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
    */
   private fun restackOverlaysAbove() {
     presentedOverlays
-      .filter { it.overlayOrder > overlayOrder }
-      .sortedBy { it.overlayOrder }
+      .filter { it.renderOrder > renderOrder }
+      .sortedBy { it.renderOrder }
       .forEach { it.moveOverlayWindowToTop() }
   }
 

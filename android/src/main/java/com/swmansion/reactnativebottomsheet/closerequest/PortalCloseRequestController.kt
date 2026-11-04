@@ -13,6 +13,7 @@ internal class PortalCloseRequestController(
   private val view: View,
   private val currentActivity: () -> Activity?,
   private val emitCloseRequest: () -> Boolean,
+  private val renderOrder: () -> Int = { Int.MAX_VALUE },
 ) : PortalCloseRequestParticipant {
   private var inputState = CloseRequestInputState.INACTIVE
   private var usesPortalPresentation = false
@@ -124,6 +125,7 @@ internal class PortalCloseRequestController(
               resolvedRoutingContext.rootView,
               this,
               currentPortalState(),
+              renderOrder(),
             )
         }
       } else if (resolvedRoutingContext != null && closeRequestRegistration == null) {
@@ -132,6 +134,7 @@ internal class PortalCloseRequestController(
             resolvedRoutingContext.rootView,
             this,
             currentPortalState(),
+            renderOrder(),
           )
       }
     }

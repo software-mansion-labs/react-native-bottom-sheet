@@ -23,9 +23,10 @@ internal interface PortalCloseRequestParticipant {
 /**
  * Coordinates portal close request ownership across every provider mounted in one Android root.
  *
- * Membership order is structural: the newest registered portal is highest. State updates never move
- * an entry. The highest current routing owner candidate blocks every lower portal, even when it has
- * no `onCloseRequest` handler and therefore cannot emit a request itself.
+ * Membership order is structural: portals rank by render order, however late they register, and the
+ * newest registered portal is highest among equals. State updates never move an entry. The highest
+ * current routing owner candidate blocks every lower portal, even when it has no `onCloseRequest`
+ * handler and therefore cannot emit a request itself.
  */
 internal object PortalCloseRequestCoordinator {
   internal interface Registration {
@@ -37,6 +38,7 @@ internal object PortalCloseRequestCoordinator {
   private class Entry(
     participant: PortalCloseRequestParticipant,
     initialState: PortalCloseRequestState,
+    val renderOrder: Int,
   ) {
     val participant = WeakReference(participant)
     var state = initialState
@@ -90,11 +92,16 @@ internal object PortalCloseRequestCoordinator {
     root: View,
     participant: PortalCloseRequestParticipant,
     initialState: PortalCloseRequestState,
+    renderOrder: Int = Int.MAX_VALUE,
   ): Registration {
     statesByRoot[root]?.let { reconcileRoutingOwnership(root, it) }
     val rootState = statesByRoot.getOrPut(root, ::RootState)
-    val entry = Entry(participant, initialState)
-    rootState.entries.add(entry)
+    val entry = Entry(participant, initialState, renderOrder)
+    val nextEntryIndex = rootState.entries.indexOfFirst { it.renderOrder > renderOrder }
+    rootState.entries.add(
+      if (nextEntryIndex == -1) rootState.entries.size else nextEntryIndex,
+      entry,
+    )
     reconcileRoutingOwnership(root, rootState)
     return RegistrationImpl(entry, root)
   }
