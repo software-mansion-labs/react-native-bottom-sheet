@@ -17,6 +17,7 @@ import {
   CONTENT_HEIGHT_MARKER_NATIVE_ID,
   type Detent,
   type DetentInset,
+  findWidestDetent,
   isNormalizedDetentClosed,
   normalizeDetent,
   resolveSurfaceStyle,
@@ -119,10 +120,13 @@ export interface BottomSheetProps {
    * reuses its last value for any remaining detents, and a closed detent ignores
    * its inset.
    *
-   * Insets only move the card's edges and never relayout the content, whose
-   * width is fixed to the host's width minus the largest `left` and `right`
-   * insets. The surface fills the card at every detent. Space in an inset isn't
-   * part of the sheet: touches there reach the scrim or whatever is behind it.
+   * Insets never relayout the content. It is laid out against the widest card,
+   * the detent with the tightest side insets, and scaled uniformly to fit
+   * narrower ones, so full-width content always touches the card's edges. A
+   * `'content'` detent's card is its scaled height. `measure` reports layout
+   * coordinates, without this scale. The surface fills the card at every detent.
+   * Space in an inset isn't part of the sheet: touches there reach the scrim or
+   * whatever is behind it.
    */
   detentInsets?: DetentInset[];
   /**
@@ -308,15 +312,12 @@ export const BottomSheet = (props: BottomSheetProps) => {
     setIsSheetActive(true);
     setHasOpenedFromClosed(true);
   }
-  // The content keeps one width at every detent, so it fits the narrowest card.
-  // Stated as start/end because insets are physical, while left/right margins
-  // may swap under RTL.
-  const contentLeft = Math.max(
-    ...normalizedDetents.map((detent) => detent.insetLeft)
-  );
-  const contentRight = Math.max(
-    ...normalizedDetents.map((detent) => detent.insetRight)
-  );
+  // The content is laid out against the widest card, and the native host scales
+  // it down to narrower ones. Stated as start/end because insets are physical,
+  // while left/right margins may swap under RTL.
+  const widestDetent = findWidestDetent(normalizedDetents);
+  const contentLeft = widestDetent?.insetLeft ?? 0;
+  const contentRight = widestDetent?.insetRight ?? 0;
   // When the sheet last opened, relative to other sheets: 0 until it first
   // opens. This includes reopening while it is still closing.
   const [wasSheetClosed, setWasSheetClosed] = useState(isSheetClosed);

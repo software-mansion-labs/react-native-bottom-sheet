@@ -93,10 +93,35 @@ class BottomSheetHostViewDetentInsetsTest {
   }
 
   @Test
-  fun `the content is placed at the largest left inset`() {
-    val detents = listOf(points(100.0, left = 8.0), points(300.0, left = 24.0), points(400.0))
-    withSheet(detents, index = 2) { sheet ->
-      assertEquals((24 * sheet.density).toInt(), sheet.getSheetChildAt(0)!!.left)
+  fun `the content is laid out at the widest card's left inset`() {
+    val detents = listOf(points(100.0, left = 24.0), points(300.0, left = 8.0))
+    withSheet(detents, index = 1) { sheet ->
+      assertEquals((8 * sheet.density).toInt(), sheet.getSheetChildAt(0)!!.left)
+    }
+  }
+
+  @Test
+  fun `the content scales to the card and pins to its left edge`() {
+    val detents =
+      listOf(points(100.0, left = 40.0, right = 40.0), points(300.0, left = 8.0, right = 8.0))
+    withSheet(detents, index = 0) { sheet ->
+      val d = sheet.density
+      val content = sheet.getSheetChildAt(0)!!
+      val expected = (WIDTH_PX - 80 * d) / (WIDTH_PX - 16 * d)
+      assertEquals(expected, content.scaleX, 0.001f)
+      assertEquals(expected, content.scaleY, 0.001f)
+      assertEquals(40 * d, content.left + content.translationX, 0.5f)
+    }
+  }
+
+  @Test
+  fun `the content is unscaled at the widest card`() {
+    val detents =
+      listOf(points(100.0, left = 40.0, right = 40.0), points(300.0, left = 8.0, right = 8.0))
+    withSheet(detents, index = 1) { sheet ->
+      val content = sheet.getSheetChildAt(0)!!
+      assertEquals(1f, content.scaleX, 0.001f)
+      assertEquals(8 * sheet.density, content.left + content.translationX, 0.5f)
     }
   }
 

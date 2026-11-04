@@ -461,6 +461,26 @@ export const normalizeDetent = (
 export const isNormalizedDetentClosed = (detent: NormalizedDetent) =>
   detent.kind !== 'content' && detent.value === 0;
 
+/**
+ * The open detent with the widest card, whose tightest side gaps the content is
+ * laid out against. On a tie, the tallest detent. Mirrored in the native hosts
+ * and the web controller; keep them in sync.
+ */
+export const findWidestDetent = (detents: ReadonlyArray<NormalizedDetent>) => {
+  let widest: NormalizedDetent | undefined;
+  for (const detent of detents) {
+    if (isNormalizedDetentClosed(detent)) continue;
+    if (
+      widest === undefined ||
+      detent.insetLeft + detent.insetRight <=
+        widest.insetLeft + widest.insetRight
+    ) {
+      widest = detent;
+    }
+  }
+  return widest;
+};
+
 /** Validates a controlled index before props are passed to the native view. */
 export const validateIndex = (index: number, detentCount: number) => {
   if (detentCount === 0) {

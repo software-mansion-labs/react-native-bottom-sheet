@@ -77,8 +77,21 @@ const SCENARIOS: Scenario[] = [
     detentInsets: [FLOATING],
   },
   {
+    label: 'Scaled content height',
+    expect: 'The card fits its scaled content, then grows to the full width.',
+    detents: [0, 'content', '100%'],
+    detentInsets: [{}, FLOATING, {}],
+  },
+  {
+    label: 'Scrollable, narrows when full',
+    expect: 'The last row reaches the bottom of the narrower full card.',
+    detents: [0, 320, '100%'],
+    detentInsets: [{}, {}, { ...FLOATING, top: 24 }],
+    scrollable: true,
+  },
+  {
     label: 'Lopsided gaps',
-    expect: 'The left gap moves to the right. The blue band keeps its width.',
+    expect: 'The gap moves across. The blue band keeps touching the card.',
     detents: [0, 240, '60%'],
     detentInsets: [{}, { left: 48, bottom: 16 }, { right: 48, bottom: 64 }],
   },
@@ -188,7 +201,7 @@ export const DetachedSheetScreen = () => {
     ),
     children: (
       <>
-        {/* Full-bleed band: its width shows whether the content reflows. */}
+        {/* Full-bleed band: it must touch the card's edges at every detent. */}
         <View style={styles.band}>
           <SheetHeader title={scenario.label} onClose={() => setIndex(0)} />
         </View>
@@ -291,7 +304,7 @@ export const DetachedSheetScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  picker: { maxHeight: 400 },
+  picker: { maxHeight: 360 },
   scenario: {
     paddingVertical: 8,
     paddingHorizontal: 12,

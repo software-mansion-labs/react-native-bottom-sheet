@@ -150,6 +150,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   // Whether any detent keeps a gap at the card's sides or bottom, so the card is narrower or
   // shorter than the surface and has to clip it. A top inset only lowers the detent's height.
   private var hasCardGaps = false
+  // The side insets of the widest open card, which the content is laid out against.
+  private var widestCardInsets = DetentInsets()
   private var detentSpecs: List<DetentSpec> = emptyList()
   private var targetIndex: Int = 0
   var animateIn: Boolean = true
@@ -268,6 +270,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   }
 
   fun removeSheetChildAt(index: Int) {
+    clipContainer.getChildAt(index)?.let(::resetContentTransform)
     clipContainer.removeViewAt(index)
     refreshContentHeightMarker()
   }
@@ -286,12 +289,14 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     if (view === sheetContainer) {
       super.removeView(view)
     } else {
+      resetContentTransform(view)
       clipContainer.removeView(view)
       refreshContentHeightMarker()
     }
   }
 
   override fun removeViewAt(index: Int) {
+    clipContainer.getChildAt(index)?.let(::resetContentTransform)
     clipContainer.removeViewAt(index)
     refreshContentHeightMarker()
   }
@@ -449,7 +454,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     for (shadowView in shadowViews) shadowView.layout(0, 0, containerWidth, containerHeight)
     clipContainer.layout(0, 0, containerWidth, containerHeight)
     // Fabric only measures the children, so the host applies the content's Yoga margin.
-    val contentLeft = rawDetentSpecs.maxOfOrNull { it.insets.left }?.toInt() ?: 0
+    val contentLeft = widestCardInsets.left.toInt()
     for (i in 0 until clipContainer.childCount) {
       val child = clipContainer.getChildAt(i)
       if (child === surfaceView) {
@@ -484,6 +489,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
 
   fun setDetents(raw: List<Map<String, Any>>) {
     val previousTallestDetent = rawDetentSpecs.lastOrNull()
+    val previousWidestCardInsets = widestCardInsets
     rawDetentSpecs = raw.mapNotNull { dict ->
       val value = (dict["value"] as? Number)?.toDouble() ?: return@mapNotNull null
       val kind =
@@ -509,6 +515,13 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
           ),
       )
     }
+    // On a tie, the tallest detent. Mirrored in `bottomSheetUtils.ts`.
+    widestCardInsets =
+      rawDetentSpecs
+        .filter { it.kind == DetentKind.CONTENT || it.value > 0f }
+        .asReversed()
+        .minByOrNull { it.insets.left + it.insets.right }
+        ?.insets ?: DetentInsets()
     hasCardGaps = rawDetentSpecs.any {
       it.insets.left > 0f || it.insets.right > 0f || it.insets.bottom > 0f
     }
@@ -516,7 +529,11 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     // The tallest detent bounds the content region, so its inset must be
     // re-derived — and republished when it changed — before the detents are
     // re-resolved against the current layout.
-    if (hasLaidOut && rawDetentSpecs.lastOrNull() != previousTallestDetent) {
+    if (
+      hasLaidOut &&
+        (rawDetentSpecs.lastOrNull() != previousTallestDetent ||
+          widestCardInsets != previousWidestCardInsets)
+    ) {
       // The content stays laid out against the previous region until Fabric
       // commits the new inset; hold its measurement until then. Decided from
       // the detents alone so it also holds while detached, when no geometry
@@ -617,7 +634,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
           DetentKind.POINTS -> spec.value
           DetentKind.PERCENTAGE -> available * spec.value
           DetentKind.CONTENT ->
-            measuredContentHeight ?: unresolvedContentDetentHeight(index, maxHeight)
+            measuredContentHeight?.let { it * contentScale(spec.insets) }
+              ?: unresolvedContentDetentHeight(index, maxHeight)
         }.coerceIn(0f, available)
       val position = if (height > 0f) height + spec.insets.bottom else 0f
       previousPosition?.let {
@@ -630,6 +648,14 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
       previousPosition = position
       DetentSpec(position = position, programmatic = spec.programmatic, insets = spec.insets)
     }
+  }
+
+  // How much the content is scaled at a detent: its card's width over the width of the widest card,
+  // which the content is laid out against.
+  private fun contentScale(insets: DetentInsets): Float {
+    val widest = width - widestCardInsets.left - widestCardInsets.right
+    if (widest <= 0f) return 1f
+    return (width - insets.left - insets.right).coerceAtLeast(0f) / widest
   }
 
   // The tallest the card can be at a detent: the cap, less the detent's top and bottom insets.
@@ -1056,7 +1082,30 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     val bottom =
       (position - cardGap(position) { it.bottom }).coerceIn(0f, sheetContainer.height.toFloat())
     clipContainer.setCard(left, 0f, right, bottom)
+    updateContentTransform(left, right)
     updateCardShadows(left, right, bottom)
+  }
+
+  /** Scales the content to the card's width and pins its top-left corner to the card's. */
+  private fun updateContentTransform(cardLeft: Float, cardRight: Float) {
+    val widest = sheetContainer.width - widestCardInsets.left - widestCardInsets.right
+    val scale = if (widest > 0f) (cardRight - cardLeft) / widest else 1f
+    for (i in 0 until clipContainer.childCount) {
+      val child = clipContainer.getChildAt(i)
+      if (child === surfaceView) continue
+      child.pivotX = 0f
+      child.pivotY = 0f
+      child.scaleX = scale
+      child.scaleY = scale
+      child.translationX = cardLeft - child.left
+    }
+  }
+
+  // Fabric recycles the view, which must not keep the card's scale.
+  private fun resetContentTransform(view: View) {
+    view.scaleX = 1f
+    view.scaleY = 1f
+    view.translationX = 0f
   }
 
   private fun updateCardShadows(cardLeft: Float, cardRight: Float, cardBottom: Float) {
@@ -1151,7 +1200,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
    * itself, so a scrollable under a fixed or percentage tallest detent is laid out against the
    * height it can actually show instead of leaving its last rows below the card's edge. A trailing
    * `content` detent is bounded by that space alone: its resolved height is measured from this very
-   * region, so bounding the region by it would be circular.
+   * region, so bounding the region by it would be circular. In layout units, so divided by the
+   * scale at that detent, and never taller than the sheet's node.
    */
   private fun contentRegionHeightPx(capPx: Float): Float {
     val tallest = rawDetentSpecs.lastOrNull() ?: return capPx
@@ -1162,7 +1212,10 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
         DetentKind.PERCENTAGE -> available * tallest.value
         DetentKind.CONTENT -> available
       }
-    return bound.coerceIn(0f, available)
+    val cardHeight = bound.coerceIn(0f, available)
+    val scale = contentScale(tallest.insets)
+    if (scale <= 0f) return cardHeight
+    return (cardHeight / scale).let { if (height > 0) it.coerceAtMost(height.toFloat()) else it }
   }
 
   /**
@@ -2178,6 +2231,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     scrimTouchActive = false
     scrimProgress = 0f
     suppressScrimForClosingTarget = false
+    for (i in 0 until clipContainer.childCount) resetContentTransform(clipContainer.getChildAt(i))
     clipContainer.removeAllViews()
     stateWrapper = null
     lastShadowOffsetY = Float.NaN

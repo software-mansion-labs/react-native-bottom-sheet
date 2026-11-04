@@ -354,6 +354,9 @@ public final class BottomSheetHostingView: UIView {
   /// is narrower or shorter than the surface and has to clip it. A top inset
   /// only lowers the detent's height, which needs no clip.
   private var hasCardGaps = false
+  /// The smallest sum of side insets across the open detents: the gaps of the
+  /// widest card, which the content is laid out against.
+  private var tightestSideGaps: CGFloat = 0
   private var detentSpecs: [DetentSpec] = [] {
     didSet {
       setNeedsLayout()
@@ -426,6 +429,7 @@ public final class BottomSheetHostingView: UIView {
   private static let cardMaskAnimationKey = "bottomSheetCardMask"
   private static let cardShadowAnimationKey = "bottomSheetCardShadow"
   private static let cardShadowMaskAnimationKey = "bottomSheetCardShadowMask"
+  private static let cardContentAnimationKey = "bottomSheetCardContent"
 
   override public init(frame: CGRect) {
     super.init(frame: frame)
@@ -660,6 +664,11 @@ public final class BottomSheetHostingView: UIView {
         )
       )
     }
+    let previousTightestSideGaps = tightestSideGaps
+    tightestSideGaps = rawDetentSpecs
+      .filter { $0.kind == .content || $0.value > 0 }
+      .map { $0.insets.left + $0.insets.right }
+      .min() ?? 0
     let hasGaps = rawDetentSpecs.contains {
       $0.insets.left > 0 || $0.insets.right > 0 || $0.insets.bottom > 0
     }
@@ -671,7 +680,7 @@ public final class BottomSheetHostingView: UIView {
     // against the previous region until Fabric commits the new inset; hold its
     // measurement until then. Decided from the detents alone so it also holds
     // while detached, when the cap is not computable.
-    if hasLaidOut, rawDetentSpecs.last != previousTallestDetent {
+    if hasLaidOut, rawDetentSpecs.last != previousTallestDetent || tightestSideGaps != previousTightestSideGaps {
       isContentRegionChangePending = true
     }
     refreshDetentsFromLayout()
@@ -762,6 +771,9 @@ public final class BottomSheetHostingView: UIView {
   }
 
   public func unmountChildComponentView(_ childView: UIView) {
+    // Fabric recycles the view, which must not keep the card's scale.
+    childView.layer.removeAnimation(forKey: Self.cardContentAnimationKey)
+    childView.layer.transform = CATransform3DIdentity
     childView.removeFromSuperview()
     refreshContentHeightMarker()
     setNeedsLayout()
@@ -810,6 +822,8 @@ public final class BottomSheetHostingView: UIView {
     scrimView.alpha = 0
     scrimView.isHidden = true
     for subview in clipContainer.subviews {
+      subview.layer.removeAnimation(forKey: Self.cardContentAnimationKey)
+      subview.layer.transform = CATransform3DIdentity
       subview.removeFromSuperview()
     }
   }
@@ -1679,6 +1693,14 @@ public final class BottomSheetHostingView: UIView {
     return min(max(0, bounds.height - topOverlap), bounds.height)
   }
 
+  /// How much the content is scaled at a detent: its card's width over the
+  /// width of the widest card, which the content is laid out against.
+  private func contentScale(for insets: DetentInsets) -> CGFloat {
+    let widest = bounds.width - tightestSideGaps
+    guard widest > 0 else { return 1 }
+    return max(0, bounds.width - insets.left - insets.right) / widest
+  }
+
   /// The height of the content region: the Yoga box the sheet's in-flow
   /// children (the `flex: 1` content wrapper) are laid out in. It is the
   /// tallest height the sheet can reach — the card's height at the tallest
@@ -1687,7 +1709,8 @@ public final class BottomSheetHostingView: UIView {
   /// against the height it can actually show instead of leaving its last rows
   /// below the card's edge. A trailing `content` detent is bounded by that space
   /// alone: its resolved height is measured from this very region, so bounding
-  /// the region by it would be circular.
+  /// the region by it would be circular. In layout units, so divided by the scale
+  /// at that detent, and never taller than the sheet's node.
   private var contentRegionHeight: CGFloat {
     let cap = resolvedMaxDetentHeight
     guard let tallest = rawDetentSpecs.last else { return cap }
@@ -1701,7 +1724,9 @@ public final class BottomSheetHostingView: UIView {
     case .content:
       bound = available
     }
-    return min(max(0, bound), available)
+    let height = min(max(0, bound), available)
+    let scale = contentScale(for: tallest.insets)
+    return scale > 0 ? min(height / scale, bounds.height) : height
   }
 
   /// The tallest the card can be at a detent: the cap, less the detent's top
@@ -1743,7 +1768,8 @@ public final class BottomSheetHostingView: UIView {
         height = available * spec.value
       case .content:
         height =
-          measuredContentHeight ?? unresolvedContentDetentHeight(after: index, maxHeight: maxHeight)
+          measuredContentHeight.map { $0 * contentScale(for: spec.insets) }
+            ?? unresolvedContentDetentHeight(after: index, maxHeight: maxHeight)
       }
       let resolvedHeight = min(max(0, height), available)
       let position = resolvedHeight > 0 ? resolvedHeight + spec.insets.bottom : 0
@@ -1944,6 +1970,8 @@ public final class BottomSheetHostingView: UIView {
   /// for intrinsic content.
   public func contentRegionLayoutDidApply() {
     appliedContentRegionInset = committedContentRegionInset
+    // The transform pins the content by its center, which this layout may move.
+    applyCardGeometry(forPosition: sheetContainerHeight - sheetContainer.transform.ty)
     guard isContentRegionChangePending else { return }
     refreshDetentsFromLayout()
   }
@@ -2222,7 +2250,27 @@ private extension BottomSheetHostingView {
       layer.shadowPath = cardPath(in: rect, outset: shadow.spreadDistance)
       (layer.mask as? CAShapeLayer)?.path = shadowMaskPath(in: rect, for: shadow)
     }
+    if let contentView = findContentView() {
+      contentView.layer.transform = contentTransform(of: contentView, in: rect)
+    }
     CATransaction.commit()
+  }
+
+  /// Scales the content to the card's width and pins its top-left corner to the
+  /// card's. Layer work only: the content keeps its layout.
+  func contentTransform(of contentView: UIView, in rect: CGRect) -> CATransform3D {
+    let widest = sheetContainer.bounds.width - tightestSideGaps
+    guard hasCardGaps, widest > 0 else { return CATransform3DIdentity }
+    let scale = rect.width / widest
+    // The layer scales about its center, which Fabric's layout owns.
+    let center = contentView.center
+    let size = contentView.bounds.size
+    let dx = rect.minX - (center.x - scale * size.width / 2)
+    let dy = rect.minY - (center.y - scale * size.height / 2)
+    return CATransform3DConcat(
+      CATransform3DMakeScale(scale, scale, 1),
+      CATransform3DMakeTranslation(dx, dy, 0)
+    )
   }
 
   /// Matches the shadow layers to `cardShadows`, reusing existing layers.
@@ -2345,6 +2393,15 @@ private extension BottomSheetHostingView {
       keyframes("position", rects.map { NSValue(cgPoint: $0.origin) }),
       forKey: Self.cardPositionAnimationKey
     )
+    if hasCardGaps, let contentView = findContentView() {
+      contentView.layer.add(
+        keyframes(
+          "transform",
+          rects.map { NSValue(caTransform3D: contentTransform(of: contentView, in: $0)) }
+        ),
+        forKey: Self.cardContentAnimationKey
+      )
+    }
     cardMask?.add(
       keyframes("path", rects.map { cardPath(in: $0) }),
       forKey: Self.cardMaskAnimationKey
@@ -2365,6 +2422,7 @@ private extension BottomSheetHostingView {
     sheetContainer.layer.removeAnimation(forKey: Self.springAnimationKey)
     clipContainer.layer.removeAnimation(forKey: Self.cardBoundsAnimationKey)
     clipContainer.layer.removeAnimation(forKey: Self.cardPositionAnimationKey)
+    findContentView()?.layer.removeAnimation(forKey: Self.cardContentAnimationKey)
     cardMask?.removeAnimation(forKey: Self.cardMaskAnimationKey)
     for layer in shadowLayers {
       layer.removeAnimation(forKey: Self.cardShadowAnimationKey)

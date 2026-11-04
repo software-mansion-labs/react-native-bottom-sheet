@@ -277,6 +277,25 @@ const isTextEditingTarget = (target: EventTarget | null) =>
 const availableCardHeight = (spec: RawDetent, cap: number) =>
   Math.max(0, cap - spec.insetTop - spec.insetBottom);
 
+/**
+ * The smallest sum of side insets across the open detents, and the left inset
+ * that goes with it: the gaps of the widest card, which the content is laid out
+ * against. On a tie, the tallest detent.
+ */
+const findWidestCard = (detents: ReadonlyArray<RawDetent>) => {
+  let gaps = Infinity;
+  let left = 0;
+  for (const detent of detents) {
+    if (detent.kind !== 'content' && detent.value === 0) continue;
+    const detentGaps = detent.insetLeft + detent.insetRight;
+    if (detentGaps <= gaps) {
+      gaps = detentGaps;
+      left = detent.insetLeft;
+    }
+  }
+  return { gaps: gaps === Infinity ? 0 : gaps, left };
+};
+
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
 
@@ -557,7 +576,22 @@ export class BottomSheetWebController {
       default:
         bound = available;
     }
-    return clamp(bound, 0, available);
+    const height = clamp(bound, 0, available);
+    const scale = this.contentScale(tallest);
+    return scale > 0
+      ? Math.min(height / scale, this.elements!.host.clientHeight)
+      : height;
+  }
+
+  /**
+   * How much the content is scaled at a detent: its card's width over the width
+   * of the widest card, which the content is laid out against.
+   */
+  private contentScale(spec: RawDetent) {
+    const width = this.elements?.host.clientWidth ?? 0;
+    const widest = width - findWidestCard(this.rawDetents).gaps;
+    if (widest <= 0) return 1;
+    return Math.max(0, width - spec.insetLeft - spec.insetRight) / widest;
   }
 
   private measureContentHeight(): number | null {
@@ -661,8 +695,9 @@ export class BottomSheetWebController {
           break;
         default:
           height =
-            measuredContentHeight ??
-            this.unresolvedContentDetentHeight(index, maxHeight);
+            (measuredContentHeight !== null
+              ? measuredContentHeight * this.contentScale(spec)
+              : null) ?? this.unresolvedContentDetentHeight(index, maxHeight);
       }
       const resolvedHeight = clamp(height, 0, available);
       const position =
@@ -938,7 +973,7 @@ export class BottomSheetWebController {
   private updateCardClip() {
     const elements = this.elements;
     if (elements === null || this.config === null) return;
-    const { card, shadow } = elements;
+    const { card, content, host, shadow } = elements;
     const position = Math.max(
       this.cap - this.translateY,
       this.firstOpenPosition()
@@ -960,6 +995,19 @@ export class BottomSheetWebController {
     this.appliedClipInset = clipInset;
     this.appliedCardLeft = left;
     this.appliedCardRight = right;
+
+    // Scale the content to the card's width, with its top-left corner on the
+    // card's. The transform origin is the content box's, which starts at the
+    // container's left, so the layout margin scales along.
+    const widestCard = findWidestCard(this.rawDetents);
+    const widest = host.clientWidth - widestCard.gaps;
+    const scale =
+      widest > 0 ? Math.max(0, host.clientWidth - left - right) / widest : 1;
+    content.style.transformOrigin = '0 0';
+    content.style.transform =
+      scale === 1 && left === widestCard.left
+        ? ''
+        : `translateX(${left - scale * widestCard.left}px) scale(${scale})`;
 
     shadow.style.height = `${cardHeight}px`;
     shadow.style.left = `${left}px`;
