@@ -27,69 +27,199 @@ const INFLATION_STEPS = [20, 36, 52, 62, 80, 100];
 // Leaves room on the sheet's left for the pump.
 const SHEET_INSETS = [{ left: 124, right: 16 }];
 
-const BURST_COLORS = ['#782aeb', '#38acdd', '#57b495', '#ff6259', '#ffd61e'];
-const BURST_PIECES = 18;
+const SHARD_COLUMNS = 4;
+const SHARD_ROWS = 3;
+// In seconds. The blast dies out quickly, and the fall picks up more slowly.
+const SHARD_DRAG = 0.16;
+const SHARD_FALL_RAMP = 0.35;
+const SHARD_FALL_SPEED = 120;
+const SHARD_FRAMES = 24;
 
 const prefersReducedMotion = () =>
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-/** A one-off burst of confetti, which removes itself when it's done. */
+const clamp01 = (value: number) => Math.min(Math.max(value, 0), 1);
+
+const randomBetween = (min: number, max: number) =>
+  min + Math.random() * (max - min);
+
+type Point = [x: number, y: number];
+
+/**
+ * The points of a ripped edge. It wanders at uneven intervals, because a regular
+ * zigzag looks like the edge of a postage stamp rather than a tear.
+ */
+const tornEdge = ([startX, startY]: Point, [endX, endY]: Point) => {
+  const width = endX - startX;
+  const height = endY - startY;
+  const length = Math.hypot(width, height);
+  const steps = Math.max(3, Math.round(length / 2.5));
+  let wander = 0;
+
+  return Array.from({ length: steps }, (_, i): Point => {
+    if (i === 0) return [startX, startY];
+    wander = Math.max(-2.6, Math.min(wander + randomBetween(-1.6, 1.6), 2.6));
+    const along = (i + randomBetween(-0.35, 0.35)) / steps;
+    return [
+      startX + width * along - (height / length) * wander,
+      startY + height * along + (width / length) * wander,
+    ];
+  });
+};
+
+/**
+ * A scrap of the sheet at a spot in the sheet's area: a small piece of paper
+ * with one clean edge, as if from the sheet's border, and the rest ripped.
+ */
+const makeShard = (column: number, row: number) => {
+  const width = randomBetween(14, 26);
+  const height = randomBetween(10, 20);
+  const corners: Point[] = [
+    [-width / 2, -height / 2],
+    [width / 2, -height / 2],
+    [width / 2, height / 2],
+    [-width / 2, height / 2],
+  ];
+  const cleanEdge = Math.floor(Math.random() * corners.length);
+  const points = corners
+    .flatMap((corner, i) =>
+      i === cleanEdge
+        ? [corner]
+        : tornEdge(corner, corners[(i + 1) % corners.length]!)
+    )
+    .join(' ');
+
+  return {
+    x: (column + randomBetween(0.1, 0.9)) / SHARD_COLUMNS,
+    y: (row + randomBetween(0.1, 0.9)) / SHARD_ROWS,
+    width,
+    points,
+    // Some carry a line of the sheet's content.
+    hasLine: Math.random() < 0.35,
+  };
+};
+
+/** Blasts out, slows like paper in air, then flutters down and fades out. */
+const shardKeyframes = (
+  directionX: number,
+  directionY: number,
+  life: number
+) => {
+  // Gentle enough that most scraps stay on the stage to fall.
+  const speed = randomBetween(220, 700);
+  const swayWidth = randomBetween(6, 18);
+  const swayRate = randomBetween(4, 8);
+  const swayPhase = randomBetween(0, Math.PI * 2);
+  const spin = randomBetween(-200, 200);
+  const flutterRate = randomBetween(5, 10);
+
+  return Array.from({ length: SHARD_FRAMES + 1 }, (_, frame): Keyframe => {
+    const time = (frame / SHARD_FRAMES) * life;
+    const blast = speed * SHARD_DRAG * (1 - Math.exp(-time / SHARD_DRAG));
+    const fall =
+      SHARD_FALL_SPEED *
+      (time - SHARD_FALL_RAMP * (1 - Math.exp(-time / SHARD_FALL_RAMP)));
+    const sway =
+      Math.sin(time * swayRate + swayPhase) * swayWidth * clamp01(time / 0.4);
+    const x = directionX * blast + sway;
+    const y = directionY * blast + fall;
+    // Rocks rather than flips, so a scrap never turns edge-on and disappears.
+    const flutter = Math.sin(time * flutterRate + swayPhase) * 55;
+
+    return {
+      transform: `translate(${x}px, ${y}px) rotate(${spin * time}deg) rotateX(${flutter}deg)`,
+      opacity: 1 - clamp01((time / life - 0.6) / 0.4),
+    };
+  });
+};
+
+/**
+ * The sheet swelling and bursting into scraps, with a shockwave across the
+ * stage. It covers the area the sheet filled, and removes itself when it's done.
+ */
 const SheetBurst = ({ onDone }: { onDone: () => void }) => {
   const ref = useRef<HTMLDivElement>(null);
+  const [shards] = useState(() =>
+    Array.from({ length: SHARD_COLUMNS * SHARD_ROWS }, (_, i) =>
+      makeShard(i % SHARD_COLUMNS, Math.floor(i / SHARD_COLUMNS))
+    )
+  );
 
   useEffect(() => {
-    const pieces = Array.from(ref.current!.children);
-    if (prefersReducedMotion() || pieces.length === 0) {
+    if (prefersReducedMotion()) {
       onDone();
       return;
     }
-
-    const animations = pieces.map((piece, i) => {
-      const angle = (i / pieces.length) * Math.PI * 2;
-      const distance = 90 + (i % 3) * 45;
-      const x = Math.cos(angle) * distance;
-      const y = Math.sin(angle) * distance;
-      return piece.animate(
+    const root = ref.current!;
+    const [swell, shockwave, ...pieces] = Array.from(root.children);
+    const animations = [
+      swell!.animate(
         [
-          { transform: 'translate(0, 0) scale(1)', opacity: 1 },
-          {
-            transform: `translate(${x}px, ${y}px) scale(0.3)`,
-            opacity: 0,
-          },
+          { transform: 'scale(1)', opacity: 1 },
+          { transform: 'scale(1.08)', opacity: 0 },
         ],
-        {
-          duration: 480,
-          easing: 'cubic-bezier(0.23, 1, 0.32, 1)',
-          fill: 'forwards',
-        }
+        { duration: 170, easing: 'ease-out' }
+      ),
+      shockwave!.animate(
+        [
+          { transform: 'scale(0.3)', opacity: 0.5 },
+          { transform: 'scale(5)', opacity: 0 },
+        ],
+        { duration: 500, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' }
+      ),
+    ];
+
+    let longestLife = 0;
+    let lastToFinish = animations[1]!;
+    pieces.forEach((piece, i) => {
+      const shard = shards[i]!;
+      // Away from the sheet's center, and a little upward.
+      const offsetX = (shard.x - 0.5) * root.clientWidth;
+      const offsetY = (shard.y - 0.5 - 0.15) * root.clientHeight;
+      const distance = Math.hypot(offsetX, offsetY) || 1;
+      const life = randomBetween(1.4, 2);
+      const animation = piece.animate(
+        shardKeyframes(offsetX / distance, offsetY / distance, life),
+        { duration: life * 1000 }
       );
+      animations.push(animation);
+      if (life > longestLife) {
+        longestLife = life;
+        lastToFinish = animation;
+      }
     });
-    animations[0]!.onfinish = onDone;
+    lastToFinish.onfinish = onDone;
     return () => animations.forEach((animation) => animation.cancel());
-  }, [onDone]);
+  }, [onDone, shards]);
 
   return (
-    <div
-      ref={ref}
-      aria-hidden
-      style={{
-        position: 'absolute',
-        top: '50%',
-        left: '58%',
-        pointerEvents: 'none',
-      }}
-    >
-      {Array.from({ length: BURST_PIECES }, (_, i) => (
-        <span
+    <div ref={ref} aria-hidden style={BURST_STYLE}>
+      <div style={SWELL_STYLE} />
+      <div style={SHOCKWAVE_STYLE} />
+      {shards.map((shard, i) => (
+        <svg
           key={i}
+          width={1}
+          height={1}
           style={{
-            position: 'absolute',
-            width: 10,
-            height: 10,
-            borderRadius: i % 2 === 0 ? 5 : 2,
-            backgroundColor: BURST_COLORS[i % BURST_COLORS.length],
+            ...SHARD_STYLE,
+            left: `${shard.x * 100}%`,
+            top: `${shard.y * 100}%`,
           }}
-        />
+        >
+          <polygon points={shard.points} fill="var(--example-scrap)" />
+          {shard.hasLine && (
+            <rect
+              x={-shard.width * 0.3}
+              y={-1}
+              width={shard.width * 0.6}
+              height={2}
+              rx={1}
+              fill="var(--example-text)"
+              opacity={0.25}
+            />
+          )}
+        </svg>
       ))}
     </div>
   );
@@ -103,8 +233,6 @@ const NO_PRESS_DELAY = { delayPressIn: 0 };
 
 const HOSE_SEGMENTS = 20;
 const HOSE_DURATION = 1250;
-
-const clamp01 = (value: number) => Math.min(Math.max(value, 0), 1);
 
 /** How far the hose's free end has turned at a moment, in radians, up from flat. */
 const hoseBend = (time: number) => {
@@ -122,7 +250,7 @@ const hoseBend = (time: number) => {
  * Flops the hose from where the pump holds it. Each point follows the one nearer
  * the pump a little late, which is what makes it look soft.
  */
-const animateHose = (hose: SVGSVGElement) => {
+const animateHose = (hose: SVGSVGElement, onEnd: () => void) => {
   const [line, airBulge] = hose.children as unknown as [
     SVGPolylineElement,
     SVGCircleElement,
@@ -156,8 +284,12 @@ const animateHose = (hose: SVGSVGElement) => {
     airBulge.setAttribute('r', airAlong < 1 ? '9' : '0');
 
     hose.style.opacity = String(1 - clamp01((time - 800) / 450));
-    if (time < HOSE_DURATION) frame = requestAnimationFrame(draw);
-    else hose.style.visibility = 'hidden';
+    if (time < HOSE_DURATION) {
+      frame = requestAnimationFrame(draw);
+    } else {
+      hose.style.visibility = 'hidden';
+      onEnd();
+    }
   };
 
   hose.style.visibility = 'visible';
@@ -177,7 +309,8 @@ const usePipeAnimation = (
   pipeRef: RefObject<HTMLDivElement | null>,
   hoseRef: RefObject<SVGSVGElement | null>,
   isOpen: boolean,
-  popped: boolean
+  popped: boolean,
+  onHoseEnd: () => void
 ) => {
   const isFirstRender = useRef(true);
   const wasPopped = useRef(false);
@@ -196,7 +329,11 @@ const usePipeAnimation = (
     pipe.getAnimations().forEach((animation) => animation.cancel());
     pipe.style.visibility = popped ? 'hidden' : 'visible';
     if (popped) {
-      return reduceMotion ? undefined : animateHose(hoseRef.current!);
+      if (reduceMotion) {
+        onHoseEnd();
+        return;
+      }
+      return animateHose(hoseRef.current!, onHoseEnd);
     }
     // Connecting takes about as long as the sheet takes to rise.
     pipe.animate(
@@ -212,7 +349,7 @@ const usePipeAnimation = (
         fill: 'forwards',
       }
     );
-  }, [isOpen, popped, pipeRef, hoseRef]);
+  }, [isOpen, popped, pipeRef, hoseRef, onHoseEnd]);
 };
 
 const AirPump = ({
@@ -268,6 +405,7 @@ export const InlineSheetExample = interactiveExample(
     const [count, setCount] = useState(0);
     const [popped, setPopped] = useState(false);
     const [isBursting, setIsBursting] = useState(false);
+    const [isHoseFlopping, setIsHoseFlopping] = useState(false);
     const [animateIn, setAnimateIn] = useState(false);
     const height = INFLATION_STEPS[step]!;
     const pipeRef = useRef<HTMLDivElement>(null);
@@ -276,12 +414,14 @@ export const InlineSheetExample = interactiveExample(
     const plungerRef = useRef<SVGSVGElement>(null);
     // Stable, so re-rendering mid-burst doesn't restart it.
     const endBurst = useCallback(() => setIsBursting(false), []);
+    const endHoseFlop = useCallback(() => setIsHoseFlopping(false), []);
 
     const restore = () => {
       setStep(0);
       setIndex(1);
       setAnimateIn(true);
       setPopped(false);
+      setIsHoseFlopping(false);
     };
 
     /** Drives the plunger down at once, from wherever a last press left it. */
@@ -339,7 +479,7 @@ export const InlineSheetExample = interactiveExample(
       }
     };
 
-    usePipeAnimation(pipeRef, hoseRef, isOpen, popped);
+    usePipeAnimation(pipeRef, hoseRef, isOpen, popped, endHoseFlop);
     const toggle = () => {
       if (popped) restore();
       else setIndex(isOpen ? 0 : 1);
@@ -382,6 +522,7 @@ export const InlineSheetExample = interactiveExample(
               // On press rather than release, so the pump answers right away.
               onPressIn={pump}
               {...NO_PRESS_DELAY}
+              disabled={isHoseFlopping || isBursting}
               style={styles.pump}
             >
               <AirPump plungerRef={plungerRef} />
@@ -398,6 +539,7 @@ export const InlineSheetExample = interactiveExample(
                   if (height === 100 && event.nativeEvent.index >= 0.995) {
                     setPopped(true);
                     setIsBursting(true);
+                    setIsHoseFlopping(true);
                   }
                 }}
               >
@@ -458,6 +600,47 @@ const PIPE_STYLE: CSSProperties = {
   height: 8,
   backgroundColor: 'var(--example-muted)',
   transformOrigin: 'left center',
+};
+
+/** The area the sheet filled when it popped, from `SHEET_INSETS`. */
+const BURST_STYLE: CSSProperties = {
+  position: 'absolute',
+  top: 0,
+  right: SHEET_INSETS[0]!.right,
+  bottom: 0,
+  left: SHEET_INSETS[0]!.left,
+  pointerEvents: 'none',
+};
+
+const SWELL_STYLE: CSSProperties = {
+  position: 'absolute',
+  inset: 0,
+  borderTopLeftRadius: 16,
+  borderTopRightRadius: 16,
+  backgroundColor: 'var(--example-surface)',
+  boxShadow: '0 -2px 16px rgba(0, 16, 72, 0.12)',
+  opacity: 0,
+};
+
+const SHOCKWAVE_STYLE: CSSProperties = {
+  position: 'absolute',
+  top: '50%',
+  left: '50%',
+  width: 120,
+  height: 120,
+  marginTop: -60,
+  marginLeft: -60,
+  border: '6px solid var(--example-button)',
+  borderRadius: '50%',
+  opacity: 0,
+};
+
+/** Shaded like the sheet, which is what sets a scrap apart from the stage. */
+const SHARD_STYLE: CSSProperties = {
+  position: 'absolute',
+  overflow: 'visible',
+  filter: 'drop-shadow(0 2px 6px rgba(0, 16, 72, 0.22))',
+  opacity: 0,
 };
 
 const BARREL_STYLE: CSSProperties = { position: 'absolute', top: 0, left: 0 };
