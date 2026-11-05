@@ -350,6 +350,22 @@
 .segmented {
   display: flex;
   border: 1px solid var(--example-border);
+  container-type: inline-size;
+}
+
+.segmentCompactLabel {
+  display: none;
+}
+
+/* Three segments this narrow can't fit a long label like "Percentage". */
+@container (max-width: 280px) {
+  .segmentFullLabel {
+    display: none;
+  }
+
+  .segmentCompactLabel {
+    display: inline;
+  }
 }
 
 .segment {

@@ -41,23 +41,24 @@ export const Slider = ({
   onChange,
   min = 0,
   max = 1,
-  step = 0.01,
+  decimals = 2,
 }: {
   label: string;
   value: number;
   onChange: (value: number) => void;
   min?: number;
   max?: number;
-  step?: number;
+  /** Rounds what's shown. The value itself moves continuously, without steps. */
+  decimals?: number;
 }) => (
-  <Control label={label} value={value.toFixed(2)}>
+  <Control label={label} value={value.toFixed(decimals)}>
     <input
       type="range"
       className={styles.slider}
       aria-label={label}
       min={min}
       max={max}
-      step={step}
+      step="any"
       value={value}
       onChange={(event) => onChange(Number(event.target.value))}
     />
@@ -92,7 +93,13 @@ export const Segmented = <Value extends string | number>({
   onChange,
 }: {
   label: string;
-  options: { value: Value; label: string; swatch?: string }[];
+  options: {
+    value: Value;
+    label: string;
+    /** Shown instead of `label` when the control is too narrow to fit it. */
+    compactLabel?: string | undefined;
+    swatch?: string;
+  }[];
   value: Value;
   onChange: (value: Value) => void;
 }) => {
@@ -112,6 +119,7 @@ export const Segmented = <Value extends string | number>({
             <input
               type="radio"
               name={name}
+              aria-label={option.label}
               checked={option.value === value}
               onChange={() => onChange(option.value)}
             />
@@ -121,7 +129,16 @@ export const Segmented = <Value extends string | number>({
                 style={{ backgroundColor: option.swatch }}
               />
             )}
-            {option.label}
+            {option.compactLabel === undefined ? (
+              option.label
+            ) : (
+              <>
+                <span className={styles.segmentFullLabel}>{option.label}</span>
+                <span className={styles.segmentCompactLabel}>
+                  {option.compactLabel}
+                </span>
+              </>
+            )}
           </label>
         ))}
       </div>

@@ -96,7 +96,7 @@ export const ScrimExample = interactiveExample(
   index={index}
   onIndexChange={setIndex}
   scrimColor="${scrimColor}"
-  scrimOpacities={[0, ${middle}, ${top}]}
+  scrimOpacities={[0, ${Number(middle.toFixed(2))}, ${Number(top.toFixed(2))}]}
   surface={
     <View style={[StyleSheet.absoluteFill, { backgroundColor: 'white' }]} />
   }
