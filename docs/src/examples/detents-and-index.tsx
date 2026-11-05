@@ -269,12 +269,21 @@ export const IndexEventsExample = interactiveExample(
     const [index, setIndex] = useState(1);
     const { entries, log, clear } = useEventLog();
 
+    /** Marks a change made from code, as the sheet doesn't report those. */
+    const setIndexFromCode = (next: number) => {
+      log(`setIndex(${next}) from code`);
+      setIndex(next);
+    };
+
     return (
       <Example
         stage={
           <>
             <StageContent>
-              <StageButton label="Open sheet" onPress={() => setIndex(1)} />
+              <StageButton
+                label="Open sheet"
+                onPress={() => setIndexFromCode(1)}
+              />
             </StageContent>
             <StageSheet
               detents={[0, 140, 280]}
@@ -288,8 +297,8 @@ export const IndexEventsExample = interactiveExample(
             >
               <SheetBody title="Drag me">
                 <SheetText>
-                  A drag reports both events. Setting the index reports only the
-                  settle.
+                  Dragging fires onIndexChange, then onSettle. Setting the index
+                  from code fires only onSettle.
                 </SheetText>
               </SheetBody>
             </StageSheet>
@@ -306,18 +315,19 @@ export const IndexEventsExample = interactiveExample(
                   { value: 2, label: '2' },
                 ]}
                 value={index}
-                onChange={setIndex}
+                onChange={setIndexFromCode}
               />
               <Hint>
-                Drag the sheet, then set the index here, and compare the events
-                each one fires.
+                Drag the sheet or tap the dimmed area to see{' '}
+                <code>onIndexChange</code>. Set the index here and it doesn't
+                fire, because your code already knows.
               </Hint>
             </ControlGroup>
             <ControlGroup>
               <EventLog
                 entries={entries}
                 onClear={clear}
-                empty="Events appear here as they fire."
+                empty="Drag the sheet to see its events."
               />
             </ControlGroup>
           </>
@@ -343,13 +353,46 @@ export const IndexEventsExample = interactiveExample(
   { height: 360 }
 );
 
+const CARD_DETENT = 320;
+const CODE_ONLY_DETENT = 170;
+
+// Leaves room on the sheet's left for the detent markers.
+const MARKED_SHEET_INSETS = [{ left: 100, right: 16 }];
+
+const DetentMarker = ({
+  height,
+  label,
+  isCodeOnly,
+}: {
+  height: number;
+  label: string;
+  isCodeOnly: boolean;
+}) => (
+  <div
+    aria-hidden
+    style={{
+      position: 'absolute',
+      bottom: height,
+      left: 0,
+      right: 0,
+      padding: '0 8px 2px 12px',
+      borderBottom: `2px ${isCodeOnly ? 'dashed var(--example-button)' : 'solid var(--example-border)'}`,
+      color: isCodeOnly ? 'var(--example-button)' : 'var(--example-text)',
+      fontSize: 12,
+      fontWeight: isCodeOnly ? 500 : 400,
+    }}
+  >
+    <div style={{ maxWidth: 76 }}>{label}</div>
+  </div>
+);
+
 export const ProgrammaticDetentExample = interactiveExample(
   () => {
     const [index, setIndex] = useState(2);
-    const [middleOnly, setMiddleOnly] = useState(true);
-    const [closedOnly, setClosedOnly] = useState(false);
-    const closedCode = closedOnly ? 'programmatic(0)' : '0';
-    const middleCode = middleOnly ? 'programmatic(170)' : '170';
+    const [isCodeOnly, setIsCodeOnly] = useState(true);
+    const middleCode = isCodeOnly
+      ? `programmatic(${CODE_ONLY_DETENT})`
+      : CODE_ONLY_DETENT;
 
     return (
       <Example
@@ -358,69 +401,68 @@ export const ProgrammaticDetentExample = interactiveExample(
             <StageContent>
               <StageButton label="Open sheet" onPress={() => setIndex(2)} />
             </StageContent>
+            <DetentMarker
+              height={CARD_DETENT}
+              label="index 2"
+              isCodeOnly={false}
+            />
+            <DetentMarker
+              height={CODE_ONLY_DETENT}
+              label={isCodeOnly ? 'index 1, code only' : 'index 1'}
+              isCodeOnly={isCodeOnly}
+            />
             <StageSheet
               detents={[
-                closedOnly ? programmatic(0) : 0,
-                middleOnly ? programmatic(170) : 170,
-                320,
+                0,
+                isCodeOnly ? programmatic(CODE_ONLY_DETENT) : CODE_ONLY_DETENT,
+                CARD_DETENT,
               ]}
+              insets={MARKED_SHEET_INSETS}
               index={index}
               onIndexChange={setIndex}
-              scrimColor="rgba(0, 0, 0, 0.4)"
+              scrimColor="rgba(0, 0, 0, 0.25)"
             >
-              <SheetBody title="Drag me down">
-                <SheetText>
-                  A drag can't stop at a programmatic detent, but setting the
-                  index still reaches it.
-                </SheetText>
+              <SheetBody title={index === 1 ? 'At index 1' : 'Drag me down'}>
+                <StageButton
+                  secondary
+                  label={index === 1 ? 'Go to index 2' : 'Go to index 1'}
+                  onPress={() => setIndex(index === 1 ? 2 : 1)}
+                />
               </SheetBody>
             </StageSheet>
           </>
         }
         controls={
-          <>
-            <ControlGroup>
-              <Segmented
-                label="index"
-                options={[
-                  { value: 0, label: '0' },
-                  { value: 1, label: '1' },
-                  { value: 2, label: '2' },
-                ]}
-                value={index}
-                onChange={setIndex}
-              />
-              <Toggle
-                label="Middle detent is programmatic"
-                value={middleOnly}
-                onChange={setMiddleOnly}
-              />
-              <Toggle
-                label="Closed detent is programmatic"
-                value={closedOnly}
-                onChange={setClosedOnly}
-              />
-            </ControlGroup>
-            <ControlGroup>
-              <Hint>
-                Drag down from the top: the sheet passes the middle detent
-                unless you turn it off. With a programmatic closed detent,
-                neither a drag nor a tap on the scrim closes the sheet.
-              </Hint>
-            </ControlGroup>
-          </>
+          <ControlGroup>
+            <Toggle
+              label="Index 1 is programmatic"
+              value={isCodeOnly}
+              onChange={setIsCodeOnly}
+            />
+            <Hint>
+              1. Drag the sheet down and let go at the dashed line. It can't
+              stop there, so it moves on to another detent.
+            </Hint>
+            <Hint>
+              2. Press <strong>Go to index 1</strong>. Your code can still stop
+              there.
+            </Hint>
+            <Hint>
+              3. Turn the switch off and drag again. Now a drag stops there too.
+            </Hint>
+          </ControlGroup>
         }
         code={`const [index, setIndex] = useState(2);
 
 <ModalBottomSheet
-  detents={[${closedCode}, ${middleCode}, 320]}
+  detents={[0, ${middleCode}, ${CARD_DETENT}]}
   index={index}
   onIndexChange={setIndex}
   surface={
     <View style={[StyleSheet.absoluteFill, { backgroundColor: 'white' }]} />
   }
 >
-  {/* ... */}
+  <Button title="Go to index 1" onPress={() => setIndex(1)} />
 </ModalBottomSheet>;`}
       />
     );
