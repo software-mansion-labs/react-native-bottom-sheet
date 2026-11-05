@@ -1140,7 +1140,10 @@ public final class BottomSheetHostingView: UIView {
       // offset to restore, and its pan keeps the travel, applying it as one
       // rubber-banded jump when the pan is released to it.
       scrollView.isDirectionalLockEnabled = true
-      scrollView.showsVerticalScrollIndicator = false
+      // In place, the scroll view keeps moving with the finger, so it keeps its indicator.
+      if !inPlace {
+        scrollView.showsVerticalScrollIndicator = false
+      }
       state.startPinning(at: pinnedOffset)
     }
     activeScrollViewsLocked = true
@@ -1534,12 +1537,13 @@ public final class BottomSheetHostingView: UIView {
           // there: the two pans handle one update in no defined order, so the
           // reversal may already have scrolled it when the sheet sees it.
           noteReleasedScrollViewsAtStart()
-          if delta >= 0 {
+          // An update with no vertical travel leaves the lock as it is.
+          if delta > 0 {
             unlockActiveScrollViews()
-          } else if activeScrollViewsArePulledPastStart() {
+          } else if delta < 0, activeScrollViewsArePulledPastStart() {
             // The sheet stays put while the pull returns with the finger.
             movePulledScrollViewsBack(by: -delta)
-          } else {
+          } else if delta < 0 {
             scrollViewOwnsLowerBoundary = false
             panCoordinationMode = .sheet
             lockActiveScrollViewsForSheet(verticalDirection: delta, range: range)
