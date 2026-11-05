@@ -57,11 +57,11 @@ scrollable resolves `'content'` to that height.
 ## Insets
 
 `insets` keeps space around the sheet at each detent, so it can float as a card.
-Each entry has optional `top`, `left`, `right`, and `bottom` values, and the
-gaps blend as the sheet moves between detents. Like `scrimOpacities`, `insets`
-is indexed to match `detents`: a shorter array reuses its last entry for any
-remaining detents, and extra entries are ignored. A closed detent ignores its
-inset, so the card leaves through the gap with its shape intact.
+Each entry has optional `left`, `right`, and `bottom` values, and the gaps blend
+as the sheet moves between detents. Like `scrimOpacities`, `insets` is indexed
+to match `detents`: a shorter array reuses its last entry for any remaining
+detents, and extra entries are ignored. A closed detent ignores its inset, so
+the card leaves through the gap with its shape intact.
 
 ```tsx
 <ModalBottomSheet
@@ -77,22 +77,23 @@ inset, so the card leaves through the gap with its shape intact.
 ```
 
 With insets, a detent's value is the card's height, and percentages resolve
-against the available space: the host's height minus that detent's top and
-bottom insets. So `'100%'` fills the space between the gaps and never covers
-them, just as it stops below the status bar by default. Detents ascend by the
-position of the card's top: its height plus its bottom inset. The surface and
-content are laid out once, against the widest card, and scaled uniformly to fit
-narrower ones, as with iOS sheets, so content never reflows as the card's edges
-move. Touches in the gaps reach the scrim or whatever is behind the sheet.
+against the available space: the host's height minus `topInset` and that
+detent's bottom inset. So `'100%'` fills the space between the gaps and never
+covers them, just as it stops below the status bar by default. Detents ascend by
+the position of the card's top: its height plus its bottom inset. The surface
+and content are laid out once, against the widest card, and scaled uniformly to
+fit narrower ones, as with iOS sheets, so content never reflows as the card's
+edges move. Touches in the gaps reach the scrim or whatever is behind the sheet.
 
-By default, full-height detents stop below the status bar: `top` defaults to the
-part of the status bar that overlaps the host. It is measured from the host's
-top, so a lower value goes partly under the status bar, and `0` lets the sheet
-occupy the full screen height:
+`topInset` sets the space above the card, once for the whole sheet. By default,
+full-height detents stop below the status bar: `topInset` defaults to the part
+of the status bar that overlaps the host. It is measured from the host's top, so
+a lower value goes partly under the status bar, and `0` lets the sheet occupy
+the full screen height:
 
 ```tsx
 <BottomSheet // Or `ModalBottomSheet`.
-  insets={[{ top: 0 }]}
+  topInset={0}
   index={index}
   onIndexChange={setIndex}
   surface={/* ... */}

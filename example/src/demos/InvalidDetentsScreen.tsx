@@ -10,6 +10,7 @@ type ValidationCase = Readonly<{
   label: string;
   detents: Detent[];
   index: number;
+  topInset?: number;
 }>;
 
 const VALIDATION_CASES: ValidationCase[] = [
@@ -22,6 +23,7 @@ const VALIDATION_CASES: ValidationCase[] = [
   { label: 'empty detents', detents: [], index: 0 },
   { label: 'numeric detent: -10', detents: [0, -10], index: 0 },
   { label: "percentage detent: '-10%'", detents: [0, '-10%'], index: 0 },
+  { label: 'topInset: -1', detents: [0, 'content'], index: 0, topInset: -1 },
   {
     label: 'native ascending-order validation',
     detents: [360, 120, 'content'],
@@ -67,6 +69,7 @@ export const InvalidDetentsScreen = () => {
           <BottomSheet
             detents={validationCase.detents}
             index={validationCase.index}
+            topInset={validationCase.topInset}
             surface={<SheetBackground style={StyleSheet.absoluteFill} />}
           >
             <View>

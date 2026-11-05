@@ -27,7 +27,7 @@ export const UnderStatusBarScreen = () => {
       sheet={
         <BottomSheet
           detents={[0, 'content']}
-          insets={isUnderStatusBar ? [{ top: 0 }] : undefined}
+          topInset={isUnderStatusBar ? 0 : undefined}
           index={index}
           onIndexChange={setIndex}
           surface={
@@ -71,7 +71,7 @@ export const UnderStatusBarScreen = () => {
               <Text style={{ fontSize: 15, lineHeight: 22, color: '#555' }}>
                 Open each mode and compare the sheet top edge. The blue header
                 includes status-bar padding, so it visibly reaches the top only
-                with a `top` inset of 0.
+                with a `topInset` of 0.
               </Text>
             </View>
           </View>

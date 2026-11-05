@@ -107,8 +107,8 @@ export interface BottomSheetProps {
    * caps them to the available geometry.
    *
    * With `insets`, a detent's value is the height of the card, and percentages
-   * resolve against the available space: the host's height minus that detent's
-   * top and bottom insets. So `'100%'` fills the space between the gaps and
+   * resolve against the available space: the host's height minus `topInset` and
+   * that detent's bottom inset. So `'100%'` fills the space between the gaps and
    * never covers them. Detents ascend by the position of the card's top: its
    * height plus its bottom inset.
    */
@@ -119,9 +119,8 @@ export interface BottomSheetProps {
    * moves between detents; below the first open detent the card keeps its shape
    * and slides down through the bottom inset. Like `scrimOpacities`, a shorter
    * array than `detents` reuses its last value for any remaining detents, and
-   * extra values are ignored. A closed detent ignores its inset. `top` defaults
-   * to the status bar's overlap with the host; a lower value, or `0`, lets the
-   * card go under the status bar.
+   * extra values are ignored. A closed detent ignores its inset. The space above
+   * the card is set by `topInset`.
    *
    * Insets never relayout the surface or content. They are laid out against
    * the widest card, the detent with the tightest side insets, and scaled
@@ -136,6 +135,13 @@ export interface BottomSheetProps {
    * whatever is behind it.
    */
   insets?: DetentInset[];
+  /**
+   * The minimum space between the card's top and the host's top, in points, at
+   * every detent. Defaults to the part of the status bar that overlaps the host,
+   * so the card stops below it; pass a lower value, or `0`, to go under the
+   * status bar.
+   */
+  topInset?: number;
   /**
    * Finite, zero-based integer in `0..(detents.length - 1)`. When shortening
    * `detents`, update `index` to remain in range in the same render.
@@ -254,6 +260,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
     style,
     detents = [0, 'content'],
     insets,
+    topInset,
     index,
     animateIn = true,
     animateContentHeight = true,
@@ -296,7 +303,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
   // host's height whenever detents are refreshed. Point detents retain
   // their requested height; native layout clamps both kinds to it.
   validateIndex(index, detents.length);
-  const normalizedDetents = normalizeDetents(detents, insets);
+  const normalizedDetents = normalizeDetents(detents, insets, topInset);
 
   const selectedNormalizedDetent = normalizedDetents[index]!;
   const isSheetClosed = isNormalizedDetentClosed(selectedNormalizedDetent);
