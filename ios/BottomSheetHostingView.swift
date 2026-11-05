@@ -1118,17 +1118,9 @@ public final class BottomSheetHostingView: UIView {
   /// Pins the touched scroll views while the sheet moves. Each is pinned at
   /// its visual start when asked for all of them, when it reached that start
   /// while released, or, for the lock that begins the pan, when it was there
-  /// as the touch landed; otherwise where it rests now. Returns how far that
-  /// moves their content on screen, positive down. Pulled scroll views the
-  /// finger is bringing back stay where they are.
-  @discardableResult
-  private func lockActiveScrollViews(
-    pinToStart: Bool = false,
-    pinInitialStarts: Bool = false,
-    inPlace: Bool = false
-  ) -> CGFloat {
-    guard !activeScrollViewStates.isEmpty else { return 0 }
-    var contentTravel: CGFloat = 0
+  /// as the touch landed; otherwise where it rests now.
+  private func lockActiveScrollViews(pinToStart: Bool = false, pinInitialStarts: Bool = false) {
+    guard !activeScrollViewStates.isEmpty else { return }
 
     for state in activeScrollViewStates {
       guard let scrollView = state.scrollView else { continue }
@@ -1142,64 +1134,22 @@ public final class BottomSheetHostingView: UIView {
         || state.reachedStartWhileReleased
         || (pinInitialStarts && state.wasAtStartWhenTouched)
       state.reachedStartWhileReleased = false
-      let pinnedOffset = inPlace
-        ? scrollView.contentOffset
-        : pinnedToStart
+      let pinnedOffset = pinnedToStart
         ? scrollStartOffset(for: scrollView, inverted: state.inverted)
         : restingOffset(for: scrollView)
-      let pinDistance = pinnedOffset.y - scrollView.contentOffset.y
-      contentTravel += state.inverted ? -pinDistance : pinDistance
       // Bounces stay on: with them off, a pinned scroll view at its edge sees no
       // offset to restore, and its pan keeps the travel, applying it as one
       // rubber-banded jump when the pan is released to it.
       scrollView.isDirectionalLockEnabled = true
-      // In place, the scroll view keeps moving with the finger, so it keeps its indicator.
-      if !inPlace {
-        scrollView.showsVerticalScrollIndicator = false
-      }
+      scrollView.showsVerticalScrollIndicator = false
       state.startPinning(at: pinnedOffset)
     }
     activeScrollViewsLocked = true
-    return contentTravel
-  }
-
-  /// Gives the sheet the touch. The scroll views overshoot the point where they
-  /// are pinned by up to a touch update, more when the two pans handle it in the
-  /// other order, so the pin moves their content back. When that is along the
-  /// finger, the sheet moves by the same distance instead of the content
-  /// stepping against the finger.
-  private func lockActiveScrollViewsForSheet(
-    pinToStart: Bool = false,
-    pinInitialStarts: Bool = false,
-    verticalDirection: CGFloat,
-    range: (minTy: CGFloat, maxTy: CGFloat)
-  ) {
-    let contentTravel = lockActiveScrollViews(pinToStart: pinToStart, pinInitialStarts: pinInitialStarts)
-    guard contentTravel * verticalDirection > 0 else { return }
-    moveSheet(toTranslation: max(range.minTy, min(range.maxTy, sheetContainer.transform.ty + contentTravel)))
   }
 
   private func pinActiveScrollViews() {
     guard activeScrollViewsLocked else { return }
     for state in activeScrollViewStates {
-      state.restorePinnedOffset()
-    }
-  }
-
-  /// Follows the finger back up with the scroll views pulled past their start.
-  /// A refresh that begins during a pull changes the inset UIKit rubber-bands
-  /// against, so its own pan steps the content against the finger on the way
-  /// back. Pinning leaves the offset to the finger.
-  private func movePulledScrollViewsBack(by distance: CGFloat) {
-    if !activeScrollViewsLocked {
-      lockActiveScrollViews(inPlace: true)
-    }
-    for state in activeScrollViewStates where scrollViewIsPulledPastStart(state) {
-      guard let scrollView = state.scrollView else { continue }
-      let startY = scrollStartOffset(for: scrollView, inverted: state.inverted).y
-      state.pinnedOffset.y = state.inverted
-        ? max(startY, state.pinnedOffset.y - distance)
-        : min(startY, state.pinnedOffset.y + distance)
       state.restorePinnedOffset()
     }
   }
@@ -1495,12 +1445,7 @@ public final class BottomSheetHostingView: UIView {
           noteReleasedScrollViewsAtStart()
         } else {
           panCoordinationMode = .sheet
-          lockActiveScrollViewsForSheet(
-            pinToStart: isAtLargestDetent,
-            pinInitialStarts: true,
-            verticalDirection: verticalDirection,
-            range: range
-          )
+          lockActiveScrollViews(pinToStart: isAtLargestDetent, pinInitialStarts: true)
         }
       }
       gesture.setTranslation(.zero, in: self)
@@ -1527,16 +1472,10 @@ public final class BottomSheetHostingView: UIView {
           // there: the two pans handle one update in no defined order, so the
           // reversal may already have scrolled it when the sheet sees it.
           noteReleasedScrollViewsAtStart()
-          // An update with no vertical travel leaves the lock as it is.
-          if delta > 0 {
-            unlockActiveScrollViews()
-          } else if delta < 0, activeScrollViewsArePulledPastStart() {
-            // The sheet stays put while the pull returns with the finger.
-            movePulledScrollViewsBack(by: -delta)
-          } else if delta < 0 {
+          if delta < 0, !activeScrollViewsArePulledPastStart() {
             scrollViewOwnsLowerBoundary = false
             panCoordinationMode = .sheet
-            lockActiveScrollViewsForSheet(verticalDirection: delta, range: range)
+            lockActiveScrollViews()
           }
           return
         }
@@ -1546,7 +1485,7 @@ public final class BottomSheetHostingView: UIView {
         // movement is not consumed twice by UIKit and the sheet.
         if delta > 0, activeScrollViewsAreAtStart() {
           panCoordinationMode = .sheet
-          lockActiveScrollViewsForSheet(pinToStart: true, verticalDirection: delta, range: range)
+          lockActiveScrollViews(pinToStart: true)
         }
         return
       }
