@@ -302,7 +302,7 @@ extension BottomSheetHostingView {
 
   /// The scroll view's offset, clamped to where it can rest: a held start can
   /// leave it overscrolled, and pinning that offset would keep it there.
-  func restingOffset(for scrollView: UIScrollView) -> CGPoint {
+  private func restingOffset(for scrollView: UIScrollView) -> CGPoint {
     CGPoint(x: scrollView.contentOffset.x, y: scrollView.restingY(for: scrollView.contentOffset.y))
   }
 

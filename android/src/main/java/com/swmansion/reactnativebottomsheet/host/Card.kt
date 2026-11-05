@@ -1,7 +1,6 @@
 package com.swmansion.reactnativebottomsheet.host
 
 import android.view.View
-import android.view.ViewGroup
 import com.swmansion.reactnativebottomsheet.BottomSheetCardClipLayout
 import com.swmansion.reactnativebottomsheet.BottomSheetCardShadowView
 import com.swmansion.reactnativebottomsheet.CardShadow
@@ -15,15 +14,6 @@ internal class Card(
   private val clipContainer: BottomSheetCardClipLayout,
   private val scrim: Scrim,
 ) {
-
-  private val hostView: ViewGroup
-    get() = state.hostView
-
-  private val width: Int
-    get() = hostView.width
-
-  private val height: Int
-    get() = hostView.height
 
   private val clearCardTouchSkip = Runnable { state.sheetContainer.skipsTouchTargeting = false }
   // The card's shadow, stitched from two copies drawn at a fixed height: the top copy shows the
@@ -43,7 +33,7 @@ internal class Card(
   }
 
   /** Outset card shadows, with lengths in dp. */
-  internal fun setSurfaceShadows(values: List<CardShadow>) {
+  fun setSurfaceShadows(values: List<CardShadow>) {
     val shadows = values.map {
       it.copy(
         offsetX = it.offsetX * state.density,
@@ -96,7 +86,11 @@ internal class Card(
    */
   fun updateCardGeometry() {
     val position =
-      maxOf(height.toFloat() - state.sheetContainer.translationY, state.firstOpenDetentPosition, 0f)
+      maxOf(
+        state.height.toFloat() - state.sheetContainer.translationY,
+        state.firstOpenDetentPosition,
+        0f,
+      )
     val insets = cardInsetsAt(position)
     val left = insets.left
     val right = (state.sheetContainer.width - insets.right).coerceAtLeast(left)
@@ -175,8 +169,8 @@ internal class Card(
   fun onTouchTargeting(x: Float, y: Float) {
     val skips = !scrim.isScrimVisible() && clipContainer.clipsContent && !cardContains(x, y)
     state.sheetContainer.skipsTouchTargeting = skips
-    hostView.removeCallbacks(clearCardTouchSkip)
-    if (skips) hostView.post(clearCardTouchSkip)
+    state.hostView.removeCallbacks(clearCardTouchSkip)
+    if (skips) state.hostView.post(clearCardTouchSkip)
   }
 
   /** Whether `(x, y)`, in host coordinates, falls on the card as it is drawn. */

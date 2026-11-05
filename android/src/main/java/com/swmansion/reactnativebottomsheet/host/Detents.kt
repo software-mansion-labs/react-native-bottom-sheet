@@ -20,15 +20,6 @@ internal class Detents(
   private val host: SheetHost,
 ) {
 
-  private val hostView: ViewGroup
-    get() = state.hostView
-
-  private val width: Int
-    get() = hostView.width
-
-  private val height: Int
-    get() = hostView.height
-
   private var contentHeightMarker: View? = null
   private var surfaceView: View? = null
   var pendingInitialContentDetentSnap = false
@@ -154,7 +145,7 @@ internal class Detents(
   }
 
   private fun resolveDetentSpecs(): List<DetentSpec> {
-    val maxHeight = height.toFloat()
+    val maxHeight = state.height.toFloat()
     val measuredContentHeight =
       validContentHeight().takeIf { maxHeight > 0f && it.isFinite() }?.coerceAtMost(maxHeight)
     var previousPosition: Float? = null
@@ -216,7 +207,8 @@ internal class Detents(
 
     val resolvedDetents = resolveDetentSpecs()
     if (
-      resolvedDetents == state.detentSpecs && height.toFloat() == state.lastAppliedMaxDetentHeight
+      resolvedDetents == state.detentSpecs &&
+        state.height.toFloat() == state.lastAppliedMaxDetentHeight
     ) {
       if (trySnapPendingInitialContentDetent()) {
         return
@@ -231,7 +223,7 @@ internal class Detents(
     // was computed against — not the freshly resolved one.
     val previousMaxHeight =
       if (state.lastAppliedMaxDetentHeight.isFinite()) state.lastAppliedMaxDetentHeight
-      else height.toFloat()
+      else state.height.toFloat()
     // Whether the scrim is currently fully opaque, i.e. the sheet is settled at
     // or above the first non-zero detent. If so, a detent resize must not dip
     // the scrim while the sheet re-anchors to the new geometry.
@@ -240,12 +232,12 @@ internal class Detents(
         state.firstOpenDetentPosition > 0f &&
         state.currentSheetHeight() + 0.5f >= state.firstOpenDetentPosition
     state.detentSpecs = resolvedDetents
-    if (width > 0 && height > 0 && state.detentSpecs.isNotEmpty()) {
-      host.layoutSheetContainer(width, height)
+    if (state.width > 0 && state.height > 0 && state.detentSpecs.isNotEmpty()) {
+      host.layoutSheetContainer(state.width, state.height)
 
       if (state.hasLaidOut && !state.isPanning) {
         state.targetIndex = state.targetIndex.coerceIn(0, state.detentSpecs.size - 1)
-        val newMaxHeight = height.toFloat()
+        val newMaxHeight = state.height.toFloat()
         val targetTy = snapping.translationY(state.targetIndex)
         if (trySnapPendingInitialContentDetent()) {
           return
@@ -308,7 +300,7 @@ internal class Detents(
       }
     }
 
-    hostView.requestLayout()
+    state.hostView.requestLayout()
     host.notifyCloseRequestStateChanged()
     scrim.updateScrim()
   }
@@ -364,7 +356,7 @@ internal class Detents(
   fun observePendingInitialContentDetent() {
     if (pendingInitialContentDetentPreDrawListener != null) return
 
-    val observer = hostView.viewTreeObserver
+    val observer = state.hostView.viewTreeObserver
     if (!observer.isAlive) return
 
     pendingInitialContentDetentFrames = 0
@@ -441,7 +433,6 @@ internal class Detents(
   }
 
   fun releaseContentHeightMarker() {
-
     contentHeightMarker?.removeOnLayoutChangeListener(contentHeightMarkerLayoutListener)
     contentHeightMarker = null
     surfaceView = null

@@ -21,10 +21,10 @@ internal interface SheetHost {
 /** The state several parts of the sheet read, and the geometry derived directly from it. */
 internal class SheetState(val hostView: ViewGroup, val sheetContainer: BottomSheetCardContainer) {
   val density = hostView.context.resources.displayMetrics.density
-  private val width: Int
+  val width: Int
     get() = hostView.width
 
-  private val height: Int
+  val height: Int
     get() = hostView.height
 
   var rawDetentSpecs: List<RawDetentSpec> = emptyList()

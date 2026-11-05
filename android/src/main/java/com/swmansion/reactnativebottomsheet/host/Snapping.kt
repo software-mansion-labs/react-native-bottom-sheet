@@ -1,6 +1,5 @@
 package com.swmansion.reactnativebottomsheet.host
 
-import android.view.ViewGroup
 import androidx.dynamicanimation.animation.DynamicAnimation
 import androidx.dynamicanimation.animation.SpringAnimation
 import androidx.dynamicanimation.animation.SpringForce
@@ -17,17 +16,8 @@ internal class Snapping(
   private val host: SheetHost,
 ) {
 
-  private val hostView: ViewGroup
-    get() = state.hostView
-
-  private val width: Int
-    get() = hostView.width
-
-  private val height: Int
-    get() = hostView.height
-
   fun translationY(index: Int): Float {
-    return height.toFloat() - (state.detentSpecs.getOrNull(index)?.position ?: 0f)
+    return state.height.toFloat() - (state.detentSpecs.getOrNull(index)?.position ?: 0f)
   }
 
   private val minDetentTranslationY: Float
@@ -57,7 +47,7 @@ internal class Snapping(
   }
 
   private fun snapshotTranslationY(index: Int, specs: List<DetentSpec>): Float {
-    return height.toFloat() - (specs.getOrNull(index)?.position ?: 0f)
+    return state.height.toFloat() - (specs.getOrNull(index)?.position ?: 0f)
   }
 
   private fun snapshotCandidateIndices(includeIndex: Int?, specs: List<DetentSpec>): List<Int> {
@@ -84,7 +74,7 @@ internal class Snapping(
   }
 
   fun emitPosition() {
-    val maxHeight = height.toFloat()
+    val maxHeight = state.height.toFloat()
     val ty = state.sheetContainer.translationY
     val position = maxHeight - ty
     scrim.updateScrim(position)
@@ -173,7 +163,7 @@ internal class Snapping(
       }
 
     state.activeAnimation = spring
-    val visibleHeight = height.toFloat() - currentTy
+    val visibleHeight = state.height.toFloat() - currentTy
     closeRequestPresentationTracker.onAnimationStarted(
       isTargetOpen = !state.isTargetingClosedDetent,
       visibleHeight = visibleHeight,
@@ -235,7 +225,7 @@ internal class Snapping(
   }
 
   fun settleActivePan(velocity: Float) {
-    val maxHeight = height.toFloat()
+    val maxHeight = state.height.toFloat()
     val currentHeight = maxHeight - state.sheetContainer.translationY
     val startingIndex = state.panStartingIndex
     val index =

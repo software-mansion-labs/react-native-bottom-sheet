@@ -18,7 +18,7 @@ internal class ScrollCoordination(private val state: SheetState, private val sna
 
   private val hitTestInverseMatrix = Matrix()
   private val hitTestPoint = FloatArray(2)
-  val nestedScrollingParentHelper = NestedScrollingParentHelper(state.hostView)
+  private val nestedScrollingParentHelper = NestedScrollingParentHelper(state.hostView)
   var nestedTouchTarget: View? = null
   private var nestedTouchWasEnabled = false
   var nestedTouchInverted = false

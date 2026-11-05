@@ -212,7 +212,7 @@ extension BottomSheetHostingView {
     return canBeginPan(inDirection: verticalDirection)
   }
 
-  func canBeginPan(inDirection verticalDirection: CGFloat) -> Bool {
+  private func canBeginPan(inDirection verticalDirection: CGFloat) -> Bool {
     let candidates = snapCandidateIndices(including: targetIndex)
     guard candidates.count > 1 else { return false }
 

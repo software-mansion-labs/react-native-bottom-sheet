@@ -1,6 +1,5 @@
 package com.swmansion.reactnativebottomsheet.host
 
-import android.view.ViewGroup
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.facebook.react.bridge.Arguments
@@ -12,15 +11,6 @@ internal class ContentRegion(
   private val card: Card,
   private val host: SheetHost,
 ) {
-
-  private val hostView: ViewGroup
-    get() = state.hostView
-
-  private val width: Int
-    get() = hostView.width
-
-  private val height: Int
-    get() = hostView.height
 
   // The state wrapper can arrive after geometry has already been derived
   // (mount ordering is not guaranteed), so flush the current snapshot and
@@ -89,7 +79,7 @@ internal class ContentRegion(
    * that detent, and never taller than the sheet's node.
    */
   private fun contentRegionHeightPx(): Float {
-    val tallest = state.rawDetentSpecs.lastOrNull() ?: return height.toFloat()
+    val tallest = state.rawDetentSpecs.lastOrNull() ?: return state.height.toFloat()
     val available = state.availableCardHeight(tallest)
     val bound =
       when (tallest.kind) {
@@ -100,7 +90,7 @@ internal class ContentRegion(
     val cardHeight = bound.coerceIn(0f, available)
     val scale = state.contentScale(tallest.insets)
     if (scale <= 0f) return cardHeight
-    return (cardHeight / scale).coerceAtMost(height.toFloat())
+    return (cardHeight / scale).coerceAtMost(state.height.toFloat())
   }
 
   /**
@@ -113,34 +103,35 @@ internal class ContentRegion(
    * (issue #48). In overlay mode this view fills the dialog, so its own metrics are the dialog's.
    */
   fun recomputeNativeGeometry() {
-    if (width <= 0 || height <= 0 || !hostView.isAttachedToWindow) return
+    if (state.width <= 0 || state.height <= 0 || !state.hostView.isAttachedToWindow) return
 
     val topInset =
-      ViewCompat.getRootWindowInsets(hostView)
+      ViewCompat.getRootWindowInsets(state.hostView)
         ?.getInsets(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.displayCutout())
         ?.top ?: 0
     val location = IntArray(2)
-    hostView.getLocationInWindow(location)
+    state.hostView.getLocationInWindow(location)
     // Only the part of the inset this view actually extends under matters: a
     // sheet inside a container that starts below the status bar keeps its full
     // height.
-    val topOverlap = (topInset - location[1]).coerceIn(0, height).toFloat()
+    val topOverlap = (topInset - location[1]).coerceIn(0, state.height).toFloat()
 
     val geometryChanged =
-      height.toFloat() != state.lastAppliedMaxDetentHeight || topOverlap != state.statusBarOverlapPx
+      state.height.toFloat() != state.lastAppliedMaxDetentHeight ||
+        topOverlap != state.statusBarOverlapPx
     state.statusBarOverlapPx = topOverlap
-    pushGeometryState(width, height, height - contentRegionHeightPx())
+    pushGeometryState(state.width, state.height, state.height - contentRegionHeightPx())
     if (geometryChanged) {
       host.refreshDetentsFromLayout()
-      hostView.requestLayout()
+      state.hostView.requestLayout()
     }
   }
 
   // The content-region inset (dp) the current detents call for: what
   // recomputeNativeGeometry pushes, computable even while detached.
   fun expectedContentRegionInsetDp(): Float {
-    if (height <= 0) return Float.NaN
-    return (height - contentRegionHeightPx()) / state.density
+    if (state.height <= 0) return Float.NaN
+    return (state.height - contentRegionHeightPx()) / state.density
   }
 
   private val contentRegionCommitPass = Runnable {
@@ -150,8 +141,8 @@ internal class ContentRegion(
     // is bounds-based, and a wrapper still sized to a shorter region would make
     // the content laid out below it untouchable. Then re-resolve any `content`
     // detent that was waiting for the fresh measurement.
-    if (width > 0 && height > 0) {
-      host.layoutSheetContainer(width, height)
+    if (state.width > 0 && state.height > 0) {
+      host.layoutSheetContainer(state.width, state.height)
     }
     host.refreshDetentsFromLayout()
   }
@@ -183,8 +174,8 @@ internal class ContentRegion(
     committedContentRegionInsetDp = inset
     committedFrameWidthDp = frameWidth
     committedFrameHeightDp = frameHeight
-    hostView.removeCallbacks(contentRegionCommitPass)
-    hostView.post(contentRegionCommitPass)
+    state.hostView.removeCallbacks(contentRegionCommitPass)
+    state.hostView.post(contentRegionCommitPass)
   }
 
   private fun pushGeometryState(widthPx: Int, heightPx: Int, insetTopPx: Float) {
@@ -248,7 +239,6 @@ internal class ContentRegion(
   }
 
   fun clearGeometryState() {
-
     lastGeometryStateWidth = 0
     lastGeometryStateHeight = 0
     lastGeometryStateInsetTop = Float.NaN
@@ -257,11 +247,10 @@ internal class ContentRegion(
     committedFrameWidthDp = Float.NaN
     committedFrameHeightDp = Float.NaN
     appliedContentRegionInsetDp = Float.NaN
-    hostView.removeCallbacks(contentRegionCommitPass)
+    state.hostView.removeCallbacks(contentRegionCommitPass)
   }
 
   fun clearShadowOffset() {
-
     lastShadowOffsetY = Float.NaN
   }
 }

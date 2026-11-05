@@ -4,7 +4,6 @@ import android.view.MotionEvent
 import android.view.VelocityTracker
 import android.view.View
 import android.view.ViewConfiguration
-import android.view.ViewGroup
 import com.facebook.react.uimanager.RootView
 import kotlin.math.abs
 
@@ -16,11 +15,8 @@ internal class Gestures(
   private val snapping: Snapping,
   private val scrollCoordination: ScrollCoordination,
 ) {
-  private val hostView: ViewGroup
-    get() = state.hostView
-
   private var velocityTracker: VelocityTracker? = null
-  private val touchSlop = ViewConfiguration.get(hostView.context).scaledTouchSlop
+  private val touchSlop = ViewConfiguration.get(state.hostView.context).scaledTouchSlop
 
   // Touch tracking
   private var lastTouchY = 0f
@@ -247,15 +243,15 @@ internal class Gestures(
   //     automatically on the next ACTION_DOWN.
   private fun announceGestureTakeover(event: MotionEvent) {
     notifyNativeGestureStarted(event)
-    hostView.requestDisallowInterceptTouchEvent(true)
+    state.hostView.requestDisallowInterceptTouchEvent(true)
   }
 
   private fun notifyNativeGestureStarted(event: MotionEvent) {
-    findReactRootView()?.onChildStartedNativeGesture(hostView, event)
+    findReactRootView()?.onChildStartedNativeGesture(state.hostView, event)
   }
 
   private fun findReactRootView(): RootView? {
-    var current: View = hostView
+    var current: View = state.hostView
     while (true) {
       if (current is RootView) return current
       current = current.parent as? View ?: return null
@@ -263,13 +259,11 @@ internal class Gestures(
   }
 
   fun releaseVelocityTracker() {
-
     velocityTracker?.recycle()
     velocityTracker = null
   }
 
   fun clearTouchState() {
-
     state.initialTouchY = 0f
     state.initialTouchX = 0f
     lastTouchY = 0f

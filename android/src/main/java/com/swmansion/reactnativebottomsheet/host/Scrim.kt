@@ -3,19 +3,9 @@ package com.swmansion.reactnativebottomsheet.host
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.view.ViewGroup
 
 /** The scrim the host draws behind a modal sheet, and the sheet's visibility when closed. */
 internal class Scrim(private val state: SheetState) {
-  private val hostView: ViewGroup
-    get() = state.hostView
-
-  private val width: Int
-    get() = hostView.width
-
-  private val height: Int
-    get() = hostView.height
-
   private val scrimPaint = Paint(Paint.ANTI_ALIAS_FLAG)
   private var scrimColor = Color.TRANSPARENT
   // Scrim opacity per detent index, from each detent’s `scrimOpacity`. Kept apart from
@@ -25,7 +15,7 @@ internal class Scrim(private val state: SheetState) {
 
   fun setScrimColor(color: Int?) {
     scrimColor = color ?: Color.TRANSPARENT
-    hostView.invalidate()
+    state.hostView.invalidate()
   }
 
   fun clearScrimProgress() {
@@ -35,7 +25,7 @@ internal class Scrim(private val state: SheetState) {
   fun updateScrim(position: Float = state.currentSheetHeight()) {
     if (!state.modal) {
       scrimProgress = 0f
-      hostView.invalidate()
+      state.hostView.invalidate()
       return
     }
 
@@ -55,12 +45,12 @@ internal class Scrim(private val state: SheetState) {
     // re-anchor settles.
     if (state.scrimPinnedFull) {
       scrimProgress = fullyOpenScrimOpacity()
-      hostView.invalidate()
+      state.hostView.invalidate()
       return
     }
 
     scrimProgress = scrimOpacityAt(position)
-    hostView.invalidate()
+    state.hostView.invalidate()
   }
 
   /** The opacity at the tallest detent, held while the sheet re-anchors. */
@@ -83,7 +73,7 @@ internal class Scrim(private val state: SheetState) {
 
   fun hideScrim() {
     scrimProgress = 0f
-    hostView.invalidate()
+    state.hostView.invalidate()
   }
 
   fun updateSheetVisibility(position: Float) {
@@ -100,6 +90,6 @@ internal class Scrim(private val state: SheetState) {
     val alpha = (Color.alpha(scrimColor) * scrimProgress).toInt().coerceIn(0, 255)
     scrimPaint.color =
       Color.argb(alpha, Color.red(scrimColor), Color.green(scrimColor), Color.blue(scrimColor))
-    canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), scrimPaint)
+    canvas.drawRect(0f, 0f, state.width.toFloat(), state.height.toFloat(), scrimPaint)
   }
 }
