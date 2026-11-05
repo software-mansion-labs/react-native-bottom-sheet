@@ -6,6 +6,7 @@
   --example-muted-surface: var(--swm-navy-light-10);
   --example-text: var(--swm-navy-light-100);
   --example-muted: var(--swm-navy-light-60);
+  --example-code: var(--swm-navy-light-80);
   --example-track: var(--swm-navy-light-20);
   --example-accent: var(--swm-navy-light-100);
   --example-button: #2196f3;
@@ -29,6 +30,7 @@
   --example-muted-surface: var(--swm-light-off-navy);
   --example-text: var(--swm-off-white);
   --example-muted: var(--swm-navy-dark-40);
+  --example-code: var(--swm-off-white);
   --example-track: var(--swm-light-off-navy);
   --example-accent: var(--swm-blue-dark-80);
   --example-tint-blue: var(--swm-blue-dark-140);
@@ -116,7 +118,7 @@
 .iconButton:focus-visible,
 .slider:focus-visible,
 .segment:has(input:focus-visible),
-.consoleClear:focus-visible,
+.logClear:focus-visible,
 .toggle:has(input:focus-visible) .toggleTrack {
   outline: 2px solid var(--ifm-color-primary);
   outline-offset: 2px;
@@ -425,51 +427,33 @@
   transform: translateX(16px);
 }
 
-/* Dark in both themes, like a dev tools console. */
-.console {
-  display: flex;
-  flex-direction: column;
-  height: 150px;
-  overflow: hidden;
-  border-radius: 6px;
-  background-color: #141722;
-  color: #e4e7f2;
-  font-family: var(--ifm-font-family-monospace);
-  font-size: 12px;
-}
-
-.consoleBar {
-  display: flex;
-  flex: none;
-  align-items: center;
-  justify-content: space-between;
-  padding: 5px 10px;
-  border-bottom: 1px solid #2a2f40;
-  color: #8a92ad;
-}
-
-.consoleClear {
+.logClear {
   padding: 0;
   border: 0;
   background: none;
-  color: inherit;
-  font: inherit;
+  color: var(--example-muted);
+  font-family: var(--ifm-font-family-base);
+  font-size: 14px;
   cursor: pointer;
   transition: color 120ms ease;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .consoleClear:hover {
-    color: #e4e7f2;
+  .logClear:hover {
+    color: var(--example-text);
   }
 }
 
+/* Reads like the docs' code blocks: a flat, bordered panel of monospace text. */
 .log {
-  flex: 1;
-  min-height: 0;
+  height: 104px;
   margin: 0;
-  padding: 6px 10px;
+  padding: 7px 10px;
   overflow-y: auto;
+  border: 1px solid var(--example-border);
+  color: var(--example-code);
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 13px;
   list-style: none;
 }
 
@@ -492,26 +476,10 @@
   }
 }
 
-.logPrompt,
-.logEmpty {
-  color: #8a92ad;
-}
-
 .logEmpty {
   margin: 0;
+  color: var(--example-muted);
   line-height: 22px;
-}
-
-.logCallback {
-  color: #6fcef5;
-}
-
-.logRequest {
-  color: #c49ffe;
-}
-
-.logComponent {
-  color: #7adead;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -147,26 +147,6 @@ export const useEventLog = () => {
   return { entries, log, clear };
 };
 
-const toneOf = (message: string) => {
-  if (message.startsWith('<')) return styles.logComponent;
-  return message.startsWith('onSettle')
-    ? styles.logCallback
-    : styles.logRequest;
-};
-
-/** Colors the leading callback or component, as a console would. */
-const LogMessage = ({ message }: { message: string }) => {
-  const [, head = message, rest] = /^(<[^>]*>|\w+)(.*)$/.exec(message) ?? [];
-
-  return (
-    <>
-      <span className={styles.logPrompt}>›</span>{' '}
-      <span className={toneOf(message)}>{head}</span>
-      {rest}
-    </>
-  );
-};
-
 export const EventLog = ({
   entries,
   onClear,
@@ -176,20 +156,21 @@ export const EventLog = ({
   onClear: () => void;
   empty: string;
 }) => (
-  <div className={styles.console}>
-    <div className={styles.consoleBar}>
-      <span>Console</span>
-      <button type="button" className={styles.consoleClear} onClick={onClear}>
+  <Control
+    label="Events"
+    value={
+      <button type="button" className={styles.logClear} onClick={onClear}>
         Clear
       </button>
-    </div>
+    }
+  >
     <ol className={styles.log} aria-live="polite">
       {entries.length === 0 && <li className={styles.logEmpty}>{empty}</li>}
       {entries.map((entry) => (
         <li key={entry.id} className={styles.logEntry}>
-          <LogMessage message={entry.message} />
+          {entry.message}
         </li>
       ))}
     </ol>
-  </div>
+  </Control>
 );
