@@ -384,11 +384,13 @@ const invalidTopInsetError = (value: unknown) =>
 
 /** The sheet's `topInset`, in the shape each native detent carries it. */
 const resolveTopInset = (topInset: number | undefined) => {
+  // `null` from plain JS means unset too, like `undefined`.
+  const usesStatusBarTopInset = topInset == null;
   const value = topInset ?? 0;
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
     throw invalidTopInsetError(value);
   }
-  return { usesStatusBarTopInset: topInset === undefined, insetTop: value };
+  return { usesStatusBarTopInset, insetTop: value };
 };
 
 /**
