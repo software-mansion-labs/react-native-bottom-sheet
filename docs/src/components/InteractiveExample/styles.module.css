@@ -347,20 +347,35 @@
 
 .segmented {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px 14px;
+  border: 1px solid var(--example-border);
 }
 
 .segment {
   display: flex;
+  flex: 1 1 0;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding-bottom: 2px;
-  border-bottom: 1px solid transparent;
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 8px;
   color: var(--example-muted);
   white-space: nowrap;
   cursor: pointer;
-  transition: color 120ms ease;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.segment + .segment {
+  border-left: 1px solid var(--example-border);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .segment:hover {
+    background-color: var(--example-muted-surface);
+    color: var(--example-text);
+  }
 }
 
 .segment input {
@@ -369,9 +384,11 @@
   pointer-events: none;
 }
 
-.segmentActive {
-  border-bottom-color: currentColor;
-  color: var(--example-text);
+.segmentActive,
+.segmentActive:hover {
+  background-color: var(--example-text);
+  color: var(--example-background);
+  font-weight: 500;
 }
 
 .swatch {

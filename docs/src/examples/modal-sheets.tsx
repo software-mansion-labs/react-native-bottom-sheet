@@ -48,54 +48,46 @@ export const ScrimExample = interactiveExample(
             >
               <SheetBody title="Drag between detents">
                 <SheetText>
-                  The scrim interpolates between the opacities you set for each
-                  detent. Tap it to close the sheet.
+                  Each detent has its own scrim opacity. Tap the scrim to close
+                  the sheet.
                 </SheetText>
                 <SheetText>
                   Keep dragging up to reach the content detent, which is as tall
                   as everything in this sheet.
                 </SheetText>
                 <SheetText>
-                  Change the opacities and the color while the sheet is open to
-                  see how they blend with what's behind it.
+                  Change the color and opacities while the sheet is open to see
+                  how they look over what's behind it.
                 </SheetText>
               </SheetBody>
             </StageSheet>
           </>
         }
         controls={
-          <>
-            <ControlGroup>
-              <Segmented
-                label="index"
-                options={[
-                  { value: 0, label: '0' },
-                  { value: 1, label: '1' },
-                  { value: 2, label: '2' },
-                ]}
-                value={index}
-                onChange={setIndex}
-              />
-              <Segmented
-                label="scrimColor"
-                options={SCRIM_COLORS}
-                value={scrimColor}
-                onChange={setScrimColor}
-              />
-            </ControlGroup>
-            <ControlGroup>
-              <Slider
-                label="Opacity at index 1"
-                value={middle}
-                onChange={setMiddle}
-              />
-              <Slider
-                label="Opacity at index 2"
-                value={top}
-                onChange={setTop}
-              />
-            </ControlGroup>
-          </>
+          <ControlGroup>
+            <Segmented
+              label="index"
+              options={[
+                { value: 0, label: '0' },
+                { value: 1, label: '1' },
+                { value: 2, label: '2' },
+              ]}
+              value={index}
+              onChange={setIndex}
+            />
+            <Segmented
+              label="scrimColor"
+              options={SCRIM_COLORS}
+              value={scrimColor}
+              onChange={setScrimColor}
+            />
+            <Slider
+              label="Opacity at index 1"
+              value={middle}
+              onChange={setMiddle}
+            />
+            <Slider label="Opacity at index 2" value={top} onChange={setTop} />
+          </ControlGroup>
         }
         code={`const [index, setIndex] = useState(1);
 

@@ -41,7 +41,7 @@ export const Slider = ({
   onChange,
   min = 0,
   max = 1,
-  step = 0.05,
+  step = 0.01,
 }: {
   label: string;
   value: number;
