@@ -9,6 +9,7 @@ import androidx.activity.ComponentActivity
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.facebook.react.internal.featureflags.ReactNativeFeatureFlagsForTests
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -45,6 +46,36 @@ class BottomSheetViewScrimDismissTest {
       tapScrim(sheet)
 
       assertEquals(listOf(0), listener.indexChanges)
+    }
+  }
+
+  @Test
+  fun `a scrim pinned at destroy does not carry over to a reused sheet`() {
+    withOpenModalSheet { sheet, listener ->
+      // Growing the open detent re-anchors the sheet, which pins the scrim until the spring ends.
+      sheet.setDetents(
+        listOf(
+          mapOf("value" to 0.0, "scrimOpacity" to 0.0),
+          mapOf("value" to 600.0, "scrimOpacity" to 1.0),
+        ),
+      )
+
+      sheet.destroy()
+      sheet.listener = listener
+      sheet.setDetents(
+        listOf(
+          mapOf("value" to 0.0, "scrimOpacity" to 0.0),
+          mapOf("value" to 300.0, "scrimOpacity" to 0.0),
+          mapOf("value" to 600.0, "scrimOpacity" to 1.0),
+        ),
+      )
+      sheet.setIndex(1)
+      sheet.forceLayout()
+      layoutView(sheet)
+      tapScrim(sheet)
+
+      // This detent's scrim is invisible, so the tap must not dismiss the sheet.
+      assertFalse(listener.indexChanges.toString(), 0 in listener.indexChanges)
     }
   }
 

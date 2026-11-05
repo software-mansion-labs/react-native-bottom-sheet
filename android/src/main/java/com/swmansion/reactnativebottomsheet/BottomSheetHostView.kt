@@ -2181,6 +2181,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     clearNestedScrollState()
     activeAnimation?.cancel()
     activeAnimation = null
+    activeAnimationEmitsSettle = false
     velocityTracker?.recycle()
     velocityTracker = null
     removeCallbacks(sheetChildrenLayoutPass)
@@ -2198,10 +2199,15 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     appliedContentRegionInsetDp = Float.NaN
     removeCallbacks(contentRegionCommitPass)
     clearPendingInitialContentDetentSnap()
+    pendingInitialContentDetentFrames = 0
     contentHeightMarker?.removeOnLayoutChangeListener(contentHeightMarkerLayoutListener)
     contentHeightMarker = null
     surfaceView = null
     rawDetentSpecs = emptyList()
+    hasCardGaps = false
+    clipContainer.setClipsToCard(false)
+    widestCardInsets = DetentInsets()
+    scrimOpacities = emptyList()
     detentSpecs = emptyList()
     targetIndex = 0
     hasPerformedHostLayoutSinceAttach = false
@@ -2221,6 +2227,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     scrimTouchActive = false
     scrimProgress = 0f
     suppressScrimForClosingTarget = false
+    scrimPinnedFull = false
     for (i in 0 until clipContainer.childCount) resetContentTransform(clipContainer.getChildAt(i))
     clipContainer.removeAllViews()
     stateWrapper = null
