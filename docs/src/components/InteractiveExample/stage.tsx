@@ -57,23 +57,9 @@ export const Stage = ({
   );
 };
 
-/**
- * Centers what's behind the sheets, such as the button that opens them. Pass
- * `hidden` while a sheet is open, so the sheet doesn't sit on top of it.
- */
-export const StageContent = ({
-  hidden,
-  children,
-}: {
-  hidden?: boolean;
-  children: ReactNode;
-}) => (
-  <View
-    style={[inner.content, { opacity: hidden ? 0 : 1 }]}
-    pointerEvents={hidden ? 'none' : 'auto'}
-  >
-    {children}
-  </View>
+/** Centers what's behind the sheets, such as the button that opens them. */
+export const StageContent = ({ children }: { children: ReactNode }) => (
+  <View style={inner.content}>{children}</View>
 );
 
 type StageSheetProps = Omit<
@@ -165,11 +151,6 @@ const inner = StyleSheet.create({
     justifyContent: 'center',
     gap: 12,
     padding: 16,
-    // Web-only: fades the content as a sheet opens or closes.
-    ...({
-      transitionProperty: 'opacity',
-      transitionDuration: '160ms',
-    } as ViewStyle),
   },
   // Matches the buttons in the Reanimated docs' examples.
   button: {

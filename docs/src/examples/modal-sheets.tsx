@@ -36,7 +36,7 @@ export const ScrimExample = interactiveExample(
       <Example
         stage={
           <>
-            <StageContent hidden={index > 0}>
+            <StageContent>
               <StageButton label="Open sheet" onPress={() => setIndex(1)} />
             </StageContent>
             <StageSheet
@@ -147,11 +147,12 @@ export const LazyExample = interactiveExample(
       <Example
         stage={
           <>
-            <StageContent hidden={index > 0}>
+            <StageContent>
               <StageButton label="Open sheet" onPress={() => setIndex(1)} />
             </StageContent>
             <StageSheet
               lazy={lazy}
+              detents={[0, '65%']}
               index={index}
               onIndexChange={setIndex}
               onSettle={(settled) => log(`onSettle(${settled})`)}
@@ -185,6 +186,7 @@ export const LazyExample = interactiveExample(
         code={`const [index, setIndex] = useState(1);
 
 <ModalBottomSheet${lazy ? '\n  lazy' : ''}
+  detents={[0, '65%']}
   index={index}
   onIndexChange={setIndex}
   surface={
@@ -220,7 +222,7 @@ export const StackingExample = interactiveExample(
       <Example
         stage={
           <>
-            <StageContent hidden={openOrder.length > 0}>
+            <StageContent>
               <StageButton
                 label="Open sheet A"
                 onPress={() => setOpen('A', true)}
@@ -303,11 +305,11 @@ export const CloseRequestExample = interactiveExample(
       <Example
         stage={
           <>
-            <StageContent hidden={index > 0}>
+            <StageContent>
               <StageButton label="Open sheet" onPress={() => setIndex(1)} />
             </StageContent>
             <StageSheet
-              detents={[0, 170]}
+              detents={[0, '65%']}
               index={index}
               onIndexChange={setIndex}
               onCloseRequest={() => {
@@ -351,7 +353,7 @@ export const CloseRequestExample = interactiveExample(
         code={`const [index, setIndex] = useState(1);
 
 <ModalBottomSheet
-  detents={[0, 170]}
+  detents={[0, '65%']}
   index={index}
   onIndexChange={setIndex}
   onCloseRequest={() => {${closes ? '\n    setIndex(0);' : '\n    // Keep the sheet open.'}
