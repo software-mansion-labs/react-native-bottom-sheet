@@ -2,6 +2,7 @@ import {
   createContext,
   useContext,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ComponentProps,
@@ -69,31 +70,38 @@ type StageSheetProps = Omit<
   surfaceColor?: string;
 };
 
+const SHEET_SHAPE = {
+  borderTopLeftRadius: 16,
+  borderTopRightRadius: 16,
+  boxShadow: '0 -2 16 rgba(0, 16, 72, 0.12)',
+};
+
 /** A modal sheet with the shared look, centered at `MAX_SHEET_WIDTH`. */
 export const StageSheet = ({ surfaceColor, ...props }: StageSheetProps) => {
   const gap = Math.max(
     0,
     (useContext(StageWidthContext) - MAX_SHEET_WIDTH) / 2
   );
+  const insets = useMemo(() => [{ left: gap, right: gap }], [gap]);
+  const surface = useMemo(
+    () => (
+      <View
+        style={[
+          StyleSheet.absoluteFill,
+          { backgroundColor: surfaceColor ?? 'var(--example-surface)' },
+        ]}
+      />
+    ),
+    [surfaceColor]
+  );
 
   return (
     <ModalBottomSheet
       // Examples load with their sheets already in place.
       animateIn={false}
-      insets={[{ left: gap, right: gap }]}
-      surfaceStyle={{
-        borderTopLeftRadius: 16,
-        borderTopRightRadius: 16,
-        boxShadow: '0 -2 16 rgba(0, 16, 72, 0.12)',
-      }}
-      surface={
-        <View
-          style={[
-            StyleSheet.absoluteFill,
-            { backgroundColor: surfaceColor ?? 'var(--example-surface)' },
-          ]}
-        />
-      }
+      insets={insets}
+      surfaceStyle={SHEET_SHAPE}
+      surface={surface}
       {...props}
     />
   );

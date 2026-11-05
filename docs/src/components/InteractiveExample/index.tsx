@@ -1,8 +1,10 @@
 import {
   createContext,
   useContext,
+  useDeferredValue,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ComponentType,
@@ -108,21 +110,25 @@ const Tabs = () => {
   );
 };
 
-const useElementSize = () => {
+/**
+ * Tracks one dimension of an element. Keeping it to a single number means a
+ * change in the other dimension doesn't re-render: the panel's height animates,
+ * and re-rendering every example on each of those frames would drop them.
+ */
+const useElementDimension = (dimension: 'offsetWidth' | 'offsetHeight') => {
   const ref = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState({ width: 0, height: 0 });
+  const [value, setValue] = useState(0);
 
   useLayoutEffect(() => {
     const element = ref.current!;
-    const update = () =>
-      setSize({ width: element.offsetWidth, height: element.offsetHeight });
+    const update = () => setValue(element[dimension]);
     update();
     const observer = new ResizeObserver(update);
     observer.observe(element);
     return () => observer.disconnect();
-  }, []);
+  }, [dimension]);
 
-  return [ref, size] as const;
+  return [ref, value] as const;
 };
 
 interface ExampleProps {
@@ -137,9 +143,16 @@ interface ExampleProps {
 /** The look of every example. Render it from an `interactiveExample` body. */
 export const Example = ({ stage, controls, code }: ExampleProps) => {
   const { tab, reset, height } = useContext(ShellContext)!;
-  const [panelRef, { width }] = useElementSize();
-  const [controlsRef, { height: controlsHeight }] = useElementSize();
-  const [codeRef, { height: codeHeight }] = useElementSize();
+  const [panelRef, width] = useElementDimension('offsetWidth');
+  const [controlsRef, controlsHeight] = useElementDimension('offsetHeight');
+  const [codeRef, codeHeight] = useElementDimension('offsetHeight');
+  // Highlighting is the slowest part of a render, so it only reruns when the
+  // code changes, and it lets interactions like dragging a slider go first.
+  const deferredCode = useDeferredValue(code);
+  const highlightedCode = useMemo(
+    () => <CodeBlock language="tsx">{deferredCode}</CodeBlock>,
+    [deferredCode]
+  );
   const [animated, setAnimated] = useState(false);
 
   useEffect(() => {
@@ -186,7 +199,7 @@ export const Example = ({ stage, controls, code }: ExampleProps) => {
             )}
           </div>
           <div ref={codeRef} className={styles.codePane} inert={tab !== 'code'}>
-            <CodeBlock language="tsx">{code}</CodeBlock>
+            {highlightedCode}
           </div>
           <button
             type="button"
