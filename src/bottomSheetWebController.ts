@@ -122,10 +122,22 @@ class CriticalSpring {
     return this.target + decay * (a + (this.v0 + SPRING_OMEGA * a) * t);
   }
 
+  /** The velocity at a moment, in pixels per second. */
+  velocity(time: number) {
+    const t = Math.max(0, time - this.startTime) / 1000;
+    const a = this.from - this.target;
+    const decay = Math.exp(-SPRING_OMEGA * t);
+    return decay * (this.v0 - SPRING_OMEGA * (this.v0 + SPRING_OMEGA * a) * t);
+  }
+
   isFinished(time: number) {
     return time - this.startTime >= SPRING_DURATION_MS;
   }
 }
+
+type CardGeometry = Readonly<{ left: number; right: number; height: number }>;
+
+type CardTransition = CardGeometry & Readonly<{ startTime: number }>;
 
 type ScrollableEntry = Readonly<{ element: HTMLElement; inverted: boolean }>;
 
@@ -350,6 +362,8 @@ export class BottomSheetWebController {
   private cardCorners = '';
   private isCardRounded = false;
   private appliedContentTransform: string | null = null;
+  // What's left of the card's shape from before its detent last changed.
+  private cardTransition: CardTransition | null = null;
   private appliedCardHeight = NaN;
   private appliedCardLeft = NaN;
   private appliedCardRight = NaN;
@@ -782,6 +796,11 @@ export class BottomSheetWebController {
       firstOpenPosition > 0 &&
       previousHostHeight - this.currentTranslateY() + 0.5 >= firstOpenPosition;
     this.scrimPinnedFull = this.scrimPinnedFull || wasScrimFull;
+    const previousCard: CardGeometry = {
+      left: this.appliedCardLeft,
+      right: this.appliedCardRight,
+      height: this.appliedCardHeight,
+    };
     this.detents = resolved;
     this.lastAppliedHostHeight = hostHeight;
 
@@ -793,14 +812,23 @@ export class BottomSheetWebController {
     const targetTy = this.translationY(this.targetIndex);
 
     if (this.spring !== null) {
+      // Only the card's shape changed, so the snap can carry on undisturbed.
+      if (
+        this.spring.target === targetTy &&
+        hostHeight === previousHostHeight
+      ) {
+        return;
+      }
+      const now = performance.now();
+      const velocity = this.spring.velocity(now);
       const emitsSettle = this.springEmitsSettle;
-      const visualTy = this.cancelSpring();
+      const visualTy = this.cancelSpring(now);
       // Re-anchor the in-flight position so the sheet keeps the same on-screen
       // height across the resize.
       const visibleHeight = previousHostHeight - visualTy;
       this.setTranslateY(clamp(hostHeight - visibleHeight, 0, hostHeight));
       this.emitPosition();
-      this.snapToIndex(this.targetIndex, 0, false, emitsSettle, true);
+      this.retargetSpring(velocity, emitsSettle, previousCard);
       return;
     }
 
@@ -821,8 +849,40 @@ export class BottomSheetWebController {
         clamp(hostHeight - currentVisibleHeight, 0, hostHeight)
       );
       this.emitPosition();
-      this.snapToIndex(this.targetIndex, 0, false, false, true);
+      this.retargetSpring(0, false, previousCard);
     }
+  }
+
+  /**
+   * Heads for the target detent's new position, keeping the sheet's velocity so
+   * it doesn't stall. The card's shape eases over from what it was on the same
+   * curve, as the new detent's insets would otherwise apply at once, leaving an
+   * edge to jump when the sheet is above the new position.
+   */
+  private retargetSpring(
+    velocity: number,
+    emitSettle: boolean,
+    previousCard: CardGeometry
+  ) {
+    const startTime = performance.now();
+    this.springEmitsSettle = emitSettle;
+    this.springTargetIndex = this.targetIndex;
+    this.spring = new CriticalSpring(
+      this.translateY,
+      this.translationY(this.targetIndex),
+      velocity,
+      startTime
+    );
+    const resting = this.restingCardGeometry();
+    this.cardTransition = {
+      left: previousCard.left - resting.left,
+      right: previousCard.right - resting.right,
+      height: previousCard.height - resting.height,
+      startTime,
+    };
+    this.updateCardClip();
+    this.requestFrame();
+    this.updateCloseRequestRegistration();
   }
 
   private shouldAnimateContentHeight(index: number) {
@@ -985,16 +1045,16 @@ export class BottomSheetWebController {
     const elements = this.elements;
     if (elements === null || this.config === null) return;
     const { card, content, host, shadow, surface } = elements;
-    const position = Math.max(
-      this.hostHeight - this.translateY,
-      this.firstOpenPosition()
+    const resting = this.restingCardGeometry();
+    const remaining = this.remainingCardTransition();
+    const transition = this.cardTransition;
+    const left = resting.left + (transition?.left ?? 0) * remaining;
+    const right = resting.right + (transition?.right ?? 0) * remaining;
+    const cardHeight = clamp(
+      resting.height + (transition?.height ?? 0) * remaining,
+      0,
+      this.hostHeight
     );
-    const {
-      insetLeft: left,
-      insetRight: right,
-      insetBottom: bottom,
-    } = this.cardInsets(position);
-    const cardHeight = clamp(position - bottom, 0, this.hostHeight);
     const clipInset = this.hostHeight - cardHeight;
 
     // Scale the surface and content to the card's width, with their top-left
@@ -1033,6 +1093,33 @@ export class BottomSheetWebController {
     card.style.clipPath = this.clipsToCard()
       ? `inset(0px ${right}px ${clipInset}px ${left}px round ${this.cardCorners})`
       : '';
+  }
+
+  /** The card's shape at the sheet's position, with no transition under way. */
+  private restingCardGeometry(): CardGeometry {
+    const position = Math.max(
+      this.hostHeight - this.translateY,
+      this.firstOpenPosition()
+    );
+    const { insetLeft, insetRight, insetBottom } = this.cardInsets(position);
+    return {
+      left: insetLeft,
+      right: insetRight,
+      height: clamp(position - insetBottom, 0, this.hostHeight),
+    };
+  }
+
+  /** How much of the card's transition is left: 1 at its start, then 0. */
+  private remainingCardTransition() {
+    const transition = this.cardTransition;
+    if (transition === null) return 0;
+    const elapsed = (performance.now() - transition.startTime) / 1000;
+    const progress = SPRING_OMEGA * Math.max(0, elapsed);
+    if (progress >= 8) {
+      this.cardTransition = null;
+      return 0;
+    }
+    return (1 + progress) * Math.exp(-progress);
   }
 
   private firstOpenPosition() {
@@ -1167,6 +1254,7 @@ export class BottomSheetWebController {
     const emitSettle = this.springEmitsSettle;
     this.spring = null;
     this.springEmitsSettle = false;
+    this.cardTransition = null;
     this.setTranslateY(this.translationY(index));
     this.scrimPinnedFull = false;
     this.emitPosition();
