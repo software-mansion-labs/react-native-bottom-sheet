@@ -16,6 +16,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import {
+  BottomSheet,
   BottomSheetProvider,
   ModalBottomSheet,
 } from '@swmansion/react-native-bottom-sheet';
@@ -70,14 +71,21 @@ type StageSheetProps = Omit<
   surfaceColor?: string;
 };
 
+type StageInlineSheetProps = Omit<
+  ComponentProps<typeof BottomSheet>,
+  'surface'
+> & {
+  surfaceColor?: string;
+};
+
 const SHEET_SHAPE = {
   borderTopLeftRadius: 16,
   borderTopRightRadius: 16,
   boxShadow: '0 -2 16 rgba(0, 16, 72, 0.12)',
 };
 
-/** A modal sheet with the shared look, centered at `MAX_SHEET_WIDTH`. */
-export const StageSheet = ({ surfaceColor, ...props }: StageSheetProps) => {
+/** The shared sheet look, centered at `MAX_SHEET_WIDTH`. */
+const useSheetLook = (surfaceColor?: string) => {
   const gap = Math.max(
     0,
     (useContext(StageWidthContext) - MAX_SHEET_WIDTH) / 2
@@ -95,17 +103,27 @@ export const StageSheet = ({ surfaceColor, ...props }: StageSheetProps) => {
     [surfaceColor]
   );
 
-  return (
-    <ModalBottomSheet
-      // Examples load with their sheets already in place.
-      animateIn={false}
-      insets={insets}
-      surfaceStyle={SHEET_SHAPE}
-      surface={surface}
-      {...props}
-    />
-  );
+  return {
+    // Examples load with their sheets already in place.
+    animateIn: false,
+    insets,
+    surfaceStyle: SHEET_SHAPE,
+    surface,
+  };
 };
+
+/** A modal sheet with the shared look. */
+export const StageSheet = ({ surfaceColor, ...props }: StageSheetProps) => (
+  <ModalBottomSheet {...useSheetLook(surfaceColor)} {...props} />
+);
+
+/** An inline sheet with the shared look. */
+export const StageInlineSheet = ({
+  surfaceColor,
+  ...props
+}: StageInlineSheetProps) => (
+  <BottomSheet {...useSheetLook(surfaceColor)} {...props} />
+);
 
 export const StageButton = ({
   label,
