@@ -1,0 +1,363 @@
+import UIKit
+
+extension BottomSheetHostingView {
+  /// The default top inset: the part of the window's top (status bar / notch)
+  /// inset that actually overlaps this view. Measured from real window geometry
+  /// in every mode — inline, portal, and overlay — so no JS-estimated dimensions
+  /// are involved. Before the view is in a window, nothing overlaps it.
+  private var statusBarOverlap: CGFloat {
+    guard let window else { return 0 }
+    let originYInWindow = convert(CGPoint.zero, to: window).y
+    return min(max(0, window.safeAreaInsets.top - originYInWindow), bounds.height)
+  }
+
+  /// How much the content is scaled for a card this wide: its width over the
+  /// width of the widest card, which the content is laid out against.
+  func contentScale(forCardWidth width: CGFloat) -> CGFloat {
+    let widest = bounds.width - widestCardSideGaps
+    return widest > 0 ? width / widest : 1
+  }
+
+  func contentScale(for insets: DetentInsets) -> CGFloat {
+    contentScale(forCardWidth: max(0, bounds.width - insets.left - insets.right))
+  }
+
+  /// The height of the content region: the Yoga box the sheet's in-flow
+  /// children (the `flex: 1` content wrapper) are laid out in. It is the
+  /// tallest height the sheet can reach — the card's height at the tallest
+  /// detent, clamped to the space its insets leave — rather than the host's,
+  /// so a scrollable under a fixed or percentage tallest detent is laid out
+  /// against the height it can actually show instead of leaving its last rows
+  /// below the card's edge. A trailing `content` detent is bounded by that space
+  /// alone: its resolved height is measured from this very region, so bounding
+  /// the region by it would be circular. In layout units, so divided by the scale
+  /// at that detent, and never taller than the sheet's node.
+  private var contentRegionHeight: CGFloat {
+    guard let tallest = rawDetentSpecs.last else { return bounds.height }
+    let available = availableCardHeight(for: tallest)
+    let bound: CGFloat
+    switch tallest.kind {
+    case .points:
+      bound = tallest.value
+    case .percentage:
+      bound = available * tallest.value
+    case .content:
+      bound = available
+    }
+    let height = min(max(0, bound), available)
+    let scale = contentScale(for: tallest.insets)
+    return scale > 0 ? min(height / scale, bounds.height) : height
+  }
+
+  /// The tallest the card can be at a detent: the host's height, less the
+  /// detent's top and bottom insets. Percentages resolve against it, so `100%`
+  /// fits.
+  private func availableCardHeight(for spec: RawDetentSpec) -> CGFloat {
+    max(0, bounds.height - (spec.insets.top ?? statusBarOverlap) - spec.insets.bottom)
+  }
+
+  /// The natively measured inset of the content region: the gap between the
+  /// sheet's height and `contentRegionHeight`. Reported into the shadow tree,
+  /// where it becomes Yoga bottom padding on the sheet node.
+  public var contentRegionInset: CGFloat {
+    max(0, bounds.height - contentRegionHeight)
+  }
+
+  /// Stable coordinate base for the sheet container. The container is sized to
+  /// the full available height rather than the tallest detent, so it stays a
+  /// fixed-size canvas: when content — and thus the `content` detent — shrinks,
+  /// the container does not collapse underneath the sheet, leaving room to
+  /// animate the sheet down to its new height. The surface fills this canvas, so
+  /// the area below the shrunken content stays covered throughout.
+  var sheetContainerHeight: CGFloat {
+    bounds.height
+  }
+
+  private func resolveDetentSpecs() -> [DetentSpec]? {
+    let maxHeight = sheetContainerHeight
+    let measuredContentHeight = maxHeight > 0 ? validContentHeight.map { min($0, maxHeight) } : nil
+    var resolvedDetents: [DetentSpec] = []
+    resolvedDetents.reserveCapacity(rawDetentSpecs.count)
+
+    for (index, spec) in rawDetentSpecs.enumerated() {
+      let available = availableCardHeight(for: spec)
+      let height: CGFloat
+      switch spec.kind {
+      case .points:
+        height = spec.value
+      case .percentage:
+        height = available * spec.value
+      case .content:
+        height =
+          measuredContentHeight.map { $0 * contentScale(for: spec.insets) }
+            ?? unresolvedContentDetentHeight(after: index, maxHeight: maxHeight)
+      }
+      let resolvedHeight = min(max(0, height), available)
+      let position = resolvedHeight > 0 ? resolvedHeight + spec.insets.bottom : 0
+      if let previous = resolvedDetents.last, position < previous.position {
+        let message =
+          "Invalid bottom sheet detent at index \(index): resolved position \(position) is lower than previous detent position \(previous.position). Detents must be passed in ascending order."
+        if lastReportedInvalidDetentMessage != message {
+          lastReportedInvalidDetentMessage = message
+          eventDelegate?.bottomSheetHostingView(self, didReportError: message)
+        }
+        return nil
+      }
+      resolvedDetents.append(
+        DetentSpec(position: position, programmatic: spec.programmatic, insets: spec.insets)
+      )
+    }
+
+    lastReportedInvalidDetentMessage = nil
+    return resolvedDetents
+  }
+
+  private func unresolvedContentDetentHeight(after index: Int, maxHeight: CGFloat) -> CGFloat {
+    guard index + 1 < rawDetentSpecs.count else {
+      return maxHeight
+    }
+    for spec in rawDetentSpecs[(index + 1)...] {
+      let available = availableCardHeight(for: spec)
+      let height: CGFloat
+      switch spec.kind {
+      case .points:
+        height = spec.value
+      case .percentage:
+        height = available * spec.value
+      case .content:
+        continue
+      }
+      // Whatever its inset, this detent must not rise above the next one's top.
+      return min(max(0, height), available) + spec.insets.bottom
+        - rawDetentSpecs[index].insets.bottom
+    }
+    return maxHeight
+  }
+
+  func refreshDetentsFromLayout() {
+    resolveDetentsFromLayout()
+    replayPendingIndexIfResolved()
+  }
+
+  private func resolveDetentsFromLayout() {
+    // While detached from a window (e.g. mid-commit, when Fabric reparents the
+    // host as ancestor view flattening changes), the status bar's overlap is not
+    // computable — its zero fallback would register as a detents change and
+    // trigger a spurious re-anchor snap that clobbers any queued snap request.
+    // Stay inert; didMoveToWindow refreshes geometry on reattach.
+    if hasLaidOut, window == nil {
+      return
+    }
+    refreshContentHeightMarker()
+    if !isPanning {
+      activeDragRange = nil
+      activeDragDetentSpecs = nil
+    }
+    if hasLaidOut, isInvalidContentDetentTarget(targetIndex) {
+      updateScrim()
+      return
+    }
+
+    guard let resolvedDetents = resolveDetentSpecs() else {
+      updateScrim()
+      return
+    }
+    // Also fall through when only the height changed: the specs store positions,
+    // but translations derive from it, so they must be re-anchored even
+    // when the resolved detents are unchanged.
+    guard resolvedDetents != detentSpecs || sheetContainerHeight != lastAppliedMaxDetentHeight
+    else {
+      updateScrim()
+      return
+    }
+
+    // The re-anchor math below preserves the on-screen sheet height across the
+    // geometry change, so it must relate the current translation to the height it
+    // was computed against — not the freshly resolved one.
+    let previousMaxHeight =
+      lastAppliedMaxDetentHeight.isFinite ? lastAppliedMaxDetentHeight : sheetContainerHeight
+    // Whether the scrim is currently fully opaque, i.e. the sheet is settled at
+    // or above the first non-zero detent. If so, a detent resize must not dip
+    // the scrim while the sheet re-anchors to the new geometry.
+    let wasScrimFull = hasLaidOut
+      && !isPanning
+      && modal
+      && firstOpenDetentPosition > 0
+      && currentSheetHeight + 0.5 >= firstOpenDetentPosition
+    scrimPinnedFull = scrimPinnedFull || wasScrimFull
+    detentSpecs = resolvedDetents
+
+    guard bounds.width > 0, bounds.height > 0, !detentSpecs.isEmpty else {
+      return
+    }
+
+    if hasLaidOut, !isPanning {
+      targetIndex = max(0, min(detentSpecs.count - 1, targetIndex))
+      let newMaxHeight = sheetContainerHeight
+      let targetTy = translationY(for: targetIndex)
+
+      if activeSpring != nil {
+        let shouldEmitSettle = activeSpringEmitsSettle
+        let visualTy = cancelActiveSpring()
+        // Re-anchor the in-flight position to the new container height so the
+        // sheet surface keeps the same on-screen height across the resize.
+        let visibleHeight = previousMaxHeight - visualTy
+        let reanchoredTy = min(max(newMaxHeight - visibleHeight, 0), newMaxHeight)
+        setSheetTranslation(reanchoredTy)
+        emitPosition()
+        snapToIndex(
+          targetIndex,
+          velocity: 0,
+          emitIndexChange: false,
+          emitSettle: shouldEmitSettle,
+          preserveScrimPin: true
+        )
+      } else {
+        let currentVisibleHeight = previousMaxHeight - currentTranslationY
+        let targetHeight = detent(at: targetIndex).position
+        let shouldAnimateHeight = shouldAnimateContentHeight(at: targetIndex)
+        if abs(targetHeight - currentVisibleHeight) <= 0.5 {
+          // No meaningful change.
+          setSheetTranslation(targetTy)
+          emitPosition()
+          scrimPinnedFull = false
+        } else if !shouldAnimateHeight {
+          setSheetTranslation(targetTy)
+          emitPosition()
+          scrimPinnedFull = false
+        } else {
+          // The content detent changed (grew or shrank): re-anchor at the
+          // current visible height, then animate to the new target. The surface
+          // covers the full sheet, so a shrink no longer exposes blank space.
+          let startTy = min(max(newMaxHeight - currentVisibleHeight, 0), newMaxHeight)
+          setSheetTranslation(startTy)
+          emitPosition()
+          snapToIndex(
+            targetIndex,
+            velocity: 0,
+            emitIndexChange: false,
+            emitSettle: false,
+            preserveScrimPin: true
+          )
+        }
+      }
+    }
+  }
+
+  private func shouldAnimateContentHeight(at index: Int) -> Bool {
+    guard rawDetentSpecs.indices.contains(index) else {
+      return animateContentHeight
+    }
+    return animateContentHeight || rawDetentSpecs[index].kind != .content
+  }
+
+  func refreshContentHeightMarker() {
+    let marker = findContentHeightMarker()
+    guard marker !== contentHeightMarker else { return }
+    stopObservingContentHeightMarker()
+    contentHeightMarker = marker
+    if let marker {
+      // The marker's frame is updated by React Native when content above it
+      // resizes; observe its layer so we can re-resolve detents immediately
+      // instead of waiting for an unrelated layout pass. This is the iOS
+      // counterpart to Android's OnLayoutChangeListener on the marker.
+      marker.layer.addObserver(
+        self, forKeyPath: "position", options: [], context: &Self.markerObservationContext
+      )
+      marker.layer.addObserver(
+        self, forKeyPath: "bounds", options: [], context: &Self.markerObservationContext
+      )
+    }
+  }
+
+  func stopObservingContentHeightMarker() {
+    guard let marker = contentHeightMarker else { return }
+    marker.layer.removeObserver(
+      self, forKeyPath: "position", context: &Self.markerObservationContext
+    )
+    marker.layer.removeObserver(
+      self, forKeyPath: "bounds", context: &Self.markerObservationContext
+    )
+    contentHeightMarker = nil
+  }
+
+  /// Called once a Fabric mounting transaction has finished applying layout,
+  /// so the content wrapper and its marker both reflect the committed inset,
+  /// which becomes the applied one. A `content` detent held for that layout
+  /// (see isContentRegionChangePending) can now be resolved. Per-view layout
+  /// hooks cannot do this: they fire mid-transaction, when the host or the
+  /// wrapper may already have its new geometry while the marker still has its
+  /// old position. The marker alone is not enough either: it does not move
+  /// for intrinsic content.
+  public func contentRegionLayoutDidApply() {
+    appliedContentRegionInset = committedContentRegionInset
+    // The transform pins the content by its center, which this layout may move.
+    applyCardGeometry(forPosition: sheetContainerHeight - sheetContainer.transform.ty)
+    // So does a running settle's copy of it: the settle usually starts before
+    // the layout of the same transaction lands. Commits run per frame, so only
+    // rebuild it when the content actually moved.
+    if isContentAnimationStale {
+      addContentAnimation()
+    }
+    guard isContentRegionChangePending else { return }
+    refreshDetentsFromLayout()
+  }
+
+  /// The content wrapper: the surface is its sibling, so skip it and the
+  /// wrapper is whatever else the sheet mounts.
+  func findContentView() -> UIView? {
+    clipContainer.subviews.first(where: { $0 !== surfaceView })
+  }
+
+  private func findContentHeightMarker() -> UIView? {
+    // Always read the marker from the content, never from the surface.
+    guard let contentView = findContentView() else { return nil }
+    // The marker is identified by the nativeID the JS side gives it, not by
+    // its position: Fabric mounts siblings sorted by zIndex, so any content
+    // child with a positive zIndex lands after the marker in the wrapper.
+    return contentView.subviews.first { nativeID(of: $0) == Self.contentHeightMarkerNativeID }
+  }
+
+  private func nativeID(of view: UIView) -> String? {
+    // Fabric stores the `nativeID` prop in RCTViewComponentView's `nativeId`
+    // property. Its header is C++ and cannot be imported here, so read the
+    // property by name; views that do not declare it are never the marker.
+    guard view.responds(to: NSSelectorFromString("nativeId")) else { return nil }
+    return view.value(forKey: "nativeId") as? String
+  }
+
+  private var currentContentHeight: CGFloat? {
+    guard let marker = contentHeightMarker else { return nil }
+    return marker.frame.minY.isFinite ? marker.frame.minY : nil
+  }
+
+  private var validContentHeight: CGFloat? {
+    if isContentRegionChangePending {
+      // The content — and thus its marker — is laid out against the applied
+      // inset. Until that is the inset the current detents call for, the
+      // measurement describes the previous region and is treated as
+      // unavailable.
+      let isAppliedInsetCurrent = abs(appliedContentRegionInset - contentRegionInset) <= 0.01
+      guard appliedContentRegionInset.isFinite, isAppliedInsetCurrent else {
+        return nil
+      }
+      isContentRegionChangePending = false
+    }
+    guard let height = currentContentHeight, height.isFinite, height > 0 else {
+      return nil
+    }
+    return height
+  }
+
+  func isInvalidContentDetentTarget(_ index: Int) -> Bool {
+    guard rawDetentSpecs.indices.contains(index) else {
+      return false
+    }
+    switch rawDetentSpecs[index].kind {
+    case .points, .percentage:
+      return false
+    case .content:
+      return validContentHeight == nil
+    }
+  }
+}
