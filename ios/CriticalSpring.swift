@@ -30,6 +30,14 @@ struct CriticalSpring {
     return target + decay * (a + (v0 + omega * a) * t)
   }
 
+  /// Velocity (points/sec) at an absolute `time`, the derivative of `value(at:)`.
+  func velocity(at time: CFTimeInterval) -> CGFloat {
+    let t = CGFloat(max(0, time - startTime))
+    let a = from - target
+    let decay = exp(-omega * t)
+    return decay * (v0 - omega * (v0 + omega * a) * t)
+  }
+
   /// Samples this curve into `count + 1` evenly-spaced points over `[0, duration]`
   /// for use as `CAKeyframeAnimation.values`. CA replays these samples on the
   /// render server, while `value(at:)` feeds the follower from the analytical

@@ -211,6 +211,12 @@ private final class ActiveScrollViewState {
   }
 }
 
+/// A snap that follows a detent's change: a one-off, or one of several in a row.
+private enum DetentRetarget {
+  case single
+  case rapid
+}
+
 /// Hosts the surface and content and clips them to the card shape. The host
 /// gates hit testing against the presented card, so this view accepts every
 /// point: mid-settle its model bounds already hold the target geometry and
@@ -376,6 +382,7 @@ public final class BottomSheetHostingView: UIView {
   private var activeSpring: CriticalSpring?
   private var activeSpringTargetIndex: Int = 0
   private var activeSpringEmitsSettle = false
+  private var lastDetentChangeTime: CFTimeInterval = -.infinity
   private var scrimPinnedFull = false
   private var displayLink: CADisplayLink?
   private var pendingIndex: Int?
@@ -1106,7 +1113,10 @@ public final class BottomSheetHostingView: UIView {
     velocity: CGFloat,
     emitIndexChange: Bool = true,
     emitSettle: Bool = true,
-    preserveScrimPin: Bool = false
+    preserveScrimPin: Bool = false,
+    // Set when a detent changed, which keeps the sheet's exact velocity so it
+    // doesn't stall, and when those changes are rapid, picks the tighter spring.
+    retarget: DetentRetarget? = nil
   ) {
     guard index >= 0, index < detentSpecs.count else { return }
     if emitIndexChange {
@@ -1142,9 +1152,9 @@ public final class BottomSheetHostingView: UIView {
 
     let velocityRatio = distance != 0 ? velocity / distance : 0
     let clampedRatio = min(max(velocityRatio, -5), 5)
-    let v0 = clampedRatio * distance
+    let v0 = retarget != nil ? velocity : clampedRatio * distance
 
-    let duration: CFTimeInterval = 0.45
+    let duration: CFTimeInterval = retarget == .rapid ? 0.12 : 0.45
     // Pick the stiffness so the sheet looks settled (within ~0.5% of target)
     // right at `duration`. For a critically-damped spring that point is
     // ω·t ≈ 8, so ω = 8 / duration.
@@ -1892,8 +1902,17 @@ public final class BottomSheetHostingView: UIView {
       targetIndex = max(0, min(detentSpecs.count - 1, targetIndex))
       let newMaxHeight = sheetContainerHeight
       let targetTy = translationY(for: targetIndex)
+      let now = CACurrentMediaTime()
+      // Detent changes this close together are one continuous change, such as a
+      // dragged slider. The sheet follows those on a much tighter spring, because
+      // any spring trails a moving target, by about 2/ω.
+      let retarget: DetentRetarget = now - lastDetentChangeTime < 0.1 ? .rapid : .single
+      lastDetentChangeTime = now
 
-      if activeSpring != nil {
+      if let spring = activeSpring {
+        let velocity = spring.velocity(at: now)
+        // Only the card's shape changed, so the snap carries on along its curve.
+        let isSameTarget = spring.target == targetTy && newMaxHeight == previousMaxHeight
         let shouldEmitSettle = activeSpringEmitsSettle
         let visualTy = cancelActiveSpring()
         // Re-anchor the in-flight position to the new container height so the
@@ -1904,10 +1923,11 @@ public final class BottomSheetHostingView: UIView {
         emitPosition()
         snapToIndex(
           targetIndex,
-          velocity: 0,
+          velocity: velocity,
           emitIndexChange: false,
           emitSettle: shouldEmitSettle,
-          preserveScrimPin: true
+          preserveScrimPin: true,
+          retarget: isSameTarget ? .single : retarget
         )
       } else {
         let currentVisibleHeight = previousMaxHeight - currentTranslationY
@@ -1934,7 +1954,8 @@ public final class BottomSheetHostingView: UIView {
             velocity: 0,
             emitIndexChange: false,
             emitSettle: false,
-            preserveScrimPin: true
+            preserveScrimPin: true,
+            retarget: retarget
           )
         }
       }

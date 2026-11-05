@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.Paint
+import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.VelocityTracker
 import android.view.View
@@ -194,6 +195,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   private val scrimPaint = Paint(Paint.ANTI_ALIAS_FLAG)
   private var activeAnimation: SpringAnimation? = null
   private var activeAnimationEmitsSettle = false
+  private var activeAnimationIndex = 0
+  private var lastDetentChangeTime = Long.MIN_VALUE / 2
   private var velocityTracker: VelocityTracker? = null
   private val density = context.resources.displayMetrics.density
   private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
@@ -713,11 +716,36 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
         if (trySnapPendingInitialContentDetent()) {
           return
         }
+        val now = SystemClock.uptimeMillis()
+        // Detent changes this close together are one continuous change, such as a dragged slider.
+        // The sheet follows those on a much tighter spring, because any spring trails a moving
+        // target.
+        val stiffness =
+          if (now - lastDetentChangeTime < RAPID_DETENT_CHANGE_MS) RAPID_SPRING_STIFFNESS
+          else SpringForce.STIFFNESS_MEDIUM
+        lastDetentChangeTime = now
         if (activeAnimation != null && isTargetingClosedDetent) {
           suppressScrimForClosingTarget = true
           hideScrim()
         }
-        if (activeAnimation != null) {
+        val runningAnimation = activeAnimation
+        if (
+          runningAnimation != null &&
+            newMaxHeight == previousMaxHeight &&
+            activeAnimationIndex == targetIndex
+        ) {
+          // Retarget the running spring, which keeps its velocity. Restarting it would also lose a
+          // frame, as a spring only starts its clock on its first, so one restarted on every
+          // change would hardly move.
+          scrimPinnedFull = scrimPinnedFull || wasScrimFull
+          if (runningAnimation.spring.finalPosition != targetTy) {
+            val currentTy = sheetContainer.translationY
+            runningAnimation.spring.stiffness = stiffness
+            runningAnimation.setMinValue(minOf(minDetentTranslationY, currentTy, targetTy))
+            runningAnimation.setMaxValue(maxOf(maxDetentTranslationY, currentTy, targetTy))
+            runningAnimation.animateToFinalPosition(targetTy)
+          }
+        } else if (runningAnimation != null) {
           val currentTy = sheetContainer.translationY
           val shouldEmitSettle = activeAnimationEmitsSettle
           activeAnimation?.cancel()
@@ -764,6 +792,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
               emitIndexChange = false,
               emitSettle = false,
               preserveScrimPin = true,
+              stiffness = stiffness,
             )
           }
         }
@@ -1388,6 +1417,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     emitIndexChange: Boolean = true,
     emitSettle: Boolean = true,
     preserveScrimPin: Boolean = false,
+    stiffness: Float = SpringForce.STIFFNESS_MEDIUM,
   ) {
     if (index < 0 || index >= detentSpecs.size) return
     if (emitIndexChange) {
@@ -1419,7 +1449,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
         spring =
           SpringForce(targetTy).apply {
             dampingRatio = SpringForce.DAMPING_RATIO_NO_BOUNCY
-            stiffness = SpringForce.STIFFNESS_MEDIUM
+            this.stiffness = stiffness
           }
         setMinValue(minAnimationTy)
         setMaxValue(maxAnimationTy)
@@ -1450,6 +1480,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
       }
 
     activeAnimation = spring
+    activeAnimationIndex = index
     val visibleHeight = height.toFloat() - currentTy
     closeRequestPresentationTracker.onAnimationStarted(
       isTargetOpen = !isTargetingClosedDetent,
@@ -2342,6 +2373,11 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   }
 
   companion object {
+    private const val RAPID_DETENT_CHANGE_MS = 100L
+
+    // Settled in about 120ms, as on the other platforms: ω² for a critically damped ω of 8 / 0.12.
+    private const val RAPID_SPRING_STIFFNESS = 4444f
+
     // The `nativeID` the JS side gives the zero-height marker it appends to
     // the content wrapper. Mirrored in `bottomSheetUtils.ts` and
     // `BottomSheetHostingView.swift`; keep the three in sync.

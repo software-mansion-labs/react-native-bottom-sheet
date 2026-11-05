@@ -91,6 +91,12 @@ const SPRING_DURATION_MS = 450;
 // Pick the stiffness so the sheet looks settled (within ~0.5% of target) right
 // at the duration. For a critically-damped spring that point is ω·t ≈ 8.
 const SPRING_OMEGA = 8 / (SPRING_DURATION_MS / 1000);
+// Detent changes this close together are one continuous change, such as a
+// dragged slider. The sheet follows those on a much tighter spring, because any
+// spring trails a moving target, by about 2/ω.
+const RAPID_DETENT_CHANGE_MS = 100;
+const RAPID_SPRING_DURATION_MS = 120;
+const RAPID_SPRING_OMEGA = 8 / (RAPID_SPRING_DURATION_MS / 1000);
 const FLICK_VELOCITY = 600;
 const EDGE_TOLERANCE = 0.5;
 // Movement, in CSS pixels, before a pointer is treated as a drag rather than a
@@ -112,32 +118,34 @@ class CriticalSpring {
     /** Initial velocity in pixels per second. */
     readonly v0: number,
     /** `performance.now()` timestamp the curve starts at. */
-    readonly startTime: number
+    readonly startTime: number,
+    readonly omega: number = SPRING_OMEGA
   ) {}
 
   value(time: number) {
     const t = Math.max(0, time - this.startTime) / 1000;
     const a = this.from - this.target;
-    const decay = Math.exp(-SPRING_OMEGA * t);
-    return this.target + decay * (a + (this.v0 + SPRING_OMEGA * a) * t);
+    const decay = Math.exp(-this.omega * t);
+    return this.target + decay * (a + (this.v0 + this.omega * a) * t);
   }
 
   /** The velocity at a moment, in pixels per second. */
   velocity(time: number) {
     const t = Math.max(0, time - this.startTime) / 1000;
     const a = this.from - this.target;
-    const decay = Math.exp(-SPRING_OMEGA * t);
-    return decay * (this.v0 - SPRING_OMEGA * (this.v0 + SPRING_OMEGA * a) * t);
+    const decay = Math.exp(-this.omega * t);
+    return decay * (this.v0 - this.omega * (this.v0 + this.omega * a) * t);
   }
 
   isFinished(time: number) {
-    return time - this.startTime >= SPRING_DURATION_MS;
+    return ((time - this.startTime) / 1000) * this.omega >= 8;
   }
 }
 
 type CardGeometry = Readonly<{ left: number; right: number; height: number }>;
 
-type CardTransition = CardGeometry & Readonly<{ startTime: number }>;
+type CardTransition = CardGeometry &
+  Readonly<{ startTime: number; omega: number }>;
 
 type ScrollableEntry = Readonly<{ element: HTMLElement; inverted: boolean }>;
 
@@ -357,6 +365,7 @@ export class BottomSheetWebController {
 
   private frameRequest: number | null = null;
   private lastFrameTime = 0;
+  private lastDetentChangeTime = -Infinity;
   private needsLayout = false;
   /** The card's CSS corner radii, even while none is rounded. */
   private cardCorners = '';
@@ -810,6 +819,9 @@ export class BottomSheetWebController {
 
     this.targetIndex = clamp(this.targetIndex, 0, this.detents.length - 1);
     const targetTy = this.translationY(this.targetIndex);
+    const now = performance.now();
+    const isRapid = now - this.lastDetentChangeTime < RAPID_DETENT_CHANGE_MS;
+    this.lastDetentChangeTime = now;
 
     if (this.spring !== null) {
       // Only the card's shape changed, so the snap can carry on undisturbed.
@@ -819,7 +831,6 @@ export class BottomSheetWebController {
       ) {
         return;
       }
-      const now = performance.now();
       const velocity = this.spring.velocity(now);
       const emitsSettle = this.springEmitsSettle;
       const visualTy = this.cancelSpring(now);
@@ -828,7 +839,7 @@ export class BottomSheetWebController {
       const visibleHeight = previousHostHeight - visualTy;
       this.setTranslateY(clamp(hostHeight - visibleHeight, 0, hostHeight));
       this.emitPosition();
-      this.retargetSpring(velocity, emitsSettle, previousCard);
+      this.retargetSpring(velocity, emitsSettle, isRapid, previousCard);
       return;
     }
 
@@ -849,29 +860,33 @@ export class BottomSheetWebController {
         clamp(hostHeight - currentVisibleHeight, 0, hostHeight)
       );
       this.emitPosition();
-      this.retargetSpring(0, false, previousCard);
+      this.retargetSpring(0, false, isRapid, previousCard);
     }
   }
 
   /**
    * Heads for the target detent's new position, keeping the sheet's velocity so
-   * it doesn't stall. The card's shape eases over from what it was on the same
-   * curve, as the new detent's insets would otherwise apply at once, leaving an
-   * edge to jump when the sheet is above the new position.
+   * it doesn't stall. A single change gets the usual spring. The card's shape
+   * eases over from what it was on the same curve, as the new detent's insets
+   * would otherwise apply at once, leaving an edge to jump when the sheet is
+   * above the new position.
    */
   private retargetSpring(
     velocity: number,
     emitSettle: boolean,
+    isRapid: boolean,
     previousCard: CardGeometry
   ) {
     const startTime = performance.now();
+    const omega = isRapid ? RAPID_SPRING_OMEGA : SPRING_OMEGA;
     this.springEmitsSettle = emitSettle;
     this.springTargetIndex = this.targetIndex;
     this.spring = new CriticalSpring(
       this.translateY,
       this.translationY(this.targetIndex),
       velocity,
-      startTime
+      startTime,
+      omega
     );
     const resting = this.restingCardGeometry();
     this.cardTransition = {
@@ -879,6 +894,7 @@ export class BottomSheetWebController {
       right: previousCard.right - resting.right,
       height: previousCard.height - resting.height,
       startTime,
+      omega,
     };
     this.updateCardClip();
     this.requestFrame();
@@ -1114,7 +1130,7 @@ export class BottomSheetWebController {
     const transition = this.cardTransition;
     if (transition === null) return 0;
     const elapsed = (performance.now() - transition.startTime) / 1000;
-    const progress = SPRING_OMEGA * Math.max(0, elapsed);
+    const progress = transition.omega * Math.max(0, elapsed);
     if (progress >= 8) {
       this.cardTransition = null;
       return 0;
