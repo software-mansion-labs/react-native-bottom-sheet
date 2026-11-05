@@ -95,13 +95,20 @@ public final class BottomSheetHostingView: UIView {
   var isPanning = false
   var lastReportedInvalidDetentMessage: String?
   var panStartingIndex: Int?
-  var initialTouchLocation: CGPoint?
+  var initialScrollViewStates: [ActiveScrollViewState] = []
+  let scrollIndicatorFits = NSMapTable<UIScrollView, ScrollIndicatorFit>.weakToStrongObjects()
+  /// Whether every scrollable under the touch was at its visual start as the
+  /// touch landed: the `initial` owner selection at the largest detent.
+  var initialScrollableChainAtStart = true
   var activeDragRange: (minTy: CGFloat, maxTy: CGFloat)?
   var activeDragDetentSpecs: [DetentSpec]?
   var activeScrollViewStates: [ActiveScrollViewState] = []
   var panCoordinationMode: PanCoordinationMode = .sheet
   var activeScrollableNegotiationLevel: ScrollableNegotiationLevel = .none
   var didMoveSheetDuringPan = false
+  /// Whether the spring a pan stopped as it began emitted `onSettle`; nil when
+  /// no spring was running.
+  var interruptedSpringEmitsSettle: Bool?
   var didCancelTouchesForPan = false
   var activeScrollViewsLocked = false
   var scrollViewOwnsLowerBoundary = false
@@ -462,6 +469,7 @@ public final class BottomSheetHostingView: UIView {
         emitSettle: true,
         preserveScrimPin: false
       )
+      interruptedSpringEmitsSettle = nil
       return
     }
 
@@ -529,6 +537,7 @@ public final class BottomSheetHostingView: UIView {
   public func resetSheetState() {
     activeSpring = nil
     activeSpringEmitsSettle = false
+    interruptedSpringEmitsSettle = nil
     lastAppliedMaxDetentHeight = .nan
     stopDisplayLink()
     removeSettleAnimations()
@@ -542,6 +551,8 @@ public final class BottomSheetHostingView: UIView {
     panStartingIndex = nil
     activeDragRange = nil
     activeDragDetentSpecs = nil
+    initialScrollViewStates = []
+    initialScrollableChainAtStart = true
     finishScrollViewCoordination()
     setContentInteractionEnabled(true)
     stopObservingContentHeightMarker()

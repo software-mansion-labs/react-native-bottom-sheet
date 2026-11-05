@@ -1,20 +1,57 @@
 import UIKit
 
+private extension UIScrollView {
+  var minimumRestingY: CGFloat {
+    -adjustedContentInset.top
+  }
+
+  var maximumRestingY: CGFloat {
+    max(minimumRestingY, contentSize.height - bounds.height + adjustedContentInset.bottom)
+  }
+
+  /// `y` clamped to the offsets the scroll view can rest at.
+  func restingY(for y: CGFloat) -> CGFloat {
+    min(max(y, minimumRestingY), maximumRestingY)
+  }
+}
+
+/// A scroll view's indicator inset, as its caller set it and as the sheet last
+/// applied it.
+final class ScrollIndicatorFit {
+  var callerInset: CGFloat
+  var appliedInset: CGFloat
+
+  init(inset: CGFloat) {
+    callerInset = inset
+    appliedInset = inset
+  }
+}
+
 final class ActiveScrollViewState {
   weak var scrollView: UIScrollView?
   var pinnedOffset: CGPoint
   let inverted: Bool
-  let bounces: Bool
-  let directionalLockEnabled: Bool
-  let showsVerticalScrollIndicator: Bool
+  /// Whether the scroll view was at or before its visual start as the touch
+  /// landed. A held start lets it scroll before the sheet's pan begins; the
+  /// lock that begins the pan pins it back.
+  let wasAtStartWhenTouched: Bool
+  /// Whether the scroll view reached or passed its visual start while the
+  /// sheet had left the touch to it: at its lowest detent, or until a pull the
+  /// pan began with cleared. The lock that takes the touch back pins it there:
+  /// the reversal update may already have scrolled it by a few points.
+  var reachedStartWhileReleased = false
+  /// The caller's preferences, captured as the sheet locks the scroll view and
+  /// restored when it unlocks.
+  var directionalLockEnabled: Bool
+  var showsVerticalScrollIndicator: Bool
   private var contentOffsetObservation: NSKeyValueObservation?
   private var isRestoringPinnedOffset = false
 
-  init(scrollView: UIScrollView, inverted: Bool) {
+  init(scrollView: UIScrollView, inverted: Bool, wasAtStartWhenTouched: Bool) {
     self.scrollView = scrollView
     pinnedOffset = scrollView.contentOffset
     self.inverted = inverted
-    bounces = scrollView.bounces
+    self.wasAtStartWhenTouched = wasAtStartWhenTouched
     directionalLockEnabled = scrollView.isDirectionalLockEnabled
     showsVerticalScrollIndicator = scrollView.showsVerticalScrollIndicator
   }
@@ -77,15 +114,31 @@ extension BottomSheetHostingView {
     }
   }
 
-  func lockActiveScrollViews(pinToStart: Bool = false) {
+  /// Pins the touched scroll views while the sheet moves. Each is pinned at
+  /// its visual start when asked for all of them, when it reached that start
+  /// while released, or, for the lock that begins the pan, when it was there
+  /// as the touch landed; otherwise where it rests now.
+  func lockActiveScrollViews(pinToStart: Bool = false, pinInitialStarts: Bool = false) {
     guard !activeScrollViewStates.isEmpty else { return }
 
     for state in activeScrollViewStates {
       guard let scrollView = state.scrollView else { continue }
-      let pinnedOffset = pinToStart
+      if !activeScrollViewsLocked {
+        // Captured here rather than at touch-down: a held start can outlive a
+        // prop change, which the unlock would otherwise overwrite.
+        state.directionalLockEnabled = scrollView.isDirectionalLockEnabled
+        state.showsVerticalScrollIndicator = scrollView.showsVerticalScrollIndicator
+      }
+      let pinnedToStart = pinToStart
+        || state.reachedStartWhileReleased
+        || (pinInitialStarts && state.wasAtStartWhenTouched)
+      state.reachedStartWhileReleased = false
+      let pinnedOffset = pinnedToStart
         ? scrollStartOffset(for: scrollView, inverted: state.inverted)
-        : scrollView.contentOffset
-      scrollView.bounces = false
+        : restingOffset(for: scrollView)
+      // Bounces stay on: with them off, a pinned scroll view at its edge sees no
+      // offset to restore, and its pan keeps the travel, applying it as one
+      // rubber-banded jump when the pan is released to it.
       scrollView.isDirectionalLockEnabled = true
       scrollView.showsVerticalScrollIndicator = false
       state.startPinning(at: pinnedOffset)
@@ -105,7 +158,6 @@ extension BottomSheetHostingView {
     for state in activeScrollViewStates {
       state.stopPinning()
       guard let scrollView = state.scrollView else { continue }
-      scrollView.bounces = state.bounces
       scrollView.isDirectionalLockEnabled = state.directionalLockEnabled
       scrollView.showsVerticalScrollIndicator = state.showsVerticalScrollIndicator
     }
@@ -129,6 +181,13 @@ extension BottomSheetHostingView {
         guard let scrollView = state.scrollView else { continue }
         scrollView.setContentOffset(state.pinnedOffset, animated: false)
         scrollView.panGestureRecognizer.isEnabled = true
+        // The resting range can change under a pin: a refresh that ends removes
+        // its inset. Setting the offset above stops a fling, and with it the
+        // bounce a scroll view released mid-drag would make, so this makes it.
+        let restingOffset = CGPoint(x: state.pinnedOffset.x, y: scrollView.restingY(for: state.pinnedOffset.y))
+        if restingOffset != state.pinnedOffset {
+          scrollView.setContentOffset(restingOffset, animated: true)
+        }
       }
     }
   }
@@ -204,12 +263,12 @@ extension BottomSheetHostingView {
     return result
   }
 
-  /// The vertical scrollables a sideways start under the touch defers to. A
+  /// The vertical scrollables a held start under the touch defers to. A
   /// horizontal recognizer on the way to the sheet container — the pan of a
   /// scroll view that can scroll sideways, or any other pan — keeps sideways
   /// movement instead, so nothing is deferred and the sheet yields to it as
   /// before.
-  func sidewaysDeferralScrollViews(at location: CGPoint) -> [UIScrollView] {
+  func holdDeferralScrollViews(at location: CGPoint) -> [UIScrollView] {
     guard hasAnyScrollableNegotiation else { return [] }
     let views = touchedViews(at: location)
     let chain = scrollableAncestorChain(in: views).map(\.scrollView)
@@ -238,30 +297,78 @@ extension BottomSheetHostingView {
   }
 
   private func scrollStartOffset(for scrollView: UIScrollView, inverted: Bool) -> CGPoint {
-    let minimumY = -scrollView.adjustedContentInset.top
-    guard inverted else {
-      return CGPoint(x: scrollView.contentOffset.x, y: minimumY)
-    }
-    let maximumY = max(
-      minimumY,
-      scrollView.contentSize.height - scrollView.bounds.height
-        + scrollView.adjustedContentInset.bottom
-    )
-    return CGPoint(x: scrollView.contentOffset.x, y: maximumY)
+    CGPoint(x: scrollView.contentOffset.x, y: inverted ? scrollView.maximumRestingY : scrollView.minimumRestingY)
   }
 
-  func activeScrollViewsAreAtStart(requireExactOffset: Bool = false) -> Bool {
+  /// The scroll view's offset, clamped to where it can rest: a held start can
+  /// leave it overscrolled, and pinning that offset would keep it there.
+  func restingOffset(for scrollView: UIScrollView) -> CGPoint {
+    CGPoint(x: scrollView.contentOffset.x, y: scrollView.restingY(for: scrollView.contentOffset.y))
+  }
+
+  /// Whether the scroll view is at or before its visual start.
+  func scrollViewIsAtStart(_ scrollView: UIScrollView, inverted: Bool) -> Bool {
     let edgeTolerance: CGFloat = 0.5
+    let startY = scrollStartOffset(for: scrollView, inverted: inverted).y
+    return inverted
+      ? scrollView.contentOffset.y >= startY - edgeTolerance
+      : scrollView.contentOffset.y <= startY + edgeTolerance
+  }
+
+  func scrollViewIsAtStart(_ state: ActiveScrollViewState) -> Bool {
+    guard let scrollView = state.scrollView else { return true }
+    return scrollViewIsAtStart(scrollView, inverted: state.inverted)
+  }
+
+  func activeScrollViewsAreAtStart() -> Bool {
     guard !activeScrollViewStates.isEmpty else { return false }
-    return activeScrollViewStates.allSatisfy { state in
-      guard let scrollView = state.scrollView else { return true }
+    return activeScrollViewStates.allSatisfy { scrollViewIsAtStart($0) }
+  }
+
+  /// Records which released scroll views are at or before their visual start,
+  /// for the lock that takes the touch back.
+  func noteReleasedScrollViewsAtStart() {
+    for state in activeScrollViewStates where scrollViewIsAtStart(state) {
+      state.reachedStartWhileReleased = true
+    }
+  }
+
+  /// Whether a vertical scrollable in the touched chain is overscrolled
+  /// before its visual start, by a bounce or a refresh control pull.
+  func activeScrollViewsArePulledPastStart() -> Bool {
+    let edgeTolerance: CGFloat = 0.5
+    return activeScrollViewStates.contains { state in
+      guard let scrollView = state.scrollView else { return false }
       let startY = scrollStartOffset(for: scrollView, inverted: state.inverted).y
-      if requireExactOffset {
-        return abs(scrollView.contentOffset.y - startY) <= edgeTolerance
-      }
       return state.inverted
-        ? scrollView.contentOffset.y >= startY - edgeTolerance
-        : scrollView.contentOffset.y <= startY + edgeTolerance
+        ? scrollView.contentOffset.y > startY + edgeTolerance
+        : scrollView.contentOffset.y < startY - edgeTolerance
+    }
+  }
+
+  /// Shortens each scroll view's indicator track by the part of it below the
+  /// host. The content region is laid out against the tallest detent, so at a
+  /// lower detent the scroll view extends past the bottom, and its indicator
+  /// would be sized and placed for a height nobody can see.
+  func fitScrollIndicators(of states: [ActiveScrollViewState]) {
+    for state in states {
+      guard let scrollView = state.scrollView else { continue }
+      let hidden = max(0, scrollView.convert(scrollView.bounds, to: self).maxY - bounds.height)
+      let insets = scrollView.verticalScrollIndicatorInsets
+      let current = state.inverted ? insets.top : insets.bottom
+      let fit = scrollIndicatorFits.object(forKey: scrollView) ?? ScrollIndicatorFit(inset: current)
+      scrollIndicatorFits.setObject(fit, forKey: scrollView)
+      // Any other inset than the one applied last is the caller's.
+      if current != fit.appliedInset {
+        fit.callerInset = current
+      }
+      fit.appliedInset = fit.callerInset + hidden
+      guard fit.appliedInset != current else { continue }
+      if state.inverted {
+        scrollView.verticalScrollIndicatorInsets.top = fit.appliedInset
+      } else {
+        scrollView.verticalScrollIndicatorInsets.bottom = fit.appliedInset
+      }
     }
   }
 
@@ -270,20 +377,14 @@ extension BottomSheetHostingView {
     return ScrollableNegotiationLevel(clamping: rawValue)
   }
 
+  /// The pan's vertical direction, negative up: the one its hold decided when
+  /// the start was held, else the velocity's.
+  func panVerticalDirection(_ gesture: UIPanGestureRecognizer) -> CGFloat {
+    panGesture.holdDecidedDirection ? panGesture.decidedVerticalDirection : gesture.velocity(in: self).y
+  }
+
   var hasAnyScrollableNegotiation: Bool {
     ScrollableNegotiationLevel(clamping: scrollableExpandNegotiation) != .none
       || ScrollableNegotiationLevel(clamping: scrollableCollapseNegotiation) != .none
-  }
-
-  func scrollableChainIsAtStart(
-    _ chain: [(scrollView: UIScrollView, inverted: Bool)]
-  ) -> Bool {
-    let edgeTolerance: CGFloat = 0.5
-    return chain.allSatisfy { item in
-      let startY = scrollStartOffset(for: item.scrollView, inverted: item.inverted).y
-      return item.inverted
-        ? item.scrollView.contentOffset.y >= startY - edgeTolerance
-        : item.scrollView.contentOffset.y <= startY + edgeTolerance
-    }
   }
 }

@@ -104,6 +104,8 @@ extension BottomSheetHostingView {
     preserveScrimPin: Bool = false
   ) {
     guard index >= 0, index < detentSpecs.count else { return }
+    // A newer snap supersedes the one a pan stopped.
+    interruptedSpringEmitsSettle = nil
     if emitIndexChange {
       // A user-driven snap supersedes an index retained from props.
       pendingIndex = nil
@@ -174,6 +176,7 @@ extension BottomSheetHostingView {
     animation.delegate = self
 
     setSheetTranslation(targetTy)
+    fitScrollIndicators(of: initialScrollViewStates)
     sheetContainer.layer.add(animation, forKey: Self.springAnimationKey)
     addCardAnimations(matching: animation)
     activeSpring = spring
@@ -217,6 +220,7 @@ extension BottomSheetHostingView {
     removeSettleAnimations()
 
     setSheetTranslation(targetTy)
+    fitScrollIndicators(of: initialScrollViewStates)
     emitPosition()
     scrimPinnedFull = false
     setContentInteractionEnabled(true)
@@ -224,6 +228,15 @@ extension BottomSheetHostingView {
     if emitSettle {
       eventDelegate?.bottomSheetHostingView(self, didSettle: index)
     }
+  }
+
+  /// Restarts the snap a pan stopped as it began, when the content kept the
+  /// touch and the sheet never moved: it would otherwise rest wherever the
+  /// spring stopped, and `onSettle` would never arrive.
+  func resumeInterruptedSpring() {
+    guard let emitSettle = interruptedSpringEmitsSettle else { return }
+    interruptedSpringEmitsSettle = nil
+    snapToIndex(targetIndex, velocity: 0, emitIndexChange: false, emitSettle: emitSettle)
   }
 
   @discardableResult

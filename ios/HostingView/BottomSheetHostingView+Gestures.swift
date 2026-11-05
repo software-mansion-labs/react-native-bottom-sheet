@@ -6,6 +6,7 @@ extension BottomSheetHostingView {
 
     switch gesture.state {
     case .began:
+      interruptedSpringEmitsSettle = activeSpring == nil ? nil : activeSpringEmitsSettle
       if activeSpring != nil {
         cancelActiveSpring()
       }
@@ -20,12 +21,10 @@ extension BottomSheetHostingView {
       didMoveSheetDuringPan = false
       didCancelTouchesForPan = false
       scrollViewOwnsLowerBoundary = false
-      activeScrollableNegotiationLevel = negotiationLevel(forVerticalVelocity: gesture.velocity(in: self).y)
+      let verticalDirection = panVerticalDirection(gesture)
+      activeScrollableNegotiationLevel = negotiationLevel(forVerticalVelocity: verticalDirection)
 
-      let locationInContainer = initialTouchLocation ?? gesture.location(in: sheetContainer)
-      activeScrollViewStates = scrollableAncestorChain(containing: locationInContainer).map {
-        ActiveScrollViewState(scrollView: $0.scrollView, inverted: $0.inverted)
-      }
+      activeScrollViewStates = initialScrollViewStates
 
       if activeScrollViewStates.isEmpty {
         setContentInteractionEnabled(false)
@@ -38,15 +37,26 @@ extension BottomSheetHostingView {
         setContentInteractionEnabled(true)
         let range = activeDragRange ?? draggableRange(including: panStartingIndex)
         let isAtLargestDetent = sheetContainer.transform.ty <= range.minTy + 0.5
-        let velocity = gesture.velocity(in: self).y
         if
           activeScrollableNegotiationLevel == .handoff,
-          isAtLargestDetent, velocity < 0 || !activeScrollViewsAreAtStart()
+          isAtLargestDetent, verticalDirection < 0 || !activeScrollViewsAreAtStart()
         {
           panCoordinationMode = .scrollView
+        } else if
+          activeScrollableNegotiationLevel == .handoff,
+          verticalDirection < 0,
+          activeScrollViewsArePulledPastStart()
+        {
+          // A bounce or refresh pull holds the content past its start, left to
+          // it by a held start or still returning as the touch landed. As at
+          // the lower boundary, the sheet waits until it clears: pinning now
+          // would snap it back in a single frame.
+          panCoordinationMode = .scrollView
+          scrollViewOwnsLowerBoundary = true
+          noteReleasedScrollViewsAtStart()
         } else {
           panCoordinationMode = .sheet
-          lockActiveScrollViews(pinToStart: isAtLargestDetent)
+          lockActiveScrollViews(pinToStart: isAtLargestDetent, pinInitialStarts: true)
         }
       }
       gesture.setTranslation(.zero, in: self)
@@ -62,13 +72,21 @@ extension BottomSheetHostingView {
         panCoordinationMode == .scrollView
       {
         if scrollViewOwnsLowerBoundary {
-          // Once the sheet is fully collapsed, downward movement belongs to
-          // native bounce/RefreshControl. On reversal, let that overscroll
-          // return to its resting offset before the sheet can expand again.
-          if delta < 0, activeScrollViewsAreAtStart(requireExactOffset: true) {
+          // Once the sheet is fully collapsed, or the pan began with the content
+          // pulled past its start, downward movement belongs to native
+          // bounce/RefreshControl. On reversal, the sheet expands as soon as
+          // no scrollable is still pulled past its start: a quick
+          // reversal crosses the resting offset between two updates, and a
+          // scrollable that was scrolled when the sheet collapsed never lands
+          // there, so waiting for an exact landing would leave the touch with
+          // the content. A scrollable that did reach its start is pinned back
+          // there: the two pans handle one update in no defined order, so the
+          // reversal may already have scrolled it when the sheet sees it.
+          noteReleasedScrollViewsAtStart()
+          if delta < 0, !activeScrollViewsArePulledPastStart() {
             scrollViewOwnsLowerBoundary = false
             panCoordinationMode = .sheet
-            lockActiveScrollViews(pinToStart: true)
+            lockActiveScrollViews()
           }
           return
         }
@@ -91,6 +109,7 @@ extension BottomSheetHostingView {
         cancelContentTouchesForPanIfNeeded()
         didMoveSheetDuringPan = true
         setSheetTranslation(newTy)
+        fitScrollIndicators(of: activeScrollViewStates)
         emitPosition()
       }
       pinActiveScrollViews()
@@ -116,6 +135,7 @@ extension BottomSheetHostingView {
         // downward movement to native bounce and RefreshControl.
         panCoordinationMode = .scrollView
         scrollViewOwnsLowerBoundary = true
+        noteReleasedScrollViewsAtStart()
         unlockActiveScrollViews()
       }
 
@@ -136,6 +156,7 @@ extension BottomSheetHostingView {
         activeDragRange = nil
         activeDragDetentSpecs = nil
         finishScrollViewCoordination()
+        resumeInterruptedSpring()
         return
       }
       let currentHeight = maxHeight - sheetContainer.transform.ty
@@ -174,36 +195,43 @@ extension BottomSheetHostingView {
   }
 
   func shouldBeginSheetPan() -> Bool {
-    let velocity = panGesture.velocity(in: self)
-    // A sideways start yields to horizontal recognizers, unless it was held
-    // for a vertical scrollable under the touch and has since turned vertical:
-    // that scrollable's pan recognizes alongside this one, so yielding would
-    // let it scroll content the sheet owns at this detent.
-    if !panGesture.tookSidewaysStart {
+    // A sideways start yields to horizontal recognizers, unless the start was
+    // held for a vertical scrollable under the touch: the hold decided the
+    // direction from vertical travel alone, since that scrollable's pan
+    // recognizes alongside this one and yielding would let it scroll content
+    // the sheet owns at this detent.
+    let verticalDirection: CGFloat
+    if panGesture.holdDecidedDirection {
+      verticalDirection = panGesture.decidedVerticalDirection
+    } else {
+      let velocity = panGesture.velocity(in: self)
       guard abs(velocity.y) > abs(velocity.x) else { return false }
+      verticalDirection = velocity.y
     }
 
+    return canBeginPan(inDirection: verticalDirection)
+  }
+
+  func canBeginPan(inDirection verticalDirection: CGFloat) -> Bool {
     let candidates = snapCandidateIndices(including: targetIndex)
     guard candidates.count > 1 else { return false }
 
-    let locationInContainer = initialTouchLocation ?? panGesture.location(in: sheetContainer)
-    let scrollableChain = scrollableAncestorChain(containing: locationInContainer)
-    guard !scrollableChain.isEmpty else {
+    guard !initialScrollViewStates.isEmpty else {
       // Outside a scrollable, the sheet owns any direction in which it has a
       // detent available.
       let range = draggableRange(including: targetIndex)
       let currentTy = sheetContainerHeight - currentSheetHeight
-      return velocity.y < 0
+      return verticalDirection < 0
         ? currentTy > range.minTy + 0.5
         : currentTy < range.maxTy - 0.5
     }
 
-    let level = negotiationLevel(forVerticalVelocity: velocity.y)
+    let level = negotiationLevel(forVerticalVelocity: verticalDirection)
     guard level != .none else { return false }
 
     let range = draggableRange(including: targetIndex)
     let currentTy = sheetContainerHeight - currentSheetHeight
-    let canMoveSheet = velocity.y < 0
+    let canMoveSheet = verticalDirection < 0
       ? currentTy > range.minTy + 0.5
       : currentTy < range.maxTy - 0.5
     guard canMoveSheet else { return false }
@@ -213,12 +241,13 @@ extension BottomSheetHostingView {
     }
 
     // Initial-only collapse is available at the largest detent only when all
-    // scrollable ancestors were already at their visual start at touch-down.
-    // Below the largest detent, this preserves the original sheet-first owner
-    // selection in either direction.
+    // scrollable ancestors were already at their visual start at touch-down:
+    // a held start can scroll them before the pan begins, which must not
+    // change the owner. Below the largest detent, this preserves the original
+    // sheet-first owner selection in either direction.
     let isAtLargestDetent = currentTy <= range.minTy + 0.5
-    if velocity.y > 0, isAtLargestDetent {
-      return scrollableChainIsAtStart(scrollableChain)
+    if verticalDirection > 0, isAtLargestDetent {
+      return initialScrollableChainAtStart
     }
     return true
   }
@@ -242,14 +271,32 @@ extension BottomSheetHostingView: UIGestureRecognizerDelegate {
     _ gestureRecognizer: UIGestureRecognizer,
     shouldReceive touch: UITouch
   ) -> Bool {
-    // Record the touch-down point before the pan's translation threshold is
-    // exceeded. gestureRecognizerShouldBegin and handlePan(.began) hit-test
-    // scrollables from this point instead of the post-threshold pan location,
-    // matching Android's ACTION_DOWN semantics.
+    // Keep the touched scrollable chain and its initial eligibility. A held
+    // start lets content move before recognition, so re-hit-testing the same
+    // coordinate later could find a different nested scrollable.
     if gestureRecognizer === panGesture, panGesture.numberOfTouches == 0 {
       let location = touch.location(in: sheetContainer)
-      initialTouchLocation = location
-      panGesture.prepareHold(for: touch, deferringTo: sidewaysDeferralScrollViews(at: location))
+      let chain = scrollableAncestorChain(containing: location)
+      initialScrollViewStates = chain.map {
+        ActiveScrollViewState(
+          scrollView: $0.scrollView,
+          inverted: $0.inverted,
+          wasAtStartWhenTouched: scrollViewIsAtStart($0.scrollView, inverted: $0.inverted)
+        )
+      }
+      initialScrollableChainAtStart = initialScrollViewStates.allSatisfy(\.wasAtStartWhenTouched)
+      fitScrollIndicators(of: initialScrollViewStates)
+      let canHold = !holdDeferralScrollViews(at: location).isEmpty
+      let canBeginUp = canHold && canBeginPan(inDirection: -1)
+      let canBeginDown = canHold && canBeginPan(inDirection: 1)
+      panGesture.prepareHold(
+        for: touch,
+        usable: .init(up: canBeginUp, down: canBeginDown),
+        handoff: .init(
+          up: canBeginUp && negotiationLevel(forVerticalVelocity: -1) == .handoff,
+          down: canBeginDown && negotiationLevel(forVerticalVelocity: 1) == .handoff
+        )
+      )
     }
     return true
   }
@@ -280,7 +327,7 @@ extension BottomSheetHostingView: UIGestureRecognizerDelegate {
     // after the hold has been released, the exemption would no longer apply.
     // Recheck this timing with each major iOS release.
     if
-      panGesture.isHoldingSidewaysStart,
+      panGesture.isHoldingStart,
       other is UIPanGestureRecognizer,
       let otherView = other.view,
       !otherView.isDescendant(of: sheetContainer)
