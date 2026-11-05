@@ -147,6 +147,24 @@ export const useEventLog = () => {
   return { entries, log, clear };
 };
 
+/** Colors the leading callback or component, as in the docs' code blocks. */
+const LogMessage = ({ message }: { message: string }) => {
+  const [, head = message, rest] = /^(<[^>]*>|\w+)(.*)$/.exec(message) ?? [];
+
+  return (
+    <>
+      <span
+        className={
+          message.startsWith('<') ? styles.logComponent : styles.logCallback
+        }
+      >
+        {head}
+      </span>
+      {rest}
+    </>
+  );
+};
+
 export const EventLog = ({
   entries,
   onClear,
@@ -168,7 +186,7 @@ export const EventLog = ({
       {entries.length === 0 && <li className={styles.logEmpty}>{empty}</li>}
       {entries.map((entry) => (
         <li key={entry.id} className={styles.logEntry}>
-          {entry.message}
+          <LogMessage message={entry.message} />
         </li>
       ))}
     </ol>
