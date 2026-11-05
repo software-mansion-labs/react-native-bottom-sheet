@@ -227,11 +227,17 @@ private final class SheetPanGestureRecognizer: UIPanGestureRecognizer {
 }
 
 private extension UIScrollView {
+  var minimumRestingY: CGFloat {
+    -adjustedContentInset.top
+  }
+
+  var maximumRestingY: CGFloat {
+    max(minimumRestingY, contentSize.height - bounds.height + adjustedContentInset.bottom)
+  }
+
   /// `y` clamped to the offsets the scroll view can rest at.
   func restingY(for y: CGFloat) -> CGFloat {
-    let minimumY = -adjustedContentInset.top
-    let maximumY = max(minimumY, contentSize.height - bounds.height + adjustedContentInset.bottom)
-    return min(max(y, minimumY), maximumY)
+    min(max(y, minimumRestingY), maximumRestingY)
   }
 }
 
@@ -1494,7 +1500,13 @@ public final class BottomSheetHostingView: UIView {
       let minTy = range.minTy
       let maxTy = range.maxTy
       let newTy = max(minTy, min(maxTy, sheetContainer.transform.ty + delta))
-      moveSheet(toTranslation: newTy)
+      if abs(newTy - sheetContainer.transform.ty) > .ulpOfOne {
+        cancelContentTouchesForPanIfNeeded()
+        didMoveSheetDuringPan = true
+        setSheetTranslation(newTy)
+        fitScrollIndicators(of: activeScrollViewStates)
+        emitPosition()
+      }
       pinActiveScrollViews()
 
       if
@@ -1615,15 +1627,6 @@ public final class BottomSheetHostingView: UIView {
     default:
       break
     }
-  }
-
-  private func moveSheet(toTranslation ty: CGFloat) {
-    guard abs(ty - sheetContainer.transform.ty) > .ulpOfOne else { return }
-    cancelContentTouchesForPanIfNeeded()
-    didMoveSheetDuringPan = true
-    setSheetTranslation(ty)
-    fitScrollIndicators(of: activeScrollViewStates)
-    emitPosition()
   }
 
   /// Shortens each scroll view's indicator track by the part of it below the
@@ -1796,16 +1799,7 @@ public final class BottomSheetHostingView: UIView {
   }
 
   private func scrollStartOffset(for scrollView: UIScrollView, inverted: Bool) -> CGPoint {
-    let minimumY = -scrollView.adjustedContentInset.top
-    guard inverted else {
-      return CGPoint(x: scrollView.contentOffset.x, y: minimumY)
-    }
-    let maximumY = max(
-      minimumY,
-      scrollView.contentSize.height - scrollView.bounds.height
-        + scrollView.adjustedContentInset.bottom
-    )
-    return CGPoint(x: scrollView.contentOffset.x, y: maximumY)
+    CGPoint(x: scrollView.contentOffset.x, y: inverted ? scrollView.maximumRestingY : scrollView.minimumRestingY)
   }
 
   /// The scroll view's offset, clamped to where it can rest: a held start can
@@ -1841,19 +1835,17 @@ public final class BottomSheetHostingView: UIView {
     }
   }
 
-  /// Whether the scroll view is overscrolled before its visual start, by a
-  /// bounce or a refresh control pull.
-  private func scrollViewIsPulledPastStart(_ state: ActiveScrollViewState) -> Bool {
-    let edgeTolerance: CGFloat = 0.5
-    guard let scrollView = state.scrollView else { return false }
-    let startY = scrollStartOffset(for: scrollView, inverted: state.inverted).y
-    return state.inverted
-      ? scrollView.contentOffset.y > startY + edgeTolerance
-      : scrollView.contentOffset.y < startY - edgeTolerance
-  }
-
+  /// Whether a vertical scrollable in the touched chain is overscrolled
+  /// before its visual start, by a bounce or a refresh control pull.
   private func activeScrollViewsArePulledPastStart() -> Bool {
-    activeScrollViewStates.contains { scrollViewIsPulledPastStart($0) }
+    let edgeTolerance: CGFloat = 0.5
+    return activeScrollViewStates.contains { state in
+      guard let scrollView = state.scrollView else { return false }
+      let startY = scrollStartOffset(for: scrollView, inverted: state.inverted).y
+      return state.inverted
+        ? scrollView.contentOffset.y > startY + edgeTolerance
+        : scrollView.contentOffset.y < startY - edgeTolerance
+    }
   }
 
   private func negotiationLevel(forVerticalVelocity velocityY: CGFloat) -> ScrollableNegotiationLevel {
