@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { programmatic } from '@swmansion/react-native-bottom-sheet';
 
 import {
@@ -151,74 +151,10 @@ const INITIAL_INSETS = {
   topBottom: 0,
 };
 
-// Critically damped, like the sheet's own spring: settled at ω·t ≈ 8.
-const EASED_SETTLE_OMEGA = 8 / 0.45;
-const EASED_FOLLOW_OMEGA = 8 / 0.12;
-const EASED_FOLLOW_WINDOW_MS = 100;
-
-/**
- * Eases to a value that changes. The sheet applies insets that don't move it at
- * once, so the example animates them itself: a one-off change on the sheet's
- * curve, and one changing rapidly, like a dragged slider, closely behind it.
- */
-const useEasedValue = (target: number) => {
-  const [value, setValue] = useState(target);
-  const motion = useRef({
-    position: target,
-    velocity: 0,
-    changedAt: -Infinity,
-  });
-
-  useEffect(() => {
-    const current = motion.current;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      current.position = target;
-      current.velocity = 0;
-      setValue(target);
-      return;
-    }
-    let last = performance.now();
-    const omega =
-      last - current.changedAt < EASED_FOLLOW_WINDOW_MS
-        ? EASED_FOLLOW_OMEGA
-        : EASED_SETTLE_OMEGA;
-    current.changedAt = last;
-    let frame = 0;
-    const step = () => {
-      const now = performance.now();
-      const elapsed = (now - last) / 1000;
-      last = now;
-      const distance = current.position - target;
-      const decay = Math.exp(-omega * elapsed);
-      const push = current.velocity + omega * distance;
-      current.position = target + decay * (distance + push * elapsed);
-      current.velocity = decay * (current.velocity - omega * push * elapsed);
-      if (
-        Math.abs(current.position - target) < 0.01 &&
-        Math.abs(current.velocity) < 0.5
-      ) {
-        current.position = target;
-        current.velocity = 0;
-        setValue(target);
-        return;
-      }
-      setValue(current.position);
-      frame = requestAnimationFrame(step);
-    };
-    frame = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(frame);
-  }, [target]);
-
-  return value;
-};
-
 export const FloatingCardExample = interactiveExample(
   () => {
     const [index, setIndex] = useState(1);
     const [insets, setInsets] = useState(INITIAL_INSETS);
-    const side = useEasedValue(insets.side);
-    const topSide = useEasedValue(insets.topSide);
-    const topBottom = useEasedValue(insets.topBottom);
 
     /** Moves to the detent a slider belongs to, so its change is on screen. */
     const changeInset =
@@ -240,15 +176,15 @@ export const FloatingCardExample = interactiveExample(
               insets={[
                 {},
                 {
-                  left: side,
-                  right: side,
+                  left: insets.side,
+                  right: insets.side,
                   bottom: insets.bottom,
                 },
                 {
-                  left: topSide,
-                  right: topSide,
+                  left: insets.topSide,
+                  right: insets.topSide,
                   top: insets.top,
-                  bottom: topBottom,
+                  bottom: insets.topBottom,
                 },
               ]}
               surfaceStyle={CARD_SHAPE}
