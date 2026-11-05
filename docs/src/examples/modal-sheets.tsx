@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { View } from 'react-native';
 
 import {
   ControlGroup,
@@ -16,6 +17,7 @@ import {
   Toggle,
   useEventLog,
 } from '../components/InteractiveExample';
+import { PeekingCat } from './PeekingCat';
 
 const SCRIM_COLORS = [
   { label: 'Black', value: 'rgba(0, 0, 0, 0.5)', swatch: '#000000' },
@@ -233,17 +235,22 @@ export const StackingExample = interactiveExample(
                 scrimColor="rgba(0, 0, 0, 0.25)"
                 surfaceColor={color}
               >
-                <SheetBody title={`Sheet ${name}`}>
-                  {position < STACKED_SHEETS.length - 1 && (
-                    <StageButton
-                      secondary
-                      label={`Open sheet ${STACKED_SHEETS[position + 1]!.name}`}
-                      onPress={() =>
-                        setOpen(STACKED_SHEETS[position + 1]!.name, true)
-                      }
-                    />
+                <View style={{ flex: 1 }}>
+                  <SheetBody title={`Sheet ${name}`}>
+                    {position < STACKED_SHEETS.length - 1 && (
+                      <StageButton
+                        secondary
+                        label={`Open sheet ${STACKED_SHEETS[position + 1]!.name}`}
+                        onPress={() =>
+                          setOpen(STACKED_SHEETS[position + 1]!.name, true)
+                        }
+                      />
+                    )}
+                  </SheetBody>
+                  {name === 'C' && (
+                    <PeekingCat active={openOrder.includes('C')} />
                   )}
-                </SheetBody>
+                </View>
               </StageSheet>
             ))}
           </>
