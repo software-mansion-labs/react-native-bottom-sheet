@@ -34,6 +34,7 @@ type Scenario = {
   expect: string;
   detents: Detent[];
   insets?: DetentInset[];
+  topInset?: number;
   shape?: SurfaceStyle;
   scrollable?: boolean;
   keyboard?: boolean;
@@ -64,13 +65,15 @@ const SCENARIOS: Scenario[] = [
     label: 'Top inset at full',
     expect: 'The full detent stops 120 below the top and 32 above the bottom.',
     detents: [0, 320, '100%'],
-    insets: [{ ...FLOATING, top: 120 }],
+    insets: [FLOATING],
+    topInset: 120,
   },
   {
     label: 'Percentage detents',
     expect: 'Percentages resolve against the space the insets leave.',
     detents: [0, '25%', '50%', '100%'],
-    insets: [{ ...FLOATING, top: 80 }],
+    insets: [FLOATING],
+    topInset: 80,
   },
   {
     label: 'Content height',
@@ -108,7 +111,8 @@ const SCENARIOS: Scenario[] = [
     label: 'Mixed radii',
     expect: 'Each corner keeps its own radius as the edges move.',
     detents: [0, 320, '100%'],
-    insets: [{}, FLOATING, { left: 8, right: 8, bottom: 8, top: 8 }],
+    insets: [{}, FLOATING, { left: 8, right: 8, bottom: 8 }],
+    topInset: 8,
     shape: {
       borderTopLeftRadius: 48,
       borderTopRightRadius: 12,
@@ -323,9 +327,8 @@ export const DetachedSheetScreen = () => {
 
   const sheetProps = {
     detents: scenario.detents,
-    insets: isUnderStatusBar
-      ? (scenario.insets ?? [{}]).map((inset) => ({ ...inset, top: 0 }))
-      : scenario.insets,
+    insets: scenario.insets,
+    topInset: isUnderStatusBar ? 0 : scenario.topInset,
     index: Math.min(index, scenario.detents.length - 1),
     onIndexChange: setIndex,
     animateContentHeight: !scenario.keyboard,

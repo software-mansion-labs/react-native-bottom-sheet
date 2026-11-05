@@ -332,12 +332,6 @@ export const isDetentProgrammatic = (detent: Detent): boolean => {
  * to 0.
  */
 export type DetentInset = Readonly<{
-  /**
-   * The minimum space between the card's top and the host's top. Defaults to
-   * the part of the status bar that overlaps the host, so the card stops below
-   * it; pass a lower value, or `0`, to go under the status bar.
-   */
-  top?: number;
   left?: number;
   right?: number;
   /** The space between the card's bottom and the host's bottom. */
@@ -383,6 +377,20 @@ const invalidDetentInsetError = (side: string, value: unknown, index: number) =>
     `Invalid bottom sheet inset at index ${index}: \`${side}\` received ${String(value)}. Expected a finite, non-negative number.`
   );
 
+const invalidTopInsetError = (value: unknown) =>
+  new Error(
+    `Invalid bottom sheet topInset: received ${String(value)}. Expected a finite, non-negative number.`
+  );
+
+/** The sheet's `topInset`, in the shape each native detent carries it. */
+const resolveTopInset = (topInset: number | undefined) => {
+  const value = topInset ?? 0;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    throw invalidTopInsetError(value);
+  }
+  return { usesStatusBarTopInset: topInset === undefined, insetTop: value };
+};
+
 /**
  * The inset of a detent, read from `insets` like `scrimOpacities`: by index,
  * with a shorter array than `detents` reusing its last entry for any remaining
@@ -402,8 +410,6 @@ const resolveDetentInset = (
     return value;
   };
   return {
-    usesStatusBarTopInset: inset.top === undefined,
-    insetTop: resolveSide('top'),
     insetLeft: resolveSide('left'),
     insetRight: resolveSide('right'),
     insetBottom: resolveSide('bottom'),
@@ -428,11 +434,12 @@ const parseDetentPercentage = (value: string, index: number) => {
 export const normalizeDetent = (
   detent: Detent,
   index: number,
-  insets?: ReadonlyArray<DetentInset>
+  insets: ReadonlyArray<DetentInset> | undefined,
+  topInset: ReturnType<typeof resolveTopInset>
 ): NormalizedDetent => {
   const value = detentValue(detent);
   const isProgrammatic = isDetentProgrammatic(detent);
-  const inset = resolveDetentInset(insets, index);
+  const inset = { ...topInset, ...resolveDetentInset(insets, index) };
 
   if (typeof value === 'number') {
     if (!Number.isFinite(value) || value < 0) {
@@ -475,10 +482,12 @@ export const normalizeDetent = (
  */
 export const normalizeDetents = (
   detents: ReadonlyArray<Detent>,
-  insets?: ReadonlyArray<DetentInset>
+  insets?: ReadonlyArray<DetentInset>,
+  topInset?: number
 ): NormalizedDetent[] => {
+  const resolvedTopInset = resolveTopInset(topInset);
   const normalized = detents.map((detent, index) =>
-    normalizeDetent(detent, index, insets)
+    normalizeDetent(detent, index, insets, resolvedTopInset)
   );
   const widest = findWidestDetent(normalized);
   return normalized.map((detent) =>
