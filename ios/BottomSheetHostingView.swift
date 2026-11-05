@@ -1115,7 +1115,7 @@ public final class BottomSheetHostingView: UIView {
     if !activeScrollViewsLocked {
       lockActiveScrollViews(inPlace: true)
     }
-    for state in activeScrollViewStates {
+    for state in activeScrollViewStates where scrollViewIsPulledPastStart(state) {
       guard let scrollView = state.scrollView else { continue }
       let startY = scrollStartOffset(for: scrollView, inverted: state.inverted).y
       state.pinnedOffset.y = state.inverted
@@ -1474,6 +1474,7 @@ public final class BottomSheetHostingView: UIView {
           if delta >= 0 {
             unlockActiveScrollViews()
           } else if activeScrollViewsArePulledPastStart() {
+            // The sheet stays put while the pull returns with the finger.
             movePulledScrollViewsBack(by: -delta)
           } else {
             scrollViewOwnsLowerBoundary = false
@@ -1817,17 +1818,19 @@ public final class BottomSheetHostingView: UIView {
     }
   }
 
-  /// Whether a vertical scrollable in the touched chain is overscrolled
-  /// before its visual start, by a bounce or a refresh control pull.
-  private func activeScrollViewsArePulledPastStart() -> Bool {
+  /// Whether the scroll view is overscrolled before its visual start, by a
+  /// bounce or a refresh control pull.
+  private func scrollViewIsPulledPastStart(_ state: ActiveScrollViewState) -> Bool {
     let edgeTolerance: CGFloat = 0.5
-    return activeScrollViewStates.contains { state in
-      guard let scrollView = state.scrollView else { return false }
-      let startY = scrollStartOffset(for: scrollView, inverted: state.inverted).y
-      return state.inverted
-        ? scrollView.contentOffset.y > startY + edgeTolerance
-        : scrollView.contentOffset.y < startY - edgeTolerance
-    }
+    guard let scrollView = state.scrollView else { return false }
+    let startY = scrollStartOffset(for: scrollView, inverted: state.inverted).y
+    return state.inverted
+      ? scrollView.contentOffset.y > startY + edgeTolerance
+      : scrollView.contentOffset.y < startY - edgeTolerance
+  }
+
+  private func activeScrollViewsArePulledPastStart() -> Bool {
+    activeScrollViewStates.contains { scrollViewIsPulledPastStart($0) }
   }
 
   private func negotiationLevel(forVerticalVelocity velocityY: CGFloat) -> ScrollableNegotiationLevel {
