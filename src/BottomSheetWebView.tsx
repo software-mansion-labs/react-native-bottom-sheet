@@ -23,7 +23,6 @@ type BottomSheetViewProps = NativeProps & {
   ref?: Ref<ViewInstance>;
 };
 
-const DEFAULT_SCRIM_OPACITIES = [1];
 const DEFAULT_CORNER_RADII = [0, 0, 0, 0];
 const DEFAULT_SHADOWS: NonNullable<NativeProps['surfaceShadows']> = [];
 
@@ -62,7 +61,6 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
     scrollableExpandNegotiation,
     scrollableCollapseNegotiation,
     scrimColor,
-    scrimOpacities = DEFAULT_SCRIM_OPACITIES,
     surfaceCornerRadii = DEFAULT_CORNER_RADII,
     surfaceShadows = DEFAULT_SHADOWS,
     // CSS has no continuous corner curve; corners are drawn circular. Taken
@@ -168,7 +166,6 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
       openOrder,
       scrollableExpandNegotiation,
       scrollableCollapseNegotiation,
-      scrimOpacities,
       cornerRadii: surfaceCornerRadii,
       shadows: surfaceShadows,
     });

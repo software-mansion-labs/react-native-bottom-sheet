@@ -5,9 +5,23 @@ import {
   type BottomSheetInternalProps,
   type BottomSheetProps,
 } from './BottomSheet';
+import type { ModalDetent } from './bottomSheetUtils';
 
 /** Props for the modal bottom-sheet variant, presented through a portal by default. */
-export interface ModalBottomSheetProps extends BottomSheetProps {
+export interface ModalBottomSheetProps extends Omit<
+  BottomSheetProps,
+  'detents'
+> {
+  /**
+   * Snap points for the sheet, as on `BottomSheet`. A detent object can also
+   * set `scrimOpacity`, in 0–1, which scales the scrim color’s alpha at that
+   * detent and is interpolated linearly between detents. It defaults to 0 at a
+   * closed detent and 1 at an open one, so the scrim is transparent when closed
+   * and fully opaque at every open detent.
+   *
+   * @default [0, 'content']
+   */
+  detents?: ModalDetent[];
   /**
    * Android and web. Called when Android system Back, a committed predictive
    * Back gesture, or a complete, unmodified physical Escape press requests that
@@ -38,20 +52,6 @@ export interface ModalBottomSheetProps extends BottomSheetProps {
   nativeOverlay?: boolean;
   /** Scrim color shown behind the modal sheet. */
   scrimColor?: string;
-  /**
-   * Scrim opacities per detent, indexed to match `detents`. Each value in 0-1
-   * scales the scrim color's alpha at the detent of the same index, and the
-   * opacity is linearly interpolated as the sheet is dragged between detents.
-   * A shorter array than `detents` reuses its last value for any remaining
-   * detents.
-   *
-   * The default maps each detent to 0 when it is closed and 1 otherwise,
-   * so the scrim is transparent at any closed detent and fully opaque at every
-   * open one; e.g., `[0, 'content']` defaults to `[0, 1]`, and all-open detents
-   * default to a constant opaque scrim. Pass one value per detent, e.g.
-   * `[0, 0.5, 1]`, to keep the scrim deepening across every detent.
-   */
-  scrimOpacities?: number[];
 }
 
 /** Bottom sheet presented above the current UI with a scrim. */

@@ -10,8 +10,10 @@ export type { ModalBottomSheetProps } from './ModalBottomSheet';
 export { BottomSheetProvider } from './BottomSheetProvider';
 export type {
   Detent,
-  DetentInset,
+  DetentConfig,
+  DetentInsets,
   DetentValue,
+  ModalDetent,
+  ModalDetentConfig,
   SurfaceStyle,
 } from './bottomSheetUtils';
-export { programmatic } from './bottomSheetUtils';

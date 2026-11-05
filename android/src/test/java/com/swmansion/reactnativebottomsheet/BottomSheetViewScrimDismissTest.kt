@@ -69,11 +69,20 @@ class BottomSheetViewScrimDismissTest {
         animateIn = false
         modal = true
         setScrimColor(Color.BLACK)
-        setScrimOpacities(listOf(0f, 1f))
         setDetents(
           listOf(
-            mapOf("value" to 0.0, "kind" to "points", "programmatic" to false),
-            mapOf("value" to 300.0, "kind" to "points", "programmatic" to false),
+            mapOf(
+              "value" to 0.0,
+              "kind" to "points",
+              "programmatic" to false,
+              "scrimOpacity" to 0.0,
+            ),
+            mapOf(
+              "value" to 300.0,
+              "kind" to "points",
+              "programmatic" to false,
+              "scrimOpacity" to 1.0,
+            ),
           ),
         )
         setIndex(1)

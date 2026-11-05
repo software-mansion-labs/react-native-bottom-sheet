@@ -1,9 +1,6 @@
 import { useState } from 'react';
 import { Button, StyleSheet, Text, View } from 'react-native';
-import {
-  BottomSheet,
-  programmatic,
-} from '@swmansion/react-native-bottom-sheet';
+import { BottomSheet } from '@swmansion/react-native-bottom-sheet';
 
 import {
   DemoScreen,
@@ -22,7 +19,7 @@ export const ProgrammaticDetentDragScreen = () => {
       title="Programmatic detent drag"
       sheet={
         <BottomSheet
-          detents={[120, 320, programmatic(720)]}
+          detents={[120, 320, { value: 720, programmatic: true }]}
           index={index}
           onIndexChange={setIndex}
           onPositionChange={(event) => setPosition(event.nativeEvent.position)}
@@ -70,7 +67,7 @@ export const ProgrammaticDetentDragScreen = () => {
         }}
       >
         <Text style={{ fontWeight: '600' }}>Current state</Text>
-        <Text>detents: [{`120, 320, programmatic(720)`}]</Text>
+        <Text>detents: [{`120, 320, { value: 720, programmatic: true }`}]</Text>
         <Text>index: {index}</Text>
         <Text>position: {position.toFixed(0)}pt</Text>
       </View>

@@ -110,11 +110,6 @@
   _impl.scrimColor = color;
 }
 
-- (void)setScrimOpacities:(NSArray<NSNumber *> *)opacities
-{
-  [_impl setScrimOpacities:opacities];
-}
-
 - (void)setSurfaceCornerRadii:(NSArray<NSNumber *> *)radii
 {
   [_impl setSurfaceCornerRadii:radii];

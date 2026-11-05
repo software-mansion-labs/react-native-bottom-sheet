@@ -123,6 +123,8 @@ class BottomSheetViewManager :
           "insetRight" to inset("insetRight"),
           "insetBottom" to inset("insetBottom"),
           "widestCard" to (map.hasKey("widestCard") && map.getBoolean("widestCard")),
+          "scrimOpacity" to
+            (if (map.hasKey("scrimOpacity")) map.getDouble("scrimOpacity") else 1.0),
         ),
       )
     }
@@ -174,16 +176,6 @@ class BottomSheetViewManager :
 
   override fun setScrimColor(view: BottomSheetView, scrimColor: Int?) {
     view.setScrimColor(scrimColor)
-  }
-
-  override fun setScrimOpacities(view: BottomSheetView, value: ReadableArray?) {
-    val opacities = mutableListOf<Float>()
-    if (value != null) {
-      for (i in 0 until value.size()) {
-        opacities.add(value.getDouble(i).toFloat())
-      }
-    }
-    view.setScrimOpacities(opacities)
   }
 
   override fun setSurfaceCornerRadii(view: BottomSheetView, value: ReadableArray?) {

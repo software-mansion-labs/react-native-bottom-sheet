@@ -215,9 +215,9 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   private var nestedSheetMoved = false
   private var nestedPanSettled = false
   private var scrimColor = Color.TRANSPARENT
-  // The JS layer always supplies a per-detent array; the fully-opaque fallback
-  // only guards against empty input (indexing requires a non-empty array).
-  private var scrimOpacities = listOf(1f)
+  // Scrim opacity per detent index, from each detent’s `scrimOpacity`. Kept apart from
+  // `rawDetentSpecs`, so a scrim change only repaints the scrim.
+  private var scrimOpacities = emptyList<Float>()
   private var scrimProgress = 0f
   private var suppressScrimForClosingTarget = false
   private var scrimPinnedFull = false
@@ -495,8 +495,13 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   fun setDetents(raw: List<Map<String, Any>>) {
     val previousTallestDetent = rawDetentSpecs.lastOrNull()
     val previousWidestCardInsets = widestCardInsets
-    rawDetentSpecs = raw.mapNotNull { dict ->
-      val value = (dict["value"] as? Number)?.toDouble() ?: return@mapNotNull null
+    val previousScrimOpacities = scrimOpacities
+    // Entries without a value are dropped up front, so the specs and the scrim
+    // opacities stay aligned by index.
+    val entries = raw.filter { it["value"] is Number }
+    scrimOpacities = entries.map { (it["scrimOpacity"] as? Number)?.toFloat() ?: 1f }
+    rawDetentSpecs = entries.map { dict ->
+      val value = (dict["value"] as Number).toDouble()
       val kind =
         when (dict["kind"] as? String) {
           "content" -> DetentKind.CONTENT
@@ -543,6 +548,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     }
     recomputeNativeGeometry()
     refreshDetentsFromLayout()
+    if (scrimOpacities != previousScrimOpacities) updateScrim()
   }
 
   fun setIndex(newIndex: Int) {
@@ -599,11 +605,6 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   fun setScrimColor(color: Int?) {
     scrimColor = color ?: Color.TRANSPARENT
     invalidate()
-  }
-
-  fun setScrimOpacities(values: List<Float>) {
-    scrimOpacities = if (values.isEmpty()) listOf(1f) else values
-    updateScrim()
   }
 
   private fun resolveDetentSpecs(): List<DetentSpec> {
@@ -2275,7 +2276,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     interpolateAtPosition(
       position,
       detentSpecs.indices.map {
-        scrimOpacities[it.coerceAtMost(scrimOpacities.size - 1)].coerceIn(0f, 1f)
+        (scrimOpacities.getOrNull(it) ?: 1f).coerceIn(0f, 1f)
       },
     )
 

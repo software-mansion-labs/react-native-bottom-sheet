@@ -22,6 +22,8 @@ export type RawDetent = Readonly<{
   insetBottom: number;
   /** The widest open card, which the content is laid out against. */
   widestCard: boolean;
+  /** The scrim’s opacity at this detent, in 0-1. */
+  scrimOpacity: number;
 }>;
 
 type ResolvedDetent = Readonly<{
@@ -47,7 +49,6 @@ export type BottomSheetWebConfig = Readonly<{
   openOrder: number;
   scrollableExpandNegotiation: number;
   scrollableCollapseNegotiation: number;
-  scrimOpacities: ReadonlyArray<number>;
   /** Physical corner radii: top-left, top-right, bottom-right, bottom-left. */
   cornerRadii: ReadonlyArray<number>;
   shadows: ReadonlyArray<
@@ -460,7 +461,7 @@ export class BottomSheetWebController {
     }
     if (
       previous !== null &&
-      previous.scrimOpacities !== config.scrimOpacities
+      !areScrimOpacitiesEqual(previous.detents, config.detents)
     ) {
       this.updateScrim();
     }
@@ -1248,9 +1249,9 @@ export class BottomSheetWebController {
   }
 
   private scrimOpacity(position: number) {
-    const opacities = this.requireConfig().scrimOpacities;
+    const detents = this.requireConfig().detents;
     const values = this.detents.map((_, index) =>
-      clamp(opacities[Math.min(index, opacities.length - 1)] ?? 1, 0, 1)
+      clamp(detents[index]?.scrimOpacity ?? 1, 0, 1)
     );
     return this.interpolate(position, values);
   }
@@ -1794,6 +1795,17 @@ const areRawDetentsEqual = (
       detent.insetRight === b[index]!.insetRight &&
       detent.insetBottom === b[index]!.insetBottom &&
       detent.widestCard === b[index]!.widestCard
+  );
+
+// Compared apart from `areRawDetentsEqual`: A scrim change only repaints the
+// scrim, and doesn’t re-resolve the detents.
+const areScrimOpacitiesEqual = (
+  a: ReadonlyArray<RawDetent>,
+  b: ReadonlyArray<RawDetent>
+) =>
+  areNumbersEqual(
+    a.map((detent) => detent.scrimOpacity),
+    b.map((detent) => detent.scrimOpacity)
   );
 
 const areResolvedDetentsEqual = (a: ResolvedDetent[], b: ResolvedDetent[]) =>

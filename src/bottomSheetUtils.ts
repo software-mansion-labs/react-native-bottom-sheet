@@ -305,38 +305,50 @@ export const resolveSurfaceStyle = (
  */
 export type DetentValue = number | `${number}%` | 'content';
 
-/** A draggable detent or an object form that can mark a detent as programmatic-only. */
-export type Detent =
-  DetentValue | { value: DetentValue; programmatic?: boolean };
-
-/** Marks a detent as reachable only via controlled `index` updates, not dragging. */
-export const programmatic = (value: DetentValue): Detent => ({
-  value,
-  programmatic: true,
-});
-
-export const detentValue = (detent: Detent): DetentValue => {
-  if (typeof detent === 'object' && detent !== null) return detent.value;
-  return detent;
-};
-
-export const isDetentProgrammatic = (detent: Detent): boolean => {
-  if (typeof detent === 'object' && detent !== null) {
-    return detent.programmatic === true;
-  }
-  return false;
-};
-
 /**
  * The space kept around the card at a detent, in points. All sides default
- * to 0.
+ * to 0. The space above the card is set for the whole sheet, by `topInset`.
  */
-export type DetentInset = Readonly<{
+export type DetentInsets = Readonly<{
   left?: number;
   right?: number;
   /** The space between the card's bottom and the host's bottom. */
   bottom?: number;
 }>;
+
+/** A detent with its options. A bare value takes the default for each. */
+export type DetentConfig = Readonly<{
+  value: DetentValue;
+  /**
+   * Reachable only through controlled `index` updates: Dragging skips it, and
+   * the sheet doesn’t settle there.
+   *
+   * @default false
+   */
+  programmatic?: boolean;
+  /**
+   * The space around the card at this detent, so the sheet can float as a
+   * card. Ignored at a closed detent.
+   */
+  insets?: DetentInsets;
+}>;
+
+/** A modal sheet’s detent with its options. */
+export type ModalDetentConfig = DetentConfig &
+  Readonly<{
+    /**
+     * In 0–1, scales the scrim color’s alpha at this detent. Interpolated
+     * linearly as the sheet moves between detents. Defaults to 0 at a closed
+     * detent and 1 at an open one.
+     */
+    scrimOpacity?: number;
+  }>;
+
+/** A detent: a bare value, or an object with its options. */
+export type Detent = DetentValue | DetentConfig;
+
+/** A modal sheet’s detent: a bare value, or an object with its options. */
+export type ModalDetent = DetentValue | ModalDetentConfig;
 
 type NormalizedDetent = Readonly<{
   value: number;
@@ -349,10 +361,11 @@ type NormalizedDetent = Readonly<{
   insetBottom: number;
   /** Whether this is the widest open card, which content is laid out against. */
   widestCard: boolean;
+  scrimOpacity: number;
 }>;
 
-/** A closed sheet is fully off-screen, whatever its detent's inset says. */
-const CLOSED_INSET = {
+/** A closed sheet is fully off-screen, whatever its detent’s insets say. */
+const CLOSED_INSETS = {
   usesStatusBarTopInset: false,
   insetTop: 0,
   insetLeft: 0,
@@ -372,42 +385,47 @@ const invalidPointDetentError = (value: number, index: number) =>
     `Invalid bottom sheet detent at index ${index}: received ${String(value)}. Expected a finite, non-negative number.`
   );
 
-const invalidDetentInsetError = (side: string, value: unknown, index: number) =>
+const invalidDetentOptionError = (
+  option: string,
+  value: unknown,
+  index: number,
+  expected: string
+) =>
   new Error(
-    `Invalid bottom sheet inset at index ${index}: \`${side}\` received ${String(value)}. Expected a finite, non-negative number.`
+    `Invalid bottom sheet detent at index ${index}: \`${option}\` received ${String(value)}. Expected ${expected}.`
   );
 
-const invalidTopInsetError = (value: unknown) =>
-  new Error(
-    `Invalid bottom sheet topInset: received ${String(value)}. Expected a finite, non-negative number.`
-  );
+const isFiniteNonNegative = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0;
 
-/** The sheet's `topInset`, in the shape each native detent carries it. */
+/** Validates the sheet’s `topInset`. */
 const resolveTopInset = (topInset: number | undefined) => {
   // `null` from plain JS means unset too, like `undefined`.
-  const usesStatusBarTopInset = topInset == null;
-  const value = topInset ?? 0;
-  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
-    throw invalidTopInsetError(value);
+  if (topInset != null && !isFiniteNonNegative(topInset)) {
+    throw new Error(
+      `Invalid bottom sheet \`topInset\`: received ${String(topInset)}. Expected a finite, non-negative number.`
+    );
   }
-  return { usesStatusBarTopInset, insetTop: value };
+  return {
+    usesStatusBarTopInset: topInset == null,
+    insetTop: topInset ?? 0,
+  };
 };
 
-/**
- * The inset of a detent, read from `insets` like `scrimOpacities`: by index,
- * with a shorter array than `detents` reusing its last entry for any remaining
- * detents, and an empty or missing one leaving every side at its default.
- */
-const resolveDetentInset = (
-  insets: ReadonlyArray<DetentInset> | undefined,
+/** Reads and validates a detent’s insets, leaving unset sides at 0. */
+const resolveDetentInsets = (
+  insets: DetentInsets | undefined,
   index: number
 ) => {
-  const insetIndex = Math.min(index, (insets?.length ?? 0) - 1);
-  const inset = insets?.[insetIndex] ?? {};
-  const resolveSide = (side: keyof DetentInset) => {
-    const value = inset[side] ?? 0;
-    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
-      throw invalidDetentInsetError(side, value, insetIndex);
+  const resolveSide = (side: keyof DetentInsets) => {
+    const value = insets?.[side] ?? 0;
+    if (!isFiniteNonNegative(value)) {
+      throw invalidDetentOptionError(
+        `insets.${side}`,
+        value,
+        index,
+        'a finite, non-negative number'
+      );
     }
     return value;
   };
@@ -432,64 +450,70 @@ const parseDetentPercentage = (value: string, index: number) => {
   return percentage / 100;
 };
 
-/** Serializes a public detent into the shape consumed by the native views. */
-export const normalizeDetent = (
-  detent: Detent,
-  index: number,
-  insets: ReadonlyArray<DetentInset> | undefined,
-  topInset: ReturnType<typeof resolveTopInset>
-): NormalizedDetent => {
-  const value = detentValue(detent);
-  const isProgrammatic = isDetentProgrammatic(detent);
-  const inset = { ...topInset, ...resolveDetentInset(insets, index) };
-
+/** Parses a detent’s value into its kind and native value. */
+const parseDetentValue = (value: DetentValue, index: number) => {
   if (typeof value === 'number') {
     if (!Number.isFinite(value) || value < 0) {
       throw invalidPointDetentError(value, index);
     }
-
-    return {
-      value,
-      kind: 'points',
-      programmatic: isProgrammatic,
-      ...(value === 0 ? CLOSED_INSET : inset),
-      widestCard: false,
-    };
+    return { kind: 'points' as const, value };
   }
-
   if (value === 'content') {
-    return {
-      value: 0,
-      kind: 'content',
-      programmatic: isProgrammatic,
-      ...inset,
-      widestCard: false,
-    };
+    return { kind: 'content' as const, value: 0 };
   }
-
-  const ratio = parseDetentPercentage(value, index);
   return {
-    value: ratio,
-    kind: 'percentage',
-    programmatic: isProgrammatic,
-    ...(ratio === 0 ? CLOSED_INSET : inset),
+    kind: 'percentage' as const,
+    value: parseDetentPercentage(value, index),
+  };
+};
+
+/** Serializes a public detent into the shape consumed by the native views. */
+const normalizeDetent = (
+  detent: ModalDetent,
+  index: number,
+  topInset: ReturnType<typeof resolveTopInset>,
+  modal: boolean
+): NormalizedDetent => {
+  const config: ModalDetentConfig =
+    typeof detent === 'object' && detent !== null ? detent : { value: detent };
+  const { kind, value } = parseDetentValue(config.value, index);
+  const isClosed = isNormalizedDetentClosed({ kind, value });
+  const insets = resolveDetentInsets(config.insets, index);
+  // Only a modal sheet has a scrim, so an inline sheet ignores the option
+  // rather than validating it.
+  const scrimOpacity =
+    (modal ? config.scrimOpacity : undefined) ?? (isClosed ? 0 : 1);
+  if (!isFiniteNonNegative(scrimOpacity) || scrimOpacity > 1) {
+    throw invalidDetentOptionError(
+      'scrimOpacity',
+      scrimOpacity,
+      index,
+      'a number from 0 through 1'
+    );
+  }
+  return {
+    value,
+    kind,
+    programmatic: config.programmatic === true,
+    ...(isClosed ? CLOSED_INSETS : { ...topInset, ...insets }),
     widestCard: false,
+    scrimOpacity,
   };
 };
 
 /**
- * Serializes the public detents and their insets, flagging the widest card.
- * The native hosts and the web controller read that flag rather than finding
- * the widest card themselves, so every platform lays out against the same one.
+ * Serializes the public detents, flagging the widest card. The native hosts
+ * and the web controller read that flag rather than finding the widest card
+ * themselves, so every platform lays out against the same one.
  */
 export const normalizeDetents = (
-  detents: ReadonlyArray<Detent>,
-  insets?: ReadonlyArray<DetentInset>,
-  topInset?: number
+  detents: ReadonlyArray<ModalDetent>,
+  topInset: number | undefined,
+  modal: boolean
 ): NormalizedDetent[] => {
   const resolvedTopInset = resolveTopInset(topInset);
   const normalized = detents.map((detent, index) =>
-    normalizeDetent(detent, index, insets, resolvedTopInset)
+    normalizeDetent(detent, index, resolvedTopInset, modal)
   );
   const widest = findWidestDetent(normalized);
   return normalized.map((detent) =>

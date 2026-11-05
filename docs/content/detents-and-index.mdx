@@ -13,6 +13,22 @@ detents are `[0, 'content']`.
 For example, `[0, 'content']` creates a content-sized sheet, `[0, 300]` keeps
 the open height fixed, and `['0%', '30%', '80%']` creates responsive heights.
 
+A detent can also be an object, which sets its options in one place:
+
+```tsx
+detents={[
+  0,
+  { value: 320, insets: { left: 16, right: 16, bottom: 32 } },
+  { value: '100%', programmatic: true },
+]}
+```
+
+`value` takes any of the forms above. The options are [`insets`](#insets),
+[`programmatic`](#programmatic-only-detents) and, on `ModalBottomSheet`,
+`scrimOpacity` (see Modal sheets). A detent that leaves out an option, including
+a bare value, takes that option’s default, so `300` and `{ value: 300 }` are the
+same detent.
+
 Percentage values from `0%` through `100%`, including decimals such as `12.5%`,
 resolve against the available sheet height and update when that height changes.
 The percentage syntax is unsigned and does not allow whitespace, so values such
@@ -56,17 +72,18 @@ scrollable resolves `'content'` to that height.
 
 ## Insets
 
-`insets` keeps space around the sheet at each detent, so it can float as a card.
-Each entry has optional `left`, `right`, and `bottom` values, and the gaps blend
-as the sheet moves between detents. Like `scrimOpacities`, `insets` is indexed
-to match `detents`: a shorter array reuses its last entry for any remaining
-detents, and extra entries are ignored. A closed detent ignores its inset, so
-the card leaves through the gap with its shape intact.
+A detent’s `insets` keep space around the sheet at that detent, so it can float
+as a card. They take optional `left`, `right`, and `bottom` values, all 0 by
+default, and the gaps blend as the sheet moves between detents. A closed detent
+ignores its insets, so the card leaves through the gap with its shape intact.
 
 ```tsx
 <ModalBottomSheet
-  detents={[0, 320, '100%']}
-  insets={[{}, { left: 16, right: 16, bottom: 32 }, {}]}
+  detents={[
+    0,
+    { value: 320, insets: { left: 16, right: 16, bottom: 32 } },
+    '100%',
+  ]}
   surfaceStyle={{ borderRadius: 28, borderCurve: 'continuous' }}
   index={index}
   onIndexChange={setIndex}
@@ -76,20 +93,25 @@ the card leaves through the gap with its shape intact.
 </ModalBottomSheet>
 ```
 
-With insets, a detent's value is the card's height, and percentages resolve
-against the available space: the host's height minus `topInset` and that
+A detent’s value is the card’s height, and percentages resolve against the
+available space: the host’s height minus the [top inset](#top-inset) and that
 detent's bottom inset. So `'100%'` fills the space between the gaps and never
-covers them, just as it stops below the status bar by default. Detents ascend by
-the position of the card's top: its height plus its bottom inset. The surface
-and content are laid out once, against the widest card, and scaled uniformly to
-fit narrower ones, as with iOS sheets, so content never reflows as the card's
-edges move. Touches in the gaps reach the scrim or whatever is behind the sheet.
+covers them. Detents ascend by the position of the card’s top: its height plus
+its bottom inset. The surface and content are laid out once, against the widest
+card, and scaled uniformly to fit narrower ones, as with iOS sheets, so content
+never reflows as the card’s edges move. Touches in the gaps reach the scrim or
+whatever is behind the sheet.
 
-`topInset` sets the space above the card, once for the whole sheet. By default,
-full-height detents stop below the status bar: `topInset` defaults to the part
-of the status bar that overlaps the host. It is measured from the host's top, so
-a lower value goes partly under the status bar, and `0` lets the sheet occupy
-the full screen height:
+## Top inset
+
+`topInset` sets the minimum space between the sheet’s top and the host’s top,
+for every detent. It caps how tall the sheet can get, and is part of what
+percentages resolve against.
+
+By default, the sheet stops below the status bar: `topInset` defaults to the
+part of the status bar that overlaps the host. It is measured from the host’s
+top, so a lower value goes partly under the status bar, and `0` lets the sheet
+occupy the full screen height:
 
 ```tsx
 <BottomSheet // Or `ModalBottomSheet`.
@@ -144,14 +166,14 @@ the library does not clamp a now-out-of-range index.
 
 ## Programmatic-only detents
 
-If you want a detent to be reachable only via code (not by dragging), use the
-object form or the `programmatic` helper. Programmatic detents are excluded from
-drag snapping but can still be targeted via `index` updates. If the closed
-detent is programmatic-only, tapping the scrim does not dismiss the sheet.
+If you want a detent to be reachable only via code (not by dragging), set
+`programmatic: true` on it. Programmatic detents are excluded from drag snapping
+but can still be targeted via `index` updates. If the closed detent is
+programmatic-only, tapping the scrim does not dismiss the sheet.
 
 ```tsx
 <BottomSheet
-  detents={[0, programmatic(300), 600]}
+  detents={[0, { value: 300, programmatic: true }, 600]}
   index={index}
   onIndexChange={setIndex}
   surface={/* ... */}

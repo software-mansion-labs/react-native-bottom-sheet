@@ -396,7 +396,7 @@ class BottomSheetViewCloseRequestTest {
       val listener = CountingBottomSheetListener()
       val fixture =
         openNativeOverlaySheet(activity, listener, hasCloseRequestHandler = false) {
-          it.setScrimOpacities(listOf(0f, 0f))
+          it.setDetents(scrimDetents(open = 0.0))
         }
       val windowAttributes = requireNotNull(fixture.dialog.window).attributes
       assertEquals(
@@ -513,6 +513,13 @@ class BottomSheetViewCloseRequestTest {
       setIndex(1)
     }
 
+  // The open sheet’s detents, with the scrim transparent when closed and at `open` when open.
+  private fun scrimDetents(open: Double): List<Map<String, Any>> =
+    listOf(
+      mapOf("value" to 0.0, "kind" to "points", "programmatic" to false, "scrimOpacity" to 0.0),
+      mapOf("value" to 300.0, "kind" to "points", "programmatic" to false, "scrimOpacity" to open),
+    )
+
   private fun contentDetents(): List<Map<String, Any>> =
     listOf(
       mapOf("value" to 0.0, "kind" to "points", "programmatic" to false),
@@ -544,7 +551,7 @@ class BottomSheetViewCloseRequestTest {
         hasCloseRequestHandler,
       )
     sheet.setScrimColor(Color.BLACK)
-    sheet.setScrimOpacities(listOf(0f, 1f))
+    sheet.setDetents(scrimDetents(open = 1.0))
     configure(sheet)
     sheet.eventDispatcher = NoOpEventDispatcher
     activity.setContentView(sheet)

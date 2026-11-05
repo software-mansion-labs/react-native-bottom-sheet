@@ -279,17 +279,13 @@ public final class BottomSheetHostingView: UIView {
     didSet { scrimView.backgroundColor = scrimColor }
   }
 
-  /// Scrim opacity per detent index. Linearly interpolated between detents and
-  /// clamped to the last value for detents beyond the array. The JS layer always
-  /// supplies a per-detent array; the fully-opaque fallback only guards against
-  /// empty input (indexing requires a non-empty array).
-  private var scrimOpacities: [CGFloat] = [1] {
-    didSet { updateScrim() }
-  }
-
-  public func setScrimOpacities(_ values: [NSNumber]) {
-    let mapped = values.map { CGFloat(truncating: $0) }
-    scrimOpacities = mapped.isEmpty ? [1] : mapped
+  /// Scrim opacity per detent index, from each detent’s `scrimOpacity`, and
+  /// linearly interpolated between detents. Kept apart from `rawDetentSpecs`,
+  /// so a scrim change only repaints the scrim.
+  private var scrimOpacities: [CGFloat] = [] {
+    didSet {
+      if scrimOpacities != oldValue { updateScrim() }
+    }
   }
 
   /// Physical corner radii of the card: top-left, top-right, bottom-right,
@@ -635,10 +631,11 @@ public final class BottomSheetHostingView: UIView {
 
   public func setDetents(_ raw: [NSDictionary]) {
     let previousTallestDetent = rawDetentSpecs.last
-    rawDetentSpecs = raw.compactMap { dict in
-      guard let value = dict["value"] as? Double ?? (dict["value"] as? NSNumber)?.doubleValue else {
-        return nil
-      }
+    // Entries without a value are dropped up front, so the specs and the scrim
+    // opacities below stay aligned by index.
+    let entries = raw.filter { $0["value"] is NSNumber }
+    rawDetentSpecs = entries.map { dict in
+      let value = (dict["value"] as! NSNumber).doubleValue
       let kindString =
         (dict["kind"] as? String) ?? ((dict["kind"] as? NSString) as String?) ?? "points"
       let kind: DetentKind
@@ -687,6 +684,9 @@ public final class BottomSheetHostingView: UIView {
       isContentRegionChangePending = true
     }
     refreshDetentsFromLayout()
+    // Set once the detents are re-resolved, so the scrim isn’t repainted
+    // against the previous ones.
+    scrimOpacities = entries.map { CGFloat(truncating: $0["scrimOpacity"] as? NSNumber ?? 1) }
   }
 
   /// Records the content-region inset of a state Fabric committed. The content
@@ -2585,7 +2585,7 @@ private extension BottomSheetHostingView {
     interpolate(
       forPosition: position,
       values: detentSpecs.indices.map {
-        clampOpacity(scrimOpacities[min($0, scrimOpacities.count - 1)])
+        clampOpacity(scrimOpacities.indices.contains($0) ? scrimOpacities[$0] : 1)
       }
     )
   }
