@@ -1,0 +1,533 @@
+.example,
+.placeholder {
+  --example-border: var(--swm-navy-light-20);
+  --example-background: var(--swm-off-white);
+  --example-surface: var(--swm-white);
+  --example-muted-surface: var(--swm-navy-light-10);
+  --example-text: var(--swm-navy-light-100);
+  --example-muted: var(--swm-navy-light-60);
+  --example-track: var(--swm-navy-light-20);
+  --example-accent: var(--swm-navy-light-100);
+  --example-button: #2196f3;
+  --example-tint-blue: var(--swm-blue-light-40);
+  --example-tint-green: var(--swm-green-light-40);
+  --example-tint-purple: var(--swm-purple-light-40);
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
+  margin-bottom: var(--ifm-leading);
+  border: 1px solid var(--example-border);
+  background-color: var(--example-background);
+  color: var(--example-text);
+}
+
+[data-theme='dark'] .example,
+[data-theme='dark'] .placeholder {
+  --example-border: var(--swm-light-off-navy);
+  --example-background: var(--swm-navy);
+  --example-surface: var(--swm-off-navy);
+  --example-muted-surface: var(--swm-light-off-navy);
+  --example-text: var(--swm-off-white);
+  --example-muted: var(--swm-navy-dark-40);
+  --example-track: var(--swm-light-off-navy);
+  --example-accent: var(--swm-blue-dark-80);
+  --example-tint-blue: var(--swm-blue-dark-140);
+  --example-tint-green: var(--swm-green-dark-140);
+  --example-tint-purple: var(--swm-purple-dark-140);
+}
+
+/* Reserves about the height of the example while it waits for the browser. */
+.placeholder {
+  height: var(--stage-height);
+}
+
+@media (max-width: 996px) {
+  .placeholder {
+    height: calc(var(--stage-height) + 280px);
+  }
+}
+
+/* Everything inside is out of flow: the panel animates between measured heights
+   and the column between its widths, while the stage stays put underneath. */
+.panel {
+  position: relative;
+  overflow: hidden;
+  container-type: inline-size;
+}
+
+.header {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  padding: 16px 20px;
+}
+
+.tabs {
+  position: relative;
+  display: flex;
+  gap: 12px;
+}
+
+.tab {
+  padding: 0 0 3px;
+  border: 0;
+  background: none;
+  color: var(--example-muted);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+
+.tabActive {
+  color: var(--example-text);
+}
+
+.tabIndicator {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 1px;
+  background-color: var(--example-text);
+  transition:
+    transform 200ms var(--ease-out),
+    width 200ms var(--ease-out);
+}
+
+.iconButton {
+  display: inline-flex;
+  padding: 4px;
+  border: 0;
+  background: none;
+  color: var(--example-text);
+  cursor: pointer;
+  transition: transform 140ms var(--ease-out);
+}
+
+.iconButton:active {
+  transform: scale(0.9);
+}
+
+.tab:focus-visible,
+.iconButton:focus-visible,
+.slider:focus-visible,
+.segment:has(input:focus-visible),
+.consoleClear:focus-visible,
+.toggle:has(input:focus-visible) .toggleTrack {
+  outline: 2px solid var(--ifm-color-primary);
+  outline-offset: 2px;
+}
+
+.icon {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.stageSlot {
+  position: absolute;
+  top: 56px;
+  left: 0;
+  width: 100%;
+}
+
+.stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* Below the stage on small panels, set apart by a border. */
+.column {
+  position: absolute;
+  top: var(--stage-bottom);
+  right: 0;
+  bottom: 0;
+  left: 0;
+  overflow: hidden;
+  border-top: 1px solid var(--example-border);
+  background-color: var(--example-background);
+}
+
+.showCode .column {
+  top: 0;
+  border-top-color: transparent;
+}
+
+/* Beside the stage on wide panels. */
+.wide .stageSlot {
+  top: 0;
+  width: 59%;
+}
+
+.wide .column {
+  top: 0;
+  left: auto;
+  width: 41%;
+  border-top: 0;
+}
+
+.wide.showCode .column {
+  width: 100%;
+}
+
+/* Both panes keep the width they end up at, so nothing reflows in the column. */
+.controlsPane,
+.codePane {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+.controlsPane {
+  width: 100cqw;
+  padding: 16px 16px 44px;
+}
+
+.wide .controlsPane {
+  width: 41cqw;
+  padding: 64px 20px 44px 24px;
+}
+
+.codePane {
+  width: 100cqw;
+  padding: 56px 16px 16px;
+  opacity: 0;
+}
+
+.codePane :global(.theme-code-block) {
+  margin-bottom: 0;
+  box-shadow: none;
+}
+
+.codePane [class*='buttonGroup'] {
+  display: none;
+}
+
+.reset {
+  position: absolute;
+  right: 16px;
+  bottom: 10px;
+}
+
+.showCode .controlsPane,
+.showCode .reset {
+  opacity: 0;
+}
+
+.showCode .codePane {
+  opacity: 1;
+}
+
+/* Enabled after the first paint, so examples load without moving. */
+.animated {
+  transition: height 300ms var(--ease-drawer);
+}
+
+.animated .column {
+  transition:
+    top 300ms var(--ease-drawer),
+    width 300ms var(--ease-drawer);
+}
+
+/* What leaves goes quickly, and what arrives follows as the column moves. */
+.animated .codePane {
+  transition: opacity 70ms ease-out;
+}
+
+.animated .controlsPane,
+.animated .reset {
+  transition: opacity 180ms ease-out 60ms;
+}
+
+.animated.showCode .codePane {
+  transition: opacity 180ms ease-out 80ms;
+}
+
+.animated.showCode .controlsPane,
+.animated.showCode .reset {
+  transition: opacity 70ms ease-out;
+}
+
+/* Controls */
+
+.controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px 32px;
+  font-size: 14px;
+}
+
+.controlGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.controlLabel {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 500;
+}
+
+.controlValue {
+  color: var(--example-muted);
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.hint {
+  margin: 0;
+  color: var(--example-muted);
+  line-height: 1.45;
+}
+
+.slider {
+  width: 100%;
+  height: 20px;
+  margin: 0;
+  background: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+.slider::-webkit-slider-runnable-track {
+  height: 2px;
+  background-color: var(--example-track);
+}
+
+.slider::-moz-range-track {
+  height: 2px;
+  background-color: var(--example-track);
+}
+
+.slider::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  margin-top: -7px;
+  border-radius: 50%;
+  background-color: var(--example-text);
+  appearance: none;
+  transition: transform 140ms var(--ease-out);
+}
+
+.slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 50%;
+  background-color: var(--example-text);
+}
+
+.slider:active::-webkit-slider-thumb {
+  transform: scale(1.15);
+}
+
+.segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+
+.segment {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid transparent;
+  color: var(--example-muted);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+
+.segment input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.segmentActive {
+  border-bottom-color: currentColor;
+  color: var(--example-text);
+}
+
+.swatch {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5);
+}
+
+.toggle {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.toggleTrack {
+  position: relative;
+  flex: none;
+  width: 38px;
+  height: 22px;
+  border-radius: 11px;
+  background-color: var(--example-track);
+  transition: background-color 160ms ease;
+}
+
+.toggleTrack::after {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background-color: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 16, 72, 0.3);
+  content: '';
+  transition: transform 180ms var(--ease-out);
+}
+
+.toggle input:checked + .toggleTrack {
+  background-color: var(--example-accent);
+}
+
+.toggle input:checked + .toggleTrack::after {
+  transform: translateX(16px);
+}
+
+/* Dark in both themes, like a dev tools console. */
+.console {
+  display: flex;
+  flex-direction: column;
+  height: 150px;
+  overflow: hidden;
+  border-radius: 6px;
+  background-color: #141722;
+  color: #e4e7f2;
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 12px;
+}
+
+.consoleBar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 10px;
+  border-bottom: 1px solid #2a2f40;
+  color: #8a92ad;
+}
+
+.consoleClear {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .consoleClear:hover {
+    color: #e4e7f2;
+  }
+}
+
+.log {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 6px 10px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+/* A new entry grows into place, easing the older ones down. It shows up almost
+   at once, so the event doesn't read as later than it fired. */
+.logEntry {
+  height: 22px;
+  margin: 0;
+  overflow: hidden;
+  line-height: 22px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition:
+    height 360ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 100ms ease-out;
+
+  @starting-style {
+    height: 0;
+    opacity: 0;
+  }
+}
+
+.logPrompt,
+.logEmpty {
+  color: #8a92ad;
+}
+
+.logEmpty {
+  margin: 0;
+  line-height: 22px;
+}
+
+.logCallback {
+  color: #6fcef5;
+}
+
+.logRequest {
+  color: #c49ffe;
+}
+
+.logComponent {
+  color: #7adead;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .iconButton,
+  .slider::-webkit-slider-thumb,
+  .tabIndicator,
+  .toggleTrack::after {
+    transition: none;
+  }
+
+  .logEntry {
+    transition: opacity 100ms ease-out;
+  }
+
+  .animated,
+  .animated .column {
+    transition: none;
+  }
+}

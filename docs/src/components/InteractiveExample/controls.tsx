@@ -1,0 +1,195 @@
+import { useCallback, useId, useRef, useState, type ReactNode } from 'react';
+import clsx from 'clsx';
+
+import styles from './styles.module.css';
+
+// The row below the stage. These are plain DOM controls: they belong to the
+// docs page, not to the example.
+
+/** A column of the row below the stage. */
+export const ControlGroup = ({ children }: { children: ReactNode }) => (
+  <div className={styles.controlGroup}>{children}</div>
+);
+
+export const Control = ({
+  label,
+  value,
+  children,
+}: {
+  label: string;
+  value?: ReactNode;
+  children: ReactNode;
+}) => (
+  <div className={styles.control}>
+    <div className={styles.controlLabel}>
+      <span>{label}</span>
+      {value !== undefined && (
+        <span className={styles.controlValue}>{value}</span>
+      )}
+    </div>
+    {children}
+  </div>
+);
+
+export const Hint = ({ children }: { children: ReactNode }) => (
+  <p className={styles.hint}>{children}</p>
+);
+
+export const Slider = ({
+  label,
+  value,
+  onChange,
+  min = 0,
+  max = 1,
+  step = 0.05,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  min?: number;
+  max?: number;
+  step?: number;
+}) => (
+  <Control label={label} value={value.toFixed(2)}>
+    <input
+      type="range"
+      className={styles.slider}
+      aria-label={label}
+      min={min}
+      max={max}
+      step={step}
+      value={value}
+      onChange={(event) => onChange(Number(event.target.value))}
+    />
+  </Control>
+);
+
+export const Toggle = ({
+  label,
+  value,
+  onChange,
+}: {
+  label: ReactNode;
+  value: boolean;
+  onChange: (value: boolean) => void;
+}) => (
+  <label className={styles.toggle}>
+    <span>{label}</span>
+    <input
+      type="checkbox"
+      role="switch"
+      checked={value}
+      onChange={(event) => onChange(event.target.checked)}
+    />
+    <span className={styles.toggleTrack} aria-hidden />
+  </label>
+);
+
+export const Segmented = <Value extends string | number>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: { value: Value; label: string; swatch?: string }[];
+  value: Value;
+  onChange: (value: Value) => void;
+}) => {
+  const name = useId();
+
+  return (
+    <Control label={label}>
+      <div className={styles.segmented} role="radiogroup" aria-label={label}>
+        {options.map((option) => (
+          <label
+            key={option.value}
+            className={clsx(
+              styles.segment,
+              option.value === value && styles.segmentActive
+            )}
+          >
+            <input
+              type="radio"
+              name={name}
+              checked={option.value === value}
+              onChange={() => onChange(option.value)}
+            />
+            {option.swatch !== undefined && (
+              <span
+                className={styles.swatch}
+                style={{ backgroundColor: option.swatch }}
+              />
+            )}
+            {option.label}
+          </label>
+        ))}
+      </div>
+    </Control>
+  );
+};
+
+export interface LogEntry {
+  id: number;
+  message: string;
+}
+
+export const useEventLog = () => {
+  const [entries, setEntries] = useState<LogEntry[]>([]);
+  const nextId = useRef(0);
+  const log = useCallback((message: string) => {
+    const id = nextId.current++;
+    setEntries((current) => [{ id, message }, ...current].slice(0, 20));
+  }, []);
+
+  const clear = useCallback(() => setEntries([]), []);
+
+  return { entries, log, clear };
+};
+
+const toneOf = (message: string) => {
+  if (message.startsWith('<')) return styles.logComponent;
+  return message.startsWith('onSettle')
+    ? styles.logCallback
+    : styles.logRequest;
+};
+
+/** Colors the leading callback or component, as a console would. */
+const LogMessage = ({ message }: { message: string }) => {
+  const [, head = message, rest] = /^(<[^>]*>|\w+)(.*)$/.exec(message) ?? [];
+
+  return (
+    <>
+      <span className={styles.logPrompt}>›</span>{' '}
+      <span className={toneOf(message)}>{head}</span>
+      {rest}
+    </>
+  );
+};
+
+export const EventLog = ({
+  entries,
+  onClear,
+  empty,
+}: {
+  entries: LogEntry[];
+  onClear: () => void;
+  empty: string;
+}) => (
+  <div className={styles.console}>
+    <div className={styles.consoleBar}>
+      <span>Console</span>
+      <button type="button" className={styles.consoleClear} onClick={onClear}>
+        Clear
+      </button>
+    </div>
+    <ol className={styles.log} aria-live="polite">
+      {entries.length === 0 && <li className={styles.logEmpty}>{empty}</li>}
+      {entries.map((entry) => (
+        <li key={entry.id} className={styles.logEntry}>
+          <LogMessage message={entry.message} />
+        </li>
+      ))}
+    </ol>
+  </div>
+);
