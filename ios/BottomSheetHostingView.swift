@@ -1237,35 +1237,10 @@ public final class BottomSheetHostingView: UIView {
         // bounce a scroll view released mid-drag would make, so this makes it.
         let restingOffset = CGPoint(x: state.pinnedOffset.x, y: scrollView.restingY(for: state.pinnedOffset.y))
         if restingOffset != state.pinnedOffset {
-          Self.bounceBack(scrollView, to: restingOffset)
+          scrollView.setContentOffset(restingOffset, animated: true)
         }
       }
     }
-  }
-
-  /// Moves the scroll view with the decay of its native bounce: an exponential,
-  /// at the rate measured from a released UIScrollView. That is a critically
-  /// damped spring whose initial velocity cancels its ease-in. Additive, so a
-  /// touch that lands during it moves the content from where it is on screen.
-  private static func bounceBack(_ scrollView: UIScrollView, to offset: CGPoint) {
-    let omega: CGFloat = 7.5
-    let duration: CFTimeInterval = 0.8
-    let distance = scrollView.contentOffset.y - offset.y
-    let spring = CriticalSpring(
-      from: distance,
-      target: 0,
-      v0: -omega * distance,
-      omega: omega,
-      startTime: 0,
-      duration: duration
-    )
-    let animation = CAKeyframeAnimation(keyPath: "bounds.origin.y")
-    animation.values = spring.keyframeValues(count: Int((duration * 120).rounded()))
-    animation.duration = duration
-    animation.calculationMode = .linear
-    animation.isAdditive = true
-    scrollView.setContentOffset(offset, animated: false)
-    scrollView.layer.add(animation, forKey: "bounceBack")
   }
 
   private func finishScrollViewCoordination() {
