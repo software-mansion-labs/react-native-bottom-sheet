@@ -219,6 +219,18 @@ private extension UIScrollView {
   }
 }
 
+/// A scroll view's indicator inset, as its caller set it and as the sheet last
+/// applied it.
+private final class ScrollIndicatorFit {
+  var callerInset: CGFloat
+  var appliedInset: CGFloat
+
+  init(inset: CGFloat) {
+    callerInset = inset
+    appliedInset = inset
+  }
+}
+
 private final class ActiveScrollViewState {
   weak var scrollView: UIScrollView?
   var pinnedOffset: CGPoint
@@ -462,6 +474,7 @@ public final class BottomSheetHostingView: UIView {
   private var lastReportedInvalidDetentMessage: String?
   private var panStartingIndex: Int?
   private var initialScrollViewStates: [ActiveScrollViewState] = []
+  private let scrollIndicatorFits = NSMapTable<UIScrollView, ScrollIndicatorFit>.weakToStrongObjects()
   /// Whether every scrollable under the touch was at its visual start as the
   /// touch landed: the `initial` owner selection at the largest detent.
   private var initialScrollableChainAtStart = true
@@ -1315,6 +1328,7 @@ public final class BottomSheetHostingView: UIView {
     animation.delegate = self
 
     setSheetTranslation(targetTy)
+    fitScrollIndicators(of: initialScrollViewStates)
     sheetContainer.layer.add(animation, forKey: Self.springAnimationKey)
     addCardAnimations(matching: animation)
     activeSpring = spring
@@ -1358,6 +1372,7 @@ public final class BottomSheetHostingView: UIView {
     removeSettleAnimations()
 
     setSheetTranslation(targetTy)
+    fitScrollIndicators(of: initialScrollViewStates)
     emitPosition()
     scrimPinnedFull = false
     setContentInteractionEnabled(true)
@@ -1630,7 +1645,34 @@ public final class BottomSheetHostingView: UIView {
     cancelContentTouchesForPanIfNeeded()
     didMoveSheetDuringPan = true
     setSheetTranslation(ty)
+    fitScrollIndicators(of: activeScrollViewStates)
     emitPosition()
+  }
+
+  /// Shortens each scroll view's indicator track by the part of it below the
+  /// host. The content region is laid out against the tallest detent, so at a
+  /// lower detent the scroll view extends past the bottom, and its indicator
+  /// would be sized and placed for a height nobody can see.
+  private func fitScrollIndicators(of states: [ActiveScrollViewState]) {
+    for state in states {
+      guard let scrollView = state.scrollView else { continue }
+      let hidden = max(0, scrollView.convert(scrollView.bounds, to: self).maxY - bounds.height)
+      let insets = scrollView.verticalScrollIndicatorInsets
+      let current = state.inverted ? insets.top : insets.bottom
+      let fit = scrollIndicatorFits.object(forKey: scrollView) ?? ScrollIndicatorFit(inset: current)
+      scrollIndicatorFits.setObject(fit, forKey: scrollView)
+      // Any other inset than the one applied last is the caller's.
+      if current != fit.appliedInset {
+        fit.callerInset = current
+      }
+      fit.appliedInset = fit.callerInset + hidden
+      guard fit.appliedInset != current else { continue }
+      if state.inverted {
+        scrollView.verticalScrollIndicatorInsets.top = fit.appliedInset
+      } else {
+        scrollView.verticalScrollIndicatorInsets.bottom = fit.appliedInset
+      }
+    }
   }
 
   private func bestSnapIndex(
@@ -2297,6 +2339,7 @@ extension BottomSheetHostingView: UIGestureRecognizerDelegate {
         )
       }
       initialScrollableChainAtStart = initialScrollViewStates.allSatisfy(\.wasAtStartWhenTouched)
+      fitScrollIndicators(of: initialScrollViewStates)
       let canHold = !holdDeferralScrollViews(at: location).isEmpty
       let canBeginUp = canHold && canBeginPan(inDirection: -1)
       let canBeginDown = canHold && canBeginPan(inDirection: 1)
