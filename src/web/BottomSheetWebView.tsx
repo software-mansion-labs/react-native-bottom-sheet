@@ -13,8 +13,8 @@ import {
 import { createPortal } from 'react-dom';
 import { StyleSheet, View, type ViewProps, type ViewStyle } from 'react-native';
 
-import type { NativeProps } from './BottomSheetNativeComponent';
-import { BottomSheetWebController } from './bottomSheetWebController';
+import type { NativeProps } from '../BottomSheetNativeComponent';
+import { BottomSheetWebController } from './controller';
 
 type ViewInstance = ComponentRef<typeof View>;
 
