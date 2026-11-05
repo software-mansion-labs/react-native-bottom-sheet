@@ -96,6 +96,11 @@ const SheetBurst = ({ onDone }: { onDone: () => void }) => {
 };
 
 const PIPE_LENGTH = 100;
+const BULGE_COUNT = 3;
+
+// Web-only: React Native Web otherwise holds a press back for 50 ms.
+const NO_PRESS_DELAY = { delayPressIn: 0 };
+
 const HOSE_SEGMENTS = 20;
 const HOSE_DURATION = 1250;
 
@@ -213,11 +218,19 @@ const usePipeAnimation = (
 const AirPump = ({
   plungerRef,
 }: {
-  plungerRef: RefObject<SVGGElement | null>;
+  plungerRef: RefObject<SVGSVGElement | null>;
 }) => (
-  <svg viewBox="0 0 56 88" width={56} height={88} aria-hidden>
-    {/* The handle and rod, which plunge into the barrel. */}
-    <g ref={plungerRef}>
+  <>
+    {/* The handle and rod, which plunge into the barrel. On its own layer, so
+        moving it doesn't repaint the rest of the pump. */}
+    <svg
+      ref={plungerRef}
+      viewBox="0 0 56 88"
+      width={56}
+      height={88}
+      style={PLUNGER_STYLE}
+      aria-hidden
+    >
       <rect x="25" y="8" width="6" height="42" fill="var(--example-muted)" />
       <rect
         x="8"
@@ -227,17 +240,25 @@ const AirPump = ({
         rx="4.5"
         fill="var(--example-text)"
       />
-    </g>
-    <rect x="16" y="36" width="24" height="44" rx="4" fill="#2196f3" />
-    <rect
-      x="6"
-      y="80"
-      width="44"
-      height="7"
-      rx="3.5"
-      fill="var(--example-text)"
-    />
-  </svg>
+    </svg>
+    <svg
+      viewBox="0 0 56 88"
+      width={56}
+      height={88}
+      style={BARREL_STYLE}
+      aria-hidden
+    >
+      <rect x="16" y="36" width="24" height="44" rx="4" fill="#2196f3" />
+      <rect
+        x="6"
+        y="80"
+        width="44"
+        height="7"
+        rx="3.5"
+        fill="var(--example-text)"
+      />
+    </svg>
+  </>
 );
 
 export const InlineSheetExample = interactiveExample(
@@ -250,9 +271,9 @@ export const InlineSheetExample = interactiveExample(
     const [animateIn, setAnimateIn] = useState(false);
     const height = INFLATION_STEPS[step]!;
     const pipeRef = useRef<HTMLDivElement>(null);
-    const bulgeRef = useRef<HTMLDivElement>(null);
+    const nextBulge = useRef(0);
     const hoseRef = useRef<SVGSVGElement>(null);
-    const plungerRef = useRef<SVGGElement>(null);
+    const plungerRef = useRef<SVGSVGElement>(null);
     // Stable, so re-rendering mid-burst doesn't restart it.
     const endBurst = useCallback(() => setIsBursting(false), []);
 
@@ -263,27 +284,44 @@ export const InlineSheetExample = interactiveExample(
       setPopped(false);
     };
 
+    /** Drives the plunger down at once, from wherever a last press left it. */
     const plunge = () => {
       if (prefersReducedMotion()) return;
-      plungerRef.current!.animate(
+      const plunger = plungerRef.current!;
+      const { f: current } = new DOMMatrix(getComputedStyle(plunger).transform);
+      plunger.getAnimations().forEach((animation) => animation.cancel());
+      plunger.animate(
         [
-          { transform: 'translateY(0)' },
-          { transform: 'translateY(24px)', offset: 0.35 },
+          {
+            transform: `translateY(${current}px)`,
+            easing: 'cubic-bezier(0.23, 1, 0.32, 1)',
+          },
+          {
+            transform: 'translateY(24px)',
+            offset: 0.25,
+            easing: 'ease-in-out',
+          },
           { transform: 'translateY(0)' },
         ],
-        { duration: 340, easing: 'ease-in-out' }
+        { duration: 320 }
       );
     };
 
-    /** Pushes a bulge of air along the pipe and under the sheet's edge. */
+    /**
+     * Pushes a bulge of air along the pipe and under the sheet's edge. Each press
+     * takes the next bulge, so it doesn't cut off the air already on its way.
+     */
     const blowAir = () => {
       if (prefersReducedMotion()) return;
-      bulgeRef.current!.animate(
+      const bulges = pipeRef.current!.children;
+      const bulge = bulges[nextBulge.current]!;
+      nextBulge.current = (nextBulge.current + 1) % bulges.length;
+      bulge.animate(
         [
           { transform: 'translateX(-14px)', opacity: 1 },
-          { transform: 'translateX(100px)', opacity: 1 },
+          { transform: `translateX(${PIPE_LENGTH}px)`, opacity: 1 },
         ],
-        { duration: 380, delay: 90, easing: 'ease-in-out' }
+        { duration: 340, easing: 'cubic-bezier(0.25, 0.6, 0.45, 1)' }
       );
     };
 
@@ -324,7 +362,9 @@ export const InlineSheetExample = interactiveExample(
               />
             </View>
             <div ref={pipeRef} style={PIPE_STYLE} aria-hidden>
-              <div ref={bulgeRef} style={BULGE_STYLE} />
+              {Array.from({ length: BULGE_COUNT }, (_, i) => (
+                <div key={i} style={BULGE_STYLE} />
+              ))}
             </div>
             <svg ref={hoseRef} style={HOSE_STYLE} aria-hidden>
               <polyline
@@ -339,7 +379,9 @@ export const InlineSheetExample = interactiveExample(
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Pump"
-              onPress={pump}
+              // On press rather than release, so the pump answers right away.
+              onPressIn={pump}
+              {...NO_PRESS_DELAY}
               style={styles.pump}
             >
               <AirPump plungerRef={plungerRef} />
@@ -416,6 +458,12 @@ const PIPE_STYLE: CSSProperties = {
   height: 8,
   backgroundColor: 'var(--example-muted)',
   transformOrigin: 'left center',
+};
+
+const BARREL_STYLE: CSSProperties = { position: 'absolute', top: 0, left: 0 };
+const PLUNGER_STYLE: CSSProperties = {
+  ...BARREL_STYLE,
+  willChange: 'transform',
 };
 
 /** Its origin is where the pipe leaves the pump, and it draws outside its box. */
