@@ -1,0 +1,389 @@
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
+import { useColorMode } from '@docusaurus/theme-common';
+import { BottomSheet } from '@swmansion/react-native-bottom-sheet';
+import clsx from 'clsx';
+
+import { clamp } from './pieces';
+import landing from './landing.module.css';
+import styles from './SlideStack.module.css';
+
+export type Slide = {
+  id: string;
+  tone: 'paper' | 'sky' | 'ending';
+  content: ReactNode;
+};
+
+/** How much of the next sheet shows at the bottom of a slide. */
+const PEEK = 56;
+const DETENTS: [number, `${number}%`] = [PEEK, '100%'];
+const SHADOWS = {
+  light: '0 -18 56 -6 rgba(0, 26, 114, 0.42), 0 -3 12 0 rgba(0, 26, 114, 0.26)',
+  dark: '0 -18 56 -4 rgba(0, 0, 0, 0.75), 0 -3 12 0 rgba(0, 0, 0, 0.5)',
+};
+const RECEDE_QUERY =
+  '(min-width: 861px) and (prefers-reduced-motion: no-preference)';
+
+// The sheet's spring takes this long, and input during it is still that gesture.
+const SETTLE_MS = 450;
+// A wheel gesture ends after this long without events, momentum included.
+const WHEEL_QUIET_MS = 140;
+// Wheel movement that commits to a step, so a resting hand's jitter doesn't.
+const WHEEL_COMMIT = 20;
+
+/** Whether something under the pointer, like a list, can use this scroll itself. */
+const scrollsInside = (target: EventTarget | null, direction: number) => {
+  for (
+    let node = target instanceof Element ? target : null;
+    node !== null && node !== document.body;
+    node = node.parentElement
+  ) {
+    const { overflowY } = getComputedStyle(node);
+    if (
+      (overflowY === 'auto' || overflowY === 'scroll') &&
+      node.scrollHeight > node.clientHeight + 1
+    ) {
+      const room =
+        direction > 0
+          ? node.scrollHeight - node.clientHeight - node.scrollTop
+          : node.scrollTop;
+      if (room > 1) return true;
+    }
+  }
+  return false;
+};
+
+/**
+ * Makes one wheel or trackpad gesture move one slide: its first movement commits
+ * and the rest of it, momentum included, is ignored. So a flick can't skip a
+ * slide. Lists under the pointer still scroll first.
+ */
+const useWheelSteps = (step: (way: number) => void) => {
+  useEffect(() => {
+    let spent = false;
+    let time = -Infinity;
+    let size = 0;
+    let direction = 0;
+    let travel = 0;
+    let lastStep = -Infinity;
+
+    const onWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+        return;
+      }
+      const scale =
+        event.deltaMode === 1
+          ? 16
+          : event.deltaMode === 2
+            ? window.innerHeight
+            : 1;
+      const delta = event.deltaY * scale;
+      const nextSize = Math.abs(delta);
+      const way = Math.sign(delta);
+      if (way === 0) return;
+
+      // Momentum fades and never reverses, so a size that jumps back up or a change
+      // of direction is a new swipe, not the old one's tail.
+      const now = event.timeStamp;
+      const isSettling = now - lastStep < SETTLE_MS;
+      const isNewSwipe = !isSettling && nextSize > 24 && nextSize > size * 1.6;
+      if (now - time > WHEEL_QUIET_MS || isNewSwipe || way !== direction) {
+        spent = false;
+        travel = 0;
+      }
+      time = now;
+      size = nextSize;
+      direction = way;
+
+      if (scrollsInside(event.target, way)) {
+        // Reaching the end of the list shouldn't also change slide mid-flick.
+        spent = true;
+        return;
+      }
+
+      event.preventDefault();
+      if (spent) return;
+      travel += delta;
+      if (Math.abs(travel) < WHEEL_COMMIT) return;
+      spent = true;
+      lastStep = now;
+      step(way);
+    };
+
+    window.addEventListener('wheel', onWheel, { passive: false });
+    return () => window.removeEventListener('wheel', onWheel);
+  }, [step]);
+};
+
+const useKeySteps = (step: (way: number) => void, count: number) => {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const { target } = event;
+      if (
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        (target instanceof HTMLElement &&
+          (target.isContentEditable ||
+            target.closest('input, textarea, select') !== null))
+      ) {
+        return;
+      }
+      const isControl =
+        target instanceof Element && target.closest('button, a') !== null;
+      let way = 0;
+      if (event.key === 'ArrowDown' || event.key === 'PageDown') way = 1;
+      else if (event.key === 'ArrowUp' || event.key === 'PageUp') way = -1;
+      else if (event.key === ' ' && !isControl) way = event.shiftKey ? -1 : 1;
+      else if (event.key === 'Home') way = -count;
+      else if (event.key === 'End') way = count;
+      if (way === 0 || scrollsInside(target, way)) return;
+      event.preventDefault();
+      step(way);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [step, count]);
+};
+
+/**
+ * Holds the grabbing cursor for a whole press on a sheet. The library follows a
+ * drag on the window, so the pointer can leave the sheet or cross a button.
+ */
+const useGrabbingCursor = () => {
+  useEffect(() => {
+    const root = document.documentElement;
+    const grab = `.${CSS.escape(landing.grab!)}`;
+    const onDown = (event: PointerEvent) => {
+      if (event.button !== 0 || !(event.target instanceof Element)) return;
+      if (event.target.closest(grab) === null) return;
+      root.dataset.sheetGrabbing = '';
+    };
+    const onUp = () => delete root.dataset.sheetGrabbing;
+    window.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('pointerup', onUp, true);
+    window.addEventListener('pointercancel', onUp, true);
+    return () => {
+      onUp();
+      window.removeEventListener('pointerdown', onDown, true);
+      window.removeEventListener('pointerup', onUp, true);
+      window.removeEventListener('pointercancel', onUp, true);
+    };
+  }, []);
+};
+
+/**
+ * With a mouse only the top strip drags a slide, so the text on it can be
+ * selected. A finger can start anywhere, the way it would scroll a page.
+ */
+const useMouseDragsHandleOnly = () => {
+  const body = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = body.current!;
+    const onDown = (event: PointerEvent) => {
+      if (event.pointerType === 'mouse') event.stopPropagation();
+    };
+    element.addEventListener('pointerdown', onDown);
+    return () => element.removeEventListener('pointerdown', onDown);
+  }, []);
+  return body;
+};
+
+const SlideSheet = ({
+  slide,
+  open,
+  isCurrent,
+  isNext,
+  hasNext,
+  onOpenChange,
+  onPosition,
+  onOpen,
+}: {
+  slide: Slide;
+  open: boolean;
+  isCurrent: boolean;
+  isNext: boolean;
+  hasNext: boolean;
+  onOpenChange: (open: boolean) => void;
+  onPosition: (position: number) => void;
+  onOpen: () => void;
+}) => {
+  const { colorMode } = useColorMode();
+  const body = useMouseDragsHandleOnly();
+  return (
+    <div className={styles.host}>
+      <BottomSheet
+        detents={DETENTS}
+        index={open ? 1 : 0}
+        animateIn={false}
+        onIndexChange={(index) => onOpenChange(index === 1)}
+        onPositionChange={(event) => onPosition(event.nativeEvent.position)}
+        surface={<div className={styles.surface} data-tone={slide.tone} />}
+        surfaceStyle={{
+          borderTopLeftRadius: 32,
+          borderTopRightRadius: 32,
+          boxShadow: SHADOWS[colorMode],
+        }}
+      >
+        <div className={styles.slide}>
+          <button
+            className={clsx(landing.grab, styles.handle)}
+            type="button"
+            aria-label="Open the next section"
+            tabIndex={isNext ? 0 : -1}
+            onClick={isNext ? onOpen : undefined}
+          >
+            <span className={styles.grabber} />
+          </button>
+          <div
+            ref={body}
+            className={styles.body}
+            data-slide-body
+            data-tone={slide.tone}
+            data-has-next={hasNext}
+            inert={!isCurrent}
+          >
+            {slide.content}
+          </div>
+        </div>
+      </BottomSheet>
+    </div>
+  );
+};
+
+/**
+ * The page's slides: each one is a real sheet, resting with its top edge showing
+ * until it's dragged, flicked, or stepped open over the one before. As a sheet
+ * moves, it brings the next one along below it and sends the last one back.
+ */
+export const SlideStack = ({
+  hero,
+  slides,
+}: {
+  hero: ReactNode;
+  slides: Slide[];
+}) => {
+  // 0 is the hero, and each slide after it is one higher.
+  const [active, setActive] = useState(0);
+  const root = useRef<HTMLDivElement>(null);
+  const layers = useRef<(HTMLDivElement | null)[]>([]);
+  const receders = useRef<(HTMLDivElement | null)[]>([]);
+  const dims = useRef<(HTMLDivElement | null)[]>([]);
+  const positions = useRef<number[]>([]);
+  const count = slides.length;
+
+  const step = useCallback(
+    (way: number) => setActive((current) => clamp(current + way, 0, count)),
+    [count]
+  );
+  useWheelSteps(step);
+  useKeySteps(step, count);
+  useGrabbingCursor();
+
+  // Written directly on the elements that need it, never through React state.
+  const applyPosition = useCallback((layer: number, position: number) => {
+    positions.current[layer] = position;
+    const height = root.current!.clientHeight;
+    const next = layers.current[layer + 1];
+    if (next) next.style.transform = `translate3d(0, ${height - position}px, 0)`;
+
+    const below = receders.current[layer - 1];
+    const dim = dims.current[layer - 1];
+    if (!below || !dim) return;
+    const progress = window.matchMedia(RECEDE_QUERY).matches
+      ? clamp((position - PEEK) / (height - PEEK))
+      : 0;
+    below.style.transform =
+      progress > 0
+        ? `scale(${1 - 0.06 * progress}) translateY(${-1.5 * progress}%)`
+        : '';
+    below.style.borderRadius = `${28 * progress}px`;
+    dim.style.opacity = `${0.45 * progress}`;
+  }, []);
+
+  // Sheets further on wait below the screen until the one before brings them up.
+  useLayoutEffect(() => {
+    layers.current.slice(2).forEach((layer) => {
+      if (layer) layer.style.transform = 'translate3d(0, 100%, 0)';
+    });
+  }, []);
+
+  useEffect(() => {
+    const observer = new ResizeObserver(() =>
+      positions.current.forEach((position, layer) =>
+        applyPosition(layer, position)
+      )
+    );
+    observer.observe(root.current!);
+    return () => observer.disconnect();
+  }, [applyPosition]);
+
+  return (
+    <div className={styles.stack} ref={root}>
+      <div
+        className={styles.layer}
+        ref={(element) => {
+          layers.current[0] = element;
+        }}
+      >
+        <div
+          className={styles.receder}
+          inert={active !== 0}
+          ref={(element) => {
+            receders.current[0] = element;
+          }}
+        >
+          {hero}
+          <div
+            className={styles.dim}
+            ref={(element) => {
+              dims.current[0] = element;
+            }}
+          />
+        </div>
+      </div>
+      {slides.map((slide, i) => {
+        const layer = i + 1;
+        return (
+          <div
+            key={slide.id}
+            className={styles.layer}
+            ref={(element) => {
+              layers.current[layer] = element;
+            }}
+          >
+            <div
+              className={styles.receder}
+              ref={(element) => {
+                receders.current[layer] = element;
+              }}
+            >
+              <SlideSheet
+                slide={slide}
+                open={active >= layer}
+                isCurrent={active === layer}
+                isNext={active === layer - 1}
+                hasNext={layer < count}
+                onOpenChange={(open) => setActive(open ? layer : layer - 1)}
+                onPosition={(position) => applyPosition(layer, position)}
+                onOpen={() => setActive(layer)}
+              />
+              <div
+                className={styles.dim}
+                ref={(element) => {
+                  dims.current[layer] = element;
+                }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};

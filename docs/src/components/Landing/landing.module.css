@@ -39,7 +39,6 @@
   --sheet-sky: var(--swm-blue-light-20);
   --sheet-ending: var(--swm-white);
   --sky-offset: var(--swm-blue-light-40);
-  --sheet-shadow: 0 -18 56 -6 rgba(0, 26, 114, 0.42);
   --dim: var(--swm-navy-light-100);
   --accent-on-sheet: var(--swm-blue-dark-80);
   --navy: var(--swm-navy-light-100);

@@ -160,7 +160,8 @@ export const Hero = () => {
   // one element that needs it, never React state or an inherited variable.
   const apply = useCallback((position: number, fractional: number) => {
     last.current = { position, index: fractional };
-    const edge = stage.current!.offsetHeight - position;
+    if (stage.current === null) return;
+    const edge = stage.current.offsetHeight - position;
     navy.current!.style.clipPath = `inset(${edge}px 0 0 0 round 36px 36px 0 0)`;
     ride.current!.style.transform = `translate3d(0, ${-position}px, 0)`;
     shownPosition.current!.textContent = Math.round(position).toString();
