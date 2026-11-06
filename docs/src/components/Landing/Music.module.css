@@ -1,0 +1,169 @@
+.caseFade {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  animation: fade 240ms ease both;
+}
+
+.appBarTitle {
+  text-align: center;
+  font-size: 14.5px;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.appBarTitle small {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.75;
+}
+
+.backdropMusic {
+  display: flex;
+  flex-direction: column;
+  color: var(--white);
+  background: linear-gradient(180deg, var(--swm-purple-light-100) 0%, var(--swm-purple-dark-140) 62%, var(--swm-navy-dark-140) 100%);
+}
+
+.album {
+  position: relative;
+  overflow: hidden;
+  flex: none;
+  align-self: center;
+  width: clamp(150px, calc(100cqh - 560px), min(72cqw, 340px));
+  aspect-ratio: 1;
+  margin-top: 2px;
+  padding: 16px;
+  border-radius: 16px;
+  background: linear-gradient(160deg, var(--swm-red-light-100), var(--swm-purple-light-100));
+  box-shadow: 0 22px 44px -14px rgb(0 0 0 / 0.55);
+  transform-origin: 50% 0;
+}
+
+.album span {
+  display: block;
+  font-size: clamp(22px, 13cqh / 3, 36px);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.album svg {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 34%;
+}
+
+.nowPlaying {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 14px 26px 0;
+}
+
+.nowPlaying b,
+.nowPlaying span {
+  display: block;
+}
+
+.nowPlaying b {
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.nowPlaying span {
+  font-size: 15px;
+  opacity: 0.75;
+}
+
+.trackBar {
+  height: 4px;
+  margin: 14px 26px 0;
+  border-radius: 2px;
+  background: rgb(252 252 255 / 0.25);
+}
+
+.trackBar i {
+  display: block;
+  width: 38%;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--white);
+}
+
+.trackTimes {
+  display: flex;
+  justify-content: space-between;
+  margin: 6px 26px 0;
+  font-size: 12px;
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+
+.transport {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 4px 26px 0;
+}
+
+.transportMain {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--white);
+  color: var(--swm-purple-dark-140);
+}
+
+@container (max-height: 640px) {
+  .album {
+    width: min(18cqh, 104px);
+    padding: 8px;
+  }
+
+  .album span {
+    font-size: 13px;
+  }
+
+  .nowPlaying {
+    margin-top: 8px;
+  }
+
+  .nowPlaying b {
+    font-size: 18px;
+  }
+
+  .nowPlaying span {
+    font-size: 13.5px;
+  }
+
+  .trackTimes,
+  .transport {
+    display: none;
+  }
+}
+
+@container (max-height: 500px) {
+  .album {
+    width: 64px;
+    padding: 6px;
+  }
+
+  .album span {
+    font-size: 11px;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}

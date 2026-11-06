@@ -1,0 +1,609 @@
+/* A plain host for a demo sheet, with no device around it. */
+.stage {
+  --grid-page: rgb(0 26 114 / 0.045);
+  --grid-sheet: rgb(252 252 255 / 0.07);
+  --sheet-sky: var(--swm-blue-light-20);
+  --sheet-ending: var(--swm-white);
+  --sky-offset: var(--swm-blue-light-40);
+  --sheet-shadow: 0 -18px 56px -6px rgb(0 26 114 / 0.42), 0 -3px 12px rgb(0 26 114 / 0.26);
+  --dim: var(--swm-navy-light-100);
+  --accent-on-sheet: var(--swm-blue-dark-80);
+  --navy: var(--swm-navy-light-100);
+  --navy-deep: var(--swm-navy-light-100);
+  --navy-80: var(--swm-navy-light-80);
+  --navy-60: var(--swm-navy-light-60);
+  --navy-20: var(--swm-navy-light-20);
+  --navy-10: var(--swm-navy-light-10);
+  --blue: var(--swm-blue-light-100);
+  --blue-bright: var(--swm-blue-dark-80);
+  --blue-20: var(--swm-blue-light-20);
+  --purple: var(--swm-purple-light-100);
+  --off-white: var(--swm-off-white);
+  --white: var(--swm-white);
+  --sans: 'Aeonik', system-ui, -apple-system, sans-serif;
+  --mono: SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  --ease-sheet: linear( 0, 0.0739, 0.2235, 0.3849, 0.5305, 0.6508, 0.7452, 0.8168, 0.8699, 0.9084, 0.9361, 0.9557, 0.9694, 0.979, 0.9857, 0.9902, 0.9934, 0.9955, 1 );
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --gutter: clamp(20px, 4vw, 56px);
+}
+
+[data-theme='dark'] .tK {
+  color: var(--swm-purple-dark-60);
+}
+
+[data-theme='dark'] .tS {
+  color: var(--swm-blue-dark-80);
+}
+
+[data-theme='dark'] .tN {
+  color: var(--swm-red-light-60);
+}
+
+.stage {
+  color: var(--navy);
+}
+
+.chapter {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 64px var(--gutter) 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: clamp(32px, 6vw, 96px);
+  align-items: center;
+}
+
+.chapterCopy {
+  padding-bottom: 12px;
+}
+
+.chapter[data-flip] {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.chapter[data-flip] /* The frame beside the copy. All frames share one height, set from the page. */
+.chapterStage {
+  order: -1;
+}
+
+.chapterCopy {
+  max-width: 600px;
+  min-width: 0;
+}
+
+.kicker {
+  display: block;
+  font-size: 12.5px;
+  color: var(--navy-60);
+  margin-bottom: 14px;
+}
+
+.title {
+  font-size: clamp(36px, 4.4vw, 60px);
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+  font-weight: 500;
+  text-wrap: balance;
+}
+
+.body {
+  margin-top: 16px;
+  max-width: 520px;
+  color: var(--navy-80);
+  font-size: 18px;
+  text-wrap: pretty;
+}
+
+.chips {
+  margin-top: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chipsLabel {
+  display: block;
+  margin-top: 20px;
+  font-size: 12.5px;
+  color: var(--navy-60);
+}
+
+.chipsLabel + .chips {
+  margin-top: 8px;
+}
+
+.chip {
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--navy-20);
+  font-size: 14.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: transform 160ms var(--ease-out), background-color 180ms ease, border-color 180ms ease, color 180ms ease;
+}
+
+.chipMono {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .chip:hover {
+    border-color: var(--navy-60);
+  }
+}
+
+.chip[aria-pressed='true'] {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: var(--white);
+}
+
+.code {
+  position: relative;
+  margin-top: 22px;
+  padding: 18px 20px;
+  background: var(--white);
+  border: 1px solid var(--navy-20);
+  box-shadow: 8px 8px 0 var(--offset-shadow, var(--blue-20));
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.65;
+  overflow-x: auto;
+  min-height: var(--code-h, auto);
+}
+
+.code pre {
+  font: inherit;
+}
+
+.codeBlock {
+  display: flex;
+  flex-direction: column;
+}
+
+.codeToggle {
+  display: none;
+}
+
+.codeActions {
+  order: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.docsButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--navy);
+  color: var(--navy);
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: transform 160ms var(--ease-out), background-color 180ms ease, color 180ms ease;
+}
+
+.docsButton svg {
+  transition: transform 200ms var(--ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .docsButton:hover {
+    background: var(--navy);
+    color: var(--off-white);
+  }
+
+  .docsButton:hover svg {
+    transform: translateX(3px);
+  }
+}
+
+/* Every variant shares one slot, so the copy around it never moves. */
+.swap {
+  display: grid;
+  min-width: 0;
+}
+
+.swapItem {
+  grid-area: 1 / 1;
+  min-width: 0;
+  opacity: 0;
+  filter: blur(2px);
+  visibility: hidden;
+  transition: opacity 220ms ease, filter 220ms ease, visibility 0s linear 220ms;
+}
+
+.swapItem[data-on='true'] {
+  opacity: 1;
+  filter: none;
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+.tK {
+  color: var(--purple);
+}
+
+.tS {
+  color: var(--swm-blue-dark-120);
+}
+
+.tN {
+  color: var(--swm-red-dark-120);
+}
+
+.tC {
+  color: var(--navy-60);
+}
+
+.tJ {
+  color: var(--navy);
+  font-weight: 500;
+}
+
+.chapterStage {
+  position: relative;
+  align-self: end;
+  width: min(500px, 40vw);
+  height: min(680px, calc(100svh - 86px));
+  margin-right: 76px;
+}
+
+.stage {
+  container-type: size;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  overflow: hidden;
+  border-radius: 28px 28px 0 0;
+  background: var(--swm-navy-light-10);
+  user-select: none;
+  -webkit-user-select: none;
+  isolation: isolate;
+}
+
+.backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.appBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 56px;
+  padding: 0 18px;
+  flex: none;
+}
+
+.appBar b {
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.rail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 100%;
+  width: 76px;
+  pointer-events: none;
+}
+
+.tick {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--navy-60);
+  white-space: nowrap;
+  animation: fade 300ms ease both;
+  transition: transform 450ms var(--ease-sheet), color 180ms ease;
+}
+
+.tick::before {
+  content: '';
+  width: 14px;
+  border-top: 1px solid currentColor;
+}
+
+.tick[data-active='true'] {
+  color: var(--navy);
+}
+
+.sheetBody {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sheetBodyFill {
+  flex: 1;
+  min-height: 0;
+}
+
+.dragHint {
+  position: absolute;
+  z-index: 1;
+  top: 14px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--navy-60);
+  pointer-events: none;
+  transition: opacity 200ms ease, color 240ms ease;
+}
+
+.dragHint[data-seen='true'] {
+  opacity: 0;
+}
+
+.reopen {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  bottom: 24px;
+  height: 44px;
+  padding: 0 18px;
+  margin-left: -80px;
+  min-width: 160px;
+  background: var(--navy);
+  color: var(--white);
+  font-size: 14.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: opacity 200ms ease, transform 200ms var(--ease-out);
+}
+
+.reopen[data-visible='false'] {
+  opacity: 0;
+  transform: translateY(6px) scale(0.97);
+  pointer-events: none;
+}
+
+.reopen:active {
+  transform: scale(0.97);
+}
+
+.modes {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 28px;
+}
+
+.modes .chipsLabel {
+  margin-top: 16px;
+}
+
+.modes .chips {
+  flex-wrap: nowrap;
+  gap: 4px;
+}
+
+.modes .chip {
+  padding: 0 10px;
+}
+
+@media (max-height: 940px) and (min-width: 861px) {
+  .title {
+    font-size: min(3.8vw, 6.4vh);
+  }
+
+  .body {
+    margin-top: 10px;
+    font-size: 16px;
+  }
+
+  .chips {
+    margin-top: 14px;
+  }
+
+  .chipsLabel,
+  .modes .chipsLabel {
+    margin-top: 10px;
+  }
+
+  .chapterCopy .code {
+    margin-top: 14px;
+    padding: 10px 14px;
+    font-size: 12px;
+    line-height: 1.55;
+  }
+}
+
+@media (max-width: 860px) {
+  .rail {
+    display: none;
+  }
+
+  .chapter,
+  .chapter[data-flip] {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 30px var(--gutter) 0;
+  }
+
+  .chapter[data-flip] .chapterStage {
+    order: 1;
+  }
+
+  .chapterCopy {
+    padding-bottom: 10px;
+  }
+
+  .chapterStage {
+    flex: 1;
+    align-self: auto;
+    width: auto;
+    height: auto;
+    min-height: 300px;
+    margin: 0 calc(-1 * var(--gutter) + 8px);
+  }
+
+  .kicker {
+    margin-bottom: 6px;
+    font-size: 11.5px;
+  }
+
+  .title {
+    font-size: min(8vw, 32px);
+  }
+
+  .body {
+    margin-top: 8px;
+    font-size: 15px;
+    line-height: 1.4;
+  }
+
+  .chapter[data-compact] .body {
+    display: none;
+  }
+
+  .chapterCopy > .chipsLabel,
+  .chips[aria-label='Snap to detent'] {
+    display: none;
+  }
+
+  .chips {
+    flex-wrap: nowrap;
+    margin: 12px calc(-1 * var(--gutter)) 0;
+    padding: 0 var(--gutter);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .chips::-webkit-scrollbar {
+    display: none;
+  }
+
+  .chip {
+    flex: none;
+    height: 36px;
+  }
+
+  .modes {
+    display: grid;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .modes > div {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .modes .chipsLabel {
+    flex: none;
+    width: 66px;
+    margin: 0;
+  }
+
+  .modes .chips {
+    flex: 1;
+    margin: 0;
+    padding: 0;
+  }
+
+  .codeActions {
+    order: 0;
+    margin-top: 8px;
+  }
+
+  .codeActionsSolo {
+    justify-content: flex-end;
+  }
+
+  .docsButton {
+    height: 34px;
+    padding: 0 12px;
+    font-size: 13.5px;
+  }
+
+  .codeToggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    font-size: 13.5px;
+    font-weight: 500;
+  }
+
+  .codeCollapse {
+    display: grid;
+    grid-template-rows: 0fr;
+    visibility: hidden;
+    transition: grid-template-rows 260ms var(--ease-out), visibility 0s linear 260ms;
+  }
+
+  .codeBlock[data-open='true'] .codeCollapse {
+    grid-template-rows: 1fr;
+    visibility: visible;
+    transition-delay: 0s;
+  }
+
+  .codeCollapseInner {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .codeCollapse .code {
+    margin-top: 8px;
+    max-height: 32svh;
+    overflow: auto;
+    padding: 10px 12px;
+    font-size: 12px;
+    line-height: 1.5;
+    box-shadow: none;
+  }
+}
+
+@media (max-width: 860px) and (max-height: 720px) {
+  .chapterStage {
+    min-height: 244px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tick,
+  .reopen,
+  .swapItem,
+  .codeCollapse {
+    transition-duration: 1ms;
+  }
+
+  .swapItem {
+    filter: none;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}

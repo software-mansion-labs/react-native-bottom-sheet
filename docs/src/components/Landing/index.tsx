@@ -3,7 +3,9 @@ import { PageMetadata } from '@docusaurus/theme-common';
 import LayoutProvider from '@theme/Layout/Provider';
 
 import { Ending } from './Ending';
+import { useFrameHeight } from './example';
 import { Hero, HeroPoster } from './Hero';
+import { DetentsSlide } from './Music';
 import { SlideStack, type Slide } from './SlideStack';
 import landing from './landing.module.css';
 
@@ -11,7 +13,9 @@ const DESCRIPTION =
   'Gestures, snapping, and scroll negotiation run in native code. Everything you see is plain React Native, on iOS, Android, and the web.';
 
 const Page = () => {
+  useFrameHeight();
   const slides: Slide[] = [
+    { id: 'detents', tone: 'paper', content: <DetentsSlide /> },
     { id: 'ending', tone: 'ending', content: <Ending /> },
   ];
   return <SlideStack hero={<Hero />} slides={slides} />;

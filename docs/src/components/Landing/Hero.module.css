@@ -138,6 +138,8 @@
   position: absolute;
   inset: 0;
   background: var(--navy-deep);
+  /* Layers of the stack pass the pointer through; the hero is the page beneath. */
+  pointer-events: auto;
 }
 
 .heroStage {
