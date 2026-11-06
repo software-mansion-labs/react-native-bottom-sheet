@@ -41,8 +41,8 @@ std::shared_ptr<const ShadowNode> BottomSheetViewShadowNode::withCardGeometry(
   if (content == nullptr) {
     return child;
   }
-  std::string_view name = child->getComponentName();
-  Float bottomOverflow = name == BottomSheetSurfaceViewComponentName
+  Float bottomOverflow =
+      content->kind() == BottomSheetCardContent::Kind::Surface
       ? state.surfaceOverflow
       : std::max<Float>(-state.contentRegionInset, 0);
   if (content->hasCardGeometry(

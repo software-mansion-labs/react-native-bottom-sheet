@@ -105,7 +105,10 @@ internal class ContentRegion(
   // How far the surface extends below the sheet, in layout units, so that once scaled it still
   // covers the card. A card's height and width are linear in the sheet's position between detents,
   // so their ratio peaks at a detent. A detents change can leave the card above all of them, so its
-  // current height counts too, and the overflow stays until the sheet settles.
+  // current height counts too, and the overflow stays until the sheet settles. A `content` detent
+  // counts at its bound rather than its measured height on purpose: a surface following the
+  // measurement would be a commit behind a card that grows, showing a gap, while one that's too
+  // tall is just clipped.
   private fun surfaceOverflowPx(): Float {
     val current = if (state.hasLaidOut) card.currentLayoutHeightPx() else 0f
     val tallest =

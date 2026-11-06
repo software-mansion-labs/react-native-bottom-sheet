@@ -73,6 +73,9 @@ extension BottomSheetHostingView {
   /// sheet's position between detents, so their ratio peaks at a detent. A detents
   /// change can leave the card above all of them, so its current height counts too,
   /// and `previous`, the overflow last reported, stays until the sheet settles.
+  /// A `content` detent counts at its bound rather than its measured height on
+  /// purpose: a surface following the measurement would be a commit behind a card
+  /// that grows, showing a gap, while one that's too tall is just clipped.
   /// Reported into the shadow tree.
   public func surfaceOverflow(holding previous: CGFloat) -> CGFloat {
     var current: CGFloat = 0

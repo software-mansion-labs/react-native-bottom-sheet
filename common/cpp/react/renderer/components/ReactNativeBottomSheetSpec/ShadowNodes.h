@@ -63,6 +63,16 @@ JSI_EXPORT extern const char BottomSheetSurfaceViewComponentName[];
 // whose hidden type info `dynamic_cast` can't match across the library boundary.
 class BottomSheetCardContent {
  public:
+  // Which child this is, and so how it extends below the sheet.
+  enum class Kind {
+    // Stretched between its offsets, which ignores margins.
+    Surface,
+    // In flow, where a negative margin grows it.
+    ContentWrapper,
+  };
+
+  virtual Kind kind() const = 0;
+
   bool hasCardGeometry(Float offsetX, Float scale, Float bottomOverflow) const {
     return cardOffsetX_ == offsetX && cardScale_ == scale &&
         bottomOverflow_ == bottomOverflow;
@@ -118,7 +128,8 @@ class BottomSheetCardContent {
 template <
     const char* concreteComponentName,
     typename ViewPropsT,
-    typename ViewEventEmitterT>
+    typename ViewEventEmitterT,
+    BottomSheetCardContent::Kind cardContentKind>
 class BottomSheetCardContentShadowNode
     : public ConcreteViewShadowNode<
           concreteComponentName,
@@ -153,6 +164,10 @@ class BottomSheetCardContentShadowNode
     }
   }
 
+  Kind kind() const override {
+    return cardContentKind;
+  }
+
   // These views are the library's own and never take a style transform, so the
   // card's is the whole of it.
   Transform getTransform() const override {
@@ -160,11 +175,8 @@ class BottomSheetCardContentShadowNode
   }
 
  protected:
-  // The content wrapper is in flow, where a negative margin grows it. The
-  // surface is stretched between its offsets, which ignores margins.
   void applyBottomOverflow() override {
-    if (this->getComponentName() ==
-        std::string_view{BottomSheetSurfaceViewComponentName}) {
+    if (cardContentKind == Kind::Surface) {
       YGNodeStyleSetPosition(&this->yogaNode_, YGEdgeBottom, -bottomOverflow_);
     } else {
       YGNodeStyleSetMargin(&this->yogaNode_, YGEdgeBottom, -bottomOverflow_);
@@ -177,14 +189,16 @@ class BottomSheetCardContentShadowNode
 using BottomSheetSurfaceViewShadowNode = BottomSheetCardContentShadowNode<
     BottomSheetSurfaceViewComponentName,
     BottomSheetSurfaceViewProps,
-    BottomSheetSurfaceViewEventEmitter>;
+    BottomSheetSurfaceViewEventEmitter,
+    BottomSheetCardContent::Kind::Surface>;
 
 JSI_EXPORT extern const char BottomSheetContentWrapperViewComponentName[];
 
 using BottomSheetContentWrapperViewShadowNode = BottomSheetCardContentShadowNode<
     BottomSheetContentWrapperViewComponentName,
     BottomSheetContentWrapperViewProps,
-    BottomSheetContentWrapperViewEventEmitter>;
+    BottomSheetContentWrapperViewEventEmitter,
+    BottomSheetCardContent::Kind::ContentWrapper>;
 
 // The card content of a child of the sheet, or null for any other child.
 inline const BottomSheetCardContent* bottomSheetCardContentOf(
