@@ -1,0 +1,154 @@
+/* The sheet's content and the keyboard share this timing, as they would when the
+   padding follows the real keyboard's animation. */
+.padding,
+.keyboard {
+  --keyboard-curve: 250ms cubic-bezier(0.17, 0.59, 0.4, 0.77);
+}
+
+.padding {
+  transition: height var(--keyboard-curve);
+}
+
+.field {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--example-sheet-line);
+  border-radius: 10px;
+  outline: none;
+  background-color: var(--example-background);
+  color: var(--example-text);
+  font-family: var(--ifm-font-family-base);
+  font-size: 16px;
+  user-select: text;
+}
+
+.field:focus {
+  border-color: var(--example-button);
+}
+
+.disclaimer {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.disclaimerTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.disclaimerIcon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.screen {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Above the sheets and their scrims, as the system's keyboard would be. */
+.keyboard {
+  --key: #ffffff;
+  --key-pressed: #b9bdc5;
+  --key-special: #adb3bc;
+  --key-text: #000000;
+
+  position: absolute;
+  z-index: 1;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin: 0 auto;
+  padding: 7px 4px 14px;
+  background-color: #d3d6dc;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  transform: translateY(100%);
+  transition: transform var(--keyboard-curve);
+}
+
+[data-theme='dark'] .keyboard {
+  --key: #656567;
+  --key-pressed: #858588;
+  --key-special: #464648;
+  --key-text: #ffffff;
+
+  background-color: #2b2b2d;
+}
+
+.keyboardOpen {
+  transform: translateY(0);
+}
+
+.row {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* Nine keys sit in the middle of a ten-key row. */
+.rowInset {
+  padding: 0 5%;
+}
+
+.key {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background-color: var(--key);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+  color: var(--key-text);
+  font: inherit;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.key:active {
+  background-color: var(--key-pressed);
+}
+
+.keySpecial {
+  flex-grow: 1.4;
+  background-color: var(--key-special);
+  font-size: 13px;
+}
+
+.keyWide {
+  flex-grow: 2.4;
+}
+
+.keySpace {
+  flex-grow: 5;
+  font-size: 13px;
+}
+
+.keyDone,
+.keyDone:active {
+  background-color: #0a84ff;
+  color: #ffffff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .padding,
+  .keyboard {
+    transition: none;
+  }
+}

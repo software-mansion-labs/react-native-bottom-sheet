@@ -1,0 +1,126 @@
+/* The surfaces paint their own scenes, so the text on them can't follow the theme. */
+.onScene {
+  --example-text: #ffffff;
+  --example-muted: rgba(255, 255, 255, 0.82);
+  --example-track: rgba(255, 255, 255, 0.45);
+}
+
+.scene {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+/* Night: the sheet only shows the top of this, so the mountains wait below. */
+.night {
+  background: linear-gradient(#0b1033 0, #27205e 150px, #5b3a86 260px);
+}
+
+.star {
+  position: absolute;
+  border-radius: 50%;
+  background-color: #ffffff;
+  animation: twinkle 2.6s ease-in-out infinite alternate;
+}
+
+@keyframes twinkle {
+  from {
+    opacity: 0.25;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.moon {
+  position: absolute;
+  top: 18px;
+  right: 28px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background-color: #fdf3c8;
+  box-shadow: 0 0 28px 6px rgba(253, 243, 200, 0.45);
+}
+
+.mountains {
+  position: absolute;
+  top: 118px;
+  left: 0;
+  width: 100%;
+  height: 130px;
+}
+
+.ground {
+  position: absolute;
+  top: 247px;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background-color: #120d33;
+}
+
+/* Aurora: soft lights drifting on their own, whatever the content does. */
+.aurora {
+  background-color: #061229;
+}
+
+.light {
+  position: absolute;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  will-change: transform;
+  animation: drift 9s ease-in-out infinite alternate;
+}
+
+.lightGreen {
+  top: -150px;
+  left: -60px;
+  background: radial-gradient(
+    closest-side,
+    rgba(52, 232, 158, 0.75),
+    transparent
+  );
+}
+
+.lightBlue {
+  top: -90px;
+  right: -80px;
+  background: radial-gradient(
+    closest-side,
+    rgba(56, 172, 221, 0.8),
+    transparent
+  );
+  animation-duration: 11s;
+  animation-direction: alternate-reverse;
+}
+
+.lightPurple {
+  top: 20px;
+  left: 30%;
+  background: radial-gradient(
+    closest-side,
+    rgba(160, 90, 245, 0.7),
+    transparent
+  );
+  animation-duration: 13s;
+}
+
+@keyframes drift {
+  from {
+    transform: translate(-50px, -14px) scale(0.9);
+  }
+
+  to {
+    transform: translate(70px, 26px) scale(1.2);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .star,
+  .light {
+    animation: none;
+  }
+}

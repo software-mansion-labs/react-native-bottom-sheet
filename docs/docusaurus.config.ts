@@ -1,6 +1,7 @@
 import { themes as prismThemes } from 'prism-react-renderer';
 import type { Config } from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
+import reactNativeWeb from './plugins/react-native-web.mjs';
 import swmGeo from './plugins/swm-geo.mjs';
 
 const config: Config = {
@@ -23,7 +24,7 @@ const config: Config = {
     locales: ['en'],
   },
 
-  plugins: [swmGeo],
+  plugins: [reactNativeWeb, swmGeo],
 
   presets: [
     [
