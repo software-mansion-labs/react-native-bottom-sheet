@@ -178,6 +178,10 @@ class BottomSheetViewManager :
     view.setScrimColor(scrimColor)
   }
 
+  override fun setScrimAccessibilityLabel(view: BottomSheetView, value: String?) {
+    view.setScrimAccessibilityLabel(value)
+  }
+
   override fun setSurfaceCornerRadii(view: BottomSheetView, value: ReadableArray?) {
     val radii = mutableListOf<Float>()
     if (value != null) {

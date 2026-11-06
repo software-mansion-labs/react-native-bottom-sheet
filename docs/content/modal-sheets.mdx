@@ -2,6 +2,13 @@
 title: Modal sheets
 ---
 
+import {
+  CloseRequestExample,
+  LazyExample,
+  ScrimExample,
+  StackingExample,
+} from '@site/src/examples/modal-sheets';
+
 # Modal sheets
 
 `ModalBottomSheet` renders above other content with an optional scrim
@@ -49,6 +56,8 @@ Content state is reset each time the sheet opens. While unmounted, the sheet
 emits no `onPositionChange` events. `lazy` is also available on `BottomSheet`
 and has no effect when no detent is closed.
 
+<LazyExample />
+
 ## Stacking
 
 When several modal sheets are open, the one opened most recently is on top,
@@ -56,6 +65,8 @@ whatever order they appear in your tree. Reopening a sheet, even while it is
 still closing, brings it back to the top. `nativeOverlay` sheets are always
 above portal sheets and stack among themselves the same way. Close requests
 (Android Back, and Escape on Android and the web) go to the top sheet.
+
+<StackingExample />
 
 ## Scrim
 
@@ -97,6 +108,40 @@ ones:
 </ModalBottomSheet>
 ```
 
+<ScrimExample />
+
+### Accessible dismissal
+
+Screen reader users can dismiss the sheet the same way a scrim tap does. While
+tapping the scrim would dismiss the sheet, the scrim above the sheet is exposed
+as a “Dismiss” button to VoiceOver, TalkBack, and screen readers on the web. In
+addition:
+
+- On iOS, VoiceOver’s escape gesture (a two-finger Z) dismisses the sheet.
+- On Android, TalkBack offers a Dismiss action (in its actions menu) while
+  focus is inside the sheet’s content.
+
+These paths require a non-programmatic closed detent and a visible scrim, and
+they select the closed detent directly, without calling `onCloseRequest`. While
+the scrim is visible but dismissal is unavailable, as with a programmatic-only
+closed detent, VoiceOver’s escape gesture is consumed by the sheet instead of
+reaching the screen behind it. A sheet that fills its host leaves no scrim for
+the button, but the escape gesture and dismiss action remain.
+
+Use `scrimAccessibilityLabel` to localize the button’s label, which defaults to
+“Dismiss”:
+
+```tsx
+<ModalBottomSheet
+  index={index}
+  onIndexChange={setIndex}
+  scrimAccessibilityLabel={t('close')}
+  surface={/* ... */}
+>
+  {/* ... */}
+</ModalBottomSheet>
+```
+
 ## Android close requests
 
 `onCloseRequest` is **Android and web only**. Android system Back, a committed
@@ -119,6 +164,8 @@ const [index, setIndex] = useState(1);
   {/* content */}
 </ModalBottomSheet>;
 ```
+
+<CloseRequestExample />
 
 ### Input behavior
 

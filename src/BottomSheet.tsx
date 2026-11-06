@@ -229,6 +229,8 @@ type ModalOnlyBottomSheetProps = {
   nativeOverlay?: boolean;
   /** Scrim color used by `ModalBottomSheet`. */
   scrimColor?: string;
+  /** Scrim dismiss-control label used by `ModalBottomSheet`. */
+  scrimAccessibilityLabel?: string;
 };
 
 export type BottomSheetInternalProps = Omit<BottomSheetProps, 'detents'> &
@@ -264,6 +266,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
     scrollableNegotiation,
     disableScrollableNegotiation,
     scrimColor,
+    scrimAccessibilityLabel,
   } = props as BottomSheetInternalProps;
   const resolvedScrollableNegotiation =
     scrollableNegotiation ??
@@ -414,6 +417,8 @@ export const BottomSheet = (props: BottomSheetProps) => {
             SCROLLABLE_NEGOTIATION_LEVEL[resolvedCollapseNegotiation]
           }
           scrimColor={scrimColor}
+          // An empty label would leave the button unlabeled, so it falls back too.
+          scrimAccessibilityLabel={scrimAccessibilityLabel || 'Dismiss'}
           surfaceCornerRadii={cornerRadii}
           surfaceCornerCurve={cornerCurve}
           surfaceShadows={shadows}

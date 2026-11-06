@@ -6,6 +6,9 @@
   "compilerOptions": {
     "baseUrl": ".",
     "ignoreDeprecations": "6.0",
+    "paths": {
+      "@swmansion/react-native-bottom-sheet": ["../src/index.tsx"]
+    },
     "strict": true
   },
   "exclude": [".docusaurus", "build"]

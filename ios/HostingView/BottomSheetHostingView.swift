@@ -13,6 +13,33 @@ import UIKit
   func bottomSheetHostingViewDidLayout(_ view: BottomSheetHostingView)
 }
 
+/// The scrim control, exposed to VoiceOver as a dismiss button while a
+/// dismissible modal sheet is open. VoiceOver's default activation simulates
+/// a tap at the activation point; dismissing directly keeps activation
+/// reliable even when the sheet overlaps that point mid-settle.
+final class BottomSheetScrimControl: UIControl {
+  /// The part of the scrim VoiceOver frames as the button, in this control's
+  /// coordinates. The scrim spans the host, but the sheet covers all of it
+  /// below the sheet's top edge.
+  var accessibilityRegion: (() -> CGRect)?
+
+  override var accessibilityFrame: CGRect {
+    get {
+      guard let region = accessibilityRegion?() else { return super.accessibilityFrame }
+      return UIAccessibility.convertToScreenCoordinates(region, in: self)
+    }
+    set { super.accessibilityFrame = newValue }
+  }
+
+  /// Performs the dismissal, returning whether one was performed, so VoiceOver
+  /// can tell an activation that did nothing.
+  var onAccessibilityActivate: (() -> Bool)?
+
+  override func accessibilityActivate() -> Bool {
+    onAccessibilityActivate?() ?? false
+  }
+}
+
 @objcMembers
 public final class BottomSheetHostingView: UIView {
   public weak var eventDelegate: BottomSheetHostingViewDelegate?
@@ -22,6 +49,13 @@ public final class BottomSheetHostingView: UIView {
 
   public var scrimColor: UIColor? = .clear {
     didSet { scrimView.backgroundColor = scrimColor }
+  }
+
+  /// The label VoiceOver announces for the scrim while it is exposed as a
+  /// dismiss button.
+  public var scrimAccessibilityLabel: String? {
+    get { scrimView.accessibilityLabel }
+    set { scrimView.accessibilityLabel = newValue ?? "Dismiss" }
   }
 
   /// Scrim opacity per detent index, from each detent’s `scrimOpacity`, and
@@ -82,7 +116,7 @@ public final class BottomSheetHostingView: UIView {
   /// Masks the card when its corners differ in radius, which the layer's own
   /// corner radius cannot express. Nil while the layer's corners suffice.
   var cardMask: CAShapeLayer?
-  let scrimView = UIControl()
+  let scrimView = BottomSheetScrimControl()
   var panGesture: SheetPanGestureRecognizer!
   var activeSpring: CriticalSpring?
   var activeSpringTargetIndex: Int = 0
@@ -167,6 +201,11 @@ public final class BottomSheetHostingView: UIView {
     scrimView.alpha = 0
     scrimView.isHidden = true
     scrimView.addTarget(self, action: #selector(handleScrimPress), for: .touchUpInside)
+    scrimView.isAccessibilityElement = false
+    scrimView.accessibilityTraits = .button
+    scrimView.accessibilityLabel = "Dismiss"
+    scrimView.accessibilityRegion = { [weak self] in self?.scrimDismissRegion ?? .zero }
+    scrimView.onAccessibilityActivate = { [weak self] in self?.attemptScrimDismissal() ?? false }
     addSubview(scrimView)
 
     sheetContainer.backgroundColor = .clear
@@ -323,18 +362,26 @@ public final class BottomSheetHostingView: UIView {
     updateScrim()
   }
 
+  /// The card as it is drawn, in host coordinates. Mid-settle the translation
+  /// comes from the spring instead of the presentation layer, which lags one
+  /// commit behind right after a snap starts. The container's transform is
+  /// translation-only.
+  var presentedCardFrame: CGRect {
+    let ty = currentTranslationY
+    let size = sheetContainer.bounds.size
+    let center = sheetContainer.center
+    return cardRect(forPosition: sheetContainerHeight - ty).offsetBy(
+      dx: center.x - size.width / 2,
+      dy: center.y - size.height / 2 + ty
+    )
+  }
+
   /// Whether `point` (in host coordinates) falls on the card as it is drawn.
   /// Mid-settle the translation comes from the spring instead of the
   /// presentation layer, which lags one commit behind right after a snap
   /// starts. The container's transform is translation-only.
   private func presentedCardContains(_ point: CGPoint) -> Bool {
-    let ty = currentTranslationY
-    let size = sheetContainer.bounds.size
-    let center = sheetContainer.center
-    let card = cardRect(forPosition: sheetContainerHeight - ty).offsetBy(
-      dx: center.x - size.width / 2,
-      dy: center.y - size.height / 2 + ty
-    )
+    let card = presentedCardFrame
     guard card.contains(point) else { return false }
     guard isCardShaped else { return true }
     return cardPath(in: card).contains(point)
@@ -538,6 +585,7 @@ public final class BottomSheetHostingView: UIView {
     activeSpring = nil
     activeSpringEmitsSettle = false
     interruptedSpringEmitsSettle = nil
+    scrimPinnedFull = false
     lastAppliedMaxDetentHeight = .nan
     stopDisplayLink()
     removeSettleAnimations()

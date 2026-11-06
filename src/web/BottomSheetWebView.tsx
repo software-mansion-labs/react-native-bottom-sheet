@@ -61,6 +61,7 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
     scrollableExpandNegotiation,
     scrollableCollapseNegotiation,
     scrimColor,
+    scrimAccessibilityLabel,
     surfaceCornerRadii = DEFAULT_CORNER_RADII,
     surfaceShadows = DEFAULT_SHADOWS,
     // CSS has no continuous corner curve; corners are drawn circular. Taken
@@ -81,6 +82,7 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
   const [controller] = useState(() => new BottomSheetWebController());
   const hostRef = useRef<ViewInstance>(null);
   const scrimRef = useRef<ViewInstance>(null);
+  const scrimDismissRef = useRef<ViewInstance>(null);
   const containerRef = useRef<ViewInstance>(null);
   const cardRef = useRef<ViewInstance>(null);
   const shadowRef = useRef<ViewInstance>(null);
@@ -115,6 +117,7 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
   useLayoutEffect(() => {
     const host = asElement(hostRef.current);
     const scrim = asElement(scrimRef.current);
+    const scrimDismiss = asElement(scrimDismissRef.current);
     const container = asElement(containerRef.current);
     const card = asElement(cardRef.current);
     const shadow = asElement(shadowRef.current);
@@ -123,6 +126,7 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
     if (
       !host ||
       !scrim ||
+      !scrimDismiss ||
       !container ||
       !card ||
       !shadow ||
@@ -134,6 +138,7 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
     controller.attach({
       host,
       scrim,
+      scrimDismiss,
       container,
       card,
       shadow,
@@ -199,6 +204,15 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
         style={[StyleSheet.absoluteFill, { backgroundColor: scrimColor }]}
       />
       <View
+        ref={scrimDismissRef}
+        role="button"
+        aria-label={scrimAccessibilityLabel}
+        // Out of the tab order: Escape is the keyboard's dismissal path.
+        focusable={false}
+        style={styles.scrimDismiss}
+        pointerEvents="none"
+      />
+      <View
         ref={containerRef}
         style={styles.container}
         // Hand React Native for Web's responder to the sheet once it drags, so
@@ -262,6 +276,14 @@ const getOverlayLayer = () => {
 
 const styles = StyleSheet.create({
   host: { overflow: 'hidden' },
+  scrimDismiss: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    transformOrigin: 'top',
+  },
   container: { position: 'absolute', left: 0, right: 0, top: 0 },
   shadow: { position: 'absolute', left: 0, right: 0, top: 0 },
   overlay: {

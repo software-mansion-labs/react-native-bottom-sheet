@@ -65,6 +65,11 @@ export type BottomSheetWebCallbacks = Readonly<{
 export type BottomSheetWebElements = Readonly<{
   host: HTMLElement;
   scrim: HTMLElement;
+  /**
+   * The scrim's dismiss button for screen readers. Draws nothing and takes no
+   * pointer, and is scaled to the part of the scrim above the sheet.
+   */
+  scrimDismiss: HTMLElement;
   container: HTMLElement;
   /** Wraps the surface and content and is clipped to the card shape. */
   card: HTMLElement;

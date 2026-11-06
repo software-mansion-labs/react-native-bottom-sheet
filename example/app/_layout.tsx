@@ -26,6 +26,10 @@ export default function RootLayout() {
               options={{ title: 'Basic modal', headerShown: false }}
             />
             <Stack.Screen
+              name="accessible-dismissal"
+              options={{ title: 'Accessible dismissal', headerShown: false }}
+            />
+            <Stack.Screen
               name="surface-style"
               options={{ title: 'Surface style', headerShown: false }}
             />
