@@ -7,6 +7,7 @@ import { useFrameHeight } from './example';
 import { Hero, HeroPoster } from './Hero';
 import { DetentsSlide } from './Music';
 import { SlideStack, type Slide } from './SlideStack';
+import { NegotiationSlide } from './Video';
 import landing from './landing.module.css';
 
 const DESCRIPTION =
@@ -16,6 +17,7 @@ const Page = () => {
   useFrameHeight();
   const slides: Slide[] = [
     { id: 'detents', tone: 'paper', content: <DetentsSlide /> },
+    { id: 'negotiation', tone: 'sky', content: <NegotiationSlide /> },
     { id: 'ending', tone: 'ending', content: <Ending /> },
   ];
   return <SlideStack hero={<Hero />} slides={slides} />;
