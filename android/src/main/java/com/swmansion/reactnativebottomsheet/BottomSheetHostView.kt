@@ -525,7 +525,6 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     scrollCoordination.clearNestedScrollState()
     state.activeAnimation?.cancel()
     state.activeAnimation = null
-    state.activeAnimationEmitsSettle = false
     gestures.releaseVelocityTracker()
     removeCallbacks(sheetChildrenLayoutPass)
     sheetChildrenLayoutEnqueued = false

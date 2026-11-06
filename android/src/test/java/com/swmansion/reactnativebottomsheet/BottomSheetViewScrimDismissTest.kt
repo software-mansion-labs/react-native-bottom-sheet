@@ -50,15 +50,19 @@ class BottomSheetViewScrimDismissTest {
   }
 
   @Test
+  fun `a re-anchor pins the scrim at the fully open opacity`() {
+    withOpenModalSheet { sheet, listener ->
+      pinScrimWithReanchor(sheet)
+      tapScrim(sheet)
+
+      assertEquals(listOf(0), listener.indexChanges)
+    }
+  }
+
+  @Test
   fun `a scrim pinned at destroy does not carry over to a reused sheet`() {
     withOpenModalSheet { sheet, listener ->
-      // Growing the open detent re-anchors the sheet, which pins the scrim until the spring ends.
-      sheet.setDetents(
-        listOf(
-          mapOf("value" to 0.0, "scrimOpacity" to 0.0),
-          mapOf("value" to 600.0, "scrimOpacity" to 1.0),
-        ),
-      )
+      pinScrimWithReanchor(sheet)
 
       sheet.destroy()
       sheet.listener = listener
@@ -74,9 +78,25 @@ class BottomSheetViewScrimDismissTest {
       layoutView(sheet)
       tapScrim(sheet)
 
-      // This detent's scrim is invisible, so the tap must not dismiss the sheet.
+      // This detent's scrim is invisible, so the tap must not dismiss the sheet. Only the dismissal
+      // is checked: this tap also emits onIndexChange(1), a separate bug on main. Once that is
+      // fixed, this can assert that no index change is emitted at all.
       assertFalse(listener.indexChanges.toString(), 0 in listener.indexChanges)
     }
+  }
+
+  /**
+   * Grows the open detent, which re-anchors the sheet and pins the scrim until the spring ends. The
+   * sheet is still below the detent's position, where the scrim is invisible unless it is pinned.
+   */
+  private fun pinScrimWithReanchor(sheet: BottomSheetView) {
+    sheet.setDetents(
+      listOf(
+        mapOf("value" to 0.0, "scrimOpacity" to 0.0),
+        mapOf("value" to 320.0, "scrimOpacity" to 0.0),
+        mapOf("value" to 600.0, "scrimOpacity" to 1.0),
+      ),
+    )
   }
 
   private fun withOpenModalSheet(block: (BottomSheetView, RecordingBottomSheetListener) -> Unit) {

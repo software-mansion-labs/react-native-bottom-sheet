@@ -350,7 +350,6 @@ internal class Detents(
 
   fun clearPendingInitialContentDetentSnap() {
     pendingInitialContentDetentSnap = false
-    pendingInitialContentDetentFrames = 0
     removePendingInitialContentDetentObserver()
   }
 
