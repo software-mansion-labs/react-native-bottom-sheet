@@ -2,6 +2,8 @@
 title: Scrollable negotiation
 ---
 
+import { NegotiationModesExample } from '@site/src/examples/scrollable-negotiation';
+
 # Scrollable negotiation
 
 `scrollableNegotiation` controls how vertical gestures that start inside a
@@ -34,6 +36,8 @@ Each direction accepts one of three modes:
 | `none`    | The scrollable keeps the gesture; the sheet does not move.                                                           |
 | `initial` | The sheet or scrollable is selected when the gesture begins, and that owner is kept until the finger lifts.          |
 | `handoff` | Uses the same initial selection but can transfer between the sheet and scrollable at their boundary without lifting. |
+
+<NegotiationModesExample />
 
 For example, with expansion set to `handoff`, dragging up first moves the sheet
 to its largest detent and then scrolls the content. With collapse set to
