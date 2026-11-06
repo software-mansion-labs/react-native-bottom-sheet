@@ -23,58 +23,17 @@ export type CardHost = {
 
 const NO_INSETS = { insetLeft: 0, insetRight: 0, insetBottom: 0 };
 
-export type CardGeometry = Readonly<{
-  left: number;
-  right: number;
-  height: number;
-}>;
-
-type CardTransition = CardGeometry &
-  Readonly<{ startTime: number; omega: number }>;
-
 export class SheetCard {
   /** The card's CSS corner radii, even while none is rounded. */
   private cardCorners = '';
   private isCardRounded = false;
   private appliedContentTransform: string | null = null;
-  // What's left of the card's shape from before its detent last changed.
-  private cardTransition: CardTransition | null = null;
   private appliedCardHeight = NaN;
   private appliedCardLeft = NaN;
   private appliedCardRight = NaN;
   private appliedClipInset = NaN;
 
   constructor(private readonly host: CardHost) {}
-
-  /** The card's shape as last shown. */
-  get appliedGeometry(): CardGeometry {
-    return {
-      left: this.appliedCardLeft,
-      right: this.appliedCardRight,
-      height: this.appliedCardHeight,
-    };
-  }
-
-  /**
-   * Eases the card's shape over from what it was, on the sheet's own curve. A
-   * detent's new insets would otherwise apply at once, leaving an edge to jump
-   * when the sheet is above the new position.
-   */
-  beginTransition(previous: CardGeometry, startTime: number, omega: number) {
-    const resting = this.restingGeometry();
-    this.cardTransition = {
-      left: previous.left - resting.left,
-      right: previous.right - resting.right,
-      height: previous.height - resting.height,
-      startTime,
-      omega,
-    };
-    this.updateCardClip();
-  }
-
-  clearTransition() {
-    this.cardTransition = null;
-  }
 
   resetContentTransform() {
     this.appliedContentTransform = null;
@@ -116,16 +75,16 @@ export class SheetCard {
     const elements = hostState.elements;
     if (elements === null || hostState.config === null) return;
     const { card, content, host, shadow, surface } = elements;
-    const resting = this.restingGeometry();
-    const remaining = this.remainingTransition();
-    const transition = this.cardTransition;
-    const left = resting.left + (transition?.left ?? 0) * remaining;
-    const right = resting.right + (transition?.right ?? 0) * remaining;
-    const cardHeight = clamp(
-      resting.height + (transition?.height ?? 0) * remaining,
-      0,
-      hostState.hostHeight
+    const position = Math.max(
+      hostState.hostHeight - hostState.translateY,
+      firstOpenPosition(hostState.detents)
     );
+    const {
+      insetLeft: left,
+      insetRight: right,
+      insetBottom: bottom,
+    } = this.cardInsets(position);
+    const cardHeight = clamp(position - bottom, 0, hostState.hostHeight);
     const clipInset = hostState.hostHeight - cardHeight;
 
     // Scale the surface and content to the card's width, with their top-left
@@ -164,34 +123,6 @@ export class SheetCard {
     card.style.clipPath = this.clipsToCard()
       ? `inset(0px ${right}px ${clipInset}px ${left}px round ${this.cardCorners})`
       : '';
-  }
-
-  /** The card's shape at the sheet's position, with no transition under way. */
-  private restingGeometry(): CardGeometry {
-    const { hostHeight, translateY, detents } = this.host;
-    const position = Math.max(
-      hostHeight - translateY,
-      firstOpenPosition(detents)
-    );
-    const { insetLeft, insetRight, insetBottom } = this.cardInsets(position);
-    return {
-      left: insetLeft,
-      right: insetRight,
-      height: clamp(position - insetBottom, 0, hostHeight),
-    };
-  }
-
-  /** How much of the card's transition is left: 1 at its start, then 0. */
-  private remainingTransition() {
-    const transition = this.cardTransition;
-    if (transition === null) return 0;
-    const elapsed = (performance.now() - transition.startTime) / 1000;
-    const progress = transition.omega * Math.max(0, elapsed);
-    if (progress >= 8) {
-      this.cardTransition = null;
-      return 0;
-    }
-    return (1 + progress) * Math.exp(-progress);
   }
 
   /**

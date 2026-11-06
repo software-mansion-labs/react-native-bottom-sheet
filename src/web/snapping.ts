@@ -16,7 +16,6 @@ export type SnappingHost = {
   requestFrame(): void;
   emitPosition(): void;
   updateCloseRequestRegistration(): void;
-  clearCardTransition(): void;
   emit(event: (callbacks: BottomSheetWebCallbacks) => void): void;
 };
 
@@ -231,7 +230,6 @@ export class SheetSnapping {
     const emitSettle = this.springEmitsSettle;
     this.spring = null;
     this.springEmitsSettle = false;
-    host.clearCardTransition();
     host.setTranslateY(this.translationY(index));
     host.scrimPinnedFull = false;
     host.emitPosition();

@@ -346,7 +346,6 @@ export class BottomSheetWebController {
       firstOpen > 0 &&
       previousHostHeight - this.snapping.currentTranslateY() + 0.5 >= firstOpen;
     this.scrimPinnedFull = this.scrimPinnedFull || wasScrimFull;
-    const previousCard = this.card.appliedGeometry;
     this.detents = resolved;
     this.lastAppliedHostHeight = hostHeight;
 
@@ -380,7 +379,6 @@ export class BottomSheetWebController {
       this.setTranslateY(clamp(hostHeight - visibleHeight, 0, hostHeight));
       this.emitPosition();
       this.snapping.retargetSpring(velocity, emitsSettle, omega, now);
-      this.card.beginTransition(previousCard, now, omega);
       return;
     }
 
@@ -402,12 +400,7 @@ export class BottomSheetWebController {
       );
       this.emitPosition();
       this.snapping.retargetSpring(0, false, omega, now);
-      this.card.beginTransition(previousCard, now, omega);
     }
-  }
-
-  clearCardTransition() {
-    this.card.clearTransition();
   }
 
   private shouldAnimateContentHeight(index: number) {
