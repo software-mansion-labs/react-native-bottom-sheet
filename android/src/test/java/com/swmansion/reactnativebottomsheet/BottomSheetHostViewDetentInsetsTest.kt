@@ -143,6 +143,24 @@ class BottomSheetHostViewDetentInsetsTest {
   }
 
   @Test
+  fun `a narrow card keeps its full height and its gaps`() {
+    val detents =
+      listOf(
+        points(100.0, left = 8.0, right = 8.0, widest = true),
+        points(300.0, left = 64.0, right = 64.0, bottom = 24.0),
+      )
+    withSheet(detents) { sheet ->
+      val d = sheet.density
+      val content = sheet.getSheetChildAt(0)!!
+      assertEquals((WIDTH_PX - 128 * d) / (WIDTH_PX - 16 * d), content.scaleY, 0.001f)
+      val middle = WIDTH_PX / 2f
+      // In the sheet container's coordinates, which start at the card's top.
+      assertTrue(sheet.clip.cardContains(middle, 299 * d))
+      assertFalse(sheet.clip.cardContains(middle, 301 * d))
+    }
+  }
+
+  @Test
   fun `the content is unscaled at the widest card`() {
     val detents =
       listOf(

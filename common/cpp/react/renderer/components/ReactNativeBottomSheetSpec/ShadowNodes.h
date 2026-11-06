@@ -6,6 +6,7 @@
 #include <react/renderer/components/ReactNativeBottomSheetSpec/Props.h>
 #include <react/renderer/components/view/ConcreteViewShadowNode.h>
 #include <react/renderer/core/StateData.h>
+#include <yoga/YGNodeStyle.h>
 
 #include <string_view>
 
@@ -44,6 +45,8 @@ class JSI_EXPORT BottomSheetViewShadowNode final
       const std::shared_ptr<const ShadowNode>& child) const;
 };
 
+JSI_EXPORT extern const char BottomSheetSurfaceViewComponentName[];
+
 // The part of a child of the sheet that follows the card: the surface and the
 // content wrapper, which the native host scales and shifts with layer
 // transforms. Reporting that as the child's transform, instead of the sheet's,
@@ -60,19 +63,34 @@ class JSI_EXPORT BottomSheetViewShadowNode final
 // whose hidden type info `dynamic_cast` can't match across the library boundary.
 class BottomSheetCardContent {
  public:
-  bool hasCardGeometry(Float offsetX, Float scale) const {
-    return cardOffsetX_ == offsetX && cardScale_ == scale;
+  bool hasCardGeometry(Float offsetX, Float scale, Float bottomOverflow) const {
+    return cardOffsetX_ == offsetX && cardScale_ == scale &&
+        bottomOverflow_ == bottomOverflow;
   }
 
-  void setCardGeometry(Float offsetX, Float scale) {
+  bool hasBottomOverflow(Float bottomOverflow) const {
+    return bottomOverflow_ == bottomOverflow;
+  }
+
+  void setCardGeometry(Float offsetX, Float scale, Float bottomOverflow) {
     cardOffsetX_ = offsetX;
     cardScale_ = scale;
+    if (bottomOverflow_ != bottomOverflow) {
+      bottomOverflow_ = bottomOverflow;
+      applyBottomOverflow();
+    }
   }
 
  protected:
   BottomSheetCardContent() = default;
   BottomSheetCardContent(const BottomSheetCardContent&) = default;
   ~BottomSheetCardContent() = default;
+
+  // Extends the child's Yoga box below the sheet by `bottomOverflow_`: scaled
+  // down, it would otherwise end above a narrow card's bottom edge.
+  virtual void applyBottomOverflow() = 0;
+
+  Float bottomOverflow_{0};
 
   // Scales the child about the sheet's top-left corner and shifts it right by
   // the offset, expressed about the child's own center, which is where layout
@@ -128,16 +146,31 @@ class BottomSheetCardContentShadowNode
       : Base(sourceShadowNode, fragment),
         BottomSheetCardContent(
             static_cast<const BottomSheetCardContentShadowNode&>(
-                sourceShadowNode)) {}
+                sourceShadowNode)) {
+    // New props rebuild the Yoga style, dropping the overflow.
+    if (fragment.props && bottomOverflow_ != 0) {
+      applyBottomOverflow();
+    }
+  }
 
   // These views are the library's own and never take a style transform, so the
   // card's is the whole of it.
   Transform getTransform() const override {
     return cardTransform(this->getLayoutMetrics().frame);
   }
-};
 
-JSI_EXPORT extern const char BottomSheetSurfaceViewComponentName[];
+ protected:
+  // The content wrapper is in flow, where a negative margin grows it. The
+  // surface is stretched between its offsets, which ignores margins.
+  void applyBottomOverflow() override {
+    if (this->getComponentName() ==
+        std::string_view{BottomSheetSurfaceViewComponentName}) {
+      YGNodeStyleSetPosition(&this->yogaNode_, YGEdgeBottom, -bottomOverflow_);
+    } else {
+      YGNodeStyleSetMargin(&this->yogaNode_, YGEdgeBottom, -bottomOverflow_);
+    }
+  }
+};
 
 // The surface lives here rather than in the generated ShadowNodes.h, which the
 // custom header search path shadows.

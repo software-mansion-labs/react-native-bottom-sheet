@@ -38,6 +38,8 @@ NS_ASSUME_NONNULL_BEGIN
 // The natively measured inset of the content region: the gap between the
 // sheet's height and the content region's.
 - (CGFloat)contentRegionInset;
+// How far the surface extends below the sheet, in layout units.
+- (CGFloat)surfaceOverflow;
 - (void)setDetentIndex:(NSInteger)newIndex;
 - (void)setScrimColor:(UIColor *_Nullable)color;
 // Physical corner radii of the card (top-left, top-right, bottom-right,

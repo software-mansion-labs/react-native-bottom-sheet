@@ -1951,25 +1951,30 @@ public final class BottomSheetHostingView: UIView {
   /// detent, clamped to the space its insets leave — rather than the host's,
   /// so a scrollable under a fixed or percentage tallest detent is laid out
   /// against the height it can actually show instead of leaving its last rows
-  /// below the card's edge. A trailing `content` detent is bounded by that space
-  /// alone: its resolved height is measured from this very region, so bounding
-  /// the region by it would be circular. In layout units, so divided by the scale
-  /// at that detent, and never taller than the sheet's node.
+  /// below the card's edge. In layout units, so divided by the scale at that
+  /// detent: a narrow card's region can outgrow the sheet's node.
   private var contentRegionHeight: CGFloat {
     guard let tallest = rawDetentSpecs.last else { return bounds.height }
-    let available = availableCardHeight(for: tallest)
+    let height = cardHeightBound(for: tallest)
+    let scale = contentScale(for: tallest.insets)
+    return scale > 0 ? height / scale : height
+  }
+
+  /// The tallest the card gets at a detent. A `content` detent is bounded by the
+  /// space its insets leave alone: its resolved height is measured from the
+  /// content region, so bounding the region by it would be circular.
+  private func cardHeightBound(for spec: RawDetentSpec) -> CGFloat {
+    let available = availableCardHeight(for: spec)
     let bound: CGFloat
-    switch tallest.kind {
+    switch spec.kind {
     case .points:
-      bound = tallest.value
+      bound = spec.value
     case .percentage:
-      bound = available * tallest.value
+      bound = available * spec.value
     case .content:
       bound = available
     }
-    let height = min(max(0, bound), available)
-    let scale = contentScale(for: tallest.insets)
-    return scale > 0 ? min(height / scale, bounds.height) : height
+    return min(max(0, bound), available)
   }
 
   /// The tallest the card can be at a detent: the host's height, less the
@@ -1980,10 +1985,22 @@ public final class BottomSheetHostingView: UIView {
   }
 
   /// The natively measured inset of the content region: the gap between the
-  /// sheet's height and `contentRegionHeight`. Reported into the shadow tree,
-  /// where it becomes Yoga bottom padding on the sheet node.
+  /// sheet's height and `contentRegionHeight`, negative when the region outgrows
+  /// the sheet. Reported into the shadow tree, where it sizes the content wrapper.
   public var contentRegionInset: CGFloat {
-    max(0, bounds.height - contentRegionHeight)
+    bounds.height - contentRegionHeight
+  }
+
+  /// How far the surface extends below the sheet, in layout units, so that once
+  /// scaled it still covers the card. A card's height and width are linear in the
+  /// sheet's position between detents, so their ratio peaks at a detent. Reported
+  /// into the shadow tree.
+  public var surfaceOverflow: CGFloat {
+    let tallest = rawDetentSpecs.reduce(bounds.height) { tallest, spec in
+      let scale = contentScale(for: spec.insets)
+      return scale > 0 ? max(tallest, cardHeightBound(for: spec) / scale) : tallest
+    }
+    return tallest - bounds.height
   }
 
   /// Stable coordinate base for the sheet container. The container is sized to
@@ -1998,7 +2015,7 @@ public final class BottomSheetHostingView: UIView {
 
   private func resolveDetentSpecs() -> [DetentSpec]? {
     let maxHeight = sheetContainerHeight
-    let measuredContentHeight = maxHeight > 0 ? validContentHeight.map { min($0, maxHeight) } : nil
+    let measuredContentHeight = maxHeight > 0 ? validContentHeight : nil
     var resolvedDetents: [DetentSpec] = []
     resolvedDetents.reserveCapacity(rawDetentSpecs.count)
 

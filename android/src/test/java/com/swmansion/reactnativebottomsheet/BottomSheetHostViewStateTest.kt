@@ -203,6 +203,7 @@ private class RecordingStateWrapper : StateWrapper {
           "frameWidth",
           "frameHeight",
           "contentRegionInset",
+          "surfaceOverflow",
         )
         .associateWith { map.getDouble(it) },
     )

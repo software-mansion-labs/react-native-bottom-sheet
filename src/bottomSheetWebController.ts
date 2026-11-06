@@ -553,32 +553,55 @@ export class BottomSheetWebController {
 
   /**
    * The height the content wrapper is laid out in: the card's height at the
-   * tallest detent, clamped to the space its insets leave. A trailing `content`
-   * detent is bounded by that space alone, since it is measured from this very
-   * region.
+   * tallest detent. In layout units, so divided by the scale at that detent: a
+   * narrow card's region can outgrow the host.
    */
   private contentRegionHeight() {
     const tallest = this.rawDetents[this.rawDetents.length - 1];
     if (tallest === undefined) return this.hostHeight;
+    const height = this.cardHeightBound(tallest);
+    const scale = this.contentScale(tallest);
+    return scale > 0 ? height / scale : height;
+  }
+
+  /**
+   * The tallest the card gets at a detent. A `content` detent is bounded by the
+   * space its insets leave alone, since it is measured from the content region.
+   */
+  private cardHeightBound(spec: RawDetent) {
     const available = availableCardHeight(
-      tallest,
+      spec,
       this.hostHeight,
       this.statusBarOverlap
     );
     let bound: number;
-    switch (tallest.kind) {
+    switch (spec.kind) {
       case 'points':
-        bound = tallest.value;
+        bound = spec.value;
         break;
       case 'percentage':
-        bound = available * tallest.value;
+        bound = available * spec.value;
         break;
       default:
         bound = available;
     }
-    const height = clamp(bound, 0, available);
-    const scale = this.contentScale(tallest);
-    return scale > 0 ? Math.min(height / scale, this.hostHeight) : height;
+    return clamp(bound, 0, available);
+  }
+
+  /**
+   * How far the surface extends below the host, in layout units, so that once
+   * scaled it still covers the card. A card's height and width are linear in the
+   * sheet's position between detents, so their ratio peaks at a detent.
+   */
+  private surfaceOverflow() {
+    let tallest = this.hostHeight;
+    for (const spec of this.rawDetents) {
+      const scale = this.contentScale(spec);
+      if (scale > 0) {
+        tallest = Math.max(tallest, this.cardHeightBound(spec) / scale);
+      }
+    }
+    return tallest - this.hostHeight;
   }
 
   /**
@@ -619,7 +642,7 @@ export class BottomSheetWebController {
     this.needsLayout = false;
     const elements = this.elements;
     if (elements === null || this.config === null) return;
-    const { host, container, content } = elements;
+    const { host, container, content, surface } = elements;
     const hostHeight = host.clientHeight;
     if (hostHeight <= 0 || host.clientWidth <= 0) return;
 
@@ -632,6 +655,7 @@ export class BottomSheetWebController {
     );
     container.style.height = `${hostHeight}px`;
     content.style.height = `${this.contentRegionHeight()}px`;
+    surface.style.bottom = `${-this.surfaceOverflow()}px`;
     this.updateCardClip();
 
     this.resolveDetentsFromLayout();
@@ -678,11 +702,8 @@ export class BottomSheetWebController {
 
   private resolveDetentSpecs(): ResolvedDetent[] | null {
     const maxHeight = this.hostHeight;
-    const contentHeight = this.measureContentHeight();
     const measuredContentHeight =
-      maxHeight > 0 && contentHeight !== null
-        ? Math.min(contentHeight, maxHeight)
-        : null;
+      maxHeight > 0 ? this.measureContentHeight() : null;
     const resolved: ResolvedDetent[] = [];
 
     for (const [index, spec] of this.rawDetents.entries()) {
