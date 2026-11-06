@@ -225,7 +225,7 @@ const inner = StyleSheet.create({
     borderRadius: 2,
     marginTop: 8,
     marginBottom: 6,
-    backgroundColor: 'var(--example-track)',
+    backgroundColor: 'var(--example-sheet-line)',
   },
   sheetTitle: {
     fontFamily,

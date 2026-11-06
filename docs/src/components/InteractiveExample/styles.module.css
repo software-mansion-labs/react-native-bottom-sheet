@@ -2,7 +2,9 @@
 .placeholder {
   --example-border: var(--swm-navy-light-20);
   --example-background: var(--swm-off-white);
+  --example-stage: var(--swm-off-white);
   --example-surface: var(--swm-white);
+  --example-sheet-line: var(--swm-navy-light-20);
   --example-scrap: var(--swm-white);
   --example-muted-surface: var(--swm-navy-light-10);
   --example-text: var(--swm-navy-light-100);
@@ -28,7 +30,9 @@
 [data-theme='dark'] .placeholder {
   --example-border: var(--swm-light-off-navy);
   --example-background: var(--swm-navy);
-  --example-surface: var(--swm-off-navy);
+  --example-stage: #161925;
+  --example-surface: #2f3449;
+  --example-sheet-line: #4c5473;
   --example-scrap: var(--swm-navy-dark-40);
   --example-muted-surface: var(--swm-light-off-navy);
   --example-text: var(--swm-off-white);
@@ -150,6 +154,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background-color: var(--example-stage);
   user-select: none;
 }
 
