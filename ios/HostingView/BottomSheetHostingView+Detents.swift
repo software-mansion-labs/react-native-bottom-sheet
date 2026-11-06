@@ -195,17 +195,8 @@ extension BottomSheetHostingView {
       targetIndex = max(0, min(detentSpecs.count - 1, targetIndex))
       let newMaxHeight = sheetContainerHeight
       let targetTy = translationY(for: targetIndex)
-      let now = CACurrentMediaTime()
-      // Detent changes this close together are one continuous change, such as a
-      // dragged slider. The sheet follows those on a much tighter spring, because
-      // any spring trails a moving target, by about 2/ω.
-      let retarget: DetentRetarget = now - lastDetentChangeTime < 0.1 ? .rapid : .single
-      lastDetentChangeTime = now
 
-      if let spring = activeSpring {
-        let velocity = spring.velocity(at: now)
-        // Only the card's shape changed, so the snap carries on along its curve.
-        let isSameTarget = spring.target == targetTy && newMaxHeight == previousMaxHeight
+      if activeSpring != nil {
         let shouldEmitSettle = activeSpringEmitsSettle
         let visualTy = cancelActiveSpring()
         // Re-anchor the in-flight position to the new container height so the
@@ -216,11 +207,10 @@ extension BottomSheetHostingView {
         emitPosition()
         snapToIndex(
           targetIndex,
-          velocity: velocity,
+          velocity: 0,
           emitIndexChange: false,
           emitSettle: shouldEmitSettle,
-          preserveScrimPin: true,
-          retarget: isSameTarget ? .single : retarget
+          preserveScrimPin: true
         )
       } else {
         let currentVisibleHeight = previousMaxHeight - currentTranslationY
@@ -247,8 +237,7 @@ extension BottomSheetHostingView {
             velocity: 0,
             emitIndexChange: false,
             emitSettle: false,
-            preserveScrimPin: true,
-            retarget: retarget
+            preserveScrimPin: true
           )
         }
       }

@@ -1,20 +1,13 @@
 package com.swmansion.reactnativebottomsheet.host
 
-import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
-import androidx.dynamicanimation.animation.SpringForce
 import com.facebook.react.R
 import com.swmansion.reactnativebottomsheet.BottomSheetCardClipLayout
 import com.swmansion.reactnativebottomsheet.BottomSheetHostView.Companion.CONTENT_HEIGHT_MARKER_NATIVE_ID
 import com.swmansion.reactnativebottomsheet.BottomSheetSurfaceView
 import com.swmansion.reactnativebottomsheet.closerequest.CloseRequestPresentationTracker
-
-private const val RAPID_DETENT_CHANGE_MS = 100L
-
-// Settled in about 120ms, as on the other platforms: ω² for a critically damped ω of 8 / 0.12.
-private const val RAPID_SPRING_STIFFNESS = 4444f
 
 /** Resolves the detents from props and layout, and keeps the sheet anchored to the result. */
 internal class Detents(
@@ -249,26 +242,11 @@ internal class Detents(
         if (trySnapPendingInitialContentDetent()) {
           return
         }
-        val now = SystemClock.uptimeMillis()
-        // Detent changes this close together are one continuous change, such as a dragged slider.
-        // The sheet follows those on a much tighter spring, because any spring trails a moving
-        // target.
-        val stiffness =
-          if (now - state.lastDetentChangeTime < RAPID_DETENT_CHANGE_MS) RAPID_SPRING_STIFFNESS
-          else SpringForce.STIFFNESS_MEDIUM
-        state.lastDetentChangeTime = now
         if (state.activeAnimation != null && state.isTargetingClosedDetent) {
           state.suppressScrimForClosingTarget = true
           scrim.hideScrim()
         }
-        if (
-          state.activeAnimation != null &&
-            newMaxHeight == previousMaxHeight &&
-            state.activeAnimationIndex == state.targetIndex
-        ) {
-          state.scrimPinnedFull = state.scrimPinnedFull || wasScrimFull
-          snapping.retargetActiveAnimation(targetTy, stiffness)
-        } else if (state.activeAnimation != null) {
+        if (state.activeAnimation != null) {
           val currentTy = state.sheetContainer.translationY
           val shouldEmitSettle = state.activeAnimationEmitsSettle
           state.activeAnimation?.cancel()
@@ -316,7 +294,6 @@ internal class Detents(
               emitIndexChange = false,
               emitSettle = false,
               preserveScrimPin = true,
-              stiffness = stiffness,
             )
           }
         }

@@ -101,7 +101,6 @@ internal class Snapping(
     emitIndexChange: Boolean = true,
     emitSettle: Boolean = true,
     preserveScrimPin: Boolean = false,
-    stiffness: Float = SpringForce.STIFFNESS_MEDIUM,
   ) {
     if (index < 0 || index >= state.detentSpecs.size) return
     if (emitIndexChange) {
@@ -133,7 +132,7 @@ internal class Snapping(
         spring =
           SpringForce(targetTy).apply {
             dampingRatio = SpringForce.DAMPING_RATIO_NO_BOUNCY
-            this.stiffness = stiffness
+            stiffness = SpringForce.STIFFNESS_MEDIUM
           }
         setMinValue(minAnimationTy)
         setMaxValue(maxAnimationTy)
@@ -164,7 +163,6 @@ internal class Snapping(
       }
 
     state.activeAnimation = spring
-    state.activeAnimationIndex = index
     val visibleHeight = state.height.toFloat() - currentTy
     closeRequestPresentationTracker.onAnimationStarted(
       isTargetOpen = !state.isTargetingClosedDetent,
@@ -178,21 +176,6 @@ internal class Snapping(
     // known to the caller. onSettle remains the signal for movement end.
     if (emitIndexChange) host.listener?.onIndexChange(index)
     spring.start()
-  }
-
-  /**
-   * Retargets the running spring, which keeps its velocity. Restarting it would also lose a frame,
-   * as a spring only starts its clock on its first, so one restarted on every change would hardly
-   * move.
-   */
-  fun retargetActiveAnimation(targetTy: Float, stiffness: Float) {
-    val animation = state.activeAnimation ?: return
-    if (animation.spring.finalPosition == targetTy) return
-    val currentTy = state.sheetContainer.translationY
-    animation.spring.stiffness = stiffness
-    animation.setMinValue(minOf(minDetentTranslationY, currentTy, targetTy))
-    animation.setMaxValue(maxOf(maxDetentTranslationY, currentTy, targetTy))
-    animation.animateToFinalPosition(targetTy)
   }
 
   private fun bestSnapIndex(currentHeight: Float, velocity: Float, includeIndex: Int? = null): Int {

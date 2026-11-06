@@ -48,8 +48,6 @@ internal class SheetState(val hostView: ViewGroup, val sheetContainer: BottomShe
   var activeDragDetentSpecs: List<DetentSpec>? = null
   var activeAnimation: SpringAnimation? = null
   var activeAnimationEmitsSettle = false
-  var activeAnimationIndex = 0
-  var lastDetentChangeTime = Long.MIN_VALUE / 2
   var initialTouchY = 0f
   var initialTouchX = 0f
   var suppressScrimForClosingTarget = false

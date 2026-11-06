@@ -101,10 +101,7 @@ extension BottomSheetHostingView {
     velocity: CGFloat,
     emitIndexChange: Bool = true,
     emitSettle: Bool = true,
-    preserveScrimPin: Bool = false,
-    // Set when a detent changed, which keeps the sheet's exact velocity so it
-    // doesn't stall, and when those changes are rapid, picks the tighter spring.
-    retarget: DetentRetarget? = nil
+    preserveScrimPin: Bool = false
   ) {
     guard index >= 0, index < detentSpecs.count else { return }
     // A newer snap supersedes the one a pan stopped.
@@ -142,9 +139,9 @@ extension BottomSheetHostingView {
 
     let velocityRatio = distance != 0 ? velocity / distance : 0
     let clampedRatio = min(max(velocityRatio, -5), 5)
-    let v0 = retarget != nil ? velocity : clampedRatio * distance
+    let v0 = clampedRatio * distance
 
-    let duration: CFTimeInterval = retarget == .rapid ? 0.12 : 0.45
+    let duration: CFTimeInterval = 0.45
     // Pick the stiffness so the sheet looks settled (within ~0.5% of target)
     // right at `duration`. For a critically-damped spring that point is
     // ω·t ≈ 8, so ω = 8 / duration.

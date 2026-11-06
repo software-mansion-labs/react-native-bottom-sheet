@@ -182,39 +182,6 @@ export class SheetSnapping {
     }
   }
 
-  /** Whether the running snap, if any, is heading for a position. */
-  isSpringHeadingTo(ty: number) {
-    return this.spring?.target === ty;
-  }
-
-  springVelocity(time: number) {
-    return this.spring?.velocity(time) ?? 0;
-  }
-
-  /**
-   * Heads for the target detent's new position, with the sheet's exact velocity
-   * so it doesn't stall.
-   */
-  retargetSpring(
-    velocity: number,
-    emitSettle: boolean,
-    omega: number,
-    startTime: number
-  ) {
-    const host = this.host;
-    this.springEmitsSettle = emitSettle;
-    this.springTargetIndex = host.targetIndex;
-    this.spring = new CriticalSpring(
-      host.translateY,
-      this.translationY(host.targetIndex),
-      velocity,
-      startTime,
-      omega
-    );
-    host.requestFrame();
-    host.updateCloseRequestRegistration();
-  }
-
   cancelSpring(time = performance.now()) {
     const visualTy = this.currentTranslateY(time);
     this.spring = null;

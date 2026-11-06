@@ -87,7 +87,6 @@ public final class BottomSheetHostingView: UIView {
   var activeSpring: CriticalSpring?
   var activeSpringTargetIndex: Int = 0
   var activeSpringEmitsSettle = false
-  var lastDetentChangeTime: CFTimeInterval = -.infinity
   var scrimPinnedFull = false
   private var displayLink: CADisplayLink?
   var pendingIndex: Int?

@@ -17,12 +17,6 @@ struct DetentSpec: Equatable {
   let insets: DetentInsets
 }
 
-/// A snap that follows a detent's change: a one-off, or one of several in a row.
-enum DetentRetarget {
-  case single
-  case rapid
-}
-
 enum DetentKind {
   case points
   case percentage

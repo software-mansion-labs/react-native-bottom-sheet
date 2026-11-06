@@ -2,11 +2,6 @@
 
 import { SheetCard } from './card';
 import {
-  RAPID_DETENT_CHANGE_MS,
-  RAPID_SPRING_OMEGA,
-  SPRING_OMEGA,
-} from './criticalSpring';
-import {
   raiseCloseRequestRegistration,
   setCloseRequestRegistration,
 } from './closeRequest';
@@ -42,7 +37,6 @@ import type {
 // settle never re-renders React.
 
 export class BottomSheetWebController {
-  private lastDetentChangeTime = -Infinity;
   elements: BottomSheetWebElements | null = null;
   private callbacks: BottomSheetWebCallbacks | null = null;
   // Events raised while props are applied, which happens in a React layout
@@ -355,30 +349,16 @@ export class BottomSheetWebController {
 
     this.targetIndex = clamp(this.targetIndex, 0, this.detents.length - 1);
     const targetTy = this.snapping.translationY(this.targetIndex);
-    const now = performance.now();
-    const omega =
-      now - this.lastDetentChangeTime < RAPID_DETENT_CHANGE_MS
-        ? RAPID_SPRING_OMEGA
-        : SPRING_OMEGA;
-    this.lastDetentChangeTime = now;
 
     if (this.snapping.isSpringActive) {
-      // Only the card's shape changed, so the snap can carry on undisturbed.
-      if (
-        this.snapping.isSpringHeadingTo(targetTy) &&
-        hostHeight === previousHostHeight
-      ) {
-        return;
-      }
-      const velocity = this.snapping.springVelocity(now);
       const emitsSettle = this.snapping.springEmitsSettle;
-      const visualTy = this.snapping.cancelSpring(now);
+      const visualTy = this.snapping.cancelSpring();
       // Re-anchor the in-flight position so the sheet keeps the same on-screen
       // height across the resize.
       const visibleHeight = previousHostHeight - visualTy;
       this.setTranslateY(clamp(hostHeight - visibleHeight, 0, hostHeight));
       this.emitPosition();
-      this.snapping.retargetSpring(velocity, emitsSettle, omega, now);
+      this.snapping.snapToIndex(this.targetIndex, 0, false, emitsSettle, true);
       return;
     }
 
@@ -399,7 +379,7 @@ export class BottomSheetWebController {
         clamp(hostHeight - currentVisibleHeight, 0, hostHeight)
       );
       this.emitPosition();
-      this.snapping.retargetSpring(0, false, omega, now);
+      this.snapping.snapToIndex(this.targetIndex, 0, false, false, true);
     }
   }
 
