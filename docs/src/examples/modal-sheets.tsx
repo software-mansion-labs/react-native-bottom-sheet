@@ -16,7 +16,7 @@ import {
   StageSheet,
   Toggle,
   useEventLog,
-} from '../../components/InteractiveExample';
+} from '../components/InteractiveExample';
 import { PeekingCat } from './PeekingCat';
 
 const SCRIM_COLORS = [

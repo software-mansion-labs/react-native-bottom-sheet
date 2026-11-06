@@ -18,20 +18,6 @@ export const prefersReducedMotion = () =>
 /** Whether this slide is the one showing, so hidden ones can stop their work. */
 export const SlideActiveContext = createContext(true);
 
-/** Becomes true once the browser has time, so mounting never lands mid-animation. */
-export const useWhenIdle = () => {
-  const [idle, setIdle] = useState(false);
-  useEffect(() => {
-    if (typeof requestIdleCallback === 'undefined') {
-      const timer = setTimeout(() => setIdle(true), 300);
-      return () => clearTimeout(timer);
-    }
-    const handle = requestIdleCallback(() => setIdle(true), { timeout: 1500 });
-    return () => cancelIdleCallback(handle);
-  }, []);
-  return idle;
-};
-
 /** Fires once, when the element comes near the viewport. */
 export const useInView = <T extends HTMLElement>(margin = '200px') => {
   const ref = useRef<T>(null);

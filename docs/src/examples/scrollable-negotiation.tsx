@@ -1,4 +1,10 @@
-import { useRef, useState, type CSSProperties } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -12,21 +18,15 @@ import {
   Control,
   ControlGroup,
   Example,
+  hasTouchGestures,
   Hint,
   interactiveExample,
   Meter,
   Segmented,
   SheetBody,
   StageInlineSheet,
+  Toggle,
 } from '../components/InteractiveExample';
-import {
-  COLLAPSE_HINTS,
-  EXPAND_HINTS,
-  FingerIndicator,
-  MobilePreviewToggle,
-  useListMouseDrag,
-  useMobilePreview,
-} from '../components/InteractiveExample/negotiationPreview';
 
 const DETENTS = [200, 320];
 const ROWS = Array.from({ length: 30 }, (_, i) => `Row ${i + 1}`);
@@ -35,6 +35,68 @@ const MODES = (['none', 'initial', 'handoff'] as const).map((value) => ({
   value,
   label: value,
 }));
+
+const EXPAND_HINTS: Record<ScrollableNegotiationMode, string> = {
+  none: 'Dragging up in the list never moves the sheet.',
+  initial:
+    'Dragging up moves the sheet, which stops at the top until you lift. Drag up again to scroll the list.',
+  handoff:
+    'Dragging up moves the sheet to the top, then scrolls the list without lifting.',
+};
+
+const COLLAPSE_HINTS: Record<ScrollableNegotiationMode, string> = {
+  none: 'Dragging down in the list never moves the sheet.',
+  initial:
+    'Dragging down from a scrolled list only scrolls it. From its start, it moves the sheet.',
+  handoff:
+    'Dragging down scrolls the list to its start, then moves the sheet without lifting.',
+};
+
+/** How far a mouse moves before a press counts as a drag. */
+const DRAG_SLOP = 4;
+
+/** Shows where a simulated finger is, for as long as it's pressed on the stage. */
+const FingerIndicator = () => {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const finger = ref.current!;
+    const stage = finger.parentElement!;
+    let isPressed = false;
+
+    const place = ({ clientX, clientY }: PointerEvent) => {
+      const { left, top } = stage.getBoundingClientRect();
+      finger.style.transform = `translate(${clientX - left}px, ${clientY - top}px)`;
+    };
+    const onDown = (event: PointerEvent) => {
+      if (event.button !== 0 || !stage.contains(event.target as Node)) return;
+      isPressed = true;
+      place(event);
+      finger.style.opacity = '1';
+    };
+    const onMove = (event: PointerEvent) => {
+      if (isPressed) place(event);
+    };
+    const onUp = () => {
+      isPressed = false;
+      finger.style.opacity = '0';
+    };
+
+    // Captured, as the sheet's own gesture handling sees these events first.
+    window.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('pointermove', onMove, true);
+    window.addEventListener('pointerup', onUp, true);
+    window.addEventListener('pointercancel', onUp, true);
+    return () => {
+      window.removeEventListener('pointerdown', onDown, true);
+      window.removeEventListener('pointermove', onMove, true);
+      window.removeEventListener('pointerup', onUp, true);
+      window.removeEventListener('pointercancel', onUp, true);
+    };
+  }, []);
+
+  return <div ref={ref} style={FINGER_STYLE} aria-hidden />;
+};
 
 export const NegotiationModesExample = interactiveExample(
   () => {
@@ -46,15 +108,59 @@ export const NegotiationModesExample = interactiveExample(
     const sheetFillRef = useRef<HTMLDivElement>(null);
     const listValueRef = useRef<HTMLSpanElement>(null);
     const listFillRef = useRef<HTMLDivElement>(null);
-    const { isMobilePreview, setIsMobilePreview, isTouchDevice } =
-      useMobilePreview();
-    const listParentRef = useListMouseDrag({
-      isEnabled: isMobilePreview,
-      canExpandSheet: index === 0,
-      canCollapseSheet: index === 1,
-      expand,
-      collapse,
-    });
+    const [isMobilePreview, setIsMobilePreview] = useState(true);
+    // A touch device already has the real gestures, so it has nothing to preview.
+    const [isTouchDevice] = useState(hasTouchGestures);
+
+    // A mouse can't drag a list the way a finger does, so this does it for the
+    // drags the sheet leaves to the list. The sheet handles the others itself.
+    const dragListWithMouse = (event: ReactPointerEvent<HTMLDivElement>) => {
+      const list = event.currentTarget.firstElementChild as HTMLElement;
+      // A press on the list itself, rather than a row, is on its scrollbar.
+      if (
+        !isMobilePreview ||
+        event.pointerType !== 'mouse' ||
+        event.button !== 0 ||
+        event.target === list
+      ) {
+        return;
+      }
+
+      const startY = event.clientY;
+      let lastY: number | null = null;
+
+      const listOwnsDrag = (dy: number) => {
+        const isExpanding = dy < 0;
+        const canMoveSheet = isExpanding ? index === 0 : index === 1;
+        const mode = isExpanding ? expand : collapse;
+        if (!canMoveSheet || mode === 'none') return true;
+        return mode === 'initial' && !isExpanding && list.scrollTop > 0;
+      };
+
+      const onMove = ({ clientY }: PointerEvent) => {
+        if (lastY === null) {
+          const dy = clientY - startY;
+          if (Math.abs(dy) < DRAG_SLOP) return;
+          if (!listOwnsDrag(dy)) {
+            stop();
+            return;
+          }
+          lastY = clientY;
+          return;
+        }
+        list.scrollTop -= clientY - lastY;
+        lastY = clientY;
+      };
+      const stop = () => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', stop);
+        window.removeEventListener('pointercancel', stop);
+      };
+
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', stop);
+      window.addEventListener('pointercancel', stop);
+    };
 
     return (
       <Example
@@ -87,7 +193,7 @@ export const NegotiationModesExample = interactiveExample(
               }}
             >
               <SheetBody title="Drag inside the list" />
-              <div ref={listParentRef}>
+              <div onPointerDown={dragListWithMouse}>
                 <ScrollView
                   style={inner.list}
                   scrollEventThrottle={16}
@@ -129,10 +235,18 @@ export const NegotiationModesExample = interactiveExample(
             <Hint>{EXPAND_HINTS[expand]}</Hint>
             <Hint>{COLLAPSE_HINTS[collapse]}</Hint>
             {!isTouchDevice && (
-              <MobilePreviewToggle
-                value={isMobilePreview}
-                onChange={setIsMobilePreview}
-              />
+              <>
+                <Toggle
+                  label="Mobile preview"
+                  value={isMobilePreview}
+                  onChange={setIsMobilePreview}
+                />
+                <Hint>
+                  {isMobilePreview
+                    ? 'This simulates a phone, so a mouse drag acts like a finger, shown as a circle.'
+                    : "Most of these gestures are for touch, so a mouse on the web mostly won't do them. Dragging only scrolls the list during a handoff. Otherwise, use the wheel."}
+                </Hint>
+              </>
             )}
           </ControlGroup>
         }
@@ -154,6 +268,21 @@ export const NegotiationModesExample = interactiveExample(
   },
   { height: 440 }
 );
+
+const FINGER_STYLE: CSSProperties = {
+  position: 'absolute',
+  zIndex: 1,
+  top: -18,
+  left: -18,
+  width: 36,
+  height: 36,
+  borderRadius: '50%',
+  border: '1px solid rgba(255, 255, 255, 0.7)',
+  backgroundColor: 'rgba(120, 130, 160, 0.45)',
+  opacity: 0,
+  pointerEvents: 'none',
+  transition: 'opacity 120ms ease-out',
+};
 
 const METERS_STYLE: CSSProperties = {
   position: 'absolute',
