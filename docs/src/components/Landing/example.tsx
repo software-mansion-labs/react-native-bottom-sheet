@@ -227,6 +227,17 @@ export const SHEET_SURFACE = (
   />
 );
 
+/** For an example that shows its own pointer, so the cursor stays as it is. */
+export const PLAIN_SHEET_SURFACE = (
+  <div
+    style={{
+      position: 'absolute',
+      inset: 0,
+      background: 'var(--swm-white)',
+    }}
+  />
+);
+
 export const ATTACHED = {
   borderTopLeftRadius: 28,
   borderTopRightRadius: 28,
@@ -254,14 +265,16 @@ export const SheetButton = ({
 /** All of a sheet is a drag target, so all of it says so. */
 export const SheetBody = ({
   fill,
+  isGrabbable = true,
   children,
 }: {
   fill?: boolean;
+  isGrabbable?: boolean;
   children: ReactNode;
 }) => (
   <div
     className={clsx(
-      landing.grab,
+      isGrabbable && landing.grab,
       styles.sheetBody,
       fill && styles.sheetBodyFill
     )}

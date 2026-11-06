@@ -293,3 +293,73 @@
     font-size: 11px;
   }
 }
+
+/* Wraps at the width of its options, so the two hints stay in their columns. */
+.mode {
+  width: min-content;
+}
+
+/* What each mode does, in room for its longest, so the code below stays put. */
+.modeHint {
+  min-height: calc(3 * 1.35em);
+  margin-top: 6px;
+  color: var(--navy-60);
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+
+/* What a mouse does here, marked as a note. */
+.preview {
+  display: flex;
+  gap: 7px;
+  margin-top: 12px;
+  color: var(--navy-60);
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+
+.preview::before {
+  content: '!';
+  flex: none;
+  color: var(--navy);
+  font-weight: 700;
+}
+
+.listParent {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* A small screen fits one screen, so it keeps only the options. */
+@media (max-width: 860px) {
+  .modeHint {
+    display: none;
+  }
+
+  .preview {
+    margin-top: 8px;
+    font-size: 11.5px;
+  }
+}
+
+/* Where the options can't sit side by side, their hints would take too much. */
+@media (min-width: 861px) and (max-width: 1199px) {
+  .modeHint {
+    display: none;
+  }
+}
+
+/* On a short window, the options come first. */
+@media (max-height: 820px) and (min-width: 861px) {
+  .intro {
+    display: none;
+  }
+}
+
+@media (max-height: 745px) and (min-width: 861px) {
+  .modeHint {
+    display: none;
+  }
+}

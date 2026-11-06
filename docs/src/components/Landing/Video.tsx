@@ -21,15 +21,23 @@ import {
   CodeBlock,
   DragHint,
   Grabber,
+  PLAIN_SHEET_SURFACE,
   restStops,
   Row,
   sheet,
-  SHEET_SURFACE,
   SheetBody,
   Stage,
   TOP_INSET,
   useRestUnderContent,
 } from './example';
+import { hasTouchGestures } from '../InteractiveExample/controls';
+import {
+  COLLAPSE_HINTS,
+  EXPAND_HINTS,
+  FingerIndicator,
+  MOBILE_PREVIEW_HINT,
+  useListMouseDrag,
+} from '../InteractiveExample/negotiationPreview';
 import { clamp, Icon, Reveal, SlideActiveContext } from './pieces';
 import landing from './landing.module.css';
 import shared from './example.module.css';
@@ -253,7 +261,7 @@ export const NegotiationSlide = () => {
   const [expand, setExpand] = useState<ScrollableNegotiationMode>('handoff');
   const [collapse, setCollapse] =
     useState<ScrollableNegotiationMode>('initial');
-  const [index, setIndex] = useState(1);
+  const [index, setIndex] = useState(0);
   const [dragged, setDragged] = useState(false);
   const stage = useRef<HTMLDivElement>(null);
   const rest = useRestUnderContent(stage, 400);
@@ -266,13 +274,21 @@ export const NegotiationSlide = () => {
     ownerRef.current.textContent = OWNER_LABELS[owner];
   }, []);
   useTrace(canvas, sample, onOwner, useContext(SlideActiveContext));
+  const [isTouchDevice] = useState(hasTouchGestures);
+  const listParentRef = useListMouseDrag({
+    isEnabled: !isTouchDevice,
+    canExpandSheet: index === 0,
+    canCollapseSheet: index === 1,
+    expand,
+    collapse,
+  });
 
   return (
     <section className={shared.chapter} data-flip data-compact>
       <Reveal className={shared.chapterCopy} data-copy>
         <span className={shared.kicker}>02 — scrollable negotiation</span>
         <h2 className={shared.title}>One gesture, two owners, no wrappers.</h2>
-        <p className={shared.body}>
+        <p className={clsx(shared.body, styles.intro)}>
           Put an ordinary <code>ScrollView</code> or <code>FlatList</code> in
           the sheet. Drag up on the list and watch the gesture pass from one
           line to the other, without lifting your finger.
@@ -300,11 +316,11 @@ export const NegotiationSlide = () => {
         <div className={shared.modes}>
           {(
             [
-              ['expand', expand, setExpand],
-              ['collapse', collapse, setCollapse],
+              ['expand', expand, setExpand, EXPAND_HINTS],
+              ['collapse', collapse, setCollapse, COLLAPSE_HINTS],
             ] as const
-          ).map(([name, value, setValue]) => (
-            <div key={name}>
+          ).map(([name, value, setValue, hints]) => (
+            <div key={name} className={styles.mode}>
               <span className={shared.chipsLabel}>{name}</span>
               <div
                 className={shared.chips}
@@ -322,21 +338,23 @@ export const NegotiationSlide = () => {
                   </Chip>
                 ))}
               </div>
+              <p className={styles.modeHint}>{hints[value]}</p>
             </div>
           ))}
         </div>
+        {!isTouchDevice && (
+          <p className={styles.preview}>{MOBILE_PREVIEW_HINT}</p>
+        )}
         <CodeBlock docs="scrollable-negotiation">
           <Code>{`<BottomSheet
-  scrollableNegotiation={{
-    expand: '${expand}',
-    collapse: '${collapse}',
-  }}
+  scrollableNegotiation={{ expand: '${expand}', collapse: '${collapse}' }}
 />`}</Code>
         </CodeBlock>
       </Reveal>
       <Stage backdrop={<VideoBackdrop />} stageRef={stage}>
         <BottomSheet
-          detents={restStops(rest)}
+          // Resting under the video's content, or all the way open.
+          detents={restStops(rest).slice(1)}
           topInset={TOP_INSET}
           animateIn={false}
           index={index}
@@ -344,17 +362,17 @@ export const NegotiationSlide = () => {
             setIndex(next);
             setDragged(true);
           }}
-          surface={SHEET_SURFACE}
+          surface={PLAIN_SHEET_SURFACE}
           surfaceStyle={ATTACHED}
           scrollableNegotiation={{ expand, collapse }}
           onPositionChange={(event) => {
             sample.current = {
               ...sample.current,
-              sheet: clamp(event.nativeEvent.index / 2),
+              sheet: clamp(event.nativeEvent.index),
             };
           }}
         >
-          <SheetBody fill>
+          <SheetBody fill isGrabbable={false}>
             <DragHint seen={dragged} />
             <Grabber />
             <View style={sheet.head}>
@@ -363,40 +381,43 @@ export const NegotiationSlide = () => {
                 1,204 comments. Drag right on the list.
               </Text>
             </View>
-            <ScrollView
-              style={sheet.fill}
-              contentContainerStyle={sheet.listPad}
-              scrollEventThrottle={16}
-              onScroll={(event) => {
-                const { contentOffset, contentSize, layoutMeasurement } =
-                  event.nativeEvent;
-                const range = Math.max(
-                  1,
-                  contentSize.height - layoutMeasurement.height
-                );
-                sample.current = {
-                  ...sample.current,
-                  list: clamp(contentOffset.y / range),
-                };
-              }}
-            >
-              {COMMENTS.map(({ key, item, likes }) => (
-                <Row
-                  key={key}
-                  item={item}
-                  round
-                  letter
-                  trailing={
-                    <div className={styles.likes}>
-                      <Icon d={THUMB} size={14} />
-                      {likes}
-                    </div>
-                  }
-                />
-              ))}
-            </ScrollView>
+            <div ref={listParentRef} className={styles.listParent}>
+              <ScrollView
+                style={sheet.fill}
+                contentContainerStyle={sheet.listPad}
+                scrollEventThrottle={16}
+                onScroll={(event) => {
+                  const { contentOffset, contentSize, layoutMeasurement } =
+                    event.nativeEvent;
+                  const range = Math.max(
+                    1,
+                    contentSize.height - layoutMeasurement.height
+                  );
+                  sample.current = {
+                    ...sample.current,
+                    list: clamp(contentOffset.y / range),
+                  };
+                }}
+              >
+                {COMMENTS.map(({ key, item, likes }) => (
+                  <Row
+                    key={key}
+                    item={item}
+                    round
+                    letter
+                    trailing={
+                      <div className={styles.likes}>
+                        <Icon d={THUMB} size={14} />
+                        {likes}
+                      </div>
+                    }
+                  />
+                ))}
+              </ScrollView>
+            </div>
           </SheetBody>
         </BottomSheet>
+        {!isTouchDevice && <FingerIndicator />}
       </Stage>
     </section>
   );
