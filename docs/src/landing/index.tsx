@@ -3,21 +3,47 @@ import { PageMetadata } from '@docusaurus/theme-common';
 import LayoutProvider from '@theme/Layout/Provider';
 
 import { Ending } from './slides/Ending';
+import { useFrameHeight } from './shared/stage';
 import { Hero, HeroPoster } from './slides/Hero';
+import { DetentsSlide } from './slides/Music';
+import { ThreadsSlide } from './slides/Portfolio';
 import { SlideStack, type Slide } from './SlideStack';
+import { NegotiationSlide } from './slides/Video';
 import landing from './landing.module.css';
 
 const DESCRIPTION =
   'Gestures, snapping, and scroll negotiation run in native code. Everything you see is plain React Native, on iOS, Android, and the web.';
 
-const SLIDES: Slide[] = [
-  {
-    id: 'ending',
-    label: 'Software Mansion',
-    tone: 'ending',
-    content: <Ending />,
-  },
-];
+const Page = () => {
+  useFrameHeight();
+  const slides: Slide[] = [
+    {
+      id: 'detents',
+      label: '01 Detents',
+      tone: 'paper',
+      content: <DetentsSlide />,
+    },
+    {
+      id: 'negotiation',
+      label: '02 Scroll negotiation',
+      tone: 'sky',
+      content: <NegotiationSlide />,
+    },
+    {
+      id: 'threads',
+      label: '03 Native host',
+      tone: 'paper',
+      content: <ThreadsSlide />,
+    },
+    {
+      id: 'ending',
+      label: 'Software Mansion',
+      tone: 'ending',
+      content: <Ending />,
+    },
+  ];
+  return <SlideStack hero={<Hero />} slides={slides} />;
+};
 
 export const LandingPage = () => (
   <LayoutProvider>
@@ -26,9 +52,7 @@ export const LandingPage = () => (
       description={DESCRIPTION}
     />
     <main className={landing.landing}>
-      <BrowserOnly fallback={<HeroPoster />}>
-        {() => <SlideStack hero={<Hero />} slides={SLIDES} />}
-      </BrowserOnly>
+      <BrowserOnly fallback={<HeroPoster />}>{() => <Page />}</BrowserOnly>
     </main>
   </LayoutProvider>
 );

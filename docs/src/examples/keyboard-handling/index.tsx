@@ -16,8 +16,8 @@ import {
   StageContent,
   StageSheet,
   Toggle,
-} from '../components/InteractiveExample';
-import styles from './keyboard-handling.module.css';
+} from '../../components/InteractiveExample';
+import styles from './styles.module.css';
 
 // Its keys have the proportions of an iPhone's, at the width of the sheet.
 const KEYBOARD_HEIGHT = 204;

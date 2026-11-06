@@ -14,8 +14,8 @@ import {
   StageInlineSheet,
   StageSheet,
   Toggle,
-} from '../components/InteractiveExample';
-import styles from './surface.module.css';
+} from '../../components/InteractiveExample';
+import styles from './styles.module.css';
 
 // An evenly scattered sequence (R2), so the stars don't form rows and stay the
 // same on every render.
