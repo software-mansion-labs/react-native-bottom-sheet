@@ -17,10 +17,30 @@ const DESCRIPTION =
 const Page = () => {
   useFrameHeight();
   const slides: Slide[] = [
-    { id: 'detents', tone: 'paper', content: <DetentsSlide /> },
-    { id: 'negotiation', tone: 'sky', content: <NegotiationSlide /> },
-    { id: 'threads', tone: 'paper', content: <ThreadsSlide /> },
-    { id: 'ending', tone: 'ending', content: <Ending /> },
+    {
+      id: 'detents',
+      label: '01 Detents',
+      tone: 'paper',
+      content: <DetentsSlide />,
+    },
+    {
+      id: 'negotiation',
+      label: '02 Scroll negotiation',
+      tone: 'sky',
+      content: <NegotiationSlide />,
+    },
+    {
+      id: 'threads',
+      label: '03 Native host',
+      tone: 'paper',
+      content: <ThreadsSlide />,
+    },
+    {
+      id: 'ending',
+      label: 'Software Mansion',
+      tone: 'ending',
+      content: <Ending />,
+    },
   ];
   return <SlideStack hero={<Hero />} slides={slides} />;
 };

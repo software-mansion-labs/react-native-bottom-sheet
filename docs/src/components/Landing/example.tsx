@@ -465,6 +465,13 @@ export const Stage = ({
   stageRef: RefObject<HTMLDivElement | null>;
 }) => {
   const [ref, inView] = useInView<HTMLDivElement>('-10% 0px');
+  // A finger in the frame moves the example, and never the slide around it.
+  useEffect(() => {
+    const frame = ref.current!;
+    const onTouchStart = (event: TouchEvent) => event.stopPropagation();
+    frame.addEventListener('touchstart', onTouchStart, { passive: true });
+    return () => frame.removeEventListener('touchstart', onTouchStart);
+  }, [ref]);
   return (
     <div className={styles.chapterStage} ref={ref} data-frame>
       <div className={clsx(landing.lightTokens, styles.stage)} ref={stageRef}>

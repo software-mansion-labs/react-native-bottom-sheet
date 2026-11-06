@@ -10,12 +10,14 @@ import { useColorMode } from '@docusaurus/theme-common';
 import { BottomSheet } from '@swmansion/react-native-bottom-sheet';
 import clsx from 'clsx';
 
-import { clamp } from './pieces';
+import { clamp, Icon } from './pieces';
 import landing from './landing.module.css';
 import styles from './SlideStack.module.css';
 
 export type Slide = {
   id: string;
+  /** Names the slide on the bar that shows before it opens, on small screens. */
+  label: string;
   tone: 'paper' | 'sky' | 'ending';
   content: ReactNode;
 };
@@ -201,6 +203,7 @@ const SlideSheet = ({
   isCurrent,
   isNext,
   hasNext,
+  followsHero,
   onOpenChange,
   onPosition,
   onOpen,
@@ -210,12 +213,14 @@ const SlideSheet = ({
   isCurrent: boolean;
   isNext: boolean;
   hasNext: boolean;
+  followsHero: boolean;
   onOpenChange: (open: boolean) => void;
   onPosition: (position: number) => void;
   onOpen: () => void;
 }) => {
   const { colorMode } = useColorMode();
   const body = useMouseDragsHandleOnly();
+  const nextBar = useRef<HTMLSpanElement>(null);
   return (
     <div className={styles.host}>
       <BottomSheet
@@ -223,7 +228,14 @@ const SlideSheet = ({
         index={open ? 1 : 0}
         animateIn={false}
         onIndexChange={(index) => onOpenChange(index === 1)}
-        onPositionChange={(event) => onPosition(event.nativeEvent.position)}
+        onPositionChange={(event) => {
+          const { position } = event.nativeEvent;
+          onPosition(position);
+          // Only reads as a label at rest: it clears as the sheet opens.
+          if (nextBar.current) {
+            nextBar.current.style.opacity = `${1 - clamp((position - PEEK) / (PEEK * 2))}`;
+          }
+        }}
         surface={<div className={styles.surface} data-tone={slide.tone} />}
         surfaceStyle={{
           borderTopLeftRadius: 32,
@@ -235,11 +247,22 @@ const SlideSheet = ({
           <button
             className={clsx(landing.grab, styles.handle)}
             type="button"
-            aria-label="Open the next section"
+            aria-label={`Open ${slide.label}`}
             tabIndex={isNext ? 0 : -1}
             onClick={isNext ? onOpen : undefined}
           >
             <span className={styles.grabber} />
+            <span
+              ref={nextBar}
+              className={styles.nextBar}
+              data-follows-hero={followsHero}
+            >
+              <span>
+                <small>Next</small>
+                {slide.label}
+              </span>
+              <Icon d="M6 15l6-6 6 6" size={20} />
+            </span>
           </button>
           <div
             ref={body}
@@ -372,6 +395,7 @@ export const SlideStack = ({
                 isCurrent={active === layer}
                 isNext={active === layer - 1}
                 hasNext={layer < count}
+                followsHero={layer === 1}
                 onOpenChange={(open) => setActive(open ? layer : layer - 1)}
                 onPosition={(position) => applyPosition(layer, position)}
                 onOpen={() => setActive(layer)}

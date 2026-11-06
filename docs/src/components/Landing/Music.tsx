@@ -251,7 +251,7 @@ export const DetentsSlide = () => {
     : null;
 
   return (
-    <section className={shared.chapter}>
+    <section className={shared.chapter} data-compact>
       <Reveal className={shared.chapterCopy} data-copy>
         <span className={shared.kicker}>01 — detents</span>
         <h2 className={shared.title}>Stops where you mean it to.</h2>
