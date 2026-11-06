@@ -1,0 +1,22 @@
+.cat {
+  position: absolute;
+  right: 16px;
+  bottom: 0;
+  /* Lets the paw swing past the drawing; the sheet still clips it. */
+  overflow: visible;
+  width: 128px;
+  pointer-events: none;
+}
+
+.eyes,
+.paw {
+  transform-box: fill-box;
+}
+
+.eyes {
+  transform-origin: center;
+}
+
+.paw {
+  transform-origin: bottom center;
+}

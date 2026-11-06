@@ -2,6 +2,13 @@
 title: Detents and index
 ---
 
+import {
+  DetentTypesExample,
+  FloatingCardExample,
+  IndexEventsExample,
+  ProgrammaticDetentExample,
+} from '@site/src/examples/detents-and-index';
+
 # Detents and index
 
 Detents are the heights to which the sheet snaps. Each detent is a number (a
@@ -12,6 +19,8 @@ detents are `[0, 'content']`.
 
 For example, `[0, 'content']` creates a content-sized sheet, `[0, 300]` keeps
 the open height fixed, and `['0%', '30%', '80%']` creates responsive heights.
+
+<DetentTypesExample />
 
 A detent can also be an object, which sets its options in one place:
 
@@ -93,6 +102,8 @@ ignores its insets, so the card leaves through the gap with its shape intact.
 </ModalBottomSheet>
 ```
 
+<FloatingCardExample />
+
 A detent’s value is the card’s height, and percentages resolve against the
 available space: the host’s height minus the [top inset](#top-inset) and that
 detent's bottom inset. So `'100%'` fills the space between the gaps and never
@@ -159,6 +170,8 @@ const [index, setIndex] = useState(0);
 </BottomSheet>
 ```
 
+<IndexEventsExample />
+
 Detents can also change over time. When you update `detents`, the sheet keeps
 the current index and animates to the updated detent height when needed. If an
 update shortens the array, set a matching in-range `index` in the same render;
@@ -184,3 +197,5 @@ programmatic-only, tapping the scrim does not dismiss the sheet.
   {/* ... */}
 </BottomSheet>
 ```
+
+<ProgrammaticDetentExample />
