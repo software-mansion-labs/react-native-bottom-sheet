@@ -1,0 +1,167 @@
+.stack {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* Fully behind the slide above: nothing to draw. */
+.layer[data-covered='true'] {
+  opacity: 0;
+}
+
+/* What a sheet does to the screen beneath it, written as the sheet rises. */
+.receder {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  transform-origin: 50% 0;
+  transition: border-radius 200ms ease;
+  will-change: transform;
+}
+
+.host {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  /* The library's host is full-size: only the sheet itself should catch the pointer. */
+  pointer-events: none;
+}
+
+.dim {
+  position: absolute;
+  inset: 0;
+  background: var(--dim);
+  opacity: 0;
+  pointer-events: none;
+  will-change: opacity;
+}
+
+.surface {
+  position: absolute;
+  inset: 0;
+  border-radius: 32px 32px 0 0;
+  background: var(--off-white);
+  box-shadow:
+    inset 0 1px 0 var(--navy-20),
+    var(--sheet-shadow);
+}
+
+.surface[data-tone='sky'] {
+  background: var(--sheet-sky);
+}
+
+.surface[data-tone='ending'] {
+  background: var(--sheet-ending);
+}
+
+.slide {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 32px 32px 0 0;
+}
+
+.body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* The next sheet covers this much, so nothing here sits under it. */
+.body[data-has-next='true'] {
+  padding-bottom: var(--peek);
+}
+
+.body[data-tone='sky'] {
+  --offset-shadow: var(--sky-offset);
+}
+
+/* The strip that shows when this sheet is next, and what drags it between its stops. */
+.handle {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--peek);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.grabber {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  width: 44px;
+  height: 5px;
+  margin-left: -22px;
+  border-radius: 3px;
+  background: var(--navy-20);
+  transition: background-color 160ms ease;
+}
+
+.nextBar {
+  display: none;
+}
+
+/*
+ * On small screens the next slide reads as a labeled bar, not as another sheet,
+ * so it can't be mistaken for the sheet inside an example.
+ */
+@media (max-width: 860px) {
+  .nextBar {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    background: var(--navy);
+    color: var(--white);
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1.2;
+    text-align: left;
+    pointer-events: none;
+  }
+
+  /* The hero's own sheet is this color, so the bar after it takes the other one. */
+  .nextBar[data-follows-hero='true'] {
+    background: var(--white);
+    color: var(--navy);
+  }
+
+  .nextBar small {
+    display: block;
+    font-size: 11.5px;
+    font-weight: 400;
+    opacity: 0.75;
+  }
+}
+
+@media (hover: hover) {
+  .handle:hover .grabber {
+    background: var(--navy-60);
+  }
+}
+
+/* The slides open up to the docs navbar, which stays over the page. */
+.slides {
+  position: absolute;
+  inset: var(--ifm-navbar-height) 0 0;
+  pointer-events: none;
+}
