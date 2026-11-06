@@ -27,7 +27,10 @@
 .iconSwap svg {
   position: absolute;
   inset: 0;
-  transition: opacity 180ms ease, filter 180ms ease, transform 180ms var(--ease-out);
+  transition:
+    opacity 180ms ease,
+    filter 180ms ease,
+    transform 180ms var(--ease-out);
 }
 
 .iconSwap svg:last-child {
@@ -159,14 +162,18 @@
   color: var(--navy);
   background-size: 44px 44px;
   background-position: center top;
-  background-image: linear-gradient(var(--grid-page) 1px, transparent 1px), linear-gradient(90deg, var(--grid-page) 1px, transparent 1px);
+  background-image:
+    linear-gradient(var(--grid-page) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-page) 1px, transparent 1px);
 }
 
 .heroSurface {
   position: absolute;
   inset: 0;
   background-color: var(--navy);
-  background-image: linear-gradient(var(--grid-sheet) 1px, transparent 1px), linear-gradient(90deg, var(--grid-sheet) 1px, transparent 1px);
+  background-image:
+    linear-gradient(var(--grid-sheet) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-sheet) 1px, transparent 1px);
   background-size: 44px 44px;
 }
 
@@ -350,7 +357,9 @@
   place-items: center;
   font-style: normal;
   background: var(--off-white);
-  transition: background-color 200ms ease, color 200ms ease;
+  transition:
+    background-color 200ms ease,
+    color 200ms ease;
 }
 
 .worldNavy .callout i {
@@ -400,7 +409,9 @@
   gap: 7px;
   font-size: 14px;
   font-weight: 500;
-  transition: opacity 200ms ease, transform 200ms var(--ease-out);
+  transition:
+    opacity 200ms ease,
+    transform 200ms var(--ease-out);
   animation: nudge 1500ms var(--ease-in-out) 1400ms 3;
 }
 

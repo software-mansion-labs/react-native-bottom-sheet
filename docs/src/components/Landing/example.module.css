@@ -5,7 +5,8 @@
   --sheet-sky: var(--swm-blue-light-20);
   --sheet-ending: var(--swm-white);
   --sky-offset: var(--swm-blue-light-40);
-  --sheet-shadow: 0 -18px 56px -6px rgb(0 26 114 / 0.42), 0 -3px 12px rgb(0 26 114 / 0.26);
+  --sheet-shadow:
+    0 -18px 56px -6px rgb(0 26 114 / 0.42), 0 -3px 12px rgb(0 26 114 / 0.26);
   --dim: var(--swm-navy-light-100);
   --accent-on-sheet: var(--swm-blue-dark-80);
   --navy: var(--swm-navy-light-100);
@@ -21,8 +22,30 @@
   --off-white: var(--swm-off-white);
   --white: var(--swm-white);
   --sans: 'Aeonik', system-ui, -apple-system, sans-serif;
-  --mono: SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-  --ease-sheet: linear( 0, 0.0739, 0.2235, 0.3849, 0.5305, 0.6508, 0.7452, 0.8168, 0.8699, 0.9084, 0.9361, 0.9557, 0.9694, 0.979, 0.9857, 0.9902, 0.9934, 0.9955, 1 );
+  --mono:
+    SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
+  --ease-sheet: linear(
+    0,
+    0.0739,
+    0.2235,
+    0.3849,
+    0.5305,
+    0.6508,
+    0.7452,
+    0.8168,
+    0.8699,
+    0.9084,
+    0.9361,
+    0.9557,
+    0.9694,
+    0.979,
+    0.9857,
+    0.9902,
+    0.9934,
+    0.9955,
+    1
+  );
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --gutter: clamp(20px, 4vw, 56px);
@@ -123,7 +146,11 @@
   font-size: 14.5px;
   font-weight: 500;
   white-space: nowrap;
-  transition: transform 160ms var(--ease-out), background-color 180ms ease, border-color 180ms ease, color 180ms ease;
+  transition:
+    transform 160ms var(--ease-out),
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease;
 }
 
 .chipMono {
@@ -192,7 +219,10 @@
   font-weight: 500;
   text-decoration: none;
   white-space: nowrap;
-  transition: transform 160ms var(--ease-out), background-color 180ms ease, color 180ms ease;
+  transition:
+    transform 160ms var(--ease-out),
+    background-color 180ms ease,
+    color 180ms ease;
 }
 
 .docsButton svg {
@@ -222,7 +252,10 @@
   opacity: 0;
   filter: blur(2px);
   visibility: hidden;
-  transition: opacity 220ms ease, filter 220ms ease, visibility 0s linear 220ms;
+  transition:
+    opacity 220ms ease,
+    filter 220ms ease,
+    visibility 0s linear 220ms;
 }
 
 .swapItem[data-on='true'] {
@@ -318,7 +351,9 @@
   color: var(--navy-60);
   white-space: nowrap;
   animation: fade 300ms ease both;
-  transition: transform 450ms var(--ease-sheet), color 180ms ease;
+  transition:
+    transform 450ms var(--ease-sheet),
+    color 180ms ease;
 }
 
 .tick::before {
@@ -355,7 +390,9 @@
   font-weight: 500;
   color: var(--navy-60);
   pointer-events: none;
-  transition: opacity 200ms ease, color 240ms ease;
+  transition:
+    opacity 200ms ease,
+    color 240ms ease;
 }
 
 .dragHint[data-seen='true'] {
@@ -376,7 +413,9 @@
   font-size: 14.5px;
   font-weight: 500;
   white-space: nowrap;
-  transition: opacity 200ms ease, transform 200ms var(--ease-out);
+  transition:
+    opacity 200ms ease,
+    transform 200ms var(--ease-out);
 }
 
 .reopen[data-visible='false'] {
@@ -558,7 +597,9 @@
     display: grid;
     grid-template-rows: 0fr;
     visibility: hidden;
-    transition: grid-template-rows 260ms var(--ease-out), visibility 0s linear 260ms;
+    transition:
+      grid-template-rows 260ms var(--ease-out),
+      visibility 0s linear 260ms;
   }
 
   .codeBlock[data-open='true'] .codeCollapse {

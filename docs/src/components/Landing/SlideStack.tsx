@@ -289,9 +289,11 @@ export const SlideStack = ({
   // Written directly on the elements that need it, never through React state.
   const applyPosition = useCallback((layer: number, position: number) => {
     positions.current[layer] = position;
-    const height = root.current!.clientHeight;
+    if (root.current === null) return;
+    const height = root.current.clientHeight;
     const next = layers.current[layer + 1];
-    if (next) next.style.transform = `translate3d(0, ${height - position}px, 0)`;
+    if (next)
+      next.style.transform = `translate3d(0, ${height - position}px, 0)`;
 
     const below = receders.current[layer - 1];
     const dim = dims.current[layer - 1];

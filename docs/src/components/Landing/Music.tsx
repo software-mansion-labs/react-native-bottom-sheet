@@ -264,11 +264,7 @@ export const DetentsSlide = () => {
             </p>,
           ])}
         />
-        <div
-          className={shared.chips}
-          role="group"
-          aria-label="Detent examples"
-        >
+        <div className={shared.chips} role="group" aria-label="Detent examples">
           {presets.map((item) => (
             <Chip
               key={item.id}
@@ -335,10 +331,14 @@ export const DetentsSlide = () => {
                   <Row key={track[0]} item={track} trailing={track[3]} />
                 ))}
                 <View style={sheet.actions}>
-                  <SheetButton onPress={() => setRows((n) => Math.min(n + 1, 8))}>
+                  <SheetButton
+                    onPress={() => setRows((n) => Math.min(n + 1, 8))}
+                  >
                     Add a song
                   </SheetButton>
-                  <SheetButton onPress={() => setRows((n) => Math.max(n - 1, 1))}>
+                  <SheetButton
+                    onPress={() => setRows((n) => Math.max(n - 1, 1))}
+                  >
                     Remove
                   </SheetButton>
                 </View>

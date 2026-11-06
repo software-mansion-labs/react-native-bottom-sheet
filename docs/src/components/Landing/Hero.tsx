@@ -80,10 +80,7 @@ const HeroCopy = ({
   children?: ReactNode;
 }) => (
   <div
-    className={clsx(
-      styles.world,
-      navy ? styles.worldNavy : styles.worldLight
-    )}
+    className={clsx(styles.world, navy ? styles.worldNavy : styles.worldLight)}
     ref={layerRef}
     aria-hidden={navy}
   >

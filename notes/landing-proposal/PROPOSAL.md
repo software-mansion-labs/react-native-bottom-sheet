@@ -130,6 +130,11 @@ variables. Hover is gated behind `(hover: hover) and (pointer: fine)`.
 
 ## How the stack works
 
+This describes the prototype, where the slides are page scrolling. The shipped
+page in `docs/src/components/Landing/` keeps the same look, but each slide there
+is a real `BottomSheet` with stops at the peek and `100%`, so its drag, snap and
+shadow come from the library.
+
 - `position: sticky` holds each section while the next rises over it.
 - A section taller than the screen sticks only once its bottom is reached, so
   nothing is skipped. This matters most on phones, where most sections are tall.

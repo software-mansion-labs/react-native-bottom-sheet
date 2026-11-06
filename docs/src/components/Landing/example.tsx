@@ -8,7 +8,13 @@ import {
   type RefObject,
 } from 'react';
 import Link from '@docusaurus/Link';
-import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type ViewStyle,
+} from 'react-native';
 import type { Detent } from '@swmansion/react-native-bottom-sheet';
 import clsx from 'clsx';
 
@@ -484,8 +490,8 @@ export const useFrameHeight = () => {
       const bodies = [
         ...document.querySelectorAll<HTMLElement>('[data-slide-body]'),
       ].filter((body) => body.querySelector('[data-frame]') !== null);
-      const frames = bodies.map(
-        (body) => body.querySelector<HTMLElement>('[data-frame]')!
+      const frames = bodies.map((body) =>
+        body.querySelector<HTMLElement>('[data-frame]')!
       );
       if (window.innerWidth <= 860) {
         frames.forEach((frame) => {

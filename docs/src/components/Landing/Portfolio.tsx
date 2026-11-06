@@ -287,7 +287,9 @@ export const ThreadsSlide = () => {
           onClick={block}
         >
           <span>
-            {blocked ? 'JS thread blocked…' : 'Block the JS thread for 4 seconds'}
+            {blocked
+              ? 'JS thread blocked…'
+              : 'Block the JS thread for 4 seconds'}
           </span>
         </button>
         <p className={styles.honest}>

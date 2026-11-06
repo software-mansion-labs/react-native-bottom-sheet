@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import {
   BottomSheet,
@@ -29,13 +35,25 @@ import shared from './example.module.css';
 import styles from './Video.module.css';
 
 const COMMENT_LINES = [
-  ['Mika', '2h', 'The green at 2:14 is unreal. Had to pause it.', '#3fc684', '812'],
+  [
+    'Mika',
+    '2h',
+    'The green at 2:14 is unreal. Had to pause it.',
+    '#3fc684',
+    '812',
+  ],
   ['Jonas', '5h', 'How long did you wait for this shot?', '#38acdd', '96'],
   ['Aiko', '6h', 'Watching this on repeat tonight.', '#782aeb', '241'],
   ['Remy', '9h', 'Which lens was this filmed on?', '#ff6259', '37'],
   ['Sol', '1d', 'Saving this for the next trip north.', '#33488e', '58'],
   ['Noor', '1d', 'The silence makes it even better.', '#001a72', '430'],
-  ['Teo', '1d', 'I saw this exact sky last winter. Nothing prepares you.', '#57b495', '127'],
+  [
+    'Teo',
+    '1d',
+    'I saw this exact sky last winter. Nothing prepares you.',
+    '#57b495',
+    '127',
+  ],
   ['Ines', '2d', 'More of these, please.', '#782aeb', '74'],
 ] as const;
 

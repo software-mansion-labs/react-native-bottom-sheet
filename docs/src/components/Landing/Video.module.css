@@ -4,7 +4,8 @@
   --sheet-sky: var(--swm-blue-light-20);
   --sheet-ending: var(--swm-white);
   --sky-offset: var(--swm-blue-light-40);
-  --sheet-shadow: 0 -18px 56px -6px rgb(0 26 114 / 0.42), 0 -3px 12px rgb(0 26 114 / 0.26);
+  --sheet-shadow:
+    0 -18px 56px -6px rgb(0 26 114 / 0.42), 0 -3px 12px rgb(0 26 114 / 0.26);
   --dim: var(--swm-navy-light-100);
   --accent-on-sheet: var(--swm-blue-dark-80);
   --navy: var(--swm-navy-light-100);
@@ -20,8 +21,30 @@
   --off-white: var(--swm-off-white);
   --white: var(--swm-white);
   --sans: 'Aeonik', system-ui, -apple-system, sans-serif;
-  --mono: SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-  --ease-sheet: linear( 0, 0.0739, 0.2235, 0.3849, 0.5305, 0.6508, 0.7452, 0.8168, 0.8699, 0.9084, 0.9361, 0.9557, 0.9694, 0.979, 0.9857, 0.9902, 0.9934, 0.9955, 1 );
+  --mono:
+    SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
+  --ease-sheet: linear(
+    0,
+    0.0739,
+    0.2235,
+    0.3849,
+    0.5305,
+    0.6508,
+    0.7452,
+    0.8168,
+    0.8699,
+    0.9084,
+    0.9361,
+    0.9557,
+    0.9694,
+    0.979,
+    0.9857,
+    0.9902,
+    0.9934,
+    0.9955,
+    1
+  );
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --gutter: clamp(20px, 4vw, 56px);
@@ -209,7 +232,9 @@
   margin-left: auto;
   padding: 2px 8px;
   background: var(--navy-10);
-  transition: background-color 160ms ease, color 160ms ease;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
 }
 
 .owner[data-owner='sheet'] {
