@@ -17,6 +17,9 @@ export type ScrimHost = {
   readonly isPanning: boolean;
   readonly scrimPinnedFull: boolean;
   readonly detents: ResolvedDetent[];
+  readonly hostHeight: number;
+  /** The closed detent a scrim press dismisses to, while one would. */
+  readonly scrimDismissTargetIndex: number | null;
   readonly snapping: Pick<SheetSnapping, 'isSpringActive' | 'isTargetClosed'>;
 };
 
@@ -46,6 +49,35 @@ export const applyScrim = (host: ScrimHost, position: number) => {
   scrim.style.opacity = String(isVisible ? opacity : 0);
   scrim.style.visibility = isVisible ? 'visible' : 'hidden';
   scrim.style.pointerEvents = isVisible ? 'auto' : 'none';
+  applyScrimDismiss(host, position);
+};
+
+/**
+ * Exposes the scrim's dismiss button to screen readers while a press would
+ * dismiss the sheet, scaled to the part of the scrim above the sheet. A
+ * transform, so following the sheet never lays anything out, and the
+ * button's accessible bounds never reach under the sheet, where a screen
+ * reader exploring by touch would announce it over the sheet's content.
+ */
+const applyScrimDismiss = (host: ScrimHost, position: number) => {
+  const button = host.elements?.scrimDismiss;
+  if (!button) return;
+  const sheetTop = clamp(host.hostHeight - position, 0, host.hostHeight);
+  const isExposed = host.scrimDismissTargetIndex !== null && sheetTop >= 1;
+  // Only an exposed button follows the sheet; a hidden one keeps its last
+  // scale until shown.
+  if (isExposed) {
+    const scale = host.hostHeight > 0 ? sheetTop / host.hostHeight : 0;
+    button.style.transform = `scaleY(${scale})`;
+  }
+  const visibility = isExposed ? 'visible' : 'hidden';
+  if (button.style.visibility === visibility) return;
+  button.style.visibility = visibility;
+  if (isExposed) {
+    button.removeAttribute('aria-hidden');
+  } else {
+    button.setAttribute('aria-hidden', 'true');
+  }
 };
 
 const scrimOpacity = (

@@ -170,6 +170,10 @@ using namespace facebook::react;
     [_sheetView setScrimColor:RCTUIColorFromSharedColor(newViewProps.scrimColor)];
   }
 
+  if (newViewProps.scrimAccessibilityLabel != oldViewProps.scrimAccessibilityLabel) {
+    [_sheetView setScrimAccessibilityLabel:RCTNSStringFromStringNilIfEmpty(newViewProps.scrimAccessibilityLabel)];
+  }
+
   // Pushed unconditionally (the host dedups): a recycled instance's `_props`
   // still holds the previous sheet's values, so a props diff can miss a reset.
   {

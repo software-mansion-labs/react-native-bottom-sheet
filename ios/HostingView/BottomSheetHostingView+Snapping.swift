@@ -225,6 +225,7 @@ extension BottomSheetHostingView {
     scrimPinnedFull = false
     setContentInteractionEnabled(true)
     updateInteractionState()
+    refreshScrimAccessibilityFrameIfFocused()
     if emitSettle {
       eventDelegate?.bottomSheetHostingView(self, didSettle: index)
     }

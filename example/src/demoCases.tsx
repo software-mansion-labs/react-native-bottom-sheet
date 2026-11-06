@@ -1,6 +1,7 @@
 export type CaseKey =
   | 'scrim-pressables'
   | 'basic-modal'
+  | 'accessible-dismissal'
   | 'surface-style'
   | 'corner-touches'
   | 'detached-sheet'
@@ -52,6 +53,11 @@ export const DEMO_CASES: DemoCase[] = [
     key: 'basic-modal',
     title: 'Basic modal',
     href: '/basic-modal',
+  },
+  {
+    key: 'accessible-dismissal',
+    title: 'Accessible dismissal',
+    href: '/accessible-dismissal',
   },
   {
     key: 'surface-style',

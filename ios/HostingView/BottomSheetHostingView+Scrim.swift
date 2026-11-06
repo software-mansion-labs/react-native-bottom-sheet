@@ -10,16 +10,58 @@ extension BottomSheetHostingView {
   }
 
   @objc func handleScrimPress() {
+    attemptScrimDismissal()
+  }
+
+  /// The closed detent a scrim tap, the scrim's dismiss button, or VoiceOver's
+  /// escape gesture snaps the sheet to, while one would. Requiring an open
+  /// target also ignores dismissals once a close is running, including one to
+  /// another zero-height detent.
+  var scrimDismissTargetIndex: Int? {
     guard
-      modal,
+      isScrimVisible,
       let closedIndex = scrimDismissIndex,
-      targetIndex != closedIndex,
+      detentSpecs.indices.contains(targetIndex),
+      detentSpecs[targetIndex].position > 0,
       activeSpring == nil || currentSheetHeight > 0.5
     else {
-      return
+      return nil
     }
+    return closedIndex
+  }
 
+  /// Dismisses a modal sheet to its closed detent through the exact path a
+  /// scrim tap takes, returning whether a dismissal was actually performed.
+  @discardableResult
+  func attemptScrimDismissal() -> Bool {
+    guard let closedIndex = scrimDismissTargetIndex else { return false }
     snapToIndex(closedIndex, velocity: 0)
+    return true
+  }
+
+  /// The part of the scrim above the sheet, in host coordinates, where VoiceOver
+  /// frames the scrim's dismiss button. Empty while the sheet fills the host.
+  var scrimDismissRegion: CGRect {
+    let top = min(max(presentedCardFrame.minY, 0), bounds.height)
+    return CGRect(x: 0, y: 0, width: bounds.width, height: top)
+  }
+
+  /// VoiceOver's escape gesture (two-finger Z scrub) dismisses a modal sheet,
+  /// mirroring a scrim tap. While the scrim blocks the background, the gesture
+  /// stays with the sheet even when it can't dismiss (e.g., a programmatic-only
+  /// closed detent): bubbling would act on the screen behind it, like a
+  /// navigation controller popping it.
+  override public func accessibilityPerformEscape() -> Bool {
+    guard isScrimVisible else { return false }
+    attemptScrimDismissal()
+    return true
+  }
+
+  /// Reframes the dismiss button for VoiceOver after the sheet settles, if it
+  /// holds focus. VoiceOver reads frames lazily and would keep the old one.
+  func refreshScrimAccessibilityFrameIfFocused() {
+    guard scrimView.isAccessibilityElement, scrimView.accessibilityElementIsFocused() else { return }
+    UIAccessibility.post(notification: .layoutChanged, argument: scrimView)
   }
 
   func updateScrim() {
@@ -132,5 +174,12 @@ extension BottomSheetHostingView {
 
   func updateInteractionState() {
     scrimView.isUserInteractionEnabled = modal && (closedIndex != nil) && !scrimView.isHidden
+    // Expose the scrim to VoiceOver only while tapping it would dismiss the
+    // sheet; otherwise it would be an inert, unlabeled stop in the
+    // accessibility tree (a scrim over a programmatic-only close detent is
+    // decorative, not actionable). A sheet that fills the host leaves no scrim
+    // to frame; VoiceOver's escape gesture still dismisses it.
+    scrimView.isAccessibilityElement =
+      scrimDismissTargetIndex != nil && scrimDismissRegion.height >= 1
   }
 }

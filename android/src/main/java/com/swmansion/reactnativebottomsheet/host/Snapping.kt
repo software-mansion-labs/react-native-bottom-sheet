@@ -16,6 +16,29 @@ internal class Snapping(
   private val host: SheetHost,
 ) {
 
+  // Requiring an open target also ignores dismissals once a close is running, including one to
+  // another zero-height detent: restarting it would emit a second index change and drop the
+  // running spring's velocity.
+  private val scrimDismissTargetIndex: Int?
+    get() =
+      state.scrimDismissIndex?.takeIf {
+        scrim.isScrimVisible() &&
+          (state.detentSpecs.getOrNull(state.targetIndex)?.position ?: 0f) > 0f
+      }
+
+  val isScrimDismissalAvailable: Boolean
+    get() = scrimDismissTargetIndex != null
+
+  /**
+   * Dismisses a modal sheet to its closed detent through the exact path a scrim tap takes,
+   * returning whether a dismissal was actually performed.
+   */
+  fun attemptScrimDismissal(): Boolean {
+    val closeIndex = scrimDismissTargetIndex ?: return false
+    snapToIndex(closeIndex, 0f)
+    return true
+  }
+
   fun translationY(index: Int): Float {
     return state.height.toFloat() - (state.detentSpecs.getOrNull(index)?.position ?: 0f)
   }

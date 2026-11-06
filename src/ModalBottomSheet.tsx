@@ -52,6 +52,14 @@ export interface ModalBottomSheetProps extends Omit<
   nativeOverlay?: boolean;
   /** Scrim color shown behind the modal sheet. */
   scrimColor?: string;
+  /**
+   * The label screen readers announce for the scrim while tapping it would
+   * dismiss the sheet, when the scrim is exposed as a dismiss button. Pass a
+   * translated string to localize it.
+   *
+   * @default 'Dismiss'
+   */
+  scrimAccessibilityLabel?: string;
 }
 
 /** Bottom sheet presented above the current UI with a scrim. */
