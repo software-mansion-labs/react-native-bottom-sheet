@@ -11,10 +11,10 @@ import Link from '@docusaurus/Link';
 import { BottomSheet } from '@swmansion/react-native-bottom-sheet';
 import clsx from 'clsx';
 
-import { Header } from './Header';
-import { Arrow, prefersReducedMotion } from './pieces';
-import landing from './landing.module.css';
-import styles from './Hero.module.css';
+import { Header } from '../../Header';
+import { Arrow, prefersReducedMotion } from '../../shared/pieces';
+import landing from '../../landing.module.css';
+import styles from './styles.module.css';
 
 const INSTALL = 'npm i @swmansion/react-native-bottom-sheet';
 const TOP_INSET = 72;

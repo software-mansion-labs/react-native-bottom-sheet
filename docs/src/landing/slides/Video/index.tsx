@@ -13,35 +13,35 @@ import {
 } from '@swmansion/react-native-bottom-sheet';
 import clsx from 'clsx';
 
+import { Chip, Code, CodeBlock } from '../../shared/copy';
 import {
   ATTACHED,
-  Backdrop,
-  Chip,
-  Code,
-  CodeBlock,
   DragHint,
   Grabber,
   PLAIN_SHEET_SURFACE,
-  restStops,
   Row,
   sheet,
   SheetBody,
+} from '../../shared/sheet';
+import {
+  Backdrop,
+  restStops,
   Stage,
   TOP_INSET,
   useRestUnderContent,
-} from './example';
-import { hasTouchGestures } from '../InteractiveExample/controls';
+} from '../../shared/stage';
+import { hasTouchGestures } from '../../../components/InteractiveExample/controls';
 import {
   COLLAPSE_HINTS,
   EXPAND_HINTS,
   FingerIndicator,
   MOBILE_PREVIEW_HINT,
   useListMouseDrag,
-} from '../InteractiveExample/negotiationPreview';
-import { clamp, Icon, Reveal, SlideActiveContext } from './pieces';
-import landing from './landing.module.css';
-import shared from './example.module.css';
-import styles from './Video.module.css';
+} from '../../../components/InteractiveExample/negotiationPreview';
+import { clamp, Icon, Reveal, SlideActiveContext } from '../../shared/pieces';
+import landing from '../../landing.module.css';
+import shared from '../../shared/example.module.css';
+import styles from './styles.module.css';
 
 const COMMENT_LINES = [
   [

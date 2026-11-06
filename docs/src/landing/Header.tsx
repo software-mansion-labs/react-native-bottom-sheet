@@ -1,8 +1,8 @@
 import Link from '@docusaurus/Link';
 import { useColorMode } from '@docusaurus/theme-common';
 
-import { Icon } from './pieces';
-import styles from './Hero.module.css';
+import { Icon } from './shared/pieces';
+import styles from './slides/Hero/styles.module.css';
 
 const ThemeToggle = () => {
   const { colorMode, setColorMode } = useColorMode();

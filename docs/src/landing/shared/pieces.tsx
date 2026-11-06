@@ -7,7 +7,7 @@ import {
 } from 'react';
 import clsx from 'clsx';
 
-import landing from './landing.module.css';
+import landing from '../landing.module.css';
 
 export const clamp = (value: number, min = 0, max = 1) =>
   Math.min(max, Math.max(min, value));

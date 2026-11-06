@@ -2,13 +2,13 @@ import BrowserOnly from '@docusaurus/BrowserOnly';
 import { PageMetadata } from '@docusaurus/theme-common';
 import LayoutProvider from '@theme/Layout/Provider';
 
-import { Ending } from './Ending';
-import { useFrameHeight } from './example';
-import { Hero, HeroPoster } from './Hero';
-import { DetentsSlide } from './Music';
-import { ThreadsSlide } from './Portfolio';
+import { Ending } from './slides/Ending';
+import { useFrameHeight } from './shared/stage';
+import { Hero, HeroPoster } from './slides/Hero';
+import { DetentsSlide } from './slides/Music';
+import { ThreadsSlide } from './slides/Portfolio';
 import { SlideStack, type Slide } from './SlideStack';
-import { NegotiationSlide } from './Video';
+import { NegotiationSlide } from './slides/Video';
 import landing from './landing.module.css';
 
 const DESCRIPTION =

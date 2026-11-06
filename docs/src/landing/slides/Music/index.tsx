@@ -6,14 +6,10 @@ import {
   type SurfaceStyle,
 } from '@swmansion/react-native-bottom-sheet';
 
+import { Chip, CodeBlock, CodeSwap, Swap } from '../../shared/copy';
 import {
   ATTACHED,
-  Backdrop,
-  Chip,
-  CodeBlock,
-  CodeSwap,
   DragHint,
-  followSheet,
   Grabber,
   Reopen,
   Row,
@@ -21,14 +17,17 @@ import {
   SHEET_SURFACE,
   SheetBody,
   SheetButton,
+} from '../../shared/sheet';
+import {
+  Backdrop,
+  followSheet,
   Stage,
-  Swap,
   TOP_INSET,
   useCaseChange,
-} from './example';
-import { Icon, Reveal } from './pieces';
-import shared from './example.module.css';
-import styles from './Music.module.css';
+} from '../../shared/stage';
+import { Icon, Reveal } from '../../shared/pieces';
+import shared from '../../shared/example.module.css';
+import styles from './styles.module.css';
 
 const TRACKS = [
   ['Paper Boats', 'Harbor Lights', '#38acdd', '4:05'],

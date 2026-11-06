@@ -10,9 +10,9 @@ import {
 import { BottomSheet } from '@swmansion/react-native-bottom-sheet';
 import clsx from 'clsx';
 
-import { clamp, Icon, SlideActiveContext } from './pieces';
-import landing from './landing.module.css';
-import styles from './SlideStack.module.css';
+import { clamp, Icon, SlideActiveContext } from '../shared/pieces';
+import landing from '../landing.module.css';
+import styles from './styles.module.css';
 
 export type Slide = {
   id: string;

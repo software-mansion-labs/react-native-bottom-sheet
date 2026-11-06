@@ -10,25 +10,27 @@ import { ScrollView, Text, View } from 'react-native';
 import { BottomSheet } from '@swmansion/react-native-bottom-sheet';
 import clsx from 'clsx';
 
+import { DocsButton } from '../../shared/copy';
 import {
   ATTACHED,
-  Backdrop,
-  DocsButton,
   DragHint,
   Grabber,
-  restStops,
   Row,
   sheet,
   SHEET_SURFACE,
   SheetBody,
+} from '../../shared/sheet';
+import {
+  Backdrop,
+  restStops,
   Stage,
   TOP_INSET,
   useRestUnderContent,
-} from './example';
-import { Icon, Reveal, SlideActiveContext } from './pieces';
-import landing from './landing.module.css';
-import shared from './example.module.css';
-import styles from './Portfolio.module.css';
+} from '../../shared/stage';
+import { Icon, Reveal, SlideActiveContext } from '../../shared/pieces';
+import landing from '../../landing.module.css';
+import shared from '../../shared/example.module.css';
+import styles from './styles.module.css';
 
 type Direction = 'up' | 'down';
 

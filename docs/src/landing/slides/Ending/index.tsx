@@ -1,9 +1,9 @@
 import useBaseUrl from '@docusaurus/useBaseUrl';
 import clsx from 'clsx';
 
-import { Arrow, Reveal } from './pieces';
-import landing from './landing.module.css';
-import styles from './Ending.module.css';
+import { Arrow, Reveal } from '../../shared/pieces';
+import landing from '../../landing.module.css';
+import styles from './styles.module.css';
 
 export const Ending = () => (
   <div className={styles.ending}>
