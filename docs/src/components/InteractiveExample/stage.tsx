@@ -52,9 +52,12 @@ export const Stage = ({
 
   return (
     <div ref={ref} className={styles.stage} style={{ height }}>
-      <StageWidthContext.Provider value={width}>
-        <BottomSheetProvider>{children}</BottomSheetProvider>
-      </StageWidthContext.Provider>
+      {/* Sheets mount once the width is known, as a sheet eases between insets. */}
+      {width > 0 && (
+        <StageWidthContext.Provider value={width}>
+          <BottomSheetProvider>{children}</BottomSheetProvider>
+        </StageWidthContext.Provider>
+      )}
     </div>
   );
 };
@@ -68,6 +71,8 @@ type StageSheetProps = Omit<
   ComponentProps<typeof ModalBottomSheet>,
   'surface'
 > & {
+  /** Replaces the plain surface, for examples that paint their own. */
+  surface?: ReactNode;
   surfaceColor?: string;
 };
 
@@ -75,6 +80,8 @@ type StageInlineSheetProps = Omit<
   ComponentProps<typeof BottomSheet>,
   'surface'
 > & {
+  /** Replaces the plain surface, for examples that paint their own. */
+  surface?: ReactNode;
   surfaceColor?: string;
 };
 

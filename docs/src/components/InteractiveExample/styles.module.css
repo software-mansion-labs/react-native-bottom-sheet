@@ -343,6 +343,23 @@
   background-color: var(--example-text);
 }
 
+/* A painted track is thicker, to show its colors. */
+.sliderPainted::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--slider-track);
+}
+
+.sliderPainted::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--slider-track);
+}
+
+.sliderPainted::-webkit-slider-thumb {
+  margin-top: -5px;
+}
+
 .slider:active::-webkit-slider-thumb {
   transform: scale(1.15);
 }

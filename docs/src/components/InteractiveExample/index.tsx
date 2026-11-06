@@ -185,7 +185,8 @@ export const Example = ({ stage, controls, code }: ExampleProps) => {
         }
       >
         <div className={styles.stageSlot} inert={tab !== 'preview'}>
-          <Stage height={stageHeight}>{stage}</Stage>
+          {/* Only once the panel is measured, so it starts at its real width. */}
+          {width > 0 && <Stage height={stageHeight}>{stage}</Stage>}
         </div>
         {/* Grows over the stage to show the code, then shrinks back. */}
         <div className={styles.column}>

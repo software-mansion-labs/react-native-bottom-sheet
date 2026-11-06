@@ -2,6 +2,8 @@
 title: Surface
 ---
 
+import { CardShapeExample, SurfaceExample } from '@site/src/examples/surface';
+
 # Surface
 
 Provide the sheet’s background through the `surface` prop. The library renders
@@ -36,6 +38,8 @@ collapse and not show.
 </BottomSheet>
 ```
 
+<SurfaceExample />
+
 ## Card shape and shadows
 
 Use `surfaceStyle` to round the sheet and give it a shadow. The sheet clips both
@@ -61,6 +65,8 @@ the `surface` element, which only paints the background. A shadow on the
   <Text>Sheet content</Text>
 </BottomSheet>
 ```
+
+<CardShapeExample />
 
 `surfaceStyle` takes corner radii, `borderCurve`, and these shadow props. They
 follow React Native's support on each platform:

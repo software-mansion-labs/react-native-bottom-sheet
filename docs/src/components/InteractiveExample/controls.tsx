@@ -1,4 +1,11 @@
-import { useCallback, useId, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react';
 import clsx from 'clsx';
 
 import styles from './styles.module.css';
@@ -42,6 +49,8 @@ export const Slider = ({
   min = 0,
   max = 1,
   decimals = 2,
+  formatValue,
+  track,
 }: {
   label: string;
   value: number;
@@ -50,11 +59,26 @@ export const Slider = ({
   max?: number;
   /** Rounds what's shown. The value itself moves continuously, without steps. */
   decimals?: number;
+  /** Replaces the rounded number shown beside the label. */
+  formatValue?: (value: number) => string;
+  /** Paints the track, for sliders whose range is easier to see than to read. */
+  track?: string;
 }) => (
-  <Control label={label} value={value.toFixed(decimals)}>
+  <Control
+    label={label}
+    value={formatValue ? formatValue(value) : value.toFixed(decimals)}
+  >
     <input
       type="range"
-      className={styles.slider}
+      className={clsx(
+        styles.slider,
+        track !== undefined && styles.sliderPainted
+      )}
+      style={
+        track === undefined
+          ? undefined
+          : ({ '--slider-track': track } as CSSProperties)
+      }
       aria-label={label}
       min={min}
       max={max}
