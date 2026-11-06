@@ -45,6 +45,9 @@ export interface NativeProps extends ViewProps {
   scrollableExpandNegotiation: CodegenTypes.Int32;
   scrollableCollapseNegotiation: CodegenTypes.Int32;
   scrimColor?: ColorValue;
+  // The label of the scrim's dismiss control for screen readers, exposed while
+  // tapping the scrim would dismiss a modal sheet.
+  scrimAccessibilityLabel?: string;
   // Physical corner radii of the card the host clips the surface and content
   // to: top-left, top-right, bottom-right, bottom-left. Empty or all-zero
   // leaves the sheet unclipped.

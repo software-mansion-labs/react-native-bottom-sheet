@@ -146,8 +146,6 @@ internal class Gestures(
           scrimPressed = false
           scrimTouchActive = false
           activePointerId = MotionEvent.INVALID_POINTER_ID
-          // A close already targeting this detent owns the dismissal: restarting it
-          // would emit a second index change and drop the running spring's velocity.
           if (shouldDismiss) snapping.attemptScrimDismissal()
           return true
         }

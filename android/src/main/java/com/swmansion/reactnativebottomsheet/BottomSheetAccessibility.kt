@@ -1,89 +1,110 @@
 package com.swmansion.reactnativebottomsheet
 
-import android.graphics.Rect
+import android.content.Context
 import android.os.Bundle
+import android.view.MotionEvent
 import android.view.View
+import android.widget.Button
 import androidx.core.view.AccessibilityDelegateCompat
+import androidx.core.view.ViewCompat
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
-import androidx.customview.widget.ExploreByTouchHelper
+import com.facebook.react.uimanager.PointerEvents
+import com.facebook.react.uimanager.ReactPointerEventsView
 
-internal class ScrimAccessibilityHelper(
-  private val host: View,
-  private val isDismissAvailable: () -> Boolean,
-  private val scrimBottom: () -> Float,
+/*
+ * The host draws the scrim on its own canvas and owns every touch on it, so the scrim has no place
+ * in the accessibility tree. This view gives it one: a "Dismiss" button over the part of the scrim
+ * above the sheet, present only while activating it would dismiss the sheet.
+ *
+ * It is a real child rather than a virtual node. An `ExploreByTouchHelper` on the host replaces the
+ * host's node provider, which hides the sheet content's real nodes from TalkBack, and its key
+ * forwarding can swallow Enter meant for a focused control in the sheet.
+ */
+
+/** The scrim's "Dismiss" button for accessibility services. It draws nothing and takes no touch. */
+internal class ScrimDismissView(
+  context: Context,
   private val performDismiss: () -> Boolean,
-) : ExploreByTouchHelper(host) {
-  private var wasVisible = false
+  traversalAfter: View,
+) : View(context), ReactPointerEventsView {
+  // React Native's touch-target walk skips it, so a JS touch on the scrim still reaches the host.
+  override val pointerEvents: PointerEvents = PointerEvents.NONE
 
-  fun updateVisibility() {
-    val visible = isVirtualScrimVisible()
-    if (visible == wasVisible) return
+  private var isExposed = false
 
-    wasVisible = visible
-    invalidateRoot()
+  init {
+    // Laid out over the whole host and scaled down to the area above the sheet, so following the
+    // sheet is a RenderNode property change rather than a layout pass on every frame. Accessibility
+    // bounds and hover hit testing both apply the scale.
+    pivotX = 0f
+    pivotY = 0f
+    scaleY = 0f
+    visibility = INVISIBLE
+    importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
+    // Out of keyboard focus, as on the web: it draws no focus indicator, and Escape is the
+    // keyboard's dismissal path. Explicit, since a clickable view is focusable by default.
+    isFocusable = false
+    ViewCompat.setAccessibilityDelegate(this, ScrimDismissAccessibilityDelegate(traversalAfter))
   }
 
-  override fun getVirtualViewAt(x: Float, y: Float): Int {
-    val bottom = scrimBottomInParent()
-    return if (isDismissAvailable() && x >= 0f && x < host.width && y >= 0f && y < bottom) {
-      SCRIM_VIRTUAL_VIEW_ID
-    } else {
-      INVALID_ID
-    }
+  /**
+   * Follows the sheet's top edge, and exposes the button while dismissal is available. Scaled
+   * against the host's height, which this view is laid out to, so it is right before this view's
+   * own layout.
+   */
+  fun update(isDismissAvailable: Boolean, sheetTop: Float, hostHeight: Int) {
+    val scale = if (hostHeight > 0) (sheetTop / hostHeight).coerceIn(0f, 1f) else 0f
+    val exposed = isDismissAvailable && scale * hostHeight >= 1f
+    // Only an exposed button follows the sheet; a hidden one keeps its last scale until shown.
+    if (exposed && scaleY != scale) scaleY = scale
+    if (exposed == isExposed) return
+    isExposed = exposed
+    visibility = if (exposed) VISIBLE else INVISIBLE
+    importantForAccessibility =
+      if (exposed) IMPORTANT_FOR_ACCESSIBILITY_YES else IMPORTANT_FOR_ACCESSIBILITY_NO
+    // Clickable, so accessibility services can activate it.
+    isClickable = exposed
+    if (!exposed) isPressed = false
   }
 
-  override fun getVisibleVirtualViews(virtualViewIds: MutableList<Int>) {
-    if (isVirtualScrimVisible()) virtualViewIds.add(SCRIM_VIRTUAL_VIEW_ID)
+  // The host intercepts scrim touches before they reach its children; this only declines the rest.
+  override fun onTouchEvent(event: MotionEvent): Boolean = false
+
+  override fun performClick(): Boolean {
+    if (!isExposed) return false
+    super.performClick()
+    return performDismiss()
   }
 
-  override fun onPopulateNodeForVirtualView(
-    virtualViewId: Int,
-    node: AccessibilityNodeInfoCompat,
-  ) {
-    node.className = "android.widget.Button"
-    node.contentDescription = host.context.getString(R.string.bottom_sheet_dismiss)
-    node.isClickable = true
-    node.isDismissable = true
-    node.addAction(AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_CLICK)
-    node.addAction(AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_DISMISS)
-    setBoundsInScreenFromBoundsInParent(
-      node,
-      Rect(0, 0, host.width, scrimBottomInParent()),
-    )
+  override fun getAccessibilityClassName(): CharSequence = Button::class.java.name
+}
+
+private class ScrimDismissAccessibilityDelegate(private val traversalAfter: View) :
+  AccessibilityDelegateCompat() {
+  override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfoCompat) {
+    super.onInitializeAccessibilityNodeInfo(host, info)
+    if (host.importantForAccessibility != View.IMPORTANT_FOR_ACCESSIBILITY_YES) return
+    info.isDismissable = true
+    info.addAction(AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_DISMISS)
+    // Reached after the sheet's content, which drawing order alone would not guarantee.
+    info.setTraversalAfter(traversalAfter)
   }
 
-  override fun onPerformActionForVirtualView(
-    virtualViewId: Int,
-    action: Int,
-    arguments: Bundle?,
-  ): Boolean =
-    virtualViewId == SCRIM_VIRTUAL_VIEW_ID &&
-      isDismissAvailable() &&
-      when (action) {
-        AccessibilityNodeInfoCompat.ACTION_CLICK,
-        AccessibilityNodeInfoCompat.ACTION_DISMISS -> performDismiss()
-        else -> false
-      }
-
-  private fun isVirtualScrimVisible(): Boolean =
-    isDismissAvailable() && host.width > 0 && scrimBottomInParent() > 0
-
-  private fun scrimBottomInParent(): Int = scrimBottom().toInt().coerceIn(0, host.height)
-
-  private companion object {
-    // Virtual IDs are local to this helper; zero identifies its only virtual child.
-    const val SCRIM_VIRTUAL_VIEW_ID = 0
+  override fun performAccessibilityAction(host: View, action: Int, args: Bundle?): Boolean {
+    if (action == AccessibilityNodeInfoCompat.ACTION_DISMISS) return host.performClick()
+    return super.performAccessibilityAction(host, action, args)
   }
 }
 
+/**
+ * Surfaces `ACTION_DISMISS` on the sheet container, so TalkBack's dismiss action works while focus
+ * is inside the sheet content.
+ */
 internal class SheetDismissAccessibilityDelegate(
   private val isDismissAvailable: () -> Boolean,
   private val performDismiss: () -> Boolean,
 ) : AccessibilityDelegateCompat() {
-  override fun onInitializeAccessibilityNodeInfo(
-    host: View,
-    info: AccessibilityNodeInfoCompat,
-  ) {
+  override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfoCompat) {
     super.onInitializeAccessibilityNodeInfo(host, info)
     if (isDismissAvailable()) {
       info.isDismissable = true

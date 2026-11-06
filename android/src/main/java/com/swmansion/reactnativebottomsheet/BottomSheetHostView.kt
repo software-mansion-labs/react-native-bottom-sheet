@@ -2,8 +2,6 @@ package com.swmansion.reactnativebottomsheet
 
 import android.content.Context
 import android.graphics.Canvas
-import android.graphics.Rect
-import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -78,8 +76,9 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     get() = state.modal
     set(value) {
       state.modal = value
-      updateInteractionState()
+      // The scrim first: the Dismiss button refreshed by updateInteractionState reads it.
       scrim.updateScrim()
+      updateInteractionState()
     }
 
   var scrollableExpandNegotiation: Int
@@ -135,12 +134,11 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     )
   private val scrollCoordination = ScrollCoordination(state, snapping)
   private val gestures = Gestures(state, card, scrim, snapping, scrollCoordination)
-  private val scrimAccessibilityHelper =
-    ScrimAccessibilityHelper(
-      host = this,
-      isDismissAvailable = { snapping.isScrimDismissalAvailable },
-      scrimBottom = { sheetContainer.top + sheetContainer.translationY },
-      performDismiss = snapping::attemptScrimDismissal,
+  private val scrimDismissView =
+    ScrimDismissView(
+      context,
+      performDismiss = ::attemptAccessibleDismissal,
+      traversalAfter = sheetContainer,
     )
 
   init {
@@ -173,13 +171,18 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
       cardTouchSensor,
       LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
     )
-    // The canvas-drawn scrim needs a virtual node to be discoverable by TalkBack.
-    ViewCompat.setAccessibilityDelegate(this, scrimAccessibilityHelper)
+    // Last, so the sheet container and the touch sensor keep their places.
+    // It ends at the sheet's top, overlapping only the card's clipped
+    // corners, where the scrim shows through. Touch walks skip it.
+    super.addView(
+      scrimDismissView,
+      LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
+    )
     ViewCompat.setAccessibilityDelegate(
       sheetContainer,
       SheetDismissAccessibilityDelegate(
         isDismissAvailable = { snapping.isScrimDismissalAvailable },
-        performDismiss = snapping::attemptScrimDismissal,
+        performDismiss = ::attemptAccessibleDismissal,
       ),
     )
   }
@@ -203,7 +206,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   // MARK: - Child view management
 
   override fun addView(child: View, index: Int, params: ViewGroup.LayoutParams) {
-    if (child === sheetContainer || child === cardTouchSensor) {
+    if (child === sheetContainer || child === cardTouchSensor || child === scrimDismissView) {
       super.addView(child, index, params)
     } else {
       clipContainer.addView(child, index, params)
@@ -368,22 +371,6 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     notifyCloseRequestStateChanged()
   }
 
-  // MARK: - Accessibility
-  //
-  // ExploreByTouchHelper drives the scrim's virtual node from hover (touch
-  // exploration), key, and focus events, so all three streams are forwarded.
-
-  override fun dispatchHoverEvent(event: MotionEvent): Boolean =
-    scrimAccessibilityHelper.dispatchHoverEvent(event) || super.dispatchHoverEvent(event)
-
-  override fun dispatchKeyEvent(event: KeyEvent): Boolean =
-    scrimAccessibilityHelper.dispatchKeyEvent(event) || super.dispatchKeyEvent(event)
-
-  override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: Rect?) {
-    super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
-    scrimAccessibilityHelper.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
-  }
-
   override fun dispatchDraw(canvas: Canvas) {
     scrim.drawScrim(canvas)
     super.dispatchDraw(canvas)
@@ -398,6 +385,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     state.lastAppliedMaxDetentHeight = viewHeight.toFloat()
     sheetContainer.layout(0, 0, viewWidth, viewHeight)
     cardTouchSensor.layout(0, 0, viewWidth, viewHeight)
+    scrimDismissView.layout(0, 0, viewWidth, viewHeight)
+    updateScrimDismissView()
     card.layoutSheetChildren(viewWidth, viewHeight)
     card.updateCardGeometry()
     contentRegion.pushStateSnapshot()
@@ -410,6 +399,11 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   fun setIndex(newIndex: Int) = detents.setIndex(newIndex)
 
   fun setScrimColor(color: Int?) = scrim.setScrimColor(color)
+
+  /** The label accessibility services announce for the scrim's "Dismiss" button. */
+  fun setScrimAccessibilityLabel(label: String?) {
+    scrimDismissView.contentDescription = label
+  }
 
   // MARK: - Close requests
 
@@ -612,7 +606,22 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     val interactive = isInteractive
     pointerEvents = if (interactive) PointerEvents.AUTO else PointerEvents.BOX_NONE
     interactionListener?.invoke(interactive)
-    scrimAccessibilityHelper.updateVisibility()
+    updateScrimDismissView()
+  }
+
+  /**
+   * Dismisses through the scrim-tap path, and withdraws the Dismiss button at once rather than on
+   * the close's first frame, so accessibility focus doesn't linger on a button that no longer acts.
+   */
+  private fun attemptAccessibleDismissal(): Boolean =
+    snapping.attemptScrimDismissal().also { if (it) updateScrimDismissView() }
+
+  private fun updateScrimDismissView() {
+    scrimDismissView.update(
+      isDismissAvailable = snapping.isScrimDismissalAvailable,
+      sheetTop = sheetContainer.top + sheetContainer.translationY,
+      hostHeight = height,
+    )
   }
 
   companion object {

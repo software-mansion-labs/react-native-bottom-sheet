@@ -1,151 +1,293 @@
 package com.swmansion.reactnativebottomsheet
 
-import android.content.Context
+import android.app.Activity
+import android.graphics.Color
 import android.graphics.Rect
+import android.os.Looper
 import android.view.View
+import android.view.ViewGroup
 import android.view.accessibility.AccessibilityNodeInfo
-import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
-import androidx.customview.widget.ExploreByTouchHelper
-import androidx.test.core.app.ApplicationProvider
+import android.widget.Button
+import androidx.activity.ComponentActivity
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.facebook.react.internal.featureflags.ReactNativeFeatureFlagsForTests
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Robolectric
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
+// Dismissal is asserted through onIndexChange alone: the closing spring runs on a
+// Choreographer that Robolectric stops driving once another view test class has run.
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
 class BottomSheetAccessibilityTest {
-  private val context = ApplicationProvider.getApplicationContext<Context>()
-
-  @Test
-  fun `scrim helper exposes its only virtual child with screen bounds`() {
-    val host = laidOutView(width = 100, height = 200)
-    val helper =
-      ScrimAccessibilityHelper(
-        host = host,
-        isDismissAvailable = { true },
-        scrimBottom = { 80f },
-        performDismiss = { true },
-      )
-    val provider = helper.getAccessibilityNodeProvider(host)!!
-
-    val hostNode = provider.createAccessibilityNodeInfo(ExploreByTouchHelper.HOST_ID)!!
-    val scrimNode = provider.createAccessibilityNodeInfo(SCRIM_VIRTUAL_VIEW_ID)!!
-    val bounds = Rect()
-    scrimNode.getBoundsInScreen(bounds)
-
-    assertEquals(1, hostNode.childCount)
-    assertEquals("android.widget.Button", scrimNode.className)
-    assertEquals("Dismiss", scrimNode.contentDescription)
-    assertTrue(scrimNode.isClickable)
-    assertTrue(scrimNode.isDismissable)
-    assertEquals(Rect(0, 0, 100, 80), bounds)
+  @Before
+  fun useLocalReactNativeFeatureFlags() {
+    ReactNativeFeatureFlagsForTests.setUp()
   }
 
   @Test
-  fun `scrim helper hides its virtual child when dismissal or scrim area is unavailable`() {
-    var dismissAvailable = false
-    var scrimBottom = 80f
-    val host = laidOutView(width = 100, height = 200)
-    val helper =
-      ScrimAccessibilityHelper(
-        host = host,
-        isDismissAvailable = { dismissAvailable },
-        scrimBottom = { scrimBottom },
-        performDismiss = { true },
+  fun `an open dismissible sheet exposes the scrim as a Dismiss button above the sheet`() {
+    withModalSheet { sheet, _ ->
+      val button = scrimDismissView(sheet)
+      val node = button.createAccessibilityNodeInfo()
+      val host = button.parent as View
+      val bounds = Rect()
+      val hostBounds = Rect()
+      node.getBoundsInScreen(bounds)
+      host.getGlobalVisibleRect(hostBounds)
+      val sheetTop = host.height - (300 * sheet.resources.displayMetrics.density).toInt()
+
+      // A direct child of the host, not routed into the sheet with React children.
+      assertTrue(host is BottomSheetHostView)
+      assertEquals(
+        Rect(hostBounds.left, hostBounds.top, hostBounds.right, hostBounds.top + sheetTop),
+        bounds,
       )
-    val provider = helper.getAccessibilityNodeProvider(host)!!
 
-    assertEquals(
-      0,
-      provider.createAccessibilityNodeInfo(ExploreByTouchHelper.HOST_ID)!!.childCount,
-    )
-
-    dismissAvailable = true
-    scrimBottom = 0f
-
-    assertEquals(
-      0,
-      provider.createAccessibilityNodeInfo(ExploreByTouchHelper.HOST_ID)!!.childCount,
-    )
+      assertEquals(View.VISIBLE, button.visibility)
+      assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_YES, button.importantForAccessibility)
+      assertEquals(Button::class.java.name, node.className)
+      assertEquals("Dismiss", node.contentDescription)
+      assertTrue(node.isClickable)
+      assertTrue(node.isDismissable)
+      assertTrue(node.actionList.contains(AccessibilityNodeInfo.AccessibilityAction.ACTION_DISMISS))
+    }
   }
 
   @Test
-  fun `scrim helper routes click and dismiss actions only for its virtual child`() {
-    var dismissCount = 0
-    val host = laidOutView(width = 100, height = 200)
-    val helper =
-      ScrimAccessibilityHelper(
-        host = host,
-        isDismissAvailable = { true },
-        scrimBottom = { 80f },
-        performDismiss = {
-          dismissCount++
-          true
-        },
+  fun `activating the Dismiss button dismisses the sheet`() {
+    withModalSheet { sheet, listener ->
+      assertTrue(
+        scrimDismissView(sheet)
+          .performAccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, null),
       )
-    val provider = helper.getAccessibilityNodeProvider(host)!!
 
-    assertTrue(
-      provider.performAction(
-        SCRIM_VIRTUAL_VIEW_ID,
-        AccessibilityNodeInfoCompat.ACTION_CLICK,
-        null,
-      ),
-    )
-    assertTrue(
-      provider.performAction(
-        SCRIM_VIRTUAL_VIEW_ID,
-        AccessibilityNodeInfoCompat.ACTION_DISMISS,
-        null,
-      ),
-    )
-    assertFalse(provider.performAction(42, AccessibilityNodeInfoCompat.ACTION_CLICK, null))
-    assertEquals(2, dismissCount)
+      assertEquals(listOf(0), listener.indexChanges)
+    }
   }
 
   @Test
-  fun `sheet delegate exposes and performs dismiss only while available`() {
-    var dismissAvailable = false
-    var dismissCount = 0
-    val host = View(context)
-    val delegate =
-      SheetDismissAccessibilityDelegate(
-        isDismissAvailable = { dismissAvailable },
-        performDismiss = {
-          dismissCount++
-          true
-        },
+  fun `the Dismiss button's dismiss action dismisses the sheet`() {
+    withModalSheet { sheet, listener ->
+      assertTrue(
+        scrimDismissView(sheet)
+          .performAccessibilityAction(AccessibilityNodeInfo.ACTION_DISMISS, null),
       )
 
-    val unavailableInfo = accessibilityNodeInfo()
-    delegate.onInitializeAccessibilityNodeInfo(host, unavailableInfo)
-    assertFalse(unavailableInfo.isDismissable)
-    assertFalse(
-      delegate.performAccessibilityAction(host, AccessibilityNodeInfo.ACTION_DISMISS, null),
-    )
-
-    dismissAvailable = true
-    val availableInfo = accessibilityNodeInfo()
-    delegate.onInitializeAccessibilityNodeInfo(host, availableInfo)
-    assertTrue(availableInfo.isDismissable)
-    assertTrue(
-      delegate.performAccessibilityAction(host, AccessibilityNodeInfo.ACTION_DISMISS, null),
-    )
-    assertEquals(1, dismissCount)
+      assertEquals(listOf(0), listener.indexChanges)
+    }
   }
 
-  private fun laidOutView(width: Int, height: Int): View =
-    View(context).apply { layout(0, 0, width, height) }
+  @Test
+  fun `the sheet container's dismiss action dismisses the sheet from focus in its content`() {
+    withModalSheet { sheet, listener ->
+      val container = sheetContainer(sheet)
+      val node = container.createAccessibilityNodeInfo()
 
-  @Suppress("DEPRECATION")
-  private fun accessibilityNodeInfo(): AccessibilityNodeInfoCompat =
-    AccessibilityNodeInfoCompat.wrap(AccessibilityNodeInfo.obtain())
+      assertTrue(node.isDismissable)
+      assertTrue(container.performAccessibilityAction(AccessibilityNodeInfo.ACTION_DISMISS, null))
+      assertEquals(listOf(0), listener.indexChanges)
+    }
+  }
+
+  @Test
+  fun `the Dismiss button is withdrawn once a dismissal is running`() {
+    withModalSheet { sheet, listener ->
+      val button = scrimDismissView(sheet)
+      button.performAccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, null)
+
+      assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO, button.importantForAccessibility)
+      assertFalse(button.performAccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, null))
+      assertFalse(
+        sheetContainer(sheet)
+          .performAccessibilityAction(AccessibilityNodeInfo.ACTION_DISMISS, null),
+      )
+      assertEquals(listOf(0), listener.indexChanges)
+    }
+  }
+
+  @Test
+  fun `a programmatic-only closed detent exposes no dismissal`() {
+    withModalSheet(closedProgrammatic = true) { sheet, listener ->
+      val button = scrimDismissView(sheet)
+
+      assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO, button.importantForAccessibility)
+      assertEquals(View.INVISIBLE, button.visibility)
+      assertFalse(sheetContainer(sheet).createAccessibilityNodeInfo().isDismissable)
+      assertFalse(
+        sheetContainer(sheet)
+          .performAccessibilityAction(AccessibilityNodeInfo.ACTION_DISMISS, null),
+      )
+      assertEquals(emptyList<Int>(), listener.indexChanges)
+    }
+  }
+
+  @Test
+  fun `an invisible scrim exposes no dismissal`() {
+    withModalSheet(openScrimOpacity = 0.0) { sheet, listener ->
+      val button = scrimDismissView(sheet)
+
+      assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO, button.importantForAccessibility)
+      assertFalse(button.performAccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, null))
+      assertEquals(emptyList<Int>(), listener.indexChanges)
+    }
+  }
+
+  @Test
+  fun `a sheet that fills the host leaves no Dismiss button`() {
+    withModalSheet(openDetent = mapOf("value" to 1.0, "kind" to "percentage")) { sheet, _ ->
+      assertEquals(
+        View.IMPORTANT_FOR_ACCESSIBILITY_NO,
+        scrimDismissView(sheet).importantForAccessibility,
+      )
+    }
+  }
+
+  @Test
+  fun `the Dismiss button stays out of keyboard focus`() {
+    withModalSheet { sheet, _ ->
+      val button = scrimDismissView(sheet)
+
+      assertTrue(button.isClickable)
+      assertFalse(button.isFocusable)
+    }
+  }
+
+  @Test
+  fun `a sheet made modal while settled open exposes the Dismiss button at once`() {
+    withModalSheet { sheet, _ ->
+      sheet.modal = false
+      assertEquals(
+        View.IMPORTANT_FOR_ACCESSIBILITY_NO,
+        scrimDismissView(sheet).importantForAccessibility,
+      )
+
+      // No frame or layout follows: the setter alone must refresh the button.
+      sheet.modal = true
+
+      assertEquals(
+        View.IMPORTANT_FOR_ACCESSIBILITY_YES,
+        scrimDismissView(sheet).importantForAccessibility,
+      )
+    }
+  }
+
+  @Test
+  fun `the Dismiss button announces the supplied label`() {
+    withModalSheet { sheet, _ ->
+      sheet.setScrimAccessibilityLabel("Schließen")
+
+      assertEquals(
+        "Schließen",
+        scrimDismissView(sheet).createAccessibilityNodeInfo().contentDescription,
+      )
+    }
+  }
+
+  private fun withModalSheet(
+    closedProgrammatic: Boolean = false,
+    openScrimOpacity: Double = 1.0,
+    openDetent: Map<String, Any> = mapOf("value" to 300.0, "kind" to "points"),
+    block: (BottomSheetView, RecordingAccessibilityListener) -> Unit,
+  ) {
+    val controller = Robolectric.buildActivity(ComponentActivity::class.java).setup()
+    val activity = controller.get()
+    val listener = RecordingAccessibilityListener()
+    val sheet = openModalSheet(activity, listener, closedProgrammatic, openScrimOpacity, openDetent)
+    try {
+      block(sheet, listener)
+    } finally {
+      sheet.destroy()
+      shadowOf(Looper.getMainLooper()).idle()
+      controller.close()
+    }
+  }
+
+  private fun openModalSheet(
+    activity: Activity,
+    listener: RecordingAccessibilityListener,
+    closedProgrammatic: Boolean,
+    openScrimOpacity: Double,
+    openDetent: Map<String, Any>,
+  ) =
+    BottomSheetView(activity)
+      .apply {
+        this.listener = listener
+        animateIn = false
+        modal = true
+        setScrimColor(Color.BLACK)
+        setScrimAccessibilityLabel("Dismiss")
+        setDetents(
+          listOf(
+            mapOf(
+              "value" to 0.0,
+              "kind" to "points",
+              "programmatic" to closedProgrammatic,
+              "scrimOpacity" to 0.0,
+            ),
+            openDetent + mapOf("programmatic" to false, "scrimOpacity" to openScrimOpacity),
+          ),
+        )
+        setIndex(1)
+        // Content, so the sheet container has a descendant to hold focus.
+        addSheetChild(View(activity), 0)
+      }
+      .also {
+        activity.setContentView(it)
+        layoutView(it)
+      }
+
+  private fun scrimDismissView(sheet: BottomSheetView): ScrimDismissView =
+    checkNotNull(findView(sheet) { it is ScrimDismissView }) as ScrimDismissView
+
+  /** The sheet container, two levels above the content: content, clip container, container. */
+  private fun sheetContainer(sheet: BottomSheetView): View {
+    val content = sheet.getSheetChildAt(0)!!
+    return (content.parent as View).parent as View
+  }
+
+  private fun findView(root: View, predicate: (View) -> Boolean): View? {
+    if (predicate(root)) return root
+    if (root !is ViewGroup) return null
+    for (i in 0 until root.childCount) {
+      findView(root.getChildAt(i), predicate)?.let {
+        return it
+      }
+    }
+    return null
+  }
+
+  private fun layoutView(view: View) {
+    view.measure(
+      View.MeasureSpec.makeMeasureSpec(WIDTH, View.MeasureSpec.EXACTLY),
+      View.MeasureSpec.makeMeasureSpec(HEIGHT, View.MeasureSpec.EXACTLY),
+    )
+    view.layout(0, 0, WIDTH, HEIGHT)
+    shadowOf(Looper.getMainLooper()).idle()
+  }
 
   private companion object {
-    const val SCRIM_VIRTUAL_VIEW_ID = 0
+    const val WIDTH = 1080
+    const val HEIGHT = 1920
   }
+}
+
+private class RecordingAccessibilityListener : BottomSheetViewListener {
+  val indexChanges = mutableListOf<Int>()
+
+  override fun onIndexChange(index: Int) {
+    indexChanges.add(index)
+  }
+
+  override fun onSettle(index: Int) = Unit
+
+  override fun onPositionChange(position: Double, index: Double) = Unit
+
+  override fun onCloseRequest() = Unit
 }

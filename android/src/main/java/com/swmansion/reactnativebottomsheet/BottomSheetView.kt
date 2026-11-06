@@ -174,6 +174,8 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
 
   fun setScrimColor(color: Int?) = host.setScrimColor(color)
 
+  fun setScrimAccessibilityLabel(label: String?) = host.setScrimAccessibilityLabel(label)
+
   fun setSurfaceCornerRadii(values: List<Float>) = host.setSurfaceCornerRadii(values)
 
   internal fun setSurfaceShadows(values: List<CardShadow>) = host.setSurfaceShadows(values)

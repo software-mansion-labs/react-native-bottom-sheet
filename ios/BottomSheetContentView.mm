@@ -110,6 +110,11 @@
   _impl.scrimColor = color;
 }
 
+- (void)setScrimAccessibilityLabel:(NSString *)label
+{
+  _impl.scrimAccessibilityLabel = label;
+}
+
 - (void)setSurfaceCornerRadii:(NSArray<NSNumber *> *)radii
 {
   [_impl setSurfaceCornerRadii:radii];

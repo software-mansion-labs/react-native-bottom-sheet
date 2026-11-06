@@ -40,6 +40,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (CGFloat)contentRegionInset;
 - (void)setDetentIndex:(NSInteger)newIndex;
 - (void)setScrimColor:(UIColor *_Nullable)color;
+- (void)setScrimAccessibilityLabel:(NSString *_Nullable)label;
 // Physical corner radii of the card (top-left, top-right, bottom-right,
 // bottom-left) and its corner curve ("circular" or "continuous").
 - (void)setSurfaceCornerRadii:(NSArray<NSNumber *> *)radii;

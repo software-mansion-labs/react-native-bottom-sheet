@@ -89,6 +89,9 @@ export class BottomSheetWebController {
     scrim.style.visibility = 'hidden';
     scrim.style.opacity = '0';
     scrim.style.pointerEvents = 'none';
+    elements.scrimDismiss.style.visibility = 'hidden';
+    elements.scrimDismiss.style.transform = 'scaleY(0)';
+    elements.scrimDismiss.setAttribute('aria-hidden', 'true');
     this.card.updateCardShape();
     if (this.hasLaidOut) {
       // Reattached after a detach that kept the sheet's state, as when Strict
@@ -108,14 +111,17 @@ export class BottomSheetWebController {
 
     this.gestures.addListeners(container);
     scrim.addEventListener('click', this.handleScrimPress);
+    // Screen readers activate the button with a click.
+    elements.scrimDismiss.addEventListener('click', this.handleScrimPress);
   }
 
   detach() {
     const elements = this.elements;
     if (elements === null) return;
-    const { scrim, container } = elements;
+    const { scrim, scrimDismiss, container } = elements;
     this.gestures.removeListeners(container);
     scrim.removeEventListener('click', this.handleScrimPress);
+    scrimDismiss.removeEventListener('click', this.handleScrimPress);
     this.resizeObserver?.disconnect();
     this.mutationObserver?.disconnect();
     this.resizeObserver = null;
@@ -490,17 +496,30 @@ export class BottomSheetWebController {
     applyScrim(this, position);
   }
 
-  private readonly handleScrimPress = () => {
+  /**
+   * The closed detent a scrim press, including the scrim's dismiss button,
+   * snaps the sheet to, while one would. Requiring an open target also ignores
+   * presses once a close is running, including one to another zero-height
+   * detent.
+   */
+  get scrimDismissTargetIndex() {
     const dismissIndex = this.snapping.scrimDismissIndex;
     if (
       this.config === null ||
       !this.config.modal ||
       dismissIndex === null ||
-      this.targetIndex === dismissIndex ||
+      this.elements?.scrim.style.visibility !== 'visible' ||
+      !(this.snapping.detentPosition(this.targetIndex) > 0) ||
       (this.snapping.isSpringActive && this.currentSheetHeight() <= 0.5)
     ) {
-      return;
+      return null;
     }
+    return dismissIndex;
+  }
+
+  private readonly handleScrimPress = () => {
+    const dismissIndex = this.scrimDismissTargetIndex;
+    if (dismissIndex === null) return;
     this.snapping.snapToIndex(dismissIndex, 0);
   };
 
