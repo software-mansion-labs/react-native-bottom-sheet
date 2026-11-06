@@ -24,7 +24,7 @@ import {
 import styles from './styles.module.css';
 
 /** The widest a sheet gets, so it keeps its proportions on a wide stage. */
-const MAX_SHEET_WIDTH = 360;
+export const MAX_SHEET_WIDTH = 360;
 
 const StageWidthContext = createContext(0);
 

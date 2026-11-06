@@ -2,6 +2,8 @@
 title: Keyboard handling
 ---
 
+import { KeyboardPaddingExample } from '@site/src/examples/keyboard-handling';
+
 # Keyboard handling
 
 The sheet does not apply keyboard avoidance automatically. This keeps the
@@ -13,6 +15,8 @@ For a `'content'` detent, keyboard-driven padding changes the measured content
 height. If you animate that padding yourself, pass
 `animateContentHeight={false}` so the sheet follows the animated content height
 instead of adding its own resize animation.
+
+<KeyboardPaddingExample />
 
 ```tsx
 <ModalBottomSheet
