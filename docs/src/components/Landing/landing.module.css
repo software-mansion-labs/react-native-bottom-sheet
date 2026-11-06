@@ -56,6 +56,8 @@
   --sheet-sky: var(--swm-blue-light-20);
   --sheet-ending: var(--swm-white);
   --sky-offset: var(--swm-blue-light-40);
+  --sheet-shadow:
+    0 -18px 56px -6px rgb(0 26 114 / 0.42), 0 -3px 12px rgb(0 26 114 / 0.26);
   --dim: var(--swm-navy-light-100);
   --accent-on-sheet: var(--swm-blue-dark-80);
   --navy: var(--swm-navy-light-100);
@@ -83,6 +85,8 @@
   --sheet-sky: var(--swm-navy-light-100);
   --sheet-ending: var(--swm-navy-light-100);
   --sky-offset: var(--swm-blue-dark-140);
+  --sheet-shadow:
+    0 -18px 56px -4px rgb(0 0 0 / 0.75), 0 -3px 12px rgb(0 0 0 / 0.5);
   --dim: black;
   --navy-deep: var(--swm-navy-dark-120);
   --navy: var(--swm-navy-light-10);

@@ -2,15 +2,15 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
 } from 'react';
-import { useColorMode } from '@docusaurus/theme-common';
 import { BottomSheet } from '@swmansion/react-native-bottom-sheet';
 import clsx from 'clsx';
 
-import { clamp, Icon } from './pieces';
+import { clamp, Icon, SlideActiveContext } from './pieces';
 import landing from './landing.module.css';
 import styles from './SlideStack.module.css';
 
@@ -25,10 +25,6 @@ export type Slide = {
 /** How much of the next sheet shows at the bottom of a slide. */
 const PEEK = 56;
 const DETENTS: [number, `${number}%`] = [PEEK, '100%'];
-const SHADOWS = {
-  light: '0 -18 56 -6 rgba(0, 26, 114, 0.42), 0 -3 12 0 rgba(0, 26, 114, 0.26)',
-  dark: '0 -18 56 -4 rgba(0, 0, 0, 0.75), 0 -3 12 0 rgba(0, 0, 0, 0.5)',
-};
 const RECEDE_QUERY =
   '(min-width: 861px) and (prefers-reduced-motion: no-preference)';
 
@@ -74,6 +70,7 @@ const useWheelSteps = (step: (way: number) => void) => {
     let direction = 0;
     let travel = 0;
     let lastStep = -Infinity;
+    let listOwnsGesture = false;
 
     const onWheel = (event: WheelEvent) => {
       if (event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
@@ -103,14 +100,21 @@ const useWheelSteps = (step: (way: number) => void) => {
       size = nextSize;
       direction = way;
 
+      // A gesture sends dozens of events, and the check below forces a layout, so
+      // it only runs until the gesture is decided.
+      if (spent) {
+        if (!listOwnsGesture) event.preventDefault();
+        return;
+      }
       if (scrollsInside(event.target, way)) {
         // Reaching the end of the list shouldn't also change slide mid-flick.
         spent = true;
+        listOwnsGesture = true;
         return;
       }
 
       event.preventDefault();
-      if (spent) return;
+      listOwnsGesture = false;
       travel += delta;
       if (Math.abs(travel) < WHEEL_COMMIT) return;
       spent = true;
@@ -218,13 +222,15 @@ const SlideSheet = ({
   onPosition: (position: number) => void;
   onOpen: () => void;
 }) => {
-  const { colorMode } = useColorMode();
   const body = useMouseDragsHandleOnly();
   const nextBar = useRef<HTMLSpanElement>(null);
   return (
     <div className={styles.host}>
       <BottomSheet
         detents={DETENTS}
+        // Without it, receding moves this host above the screen, which the
+        // library reads as a status bar and shortens the sheet's '100%' for.
+        topInset={0}
         index={open ? 1 : 0}
         animateIn={false}
         onIndexChange={(index) => onOpenChange(index === 1)}
@@ -236,12 +242,10 @@ const SlideSheet = ({
             nextBar.current.style.opacity = `${1 - clamp((position - PEEK) / (PEEK * 2))}`;
           }
         }}
+        // The surface draws its own corners and shadow. Given them, the library
+        // would clip the whole slide on every frame, repainting all of it; without
+        // them a slide moves as a single GPU transform.
         surface={<div className={styles.surface} data-tone={slide.tone} />}
-        surfaceStyle={{
-          borderTopLeftRadius: 32,
-          borderTopRightRadius: 32,
-          boxShadow: SHADOWS[colorMode],
-        }}
       >
         <div className={styles.slide}>
           <button
@@ -272,7 +276,9 @@ const SlideSheet = ({
             data-has-next={hasNext}
             inert={!isCurrent}
           >
-            {slide.content}
+            <SlideActiveContext.Provider value={isCurrent}>
+              {slide.content}
+            </SlideActiveContext.Provider>
           </div>
         </div>
       </BottomSheet>
@@ -299,6 +305,9 @@ export const SlideStack = ({
   const receders = useRef<(HTMLDivElement | null)[]>([]);
   const dims = useRef<(HTMLDivElement | null)[]>([]);
   const positions = useRef<number[]>([]);
+  // Kept rather than read each frame, when reading it would force a layout.
+  const height = useRef(0);
+  const recedes = useMemo(() => window.matchMedia(RECEDE_QUERY), []);
   const count = slides.length;
 
   const step = useCallback(
@@ -310,42 +319,47 @@ export const SlideStack = ({
   useGrabbingCursor();
 
   // Written directly on the elements that need it, never through React state.
-  const applyPosition = useCallback((layer: number, position: number) => {
-    positions.current[layer] = position;
-    if (root.current === null) return;
-    const height = root.current.clientHeight;
-    const next = layers.current[layer + 1];
-    if (next)
-      next.style.transform = `translate3d(0, ${height - position}px, 0)`;
+  const applyPosition = useCallback(
+    (layer: number, position: number) => {
+      positions.current[layer] = position;
+      const next = layers.current[layer + 1];
+      if (next) {
+        next.style.transform = `translate3d(0, ${height.current - position}px, 0)`;
+      }
 
-    const below = receders.current[layer - 1];
-    const dim = dims.current[layer - 1];
-    if (!below || !dim) return;
-    const progress = window.matchMedia(RECEDE_QUERY).matches
-      ? clamp((position - PEEK) / (height - PEEK))
-      : 0;
-    below.style.transform =
-      progress > 0
-        ? `scale(${1 - 0.06 * progress}) translateY(${-1.5 * progress}%)`
-        : '';
-    below.style.borderRadius = `${28 * progress}px`;
-    dim.style.opacity = `${0.45 * progress}`;
-  }, []);
+      const below = receders.current[layer - 1];
+      const dim = dims.current[layer - 1];
+      if (!below || !dim) return;
+      const progress = recedes.matches
+        ? clamp((position - PEEK) / (height.current - PEEK))
+        : 0;
+      below.style.transform =
+        progress > 0
+          ? `scale(${1 - 0.06 * progress}) translateY(${-1.5 * progress}%)`
+          : '';
+      below.style.borderRadius = progress > 0 ? '28px' : '';
+      dim.style.opacity = `${0.45 * progress}`;
+    },
+    [recedes]
+  );
 
   // Sheets further on wait below the screen until the one before brings them up.
   useLayoutEffect(() => {
+    height.current = root.current!.clientHeight;
     layers.current.slice(2).forEach((layer) => {
       if (layer) layer.style.transform = 'translate3d(0, 100%, 0)';
     });
   }, []);
 
   useEffect(() => {
-    const observer = new ResizeObserver(() =>
+    const element = root.current!;
+    const observer = new ResizeObserver(() => {
+      height.current = element.clientHeight;
       positions.current.forEach((position, layer) =>
         applyPosition(layer, position)
-      )
-    );
-    observer.observe(root.current!);
+      );
+    });
+    observer.observe(element);
     return () => observer.disconnect();
   }, [applyPosition]);
 
@@ -353,6 +367,7 @@ export const SlideStack = ({
     <div className={styles.stack} ref={root}>
       <div
         className={styles.layer}
+        data-covered={active > 1}
         ref={(element) => {
           layers.current[0] = element;
         }}
@@ -379,6 +394,7 @@ export const SlideStack = ({
           <div
             key={slide.id}
             className={styles.layer}
+            data-covered={active > layer + 1}
             ref={(element) => {
               layers.current[layer] = element;
             }}

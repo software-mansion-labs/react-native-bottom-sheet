@@ -238,6 +238,10 @@
   --tick: var(--navy);
 }
 
+.lanes[data-active='false'] .laneTrack::before {
+  animation-play-state: paused;
+}
+
 .lanes[data-blocked='true'] .lane[data-lane='js'] .laneTrack::before {
   animation-play-state: paused;
   opacity: 0.25;

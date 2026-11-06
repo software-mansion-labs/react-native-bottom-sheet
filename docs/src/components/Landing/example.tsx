@@ -18,7 +18,7 @@ import {
 import type { Detent } from '@swmansion/react-native-bottom-sheet';
 import clsx from 'clsx';
 
-import { Arrow, clamp, useInView } from './pieces';
+import { Arrow, clamp, useWhenIdle } from './pieces';
 import landing from './landing.module.css';
 import styles from './example.module.css';
 
@@ -450,8 +450,8 @@ class SheetBoundary extends Component<
 
 /**
  * A plain host for a demo sheet, with no device around it: the library runs on
- * iOS, Android, and the web. Mounts the sheet as the slide arrives, so it opens
- * as you get there.
+ * iOS, Android, and the web. Mounts the sheet while the browser is idle, as doing
+ * it when a slide arrives would land in the middle of that slide's animation.
  */
 export const Stage = ({
   backdrop,
@@ -464,19 +464,20 @@ export const Stage = ({
   children: ReactNode;
   stageRef: RefObject<HTMLDivElement | null>;
 }) => {
-  const [ref, inView] = useInView<HTMLDivElement>('-10% 0px');
+  const ref = useRef<HTMLDivElement>(null);
+  const ready = useWhenIdle();
   // A finger in the frame moves the example, and never the slide around it.
   useEffect(() => {
     const frame = ref.current!;
     const onTouchStart = (event: TouchEvent) => event.stopPropagation();
     frame.addEventListener('touchstart', onTouchStart, { passive: true });
     return () => frame.removeEventListener('touchstart', onTouchStart);
-  }, [ref]);
+  }, []);
   return (
     <div className={styles.chapterStage} ref={ref} data-frame>
       <div className={clsx(landing.lightTokens, styles.stage)} ref={stageRef}>
         {backdrop}
-        {inView ? <SheetBoundary>{children}</SheetBoundary> : null}
+        {ready ? <SheetBoundary>{children}</SheetBoundary> : null}
       </div>
       {rail ? <div className={styles.rail}>{rail}</div> : null}
     </div>

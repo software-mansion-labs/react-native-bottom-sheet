@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useContext,
   useEffect,
   useRef,
   useState,
@@ -29,7 +30,7 @@ import {
   TOP_INSET,
   useRestUnderContent,
 } from './example';
-import { clamp, Icon, Reveal } from './pieces';
+import { clamp, Icon, Reveal, SlideActiveContext } from './pieces';
 import landing from './landing.module.css';
 import shared from './example.module.css';
 import styles from './Video.module.css';
@@ -145,9 +146,11 @@ type Owner = 'idle' | 'sheet' | 'list';
 const useTrace = (
   canvasRef: RefObject<HTMLCanvasElement | null>,
   sampleRef: RefObject<Sample>,
-  onOwner: (owner: Owner) => void
+  onOwner: (owner: Owner) => void,
+  active: boolean
 ) => {
   useEffect(() => {
+    if (!active) return undefined;
     const canvas = canvasRef.current!;
     const context = canvas.getContext('2d')!;
     const points: (Sample & { t: number })[] = [];
@@ -237,7 +240,7 @@ const useTrace = (
       cancelAnimationFrame(frame);
       observer.disconnect();
     };
-  }, [canvasRef, sampleRef, onOwner]);
+  }, [canvasRef, sampleRef, onOwner, active]);
 };
 
 const OWNER_LABELS: Record<Owner, string> = {
@@ -262,7 +265,7 @@ export const NegotiationSlide = () => {
     ownerRef.current.dataset.owner = owner;
     ownerRef.current.textContent = OWNER_LABELS[owner];
   }, []);
-  useTrace(canvas, sample, onOwner);
+  useTrace(canvas, sample, onOwner, useContext(SlideActiveContext));
 
   return (
     <section className={shared.chapter} data-flip data-compact>
@@ -335,6 +338,7 @@ export const NegotiationSlide = () => {
         <BottomSheet
           detents={restStops(rest)}
           topInset={TOP_INSET}
+          animateIn={false}
           index={index}
           onIndexChange={(next) => {
             setIndex(next);

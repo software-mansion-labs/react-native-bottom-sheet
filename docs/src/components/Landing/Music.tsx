@@ -297,6 +297,7 @@ export const DetentsSlide = () => {
         <BottomSheet
           detents={preset.detents}
           topInset={TOP_INSET}
+          animateIn={false}
           index={index}
           onIndexChange={(next) => {
             setIndex(next);

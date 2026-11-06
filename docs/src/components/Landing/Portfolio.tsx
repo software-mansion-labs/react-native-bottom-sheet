@@ -1,4 +1,5 @@
 import {
+  useContext,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -24,7 +25,7 @@ import {
   TOP_INSET,
   useRestUnderContent,
 } from './example';
-import { Icon, Reveal } from './pieces';
+import { Icon, Reveal, SlideActiveContext } from './pieces';
 import landing from './landing.module.css';
 import shared from './example.module.css';
 import styles from './Portfolio.module.css';
@@ -227,9 +228,11 @@ export const ThreadsSlide = () => {
   const uiValue = useRef<HTMLOutputElement>(null);
   const jsValue = useRef<HTMLOutputElement>(null);
   const blockedRef = useRef(false);
+  const active = useContext(SlideActiveContext);
 
   // A cycle counted in time JS was free: blocking JS stalls it, as it would in an app.
   useEffect(() => {
+    if (!active) return undefined;
     let last = performance.now();
     let elapsed = 0;
     const id = setInterval(() => {
@@ -242,7 +245,7 @@ export const ThreadsSlide = () => {
       }
     }, 100);
     return () => clearInterval(id);
-  }, []);
+  }, [active]);
 
   const block = () => {
     if (blockedRef.current) return;
@@ -269,6 +272,7 @@ export const ThreadsSlide = () => {
         <div
           className={clsx(landing.lightTokens, styles.lanes)}
           data-blocked={blocked}
+          data-active={active}
         >
           <div className={styles.lane} data-lane="ui">
             <span>native gesture</span>
@@ -313,6 +317,7 @@ export const ThreadsSlide = () => {
         <BottomSheet
           detents={restStops(rest)}
           topInset={TOP_INSET}
+          animateIn={false}
           index={index}
           onIndexChange={(next) => {
             setIndex(next);

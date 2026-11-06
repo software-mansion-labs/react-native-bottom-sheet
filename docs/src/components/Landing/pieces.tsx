@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type ComponentProps } from 'react';
+import {
+  createContext,
+  useEffect,
+  useRef,
+  useState,
+  type ComponentProps,
+} from 'react';
 import clsx from 'clsx';
 
 import landing from './landing.module.css';
@@ -8,6 +14,23 @@ export const clamp = (value: number, min = 0, max = 1) =>
 
 export const prefersReducedMotion = () =>
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** Whether this slide is the one showing, so hidden ones can stop their work. */
+export const SlideActiveContext = createContext(true);
+
+/** Becomes true once the browser has time, so mounting never lands mid-animation. */
+export const useWhenIdle = () => {
+  const [idle, setIdle] = useState(false);
+  useEffect(() => {
+    if (typeof requestIdleCallback === 'undefined') {
+      const timer = setTimeout(() => setIdle(true), 300);
+      return () => clearTimeout(timer);
+    }
+    const handle = requestIdleCallback(() => setIdle(true), { timeout: 1500 });
+    return () => cancelIdleCallback(handle);
+  }, []);
+  return idle;
+};
 
 /** Fires once, when the element comes near the viewport. */
 export const useInView = <T extends HTMLElement>(margin = '200px') => {
