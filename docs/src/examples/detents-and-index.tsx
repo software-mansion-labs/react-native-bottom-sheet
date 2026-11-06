@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { programmatic } from '@swmansion/react-native-bottom-sheet';
 
 import {
   ControlGroup,
@@ -172,21 +171,26 @@ export const FloatingCardExample = interactiveExample(
               <StageButton label="Open sheet" onPress={() => setIndex(1)} />
             </StageContent>
             <StageSheet
-              detents={[0, 180, '100%']}
-              insets={[
-                {},
+              detents={[
+                0,
                 {
-                  left: insets.side,
-                  right: insets.side,
-                  bottom: insets.bottom,
+                  value: 180,
+                  insets: {
+                    left: insets.side,
+                    right: insets.side,
+                    bottom: insets.bottom,
+                  },
                 },
                 {
-                  left: insets.topSide,
-                  right: insets.topSide,
-                  top: insets.top,
-                  bottom: insets.topBottom,
+                  value: '100%',
+                  insets: {
+                    left: insets.topSide,
+                    right: insets.topSide,
+                    bottom: insets.topBottom,
+                  },
                 },
               ]}
+              topInset={insets.top}
               surfaceStyle={CARD_SHAPE}
               index={index}
               onIndexChange={setIndex}
@@ -243,12 +247,12 @@ export const FloatingCardExample = interactiveExample(
         code={`const [index, setIndex] = useState(1);
 
 <ModalBottomSheet
-  detents={[0, 180, '100%']}
-  insets={[
-    {},
-    { left: ${Math.round(insets.side)}, right: ${Math.round(insets.side)}, bottom: ${Math.round(insets.bottom)} },
-    { left: ${Math.round(insets.topSide)}, right: ${Math.round(insets.topSide)}, top: ${Math.round(insets.top)}, bottom: ${Math.round(insets.topBottom)} },
+  detents={[
+    0,
+    { value: 180, insets: { left: ${Math.round(insets.side)}, right: ${Math.round(insets.side)}, bottom: ${Math.round(insets.bottom)} } },
+    { value: '100%', insets: { left: ${Math.round(insets.topSide)}, right: ${Math.round(insets.topSide)}, bottom: ${Math.round(insets.topBottom)} } },
   ]}
+  topInset={${Math.round(insets.top)}}
   surfaceStyle={{ borderRadius: 28 }}
   index={index}
   onIndexChange={setIndex}
@@ -357,7 +361,7 @@ const CARD_DETENT = 320;
 const CODE_ONLY_DETENT = 170;
 
 // Leaves room on the sheet's left for the detent markers.
-const MARKED_SHEET_INSETS = [{ left: 100, right: 16 }];
+const MARKED_SHEET_INSETS = { left: 100, right: 16 };
 
 const DetentMarker = ({
   height,
@@ -391,7 +395,7 @@ export const ProgrammaticDetentExample = interactiveExample(
     const [index, setIndex] = useState(2);
     const [isCodeOnly, setIsCodeOnly] = useState(true);
     const middleCode = isCodeOnly
-      ? `programmatic(${CODE_ONLY_DETENT})`
+      ? `{ value: ${CODE_ONLY_DETENT}, programmatic: true }`
       : CODE_ONLY_DETENT;
 
     return (
@@ -414,10 +418,13 @@ export const ProgrammaticDetentExample = interactiveExample(
             <StageSheet
               detents={[
                 0,
-                isCodeOnly ? programmatic(CODE_ONLY_DETENT) : CODE_ONLY_DETENT,
-                CARD_DETENT,
+                {
+                  value: CODE_ONLY_DETENT,
+                  programmatic: isCodeOnly,
+                  insets: MARKED_SHEET_INSETS,
+                },
+                { value: CARD_DETENT, insets: MARKED_SHEET_INSETS },
               ]}
-              insets={MARKED_SHEET_INSETS}
               index={index}
               onIndexChange={setIndex}
               scrimColor="rgba(0, 0, 0, 0.25)"

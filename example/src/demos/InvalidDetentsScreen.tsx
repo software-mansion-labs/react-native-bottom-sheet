@@ -1,6 +1,10 @@
 import { Component, useState, type ReactNode } from 'react';
 import { Button, StyleSheet, Text, View } from 'react-native';
-import { BottomSheet, type Detent } from '@swmansion/react-native-bottom-sheet';
+import {
+  BottomSheet,
+  ModalBottomSheet,
+  type ModalDetent,
+} from '@swmansion/react-native-bottom-sheet';
 
 import { DemoScreen, SheetBackground } from '../demoShared';
 
@@ -8,8 +12,12 @@ const INVALID_DETENTS_CONTENT_HEIGHT = 160;
 
 type ValidationCase = Readonly<{
   label: string;
-  detents: Detent[];
+  detents: ModalDetent[];
   index: number;
+  topInset?: number;
+  // Presents the case in a `ModalBottomSheet`, whose detents can set
+  // `scrimOpacity`.
+  modal?: boolean;
 }>;
 
 const VALIDATION_CASES: ValidationCase[] = [
@@ -22,6 +30,18 @@ const VALIDATION_CASES: ValidationCase[] = [
   { label: 'empty detents', detents: [], index: 0 },
   { label: 'numeric detent: -10', detents: [0, -10], index: 0 },
   { label: "percentage detent: '-10%'", detents: [0, '-10%'], index: 0 },
+  { label: 'topInset: -1', detents: [0, 'content'], index: 0, topInset: -1 },
+  {
+    label: 'insets.left: -1',
+    detents: [0, { value: 300, insets: { left: -1 } }],
+    index: 0,
+  },
+  {
+    label: 'modal scrimOpacity: 2',
+    detents: [0, { value: 300, scrimOpacity: 2 }],
+    index: 0,
+    modal: true,
+  },
   {
     label: 'native ascending-order validation',
     detents: [360, 120, 'content'],
@@ -58,15 +78,17 @@ class ValidationErrorBoundary extends Component<
 export const InvalidDetentsScreen = () => {
   const [caseIndex, setCaseIndex] = useState(0);
   const validationCase = VALIDATION_CASES[caseIndex]!;
+  const Sheet = validationCase.modal ? ModalBottomSheet : BottomSheet;
 
   return (
     <DemoScreen
       title="Invalid props"
       sheet={
         <ValidationErrorBoundary key={caseIndex}>
-          <BottomSheet
+          <Sheet
             detents={validationCase.detents}
             index={validationCase.index}
+            topInset={validationCase.topInset}
             surface={<SheetBackground style={StyleSheet.absoluteFill} />}
           >
             <View>
@@ -116,7 +138,7 @@ export const InvalidDetentsScreen = () => {
                 detent ordering is still validated there.
               </Text>
             </View>
-          </BottomSheet>
+          </Sheet>
         </ValidationErrorBoundary>
       }
     >

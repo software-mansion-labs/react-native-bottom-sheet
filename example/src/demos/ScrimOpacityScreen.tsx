@@ -29,11 +29,14 @@ export const ScrimOpacityScreen = () => {
       title="Per-detent scrim opacity"
       sheet={
         <ModalBottomSheet
-          detents={[0, windowHeight / 2, 'content']}
+          detents={[
+            0,
+            { value: windowHeight / 2, scrimOpacity: 0.5 },
+            'content',
+          ]}
           index={index}
           onIndexChange={setIndex}
           scrimColor={MODAL_SCRIM_COLOR}
-          scrimOpacities={[0, 0.5, 1]}
           surface={<SheetBackground style={StyleSheet.absoluteFill} />}
         >
           <SheetHeader
@@ -47,10 +50,10 @@ export const ScrimOpacityScreen = () => {
             ListHeaderComponent={
               <View style={{ padding: 20 }}>
                 <Text style={{ fontSize: 15, lineHeight: 22, color: '#555' }}>
-                  With three detents and scrimOpacities={'{[0, 0.5, 1]}'}, the
-                  scrim keeps deepening from the half detent to the full detent
-                  instead of snapping to full opacity at the first open detent.
-                  Drag between detents to watch it interpolate.
+                  With scrimOpacity: 0.5 on the half detent, the scrim keeps
+                  deepening from the half detent to the full detent instead of
+                  snapping to full opacity at the first open detent. Drag
+                  between detents to watch it interpolate.
                 </Text>
               </View>
             }

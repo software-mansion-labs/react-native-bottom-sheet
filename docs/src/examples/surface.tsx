@@ -210,7 +210,7 @@ const toHex = (hue: number) =>
     .join('')}`;
 
 // Rounded on all sides, a card needs gaps for its bottom corners to show.
-const FLOATING_INSETS = [{ left: 40, right: 40, bottom: 24 }];
+const FLOATING_INSETS = { left: 40, right: 40, bottom: 24 };
 
 export const CardShapeExample = interactiveExample(
   () => {
@@ -233,9 +233,16 @@ export const CardShapeExample = interactiveExample(
               <StageButton label="Open sheet" onPress={() => setIndex(1)} />
             </StageContent>
             <StageInlineSheet
-              detents={[0, 140, '90%']}
               // The shared look's width cap would leave no room to compare.
-              {...(isFloating ? { insets: FLOATING_INSETS } : {})}
+              detents={
+                isFloating
+                  ? [
+                      0,
+                      { value: 140, insets: FLOATING_INSETS },
+                      { value: '90%', insets: FLOATING_INSETS },
+                    ]
+                  : [0, 140, '90%']
+              }
               surfaceStyle={{
                 ...(isFloating
                   ? { borderRadius: radius }
@@ -296,9 +303,15 @@ export const CardShapeExample = interactiveExample(
         code={`const [index, setIndex] = useState(1);
 
 <BottomSheet
-  detents={[0, 140, '90%']}${
-    isFloating ? `\n  insets={[{ left: 40, right: 40, bottom: 24 }]}` : ''
-  }
+  detents={${
+    isFloating
+      ? `[
+    0,
+    { value: 140, insets: { left: 40, right: 40, bottom: 24 } },
+    { value: '90%', insets: { left: 40, right: 40, bottom: 24 } },
+  ]`
+      : `[0, 140, '90%']`
+  }}
   index={index}
   onIndexChange={setIndex}
   surface={

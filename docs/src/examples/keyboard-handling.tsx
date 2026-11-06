@@ -126,8 +126,6 @@ const SimulatedKeyboard = ({
   );
 };
 
-const FULL_WIDTH_INSETS = [{ left: 0, right: 0 }];
-
 /** Opens from the bottom of the screen, as that's where the keyboard opens. */
 const DeviceKeyboardSheet = ({ onClosed }: { onClosed: () => void }) => {
   const [index, setIndex] = useState(1);
@@ -137,8 +135,7 @@ const DeviceKeyboardSheet = ({ onClosed }: { onClosed: () => void }) => {
       <BottomSheetProvider>
         <StageSheet
           animateIn
-          insets={FULL_WIDTH_INSETS}
-          detents={[0, 'content']}
+          detents={[0, { value: 'content', insets: { left: 0, right: 0 } }]}
           animateContentHeight={false}
           index={index}
           onIndexChange={setIndex}

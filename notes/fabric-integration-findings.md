@@ -195,10 +195,10 @@ override covers React's clones, whose children arrive after `adopt()`. The copy
 rides the sheet's own state update, so it adds no commits.
 
 - **The host's height** replaces the `maxDetentHeight` prop entirely, and a
-  detent's top inset defaults to `max(0, topInset − originYInWindow)`, where
-  `topInset` = status bars + display cutout from `rootWindowInsets` (Android) /
-  `window.safeAreaInsets.top` (iOS), and the origin term means only the
-  _overlapping_ part of the inset counts — a sheet inside a container that
+  sheet's `topInset` prop defaults to `max(0, statusInset − originYInWindow)`,
+  where `statusInset` = status bars + display cutout from `rootWindowInsets`
+  (Android) / `window.safeAreaInsets.top` (iOS), and the origin term means only
+  the _overlapping_ part of the inset counts — a sheet inside a container that
   starts below the status bar keeps its full height. Recomputed on attach / size
   change / inset change / layout; JS no longer clamps detents (native
   `resolveDetentSpecs` always did).

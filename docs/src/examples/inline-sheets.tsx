@@ -25,7 +25,7 @@ import {
 const INFLATION_STEPS = [20, 36, 52, 62, 80, 100];
 
 // Leaves room on the sheet's left for the pump.
-const SHEET_INSETS = [{ left: 124, right: 16 }];
+const SHEET_INSETS = { left: 124, right: 16 };
 
 const SHARD_COLUMNS = 4;
 const SHARD_ROWS = 3;
@@ -529,9 +529,8 @@ export const InlineSheetExample = interactiveExample(
             </Pressable>
             {!popped && (
               <StageInlineSheet
-                insets={SHEET_INSETS}
                 animateIn={animateIn}
-                detents={[0, `${height}%`]}
+                detents={[0, { value: `${height}%`, insets: SHEET_INSETS }]}
                 index={index}
                 onIndexChange={setIndex}
                 // A detent changing height doesn't fire `onSettle`, so watch the position.
@@ -606,9 +605,9 @@ const PIPE_STYLE: CSSProperties = {
 const BURST_STYLE: CSSProperties = {
   position: 'absolute',
   top: 0,
-  right: SHEET_INSETS[0]!.right,
+  right: SHEET_INSETS.right,
   bottom: 0,
-  left: SHEET_INSETS[0]!.left,
+  left: SHEET_INSETS.left,
   pointerEvents: 'none',
 };
 

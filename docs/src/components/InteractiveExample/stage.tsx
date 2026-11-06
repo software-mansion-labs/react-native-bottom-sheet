@@ -19,6 +19,8 @@ import {
   BottomSheet,
   BottomSheetProvider,
   ModalBottomSheet,
+  type ModalDetent,
+  type ModalDetentConfig,
 } from '@swmansion/react-native-bottom-sheet';
 
 import styles from './styles.module.css';
@@ -85,19 +87,29 @@ type StageInlineSheetProps = Omit<
   surfaceColor?: string;
 };
 
+const DEFAULT_DETENTS: ModalDetent[] = [0, 'content'];
+
 const SHEET_SHAPE = {
   borderTopLeftRadius: 16,
   borderTopRightRadius: 16,
   boxShadow: '0 -2 16 rgba(0, 16, 72, 0.12)',
 };
 
+/** A detent's insets, with side gaps that center the sheet unless it sets its own. */
+const withSideGaps = (detent: ModalDetent, gap: number): ModalDetentConfig => {
+  const config = typeof detent === 'object' ? detent : { value: detent };
+  return { ...config, insets: { left: gap, right: gap, ...config.insets } };
+};
+
 /** The shared sheet look, centered at `MAX_SHEET_WIDTH`. */
-const useSheetLook = (surfaceColor?: string) => {
+const useSheetLook = (
+  detents: ReadonlyArray<ModalDetent>,
+  surfaceColor?: string
+) => {
   const gap = Math.max(
     0,
     (useContext(StageWidthContext) - MAX_SHEET_WIDTH) / 2
   );
-  const insets = useMemo(() => [{ left: gap, right: gap }], [gap]);
   const surface = useMemo(
     () => (
       <View
@@ -113,23 +125,28 @@ const useSheetLook = (surfaceColor?: string) => {
   return {
     // Examples load with their sheets already in place.
     animateIn: false,
-    insets,
+    detents: detents.map((detent) => withSideGaps(detent, gap)),
     surfaceStyle: SHEET_SHAPE,
     surface,
   };
 };
 
 /** A modal sheet with the shared look. */
-export const StageSheet = ({ surfaceColor, ...props }: StageSheetProps) => (
-  <ModalBottomSheet {...useSheetLook(surfaceColor)} {...props} />
+export const StageSheet = ({
+  detents = DEFAULT_DETENTS,
+  surfaceColor,
+  ...props
+}: StageSheetProps) => (
+  <ModalBottomSheet {...useSheetLook(detents, surfaceColor)} {...props} />
 );
 
 /** An inline sheet with the shared look. */
 export const StageInlineSheet = ({
+  detents = DEFAULT_DETENTS,
   surfaceColor,
   ...props
 }: StageInlineSheetProps) => (
-  <BottomSheet {...useSheetLook(surfaceColor)} {...props} />
+  <BottomSheet {...useSheetLook(detents, surfaceColor)} {...props} />
 );
 
 export const StageButton = ({

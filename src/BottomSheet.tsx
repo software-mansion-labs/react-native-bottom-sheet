@@ -17,8 +17,8 @@ import { Portal } from './BottomSheetProvider';
 import {
   CONTENT_HEIGHT_MARKER_NATIVE_ID,
   type Detent,
-  type DetentInset,
   isNormalizedDetentClosed,
+  type ModalDetent,
   normalizeDetents,
   resolveSurfaceStyle,
   type SurfaceStyle,
@@ -26,11 +26,13 @@ import {
 } from './bottomSheetUtils';
 export type {
   Detent,
-  DetentInset,
+  DetentConfig,
+  DetentInsets,
   DetentValue,
+  ModalDetent,
+  ModalDetentConfig,
   SurfaceStyle,
 } from './bottomSheetUtils';
-export { programmatic } from './bottomSheetUtils';
 
 /**
  * Payload of the {@link BottomSheetProps.onPositionChange} event, accessed as
@@ -106,22 +108,20 @@ export interface BottomSheetProps {
    * may be taller than the measured content or available height; native layout
    * caps them to the available geometry.
    *
-   * With `insets`, a detent's value is the height of the card, and percentages
-   * resolve against the available space: the host's height minus that detent's
-   * top and bottom insets. So `'100%'` fills the space between the gaps and
-   * never covers them. Detents ascend by the position of the card's top: its
-   * height plus its bottom inset.
-   */
-  detents?: Detent[];
-  /**
-   * The space around the card per detent, indexed to match `detents`, so the
-   * sheet can float as a card. Insets are linearly interpolated as the sheet
-   * moves between detents; below the first open detent the card keeps its shape
-   * and slides down through the bottom inset. Like `scrimOpacities`, a shorter
-   * array than `detents` reuses its last value for any remaining detents, and
-   * extra values are ignored. A closed detent ignores its inset. `top` defaults
-   * to the status bar's overlap with the host; a lower value, or `0`, lets the
-   * card go under the status bar.
+   * Each detent is a bare value or an object with its options:
+   * `programmatic`, `insets`, and, on `ModalBottomSheet`, `scrimOpacity`. A
+   * detent without an option takes its default.
+   *
+   * A detent’s value is the height of the card, and percentages resolve against
+   * the available space: the host’s height minus `topInset` and that detent’s
+   * bottom inset. So `'100%'` fills the space between the gaps and never covers
+   * them. Detents ascend by the position of the card’s top: its height plus its
+   * bottom inset.
+   *
+   * A detent’s `insets` keep space around the card, so the sheet can float as
+   * a card. They are linearly interpolated as the sheet moves between detents;
+   * below the first open detent the card keeps its shape and slides down
+   * through the bottom inset. A closed detent ignores its insets.
    *
    * Insets never relayout the surface or content. They are laid out against
    * the widest card, the detent with the tightest side insets, and scaled
@@ -135,7 +135,14 @@ export interface BottomSheetProps {
    * Space in an inset isn't part of the sheet: touches there reach the scrim or
    * whatever is behind it.
    */
-  insets?: DetentInset[];
+  detents?: Detent[];
+  /**
+   * The minimum space between the card’s top and the host’s top, in points,
+   * at every detent. Defaults to the part of the status bar that overlaps the
+   * host, so the card stops below it; pass a lower value, or `0`, to go under
+   * the status bar.
+   */
+  topInset?: number;
   /**
    * Finite, zero-based integer in `0..(detents.length - 1)`. When shortening
    * `detents`, update `index` to remain in range in the same render.
@@ -222,24 +229,13 @@ type ModalOnlyBottomSheetProps = {
   nativeOverlay?: boolean;
   /** Scrim color used by `ModalBottomSheet`. */
   scrimColor?: string;
-  /**
-   * Scrim opacities per detent, indexed to match `detents`. Each value in 0-1
-   * scales the scrim color's alpha at the detent of the same index, and the
-   * opacity is linearly interpolated as the sheet is dragged between detents.
-   * A shorter array than `detents` reuses its last value for any remaining
-   * detents.
-   *
-   * The default maps each detent to 0 when it is closed and 1 otherwise,
-   * so the scrim is transparent at any closed detent and fully opaque at every
-   * open one; e.g., `[0, 'content']` defaults to `[0, 1]`, and all-open detents
-   * default to a constant opaque scrim. Pass one value per detent, e.g.
-   * `[0, 0.5, 1]`, to keep the scrim deepening across every detent.
-   */
-  scrimOpacities?: number[];
 };
 
-export type BottomSheetInternalProps = BottomSheetProps &
-  ModalOnlyBottomSheetProps;
+export type BottomSheetInternalProps = Omit<BottomSheetProps, 'detents'> &
+  ModalOnlyBottomSheetProps & {
+    /** `ModalBottomSheet`’s detents can also set a scrim opacity. */
+    detents?: ModalDetent[];
+  };
 
 // Incremented whenever any sheet opens, so the most recently opened sheet
 // stacks on top and receives Back and Escape.
@@ -253,7 +249,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
     surfaceStyle,
     style,
     detents = [0, 'content'],
-    insets,
+    topInset,
     index,
     animateIn = true,
     animateContentHeight = true,
@@ -268,7 +264,6 @@ export const BottomSheet = (props: BottomSheetProps) => {
     scrollableNegotiation,
     disableScrollableNegotiation,
     scrimColor,
-    scrimOpacities,
   } = props as BottomSheetInternalProps;
   const resolvedScrollableNegotiation =
     scrollableNegotiation ??
@@ -296,7 +291,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
   // host's height whenever detents are refreshed. Point detents retain
   // their requested height; native layout clamps both kinds to it.
   validateIndex(index, detents.length);
-  const normalizedDetents = normalizeDetents(detents, insets);
+  const normalizedDetents = normalizeDetents(detents, topInset, modal);
 
   const selectedNormalizedDetent = normalizedDetents[index]!;
   const isSheetClosed = isNormalizedDetentClosed(selectedNormalizedDetent);
@@ -333,13 +328,6 @@ export const BottomSheet = (props: BottomSheetProps) => {
     () => resolveSurfaceStyle(surfaceStyle, I18nManager.isRTL),
     [surfaceStyle]
   );
-  // Default the scrim opacity per detent: transparent at any closed detent,
-  // fully opaque at every open one.
-  const resolvedScrimOpacities =
-    scrimOpacities ??
-    normalizedDetents.map((detent) =>
-      isNormalizedDetentClosed(detent) ? 0 : 1
-    );
   const handleIndexChange = (event: { nativeEvent: { index: number } }) => {
     onIndexChange?.(event.nativeEvent.index);
   };
@@ -426,7 +414,6 @@ export const BottomSheet = (props: BottomSheetProps) => {
             SCROLLABLE_NEGOTIATION_LEVEL[resolvedCollapseNegotiation]
           }
           scrimColor={scrimColor}
-          scrimOpacities={resolvedScrimOpacities}
           surfaceCornerRadii={cornerRadii}
           surfaceCornerCurve={cornerCurve}
           surfaceShadows={shadows}

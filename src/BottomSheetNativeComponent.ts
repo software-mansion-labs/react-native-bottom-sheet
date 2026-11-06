@@ -12,6 +12,8 @@ type NativeDetent = Readonly<{
   // Carried with the detent, not in a prop of their own, so a detents change
   // reaches the host in one piece: props within an update arrive in no
   // particular order on Android, and detents are validated as they resolve.
+  // The sheet-wide `topInset` is carried the same way, on every detent.
+  //
   // Whether the status bar's overlap with the host replaces `insetTop`.
   usesStatusBarTopInset: boolean;
   insetTop: CodegenTypes.Double;
@@ -21,6 +23,8 @@ type NativeDetent = Readonly<{
   // The widest open card, which the content is laid out against. Flagged in JS,
   // which lays the content out, so every platform agrees on it.
   widestCard: boolean;
+  // The scrim’s opacity at this detent, in 0-1. Ignored by inline sheets.
+  scrimOpacity: CodegenTypes.Double;
 }>;
 
 export interface NativeProps extends ViewProps {
@@ -41,7 +45,6 @@ export interface NativeProps extends ViewProps {
   scrollableExpandNegotiation: CodegenTypes.Int32;
   scrollableCollapseNegotiation: CodegenTypes.Int32;
   scrimColor?: ColorValue;
-  scrimOpacities?: ReadonlyArray<CodegenTypes.Double>;
   // Physical corner radii of the card the host clips the surface and content
   // to: top-left, top-right, bottom-right, bottom-left. Empty or all-zero
   // leaves the sheet unclipped.

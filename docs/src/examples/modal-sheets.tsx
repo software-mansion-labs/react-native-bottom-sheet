@@ -40,11 +40,14 @@ export const ScrimExample = interactiveExample(
               <StageButton label="Open sheet" onPress={() => setIndex(1)} />
             </StageContent>
             <StageSheet
-              detents={[0, 140, 'content']}
+              detents={[
+                0,
+                { value: 140, scrimOpacity: middle },
+                { value: 'content', scrimOpacity: top },
+              ]}
               index={index}
               onIndexChange={setIndex}
               scrimColor={scrimColor}
-              scrimOpacities={[0, middle, top]}
             >
               <SheetBody title="Drag between detents">
                 <SheetText>
@@ -92,11 +95,14 @@ export const ScrimExample = interactiveExample(
         code={`const [index, setIndex] = useState(1);
 
 <ModalBottomSheet
-  detents={[0, 140, 'content']}
+  detents={[
+    0,
+    { value: 140, scrimOpacity: ${Number(middle.toFixed(2))} },
+    { value: 'content', scrimOpacity: ${Number(top.toFixed(2))} },
+  ]}
   index={index}
   onIndexChange={setIndex}
   scrimColor="${scrimColor}"
-  scrimOpacities={[0, ${Number(middle.toFixed(2))}, ${Number(top.toFixed(2))}]}
   surface={
     <View style={[StyleSheet.absoluteFill, { backgroundColor: 'white' }]} />
   }
