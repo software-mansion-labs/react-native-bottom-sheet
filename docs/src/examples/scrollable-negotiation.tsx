@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -52,6 +53,49 @@ const COLLAPSE_HINTS: Record<ScrollableNegotiationMode, string> = {
 
 /** How far a mouse moves before a press counts as a drag. */
 const DRAG_SLOP = 4;
+
+/** Shows where a simulated finger is, for as long as it's pressed on the stage. */
+const FingerIndicator = () => {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const finger = ref.current!;
+    const stage = finger.parentElement!;
+    let isPressed = false;
+
+    const place = ({ clientX, clientY }: PointerEvent) => {
+      const { left, top } = stage.getBoundingClientRect();
+      finger.style.transform = `translate(${clientX - left}px, ${clientY - top}px)`;
+    };
+    const onDown = (event: PointerEvent) => {
+      if (event.button !== 0 || !stage.contains(event.target as Node)) return;
+      isPressed = true;
+      place(event);
+      finger.style.opacity = '1';
+    };
+    const onMove = (event: PointerEvent) => {
+      if (isPressed) place(event);
+    };
+    const onUp = () => {
+      isPressed = false;
+      finger.style.opacity = '0';
+    };
+
+    // Captured, as the sheet's own gesture handling sees these events first.
+    window.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('pointermove', onMove, true);
+    window.addEventListener('pointerup', onUp, true);
+    window.addEventListener('pointercancel', onUp, true);
+    return () => {
+      window.removeEventListener('pointerdown', onDown, true);
+      window.removeEventListener('pointermove', onMove, true);
+      window.removeEventListener('pointerup', onUp, true);
+      window.removeEventListener('pointercancel', onUp, true);
+    };
+  }, []);
+
+  return <div ref={ref} style={FINGER_STYLE} aria-hidden />;
+};
 
 const Meter = ({ fillRef }: { fillRef: RefObject<HTMLDivElement | null> }) => (
   <div style={METER_STYLE}>
@@ -178,6 +222,7 @@ export const NegotiationModesExample = interactiveExample(
                 </ScrollView>
               </div>
             </StageInlineSheet>
+            {isMobilePreview && !hasTouchGestures && <FingerIndicator />}
           </>
         }
         controls={
@@ -205,7 +250,7 @@ export const NegotiationModesExample = interactiveExample(
                 />
                 <Hint>
                   {isMobilePreview
-                    ? 'This simulates a phone, so a mouse drag acts like a finger.'
+                    ? 'This simulates a phone, so a mouse drag acts like a finger, shown as a circle.'
                     : "Most of these gestures are for touch, so a mouse on the web mostly won't do them. Dragging only scrolls the list during a handoff. Otherwise, use the wheel."}
                 </Hint>
               </>
@@ -230,6 +275,21 @@ export const NegotiationModesExample = interactiveExample(
   },
   { height: 440 }
 );
+
+const FINGER_STYLE: CSSProperties = {
+  position: 'absolute',
+  zIndex: 1,
+  top: -18,
+  left: -18,
+  width: 36,
+  height: 36,
+  borderRadius: '50%',
+  border: '1px solid rgba(255, 255, 255, 0.7)',
+  backgroundColor: 'rgba(120, 130, 160, 0.45)',
+  opacity: 0,
+  pointerEvents: 'none',
+  transition: 'opacity 120ms ease-out',
+};
 
 const METERS_STYLE: CSSProperties = {
   position: 'absolute',
