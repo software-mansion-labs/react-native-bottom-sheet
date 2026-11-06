@@ -5,10 +5,18 @@ import {
   useState,
   type CSSProperties,
   type ReactNode,
+  type RefObject,
 } from 'react';
 import clsx from 'clsx';
 
 import styles from './styles.module.css';
+
+/** Gives what renders outside of an example, like a portal, the examples' colors. */
+export const exampleThemeClassName = styles.theme;
+
+/** Whether the device is driven by touch, with no pointer that can hover. */
+export const hasTouchGestures = () =>
+  window.matchMedia('(hover: none)').matches;
 
 // The row below the stage. These are plain DOM controls: they belong to the
 // docs page, not to the example.
@@ -40,6 +48,27 @@ export const Control = ({
 
 export const Hint = ({ children }: { children: ReactNode }) => (
   <p className={styles.hint}>{children}</p>
+);
+
+/** A bar an example fills through `fillRef`, as it updates on every frame. */
+export const Meter = ({
+  fillRef,
+  ticks = [],
+}: {
+  fillRef: RefObject<HTMLDivElement | null>;
+  /** Where to mark the bar, from 0 to 1. */
+  ticks?: number[];
+}) => (
+  <div className={styles.meter}>
+    <div ref={fillRef} className={styles.meterFill} />
+    {ticks.map((tick) => (
+      <span
+        key={tick}
+        className={styles.meterTick}
+        style={{ left: `${tick * 100}%` }}
+      />
+    ))}
+  </div>
 );
 
 export const Slider = ({

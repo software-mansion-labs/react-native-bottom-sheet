@@ -1,4 +1,4 @@
-import { useRef, useState, type CSSProperties, type RefObject } from 'react';
+import { useRef, useState, type CSSProperties } from 'react';
 
 import {
   Control,
@@ -6,6 +6,7 @@ import {
   Example,
   Hint,
   interactiveExample,
+  Meter,
   Segmented,
   SheetBody,
   SheetText,
@@ -79,21 +80,7 @@ const Land = ({ grass, river, crown, trunk }: typeof DAY_LAND) => (
   </>
 );
 
-const IndexMeter = ({
-  fillRef,
-}: {
-  fillRef: RefObject<HTMLDivElement | null>;
-}) => (
-  <div style={METER_STYLE}>
-    <div ref={fillRef} style={METER_FILL_STYLE} />
-    {DETENTS.map((_, i) => (
-      <span
-        key={i}
-        style={{ ...METER_TICK_STYLE, left: `${(i / LAST_INDEX) * 100}%` }}
-      />
-    ))}
-  </div>
-);
+const METER_TICKS = DETENTS.map((_, i) => i / LAST_INDEX);
 
 export const LivePositionExample = interactiveExample(
   () => {
@@ -204,7 +191,7 @@ export const LivePositionExample = interactiveExample(
               label="nativeEvent.index"
               value={<span ref={indexRef}>0.00</span>}
             >
-              <IndexMeter fillRef={fillRef} />
+              <Meter fillRef={fillRef} ticks={METER_TICKS} />
             </Control>
             <Segmented
               label="index"
@@ -294,28 +281,4 @@ const GLOBE_STYLE: CSSProperties = {
   left: 'calc(50% - 520px)',
   width: 1040,
   height: 1040,
-};
-
-const METER_STYLE: CSSProperties = {
-  position: 'relative',
-  height: 6,
-  borderRadius: 3,
-  backgroundColor: 'var(--example-track)',
-};
-
-const METER_FILL_STYLE: CSSProperties = {
-  ...FILL_STYLE,
-  borderRadius: 3,
-  backgroundColor: 'var(--example-button)',
-  transform: 'scaleX(0)',
-  transformOrigin: 'left center',
-};
-
-const METER_TICK_STYLE: CSSProperties = {
-  position: 'absolute',
-  top: -3,
-  width: 2,
-  height: 12,
-  marginLeft: -1,
-  backgroundColor: 'var(--example-muted)',
 };

@@ -1,3 +1,4 @@
+.theme,
 .example,
 .placeholder {
   --example-border: var(--swm-navy-light-20);
@@ -19,13 +20,17 @@
   --example-tint-purple: var(--swm-purple-light-40);
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
 
+.example,
+.placeholder {
   margin-bottom: var(--ifm-leading);
   border: 1px solid var(--example-border);
   background-color: var(--example-background);
   color: var(--example-text);
 }
 
+[data-theme='dark'] .theme,
 [data-theme='dark'] .example,
 [data-theme='dark'] .placeholder {
   --example-border: var(--swm-light-off-navy);
@@ -303,6 +308,31 @@
   font-family: var(--ifm-font-family-monospace);
   font-size: 13px;
   font-variant-numeric: tabular-nums;
+}
+
+.meter {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background-color: var(--example-track);
+}
+
+.meterFill {
+  position: absolute;
+  inset: 0;
+  border-radius: 3px;
+  background-color: var(--example-button);
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+.meterTick {
+  position: absolute;
+  top: -3px;
+  width: 2px;
+  height: 12px;
+  margin-left: -1px;
+  background-color: var(--example-muted);
 }
 
 .hint {

@@ -6,6 +6,8 @@ import clsx from 'clsx';
 import {
   ControlGroup,
   Example,
+  exampleThemeClassName,
+  hasTouchGestures,
   Hint,
   interactiveExample,
   MAX_SHEET_WIDTH,
@@ -131,7 +133,7 @@ const DeviceKeyboardSheet = ({ onClosed }: { onClosed: () => void }) => {
   const [index, setIndex] = useState(1);
 
   return createPortal(
-    <div className={styles.screen}>
+    <div className={clsx(exampleThemeClassName, styles.screen)}>
       <BottomSheetProvider>
         <StageSheet
           animateIn
@@ -203,7 +205,9 @@ const DeviceKeyboardExample = () => {
       controls={
         <ControlGroup>
           <Hint>
-            Open the sheet and tap the field to bring up your keyboard.
+            Open the sheet and tap the field to bring up your keyboard. Here the
+            browser moves the page to keep the field in view. An app needs the
+            padding in the code.
           </Hint>
         </ControlGroup>
       }
@@ -248,6 +252,8 @@ const SimulatedKeyboardExample = () => {
               <input
                 ref={fieldRef}
                 className={styles.field}
+                // Keeps a touch screen's own keyboard away from the simulated one.
+                inputMode="none"
                 placeholder="Tap to type"
                 value={text}
                 onChange={(event) => setText(event.target.value)}
@@ -327,7 +333,7 @@ const SimulatedKeyboardExample = () => {
 // so only a device without one gets a simulated keyboard to play with there.
 export const KeyboardPaddingExample = interactiveExample(
   () =>
-    window.matchMedia('(hover: none)').matches ? (
+    hasTouchGestures() ? (
       <DeviceKeyboardExample />
     ) : (
       <SimulatedKeyboardExample />

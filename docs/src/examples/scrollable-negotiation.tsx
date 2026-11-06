@@ -4,7 +4,6 @@ import {
   useState,
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
-  type RefObject,
 } from 'react';
 import {
   ScrollView,
@@ -19,8 +18,10 @@ import {
   Control,
   ControlGroup,
   Example,
+  hasTouchGestures,
   Hint,
   interactiveExample,
+  Meter,
   Segmented,
   SheetBody,
   StageInlineSheet,
@@ -97,12 +98,6 @@ const FingerIndicator = () => {
   return <div ref={ref} style={FINGER_STYLE} aria-hidden />;
 };
 
-const Meter = ({ fillRef }: { fillRef: RefObject<HTMLDivElement | null> }) => (
-  <div style={METER_STYLE}>
-    <div ref={fillRef} style={METER_FILL_STYLE} />
-  </div>
-);
-
 export const NegotiationModesExample = interactiveExample(
   () => {
     const [index, setIndex] = useState(0);
@@ -115,9 +110,7 @@ export const NegotiationModesExample = interactiveExample(
     const listFillRef = useRef<HTMLDivElement>(null);
     const [isMobilePreview, setIsMobilePreview] = useState(true);
     // A touch device already has the real gestures, so it has nothing to preview.
-    const [hasTouchGestures] = useState(
-      () => window.matchMedia('(hover: none)').matches
-    );
+    const [isTouchDevice] = useState(hasTouchGestures);
 
     // A mouse can't drag a list the way a finger does, so this does it for the
     // drags the sheet leaves to the list. The sheet handles the others itself.
@@ -222,7 +215,7 @@ export const NegotiationModesExample = interactiveExample(
                 </ScrollView>
               </div>
             </StageInlineSheet>
-            {isMobilePreview && !hasTouchGestures && <FingerIndicator />}
+            {isMobilePreview && !isTouchDevice && <FingerIndicator />}
           </>
         }
         controls={
@@ -241,7 +234,7 @@ export const NegotiationModesExample = interactiveExample(
             />
             <Hint>{EXPAND_HINTS[expand]}</Hint>
             <Hint>{COLLAPSE_HINTS[collapse]}</Hint>
-            {!hasTouchGestures && (
+            {!isTouchDevice && (
               <>
                 <Toggle
                   label="Mobile preview"
@@ -302,22 +295,6 @@ const METERS_STYLE: CSSProperties = {
   maxWidth: 360,
   margin: '0 auto',
   fontSize: 14,
-};
-
-const METER_STYLE: CSSProperties = {
-  position: 'relative',
-  height: 6,
-  overflow: 'hidden',
-  borderRadius: 3,
-  backgroundColor: 'var(--example-track)',
-};
-
-const METER_FILL_STYLE: CSSProperties = {
-  position: 'absolute',
-  inset: 0,
-  backgroundColor: 'var(--example-button)',
-  transform: 'scaleX(0)',
-  transformOrigin: 'left center',
 };
 
 const inner = StyleSheet.create({

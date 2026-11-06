@@ -50,32 +50,12 @@
   stroke-linecap: round;
 }
 
-/* Outside of the examples, so it brings the colors they'd inherit. */
 .screen {
-  --example-surface: var(--swm-white);
-  --example-background: var(--swm-off-white);
-  --example-border: var(--swm-navy-light-20);
-  --example-sheet-line: var(--swm-navy-light-20);
-  --example-text: var(--swm-navy-light-100);
-  --example-muted: var(--swm-navy-light-60);
-  --example-track: var(--swm-navy-light-20);
-  --example-button: #2196f3;
-
   position: fixed;
   z-index: 1000;
   inset: 0;
   display: flex;
   flex-direction: column;
-}
-
-[data-theme='dark'] .screen {
-  --example-surface: #2f3449;
-  --example-background: var(--swm-navy);
-  --example-border: #4c5473;
-  --example-sheet-line: #4c5473;
-  --example-text: var(--swm-off-white);
-  --example-muted: var(--swm-navy-dark-40);
-  --example-track: var(--swm-light-off-navy);
 }
 
 /* Above the sheets and their scrims, as the system's keyboard would be. */
