@@ -1,0 +1,496 @@
+.install {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  height: 52px;
+  padding: 0 16px;
+  border: 1px dashed currentColor;
+  font-family: var(--mono);
+  font-size: 13.5px;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.install > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.iconSwap {
+  position: relative;
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.iconSwap svg {
+  position: absolute;
+  inset: 0;
+  transition: opacity 180ms ease, filter 180ms ease, transform 180ms var(--ease-out);
+}
+
+.iconSwap svg:last-child {
+  opacity: 0;
+  filter: blur(2px);
+  transform: scale(0.8);
+}
+
+[data-copied='true'] .iconSwap svg:first-child {
+  opacity: 0;
+  filter: blur(2px);
+  transform: scale(0.8);
+}
+
+[data-copied='true'] .iconSwap svg:last-child {
+  opacity: 1;
+  filter: none;
+  transform: none;
+}
+
+/* Measured from the Reanimated and Gesture Handler docs. */
+.navbar {
+  position: absolute;
+  z-index: 6;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px 0 24px;
+  color: var(--navy);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  height: 40px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.wordmark {
+  white-space: nowrap;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 36px;
+  line-height: 1;
+}
+
+.wordmark span {
+  font-size: 18px;
+  font-weight: 400;
+  letter-spacing: 0.115em;
+  text-transform: uppercase;
+}
+
+.wordmark b {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.navbarRight {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.themeToggle {
+  display: flex;
+  width: 72px;
+  height: 36px;
+  border: 1px solid currentColor;
+  flex: none;
+}
+
+.themeToggle span {
+  flex: 1;
+  display: grid;
+  place-items: center;
+}
+
+.themeToggle span[data-active='true'] {
+  background: var(--navy);
+  color: var(--off-white);
+}
+
+.navbarGithub {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 32px;
+  color: inherit;
+  transition: opacity 160ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .navbarGithub:hover {
+    opacity: 0.65;
+  }
+}
+
+.hero {
+  position: absolute;
+  inset: 0;
+  background: var(--navy-deep);
+}
+
+.heroStage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--off-white);
+}
+
+.world {
+  position: absolute;
+  inset: 0;
+}
+
+.worldLight {
+  z-index: 1;
+  color: var(--navy);
+  background-size: 44px 44px;
+  background-position: center top;
+  background-image: linear-gradient(var(--grid-page) 1px, transparent 1px), linear-gradient(90deg, var(--grid-page) 1px, transparent 1px);
+}
+
+.heroSurface {
+  position: absolute;
+  inset: 0;
+  background-color: var(--navy);
+  background-image: linear-gradient(var(--grid-sheet) 1px, transparent 1px), linear-gradient(90deg, var(--grid-sheet) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
+/* The library's content layer sits above the surface, so it needs the cursor too. */
+.heroGrab {
+  position: absolute;
+  inset: 0;
+}
+
+.heroGrabber {
+  width: 38px;
+  height: 5px;
+  margin: 10px auto 8px;
+  border-radius: 3px;
+  background: var(--white);
+  opacity: 0.45;
+}
+
+/* Above the real sheet, so drags fall through to it everywhere but the buttons. */
+.worldNavy {
+  z-index: 4;
+  color: var(--white);
+  clip-path: inset(100% 0 0 0);
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.worldNavy a,
+.worldNavy .install,
+.worldNavy .callout {
+  pointer-events: auto;
+}
+
+.worldNavy a,
+.worldNavy a:hover {
+  background: var(--white);
+  color: var(--navy);
+}
+
+/* The library's host is full-size: only the sheet itself should catch the pointer. */
+.sheetLayer {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  display: flex;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.heroCopy {
+  position: absolute;
+  top: max(92px, 11vh);
+  left: var(--gutter);
+  right: var(--gutter);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.heroCopy > * {
+  animation: rise 500ms var(--ease-out) both;
+  animation-delay: calc(var(--i) * 55ms);
+}
+
+.eyebrow {
+  display: block;
+  font-size: 17px;
+  font-weight: 500;
+  margin-bottom: 14px;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.headline {
+  display: block;
+  font-size: min(8vw, 12vh, 112px);
+  line-height: 0.98;
+  letter-spacing: -0.035em;
+  font-weight: 500;
+  text-wrap: balance;
+}
+
+.lede {
+  margin-top: 20px;
+  max-width: 600px;
+  font-size: clamp(17px, 2.2vh, 20px);
+  line-height: 1.42;
+  text-wrap: balance;
+}
+
+.heroActions {
+  margin-top: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+
+/* Only exists under the sheet's edge: the blueprint of what you're dragging. */
+.xray {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--peek) + 48px);
+  width: min(620px, calc(100% - 2 * var(--gutter)));
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px;
+  font-size: 14.5px;
+  line-height: 1.4;
+}
+
+.xray div {
+  padding-top: 10px;
+  border-top: 1px dashed color-mix(in srgb, currentColor 40%, transparent);
+}
+
+.xray b {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--accent-on-sheet);
+}
+
+.xray span {
+  opacity: 0.8;
+}
+
+.readout {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--peek) + 18px);
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, currentColor 72%, transparent);
+}
+
+.readout b {
+  font-weight: 500;
+  color: var(--accent-on-sheet);
+}
+
+.rule {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 1px dashed currentColor;
+  opacity: 0.28;
+  mask-image: linear-gradient(90deg, transparent 55%, black 92%);
+}
+
+.callout {
+  position: absolute;
+  right: var(--gutter);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transform: translateY(-50%);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.callout i {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  display: grid;
+  place-items: center;
+  font-style: normal;
+  background: var(--off-white);
+  transition: background-color 200ms ease, color 200ms ease;
+}
+
+.worldNavy .callout i {
+  background: var(--navy);
+}
+
+.callout span {
+  opacity: 0.72;
+}
+
+.callout[aria-pressed='true'] i {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: var(--white);
+}
+
+.worldNavy .callout[aria-pressed='true'] i {
+  background: var(--white);
+  border-color: var(--white);
+  color: var(--navy);
+}
+
+.ride {
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 0;
+  will-change: transform;
+  pointer-events: none;
+}
+
+.hint {
+  position: absolute;
+  left: 50%;
+  bottom: -68px;
+  width: 112px;
+  margin-left: -56px;
+  height: 40px;
+  border-radius: 20px;
+  background: var(--white);
+  color: var(--navy);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: opacity 200ms ease, transform 200ms var(--ease-out);
+  animation: nudge 1500ms var(--ease-in-out) 1400ms 3;
+}
+
+.hint[data-gone='true'] {
+  opacity: 0;
+  transform: translateY(6px) scale(0.96);
+  animation: none;
+}
+
+@media (max-width: 860px) {
+  .navbar {
+    padding-left: 16px;
+    padding-right: 8px;
+  }
+
+  .brand {
+    gap: 10px;
+  }
+
+  .navbarRight {
+    gap: 8px;
+  }
+
+  .wordmark {
+    height: 32px;
+  }
+
+  .wordmark span {
+    font-size: 13.5px;
+  }
+
+  .wordmark b {
+    font-size: 15px;
+  }
+
+  .hero .install,
+  .callout span {
+    display: none;
+  }
+
+  .heroCopy {
+    top: 84px;
+  }
+
+  .headline {
+    font-size: min(13.6vw, 7.4vh);
+  }
+
+  .lede {
+    margin-top: 14px;
+    font-size: 16.5px;
+  }
+
+  .heroActions {
+    margin-top: 16px;
+  }
+
+  .xray {
+    font-size: 13.5px;
+    gap: 16px;
+  }
+
+  .readout {
+    font-size: 11px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .heroCopy > * {
+    animation-name: fade;
+  }
+
+  .hint {
+    animation: none;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+@keyframes nudge {
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
