@@ -14,6 +14,7 @@ import com.facebook.react.views.view.ReactViewGroup
 import com.swmansion.reactnativebottomsheet.closerequest.CloseRequestPresentationTracker
 import com.swmansion.reactnativebottomsheet.host.Card
 import com.swmansion.reactnativebottomsheet.host.ContentRegion
+import com.swmansion.reactnativebottomsheet.host.DetentInsets
 import com.swmansion.reactnativebottomsheet.host.Detents
 import com.swmansion.reactnativebottomsheet.host.Gestures
 import com.swmansion.reactnativebottomsheet.host.Scrim
@@ -534,6 +535,10 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     detents.clearPendingInitialContentDetentSnap()
     detents.releaseContentHeightMarker()
     state.rawDetentSpecs = emptyList()
+    state.hasCardGaps = false
+    clipContainer.setClipsToCard(false)
+    state.widestCardInsets = DetentInsets()
+    scrim.scrimOpacities = emptyList()
     state.detentSpecs = emptyList()
     state.targetIndex = 0
     hasPerformedHostLayoutSinceAttach = false
@@ -548,6 +553,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     gestures.clearTouchState()
     scrim.clearScrimProgress()
     state.suppressScrimForClosingTarget = false
+    state.scrimPinnedFull = false
     for (i in 0 until clipContainer.childCount) {
       card.resetContentTransform(clipContainer.getChildAt(i))
     }

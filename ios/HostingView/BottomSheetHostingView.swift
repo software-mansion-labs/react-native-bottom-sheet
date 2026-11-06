@@ -538,6 +538,7 @@ public final class BottomSheetHostingView: UIView {
     activeSpring = nil
     activeSpringEmitsSettle = false
     interruptedSpringEmitsSettle = nil
+    scrimPinnedFull = false
     lastAppliedMaxDetentHeight = .nan
     stopDisplayLink()
     removeSettleAnimations()

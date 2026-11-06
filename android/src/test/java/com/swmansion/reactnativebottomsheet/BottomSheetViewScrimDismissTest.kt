@@ -9,6 +9,7 @@ import androidx.activity.ComponentActivity
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.facebook.react.internal.featureflags.ReactNativeFeatureFlagsForTests
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -46,6 +47,56 @@ class BottomSheetViewScrimDismissTest {
 
       assertEquals(listOf(0), listener.indexChanges)
     }
+  }
+
+  @Test
+  fun `a re-anchor pins the scrim at the fully open opacity`() {
+    withOpenModalSheet { sheet, listener ->
+      pinScrimWithReanchor(sheet)
+      tapScrim(sheet)
+
+      assertEquals(listOf(0), listener.indexChanges)
+    }
+  }
+
+  @Test
+  fun `a scrim pinned at destroy does not carry over to a reused sheet`() {
+    withOpenModalSheet { sheet, listener ->
+      pinScrimWithReanchor(sheet)
+
+      sheet.destroy()
+      sheet.listener = listener
+      sheet.setDetents(
+        listOf(
+          mapOf("value" to 0.0, "scrimOpacity" to 0.0),
+          mapOf("value" to 300.0, "scrimOpacity" to 0.0),
+          mapOf("value" to 600.0, "scrimOpacity" to 1.0),
+        ),
+      )
+      sheet.setIndex(1)
+      sheet.forceLayout()
+      layoutView(sheet)
+      tapScrim(sheet)
+
+      // This detent's scrim is invisible, so the tap must not dismiss the sheet. Only the dismissal
+      // is checked: this tap also emits onIndexChange(1), a separate bug on main. Once that is
+      // fixed, this can assert that no index change is emitted at all.
+      assertFalse(listener.indexChanges.toString(), 0 in listener.indexChanges)
+    }
+  }
+
+  /**
+   * Grows the open detent, which re-anchors the sheet and pins the scrim until the spring ends. The
+   * sheet is still below the detent's position, where the scrim is invisible unless it is pinned.
+   */
+  private fun pinScrimWithReanchor(sheet: BottomSheetView) {
+    sheet.setDetents(
+      listOf(
+        mapOf("value" to 0.0, "scrimOpacity" to 0.0),
+        mapOf("value" to 320.0, "scrimOpacity" to 0.0),
+        mapOf("value" to 600.0, "scrimOpacity" to 1.0),
+      ),
+    )
   }
 
   private fun withOpenModalSheet(block: (BottomSheetView, RecordingBottomSheetListener) -> Unit) {
