@@ -90,6 +90,8 @@ internal class Detents(
     }
     contentRegion.recomputeNativeGeometry()
     refreshDetentsFromLayout()
+    // The re-resolved detents can change the card's shape at its current position.
+    contentRegion.recomputeNativeGeometry()
     if (scrim.scrimOpacities != previousScrimOpacities) scrim.updateScrim()
   }
 

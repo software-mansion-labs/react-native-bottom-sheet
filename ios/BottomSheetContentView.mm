@@ -100,9 +100,9 @@
   return _impl.contentRegionInset;
 }
 
-- (CGFloat)surfaceOverflow
+- (CGFloat)surfaceOverflowHolding:(CGFloat)previous
 {
-  return _impl.surfaceOverflow;
+  return [_impl surfaceOverflowWithHolding:previous];
 }
 
 - (void)setDetentIndex:(NSInteger)newIndex

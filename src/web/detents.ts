@@ -77,10 +77,14 @@ export const contentRegionHeight = (host: DetentsHost) => {
 /**
  * How far the surface extends below the host, in layout units, so that once
  * scaled it still covers the card. A card's height and width are linear in the
- * sheet's position between detents, so their ratio peaks at a detent.
+ * sheet's position between detents, so their ratio peaks at a detent. A detents
+ * change can leave the card above all of them, so its current height counts too.
  */
-export const surfaceOverflow = (host: DetentsHost) => {
-  let tallest = host.hostHeight;
+export const surfaceOverflow = (
+  host: DetentsHost,
+  currentCardLayoutHeight: number
+) => {
+  let tallest = Math.max(host.hostHeight, currentCardLayoutHeight);
   for (const spec of host.rawDetents) {
     const scale = contentScale(host, spec);
     if (scale > 0) {

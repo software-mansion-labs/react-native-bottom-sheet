@@ -155,6 +155,7 @@ internal class Snapping(
             scrim.hideScrim()
           }
           emitPosition()
+          contentRegion.recomputeNativeGeometry()
           closeRequestPresentationTracker.onTransitionSettled()
           host.notifyCloseRequestStateChanged()
           host.updateInteractionState()

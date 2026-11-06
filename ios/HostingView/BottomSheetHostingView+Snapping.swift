@@ -225,6 +225,8 @@ extension BottomSheetHostingView {
     scrimPinnedFull = false
     setContentInteractionEnabled(true)
     updateInteractionState()
+    // The surface may have kept its overflow for the way here.
+    setNeedsLayout()
     if emitSettle {
       eventDelegate?.bottomSheetHostingView(self, didSettle: index)
     }

@@ -168,6 +168,24 @@ class BottomSheetHostViewContentRegionTest {
   }
 
   @Test
+  fun `the surface keeps reaching the card's bottom until a shrink settles`() {
+    withSheet(narrowTallest("percentage", 1.0)) { sheet ->
+      val wrapper = InsetRecordingStateWrapper()
+      sheet.stateWrapper = wrapper
+      sheet.setIndex(2)
+      shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(5))
+      val open = wrapper.surfaceOverflows.last()
+      assertTrue(open > 0.0)
+
+      sheet.setDetents(narrowTallest("points", 300.0))
+      assertEquals(open, wrapper.surfaceOverflows.last(), 0.001)
+
+      shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(5))
+      assertEquals(0.0, wrapper.surfaceOverflows.last(), 0.001)
+    }
+  }
+
+  @Test
   fun `an unscaled surface fills the sheet`() {
     withSheet(listOf(points(0.0), points(300.0), percentage(1.0))) { sheet ->
       assertEquals(0.0, publishedSurfaceOverflow(sheet), 0.001)

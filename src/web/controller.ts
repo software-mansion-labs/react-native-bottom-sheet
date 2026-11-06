@@ -58,6 +58,7 @@ export class BottomSheetWebController {
   hasLaidOut = false;
   hostHeight = 0;
   private lastAppliedHostHeight = NaN;
+  private appliedSurfaceOverflow = 0;
   translateY = 0;
   lastReportedError: string | null = null;
 
@@ -251,7 +252,7 @@ export class BottomSheetWebController {
     this.needsLayout = false;
     const elements = this.elements;
     if (elements === null || this.config === null) return;
-    const { host, container, content, surface } = elements;
+    const { host, container, content } = elements;
     const hostHeight = host.clientHeight;
     if (hostHeight <= 0 || host.clientWidth <= 0) return;
 
@@ -264,11 +265,11 @@ export class BottomSheetWebController {
     );
     container.style.height = `${hostHeight}px`;
     content.style.height = `${contentRegionHeight(this)}px`;
-    surface.style.bottom = `${-surfaceOverflow(this)}px`;
     this.card.updateCardClip();
 
     this.resolveDetentsFromLayout();
     this.replayPendingIndexIfResolved();
+    this.updateSurfaceOverflow();
     this.lastAppliedHostHeight = hostHeight;
 
     if (!this.hasLaidOut && this.detents.length > 0) {
@@ -385,6 +386,21 @@ export class BottomSheetWebController {
     }
   }
 
+  /** Keeps a moving sheet's overflow: its card can be above the current detents. */
+  private updateSurfaceOverflow() {
+    const surface = this.elements?.surface;
+    if (surface == null) return;
+    const overflow = surfaceOverflow(
+      this,
+      this.hasLaidOut ? this.card.currentLayoutHeight() : 0
+    );
+    this.appliedSurfaceOverflow =
+      this.snapping.isSpringActive || this.isPanning
+        ? Math.max(overflow, this.appliedSurfaceOverflow)
+        : overflow;
+    surface.style.bottom = `${-this.appliedSurfaceOverflow}px`;
+  }
+
   private shouldAnimateContentHeight(index: number) {
     const spec = this.rawDetents[index];
     if (spec === undefined) return this.requireConfig().animateContentHeight;
@@ -457,7 +473,11 @@ export class BottomSheetWebController {
     if (this.needsLayout) {
       this.layout();
     }
+    const wasSpringActive = this.snapping.isSpringActive;
     this.snapping.stepSpring(time);
+    if (wasSpringActive && !this.snapping.isSpringActive) {
+      this.updateSurfaceOverflow();
+    }
     if (this.momentum.isActive) {
       this.momentum.step(Math.min(elapsed, 64));
     }

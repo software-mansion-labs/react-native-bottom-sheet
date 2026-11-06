@@ -104,14 +104,18 @@ internal class ContentRegion(
 
   // How far the surface extends below the sheet, in layout units, so that once scaled it still
   // covers the card. A card's height and width are linear in the sheet's position between detents,
-  // so their ratio peaks at a detent.
+  // so their ratio peaks at a detent. A detents change can leave the card above all of them, so its
+  // current height counts too, and the overflow stays until the sheet settles.
   private fun surfaceOverflowPx(): Float {
+    val current = if (state.hasLaidOut) card.currentLayoutHeightPx() else 0f
     val tallest =
-      state.rawDetentSpecs.fold(state.height.toFloat()) { tallest, spec ->
+      state.rawDetentSpecs.fold(maxOf(state.height.toFloat(), current)) { tallest, spec ->
         val scale = state.contentScale(spec.insets)
         if (scale > 0f) maxOf(tallest, cardHeightBound(spec) / scale) else tallest
       }
-    return tallest - state.height
+    val overflow = tallest - state.height
+    val isMoving = state.activeAnimation != null || state.isPanning
+    return if (isMoving) maxOf(overflow, lastGeometryStateSurfaceOverflow) else overflow
   }
 
   /**

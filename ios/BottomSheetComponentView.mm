@@ -354,7 +354,7 @@ using namespace facebook::react;
   }
 
   CGFloat inset = _sheetView.contentRegionInset;
-  CGFloat surfaceOverflow = _sheetView.surfaceOverflow;
+  CGFloat surfaceOverflow = [_sheetView surfaceOverflowHolding:_lastGeometrySurfaceOverflow];
   if (CGSizeEqualToSize(size, _lastGeometryFrameSize) && inset == _lastGeometryInset &&
       surfaceOverflow == _lastGeometrySurfaceOverflow) {
     return;

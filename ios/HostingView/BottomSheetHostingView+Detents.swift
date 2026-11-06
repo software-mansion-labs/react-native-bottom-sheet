@@ -70,14 +70,23 @@ extension BottomSheetHostingView {
 
   /// How far the surface extends below the sheet, in layout units, so that once
   /// scaled it still covers the card. A card's height and width are linear in the
-  /// sheet's position between detents, so their ratio peaks at a detent. Reported
-  /// into the shadow tree.
-  public var surfaceOverflow: CGFloat {
-    let tallest = rawDetentSpecs.reduce(bounds.height) { tallest, spec in
+  /// sheet's position between detents, so their ratio peaks at a detent. A detents
+  /// change can leave the card above all of them, so its current height counts too,
+  /// and `previous`, the overflow last reported, stays until the sheet settles.
+  /// Reported into the shadow tree.
+  public func surfaceOverflow(holding previous: CGFloat) -> CGFloat {
+    var current: CGFloat = 0
+    if hasLaidOut {
+      let card = cardRect(forPosition: sheetContainerHeight - currentTranslationY)
+      let scale = contentScale(forCardWidth: card.width)
+      current = scale > 0 ? card.height / scale : card.height
+    }
+    let tallest = rawDetentSpecs.reduce(max(bounds.height, current)) { tallest, spec in
       let scale = contentScale(for: spec.insets)
       return scale > 0 ? max(tallest, cardHeightBound(for: spec) / scale) : tallest
     }
-    return tallest - bounds.height
+    let overflow = tallest - bounds.height
+    return activeSpring != nil || isPanning ? max(overflow, previous) : overflow
   }
 
   /// Stable coordinate base for the sheet container. The container is sized to
