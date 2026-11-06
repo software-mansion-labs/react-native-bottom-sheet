@@ -39,14 +39,16 @@ class BottomSheetViewComponentDescriptor final
 
     // The natively measured inset of the content region — the gap between the
     // sheet's height and the tallest height the sheet can reach (the tallest
-    // detent, clamped to the space its insets leave) — applied as Yoga BOTTOM padding in
-    // every mode. Padding can't go negative, so a region taller than the sheet
-    // is the wrapper's overflow instead (see `syncCardContent`). In-flow content
-    // (the flex: 1 wrapper) then resolves to exactly that height; absolutely
-    // positioned children (the surface) ignore padding and keep filling the node. Bottom rather than top keeps
-    // the content's Yoga origin at zero, matching its native placement at the
-    // top of the (already offset) sheet container on both platforms — the
-    // container's top offset is carried by the contentOffsetY state instead.
+    // detent, clamped to the space its insets leave) — applied as Yoga BOTTOM
+    // padding in every mode. Padding can't go negative, so a region taller than
+    // the sheet is the wrapper's overflow instead (see `syncCardContent`).
+    // In-flow content (the flex: 1 wrapper) then resolves to exactly that
+    // height; absolutely positioned children (the surface) ignore padding and
+    // are sized by their offsets, down to the surface's overflow. Bottom rather
+    // than top keeps the content's Yoga origin at zero, matching its native
+    // placement at the top of the (already offset) sheet container on both
+    // platforms — the container's top offset is carried by the contentOffsetY
+    // state instead.
     layoutableShadowNode.setPadding(
         {0, 0, 0, std::max<Float>(stateData.contentRegionInset, 0)});
 
