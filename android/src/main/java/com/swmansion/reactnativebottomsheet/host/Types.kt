@@ -53,4 +53,5 @@ internal data class StateSnapshot(
   val frameWidth: Double,
   val frameHeight: Double,
   val contentRegionInset: Double,
+  val surfaceOverflow: Double,
 )

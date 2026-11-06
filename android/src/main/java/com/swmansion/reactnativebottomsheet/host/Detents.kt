@@ -90,6 +90,8 @@ internal class Detents(
     }
     contentRegion.recomputeNativeGeometry()
     refreshDetentsFromLayout()
+    // The re-resolved detents can change the card's shape at its current position.
+    contentRegion.recomputeNativeGeometry()
     if (scrim.scrimOpacities != previousScrimOpacities) scrim.updateScrim()
   }
 
@@ -146,8 +148,7 @@ internal class Detents(
 
   private fun resolveDetentSpecs(): List<DetentSpec> {
     val maxHeight = state.height.toFloat()
-    val measuredContentHeight =
-      validContentHeight().takeIf { maxHeight > 0f && it.isFinite() }?.coerceAtMost(maxHeight)
+    val measuredContentHeight = validContentHeight().takeIf { maxHeight > 0f && it.isFinite() }
     var previousPosition: Float? = null
     return state.rawDetentSpecs.mapIndexed { index, spec ->
       val available = state.availableCardHeight(spec)

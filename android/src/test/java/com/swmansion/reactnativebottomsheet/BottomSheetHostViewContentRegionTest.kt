@@ -14,6 +14,7 @@ import com.facebook.react.internal.featureflags.ReactNativeFeatureFlagsForTests
 import com.facebook.react.uimanager.StateWrapper
 import java.time.Duration
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -84,6 +85,110 @@ class BottomSheetHostViewContentRegionTest {
   fun `fixed tallest detent above the cap leaves the whole cap as the content region`() {
     withSheet(listOf(points(0.0), points(HEIGHT_PX / 2.0 * 3))) { sheet ->
       assertEquals(0.0, publishedInset(sheet), 0.001)
+    }
+  }
+
+  @Test
+  fun `a narrow tallest card's content region outgrows the sheet`() {
+    withSheet(narrowTallest("percentage", 1.0)) { sheet ->
+      val d = sheet.density
+      val scale = (WIDTH_PX / d - 2 * NARROW_SIDE) / (WIDTH_PX / d - 2 * WIDE_SIDE)
+      assertEquals(HEIGHT_PX / d - HEIGHT_PX / d / scale, publishedInset(sheet), 0.001)
+    }
+  }
+
+  @Test
+  fun `a narrow trailing content detent's region is bounded by the space alone`() {
+    withSheet(narrowTallest("content", 0.0)) { sheet ->
+      val d = sheet.density
+      val scale = (WIDTH_PX / d - 2 * NARROW_SIDE) / (WIDTH_PX / d - 2 * WIDE_SIDE)
+      assertEquals(HEIGHT_PX / d - HEIGHT_PX / d / scale, publishedInset(sheet), 0.001)
+
+      // The measurement can't feed back: a filling content's marker moves, the region doesn't.
+      val wrapper = InsetRecordingStateWrapper()
+      sheet.stateWrapper = wrapper
+      val content = RegionContentView(sheet.context)
+      sheet.addSheetChild(content, 0)
+      content.applyFabricMeasure(WIDTH_PX, (HEIGHT_PX / scale).toInt(), fillsRegion = true)
+      layout(sheet)
+      assertTrue(wrapper.insets.isEmpty())
+    }
+  }
+
+  @Test
+  fun `a narrow content detent resolves from content taller than the sheet`() {
+    withSheet(narrowTallest("content", 0.0)) { sheet ->
+      val d = sheet.density
+      val listener = RecordingSheetListener()
+      sheet.listener = listener
+      val scale = (WIDTH_PX / d - 2 * NARROW_SIDE) / (WIDTH_PX / d - 2 * WIDE_SIDE)
+      // Scaled, this content fits the sheet, so it must not be cut to the sheet's height first.
+      val measuredDp = HEIGHT_PX / d * 1.1
+      val content = RegionContentView(sheet.context)
+      sheet.addSheetChild(content, 0)
+      content.markerTopPx = (measuredDp * d).toInt()
+      content.applyFabricMeasure(WIDTH_PX, (HEIGHT_PX / scale).toInt(), fillsRegion = false)
+      layout(sheet)
+      sheet.stateWrapper = InsetRecordingStateWrapper()
+      sheet.commitContentRegion(HEIGHT_PX / d / scale)
+      sheet.setIndex(2)
+      shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(5))
+      assertEquals(minOf(measuredDp * scale, HEIGHT_PX / d), listener.positions.last(), 0.5)
+    }
+  }
+
+  @Test
+  fun `the surface reaches the card's bottom when scaled`() {
+    withSheet(narrowTallest("percentage", 1.0)) { sheet ->
+      val d = sheet.density
+      val scale = (WIDTH_PX / d - 2 * NARROW_SIDE) / (WIDTH_PX / d - 2 * WIDE_SIDE)
+      assertEquals(HEIGHT_PX / d / scale - HEIGHT_PX / d, publishedSurfaceOverflow(sheet), 0.001)
+    }
+  }
+
+  @Test
+  fun `the surface reaches the bottom of a narrow card below the tallest detent`() {
+    val detents =
+      listOf(
+        points(0.0),
+        mapOf(
+          "value" to 400.0,
+          "kind" to "points",
+          "insetLeft" to NARROW_SIDE,
+          "insetRight" to NARROW_SIDE,
+        ),
+        mapOf("value" to 500.0, "kind" to "points", "widestCard" to true),
+      )
+    withSheet(detents) { sheet ->
+      val d = sheet.density
+      val scale = (WIDTH_PX / d - 2 * NARROW_SIDE) / (WIDTH_PX / d)
+      val layoutHeight = maxOf(HEIGHT_PX / d, 400.0 / scale)
+      assertEquals(layoutHeight - HEIGHT_PX / d, publishedSurfaceOverflow(sheet), 0.001)
+    }
+  }
+
+  @Test
+  fun `the surface keeps reaching the card's bottom until a shrink settles`() {
+    withSheet(narrowTallest("percentage", 1.0)) { sheet ->
+      val wrapper = InsetRecordingStateWrapper()
+      sheet.stateWrapper = wrapper
+      sheet.setIndex(2)
+      shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(5))
+      val open = wrapper.surfaceOverflows.last()
+      assertTrue(open > 0.0)
+
+      sheet.setDetents(narrowTallest("points", 300.0))
+      assertEquals(open, wrapper.surfaceOverflows.last(), 0.001)
+
+      shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(5))
+      assertEquals(0.0, wrapper.surfaceOverflows.last(), 0.001)
+    }
+  }
+
+  @Test
+  fun `an unscaled surface fills the sheet`() {
+    withSheet(listOf(points(0.0), points(300.0), percentage(1.0))) { sheet ->
+      assertEquals(0.0, publishedSurfaceOverflow(sheet), 0.001)
     }
   }
 
@@ -338,6 +443,31 @@ class BottomSheetHostViewContentRegionTest {
     return wrapper.insets.single()
   }
 
+  private fun publishedSurfaceOverflow(sheet: BottomSheetHostView): Double {
+    val wrapper = InsetRecordingStateWrapper()
+    sheet.stateWrapper = wrapper
+    return wrapper.surfaceOverflows.single()
+  }
+
+  // The tallest card is narrower than the one below it, which the content is laid out against.
+  private fun narrowTallest(kind: String, value: Double): List<Map<String, Any>> =
+    listOf(
+      points(0.0),
+      mapOf(
+        "value" to 180.0,
+        "kind" to "points",
+        "insetLeft" to WIDE_SIDE,
+        "insetRight" to WIDE_SIDE,
+        "widestCard" to true,
+      ),
+      mapOf(
+        "value" to value,
+        "kind" to kind,
+        "insetLeft" to NARROW_SIDE,
+        "insetRight" to NARROW_SIDE,
+      ),
+    )
+
   private val BottomSheetHostView.density: Double
     get() = resources.displayMetrics.density.toDouble()
 
@@ -352,7 +482,7 @@ class BottomSheetHostViewContentRegionTest {
   // sheet's frame is [widthPx] x [heightPx] and the content is laid out against a region inset by
   // [insetDp].
   private fun BottomSheetHostView.commitState(widthPx: Int, heightPx: Int, insetDp: Double) {
-    onStateCommitted(widthPx / density, heightPx / density, insetDp)
+    onStateCommitted(widthPx / density, heightPx / density, insetDp, 0.0)
     shadowOf(Looper.getMainLooper()).idle()
   }
 
@@ -395,6 +525,8 @@ class BottomSheetHostViewContentRegionTest {
   private companion object {
     const val WIDTH_PX = 1080
     const val HEIGHT_PX = 1920
+    const val WIDE_SIDE = 24.0
+    const val NARROW_SIDE = 64.0
   }
 }
 
@@ -465,11 +597,13 @@ private class RegionContentView(context: Context) : ViewGroup(context) {
 
 private class InsetRecordingStateWrapper : StateWrapper {
   val insets = mutableListOf<Double>()
+  val surfaceOverflows = mutableListOf<Double>()
   override val stateData: ReadableNativeMap? = null
   override val stateDataMapBuffer: ReadableMapBuffer? = null
 
   override fun updateState(map: WritableMap) {
     insets.add(map.getDouble("contentRegionInset"))
+    surfaceOverflows.add(map.getDouble("surfaceOverflow"))
   }
 
   override fun destroyState() = Unit

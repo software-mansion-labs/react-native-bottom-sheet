@@ -226,6 +226,8 @@ extension BottomSheetHostingView {
     setContentInteractionEnabled(true)
     updateInteractionState()
     refreshScrimAccessibilityFrameIfFocused()
+    // The surface may have kept its overflow for the way here.
+    setNeedsLayout()
     if emitSettle {
       eventDelegate?.bottomSheetHostingView(self, didSettle: index)
     }

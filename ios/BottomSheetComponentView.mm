@@ -65,6 +65,7 @@ using namespace facebook::react;
   RCTSurfaceTouchHandler *_overlayTouchHandler;
   CGSize _lastGeometryFrameSize;
   CGFloat _lastGeometryInset;
+  CGFloat _lastGeometrySurfaceOverflow;
 }
 
 + (ComponentDescriptorProvider)componentDescriptorProvider
@@ -357,11 +358,14 @@ using namespace facebook::react;
   }
 
   CGFloat inset = _sheetView.contentRegionInset;
-  if (CGSizeEqualToSize(size, _lastGeometryFrameSize) && inset == _lastGeometryInset) {
+  CGFloat surfaceOverflow = [_sheetView surfaceOverflowHolding:_lastGeometrySurfaceOverflow];
+  if (CGSizeEqualToSize(size, _lastGeometryFrameSize) && inset == _lastGeometryInset &&
+      surfaceOverflow == _lastGeometrySurfaceOverflow) {
     return;
   }
   _lastGeometryFrameSize = size;
   _lastGeometryInset = inset;
+  _lastGeometrySurfaceOverflow = surfaceOverflow;
   [self pushStateSnapshot];
 }
 
@@ -382,7 +386,8 @@ using namespace facebook::react;
       _lastContentScale,
       {static_cast<Float>(_lastGeometryFrameSize.width),
        static_cast<Float>(_lastGeometryFrameSize.height)},
-      static_cast<Float>(MAX(_lastGeometryInset, 0)));
+      isnan(_lastGeometryInset) ? 0 : static_cast<Float>(_lastGeometryInset),
+      static_cast<Float>(_lastGeometrySurfaceOverflow));
 }
 
 /// Moves the sheet back under this component view and detaches the overlay
@@ -514,7 +519,8 @@ using namespace facebook::react;
   _lastContentOffsetY = 0;
   _lastContentScale = 1;
   _lastGeometryFrameSize = CGSizeZero;
-  _lastGeometryInset = -1;
+  _lastGeometryInset = NAN;
+  _lastGeometrySurfaceOverflow = 0;
 }
 
 @end

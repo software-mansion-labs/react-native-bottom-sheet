@@ -31,6 +31,7 @@ internal class ContentRegion(
               frameWidthDp = it.getDouble("frameWidth"),
               frameHeightDp = it.getDouble("frameHeight"),
               contentRegionInsetDp = it.getDouble("contentRegionInset"),
+              surfaceOverflowDp = it.getDouble("surfaceOverflow"),
             )
           }
         pushStateSnapshot()
@@ -42,6 +43,7 @@ internal class ContentRegion(
   private var lastGeometryStateWidth = 0
   private var lastGeometryStateHeight = 0
   private var lastGeometryStateInsetTop = Float.NaN
+  private var lastGeometryStateSurfaceOverflow = 0f
   private var lastSentStateSnapshot: StateSnapshot? = null
 
   // The content region height (px) a detents change moved the layout to, while
@@ -62,6 +64,9 @@ internal class ContentRegion(
   private var committedFrameWidthDp = Float.NaN
   private var committedFrameHeightDp = Float.NaN
 
+  // The surface's overflow (dp) of the state Fabric last committed. NaN before the first commit.
+  private var committedSurfaceOverflowDp = Float.NaN
+
   // The committed inset once its mount batch has completed, so the content —
   // and its marker — is laid out against it. Only this value vouches for a
   // content measurement: mid-batch, the children may not have been re-measured
@@ -73,31 +78,54 @@ internal class ContentRegion(
    * content wrapper) are laid out in. It is the tallest height the sheet can reach — the card's
    * height at the tallest detent, clamped to the space its insets leave — rather than the host's,
    * so a scrollable under a fixed or percentage tallest detent is laid out against the height it
-   * can actually show instead of leaving its last rows below the card's edge. A trailing `content`
-   * detent is bounded by that space alone: its resolved height is measured from this very region,
-   * so bounding the region by it would be circular. In layout units, so divided by the scale at
-   * that detent, and never taller than the sheet's node.
+   * can actually show instead of leaving its last rows below the card's edge. In layout units, so
+   * divided by the scale at that detent: a narrow card's region can outgrow the sheet's node.
    */
   private fun contentRegionHeightPx(): Float {
     val tallest = state.rawDetentSpecs.lastOrNull() ?: return state.height.toFloat()
-    val available = state.availableCardHeight(tallest)
+    val cardHeight = cardHeightBound(tallest)
+    val scale = state.contentScale(tallest.insets)
+    return if (scale > 0f) cardHeight / scale else cardHeight
+  }
+
+  // The tallest the card gets at a detent. A `content` detent is bounded by the space its insets
+  // leave alone: its resolved height is measured from the content region, so bounding the region by
+  // it would be circular.
+  private fun cardHeightBound(spec: RawDetentSpec): Float {
+    val available = state.availableCardHeight(spec)
     val bound =
-      when (tallest.kind) {
-        DetentKind.POINTS -> tallest.value
-        DetentKind.PERCENTAGE -> available * tallest.value
+      when (spec.kind) {
+        DetentKind.POINTS -> spec.value
+        DetentKind.PERCENTAGE -> available * spec.value
         DetentKind.CONTENT -> available
       }
-    val cardHeight = bound.coerceIn(0f, available)
-    val scale = state.contentScale(tallest.insets)
-    if (scale <= 0f) return cardHeight
-    return (cardHeight / scale).coerceAtMost(state.height.toFloat())
+    return bound.coerceIn(0f, available)
+  }
+
+  // How far the surface extends below the sheet, in layout units, so that once scaled it still
+  // covers the card. A card's height and width are linear in the sheet's position between detents,
+  // so their ratio peaks at a detent. A detents change can leave the card above all of them, so its
+  // current height counts too, and the overflow stays until the sheet settles. A `content` detent
+  // counts at its bound rather than its measured height on purpose: a surface following the
+  // measurement would be a commit behind a card that grows, showing a gap, while one that's too
+  // tall is just clipped.
+  private fun surfaceOverflowPx(): Float {
+    val current = if (state.hasLaidOut) card.currentLayoutHeightPx() else 0f
+    val tallest =
+      state.rawDetentSpecs.fold(maxOf(state.height.toFloat(), current)) { tallest, spec ->
+        val scale = state.contentScale(spec.insets)
+        if (scale > 0f) maxOf(tallest, cardHeightBound(spec) / scale) else tallest
+      }
+    val overflow = tallest - state.height
+    val isMoving = state.activeAnimation != null || state.isPanning
+    return if (isMoving) maxOf(overflow, lastGeometryStateSurfaceOverflow) else overflow
   }
 
   /**
    * Re-derives all natively measured geometry from this view's own size, window position, the
    * window's top inset, and the tallest detent, then pushes it into the shadow tree: the sheet
-   * frame (consumed by the component descriptor only in overlay mode, exactly as <Modal> does) and
-   * the content region's inset (applied as Yoga bottom padding in every mode, so in-flow content
+   * frame (consumed by the component descriptor only in overlay mode, exactly as <Modal> does), the
+   * surface's overflow, and the content region's inset (applied in every mode, so in-flow content
    * lays out exactly within the region the sheet can show; see [contentRegionHeightPx]). Yoga thus
    * lays the sheet subtree out against real window geometry instead of JS-provided dimensions
    * (issue #48). In overlay mode this view fills the dialog, so its own metrics are the dialog's.
@@ -120,7 +148,12 @@ internal class ContentRegion(
       state.height.toFloat() != state.lastAppliedMaxDetentHeight ||
         topOverlap != state.statusBarOverlapPx
     state.statusBarOverlapPx = topOverlap
-    pushGeometryState(state.width, state.height, state.height - contentRegionHeightPx())
+    pushGeometryState(
+      state.width,
+      state.height,
+      state.height - contentRegionHeightPx(),
+      surfaceOverflowPx(),
+    )
     if (geometryChanged) {
       host.refreshDetentsFromLayout()
       state.hostView.requestLayout()
@@ -160,32 +193,47 @@ internal class ContentRegion(
    * only this commit's batch re-measures it. Without a pass after that batch the content keeps its
    * pre-rotation frame, and Android hit-testing ignores everything laid out past it.
    */
-  fun onStateCommitted(frameWidthDp: Double, frameHeightDp: Double, contentRegionInsetDp: Double) {
+  fun onStateCommitted(
+    frameWidthDp: Double,
+    frameHeightDp: Double,
+    contentRegionInsetDp: Double,
+    surfaceOverflowDp: Double,
+  ) {
     val inset = contentRegionInsetDp.toFloat()
+    val surfaceOverflow = surfaceOverflowDp.toFloat()
     val frameWidth = frameWidthDp.toFloat()
     val frameHeight = frameHeightDp.toFloat()
     if (
       inset == committedContentRegionInsetDp &&
+        surfaceOverflow == committedSurfaceOverflowDp &&
         frameWidth == committedFrameWidthDp &&
         frameHeight == committedFrameHeightDp
     ) {
       return
     }
     committedContentRegionInsetDp = inset
+    committedSurfaceOverflowDp = surfaceOverflow
     committedFrameWidthDp = frameWidth
     committedFrameHeightDp = frameHeight
     state.hostView.removeCallbacks(contentRegionCommitPass)
     state.hostView.post(contentRegionCommitPass)
   }
 
-  private fun pushGeometryState(widthPx: Int, heightPx: Int, insetTopPx: Float) {
+  private fun pushGeometryState(
+    widthPx: Int,
+    heightPx: Int,
+    insetTopPx: Float,
+    surfaceOverflowPx: Float,
+  ) {
     if (
       widthPx == lastGeometryStateWidth &&
         heightPx == lastGeometryStateHeight &&
-        insetTopPx == lastGeometryStateInsetTop
+        insetTopPx == lastGeometryStateInsetTop &&
+        surfaceOverflowPx == lastGeometryStateSurfaceOverflow
     ) {
       return
     }
+    lastGeometryStateSurfaceOverflow = surfaceOverflowPx
     lastGeometryStateWidth = widthPx
     lastGeometryStateHeight = heightPx
     lastGeometryStateInsetTop = insetTopPx
@@ -212,6 +260,7 @@ internal class ContentRegion(
           ((if (lastGeometryStateInsetTop.isNaN()) 0f else lastGeometryStateInsetTop) /
               state.density)
             .toDouble(),
+        surfaceOverflow = (lastGeometryStateSurfaceOverflow / state.density).toDouble(),
       )
     // Fabric replaces the wrapper after committing our state. Republishing the same
     // snapshot from its setter would start another commit, even while the sheet is idle.
@@ -224,6 +273,7 @@ internal class ContentRegion(
     map.putDouble("frameWidth", snapshot.frameWidth)
     map.putDouble("frameHeight", snapshot.frameHeight)
     map.putDouble("contentRegionInset", snapshot.contentRegionInset)
+    map.putDouble("surfaceOverflow", snapshot.surfaceOverflow)
     lastSentStateSnapshot = snapshot
     sw.updateState(map)
   }
@@ -242,8 +292,10 @@ internal class ContentRegion(
     lastGeometryStateWidth = 0
     lastGeometryStateHeight = 0
     lastGeometryStateInsetTop = Float.NaN
+    lastGeometryStateSurfaceOverflow = 0f
     isContentRegionChangePending = false
     committedContentRegionInsetDp = Float.NaN
+    committedSurfaceOverflowDp = Float.NaN
     committedFrameWidthDp = Float.NaN
     committedFrameHeightDp = Float.NaN
     appliedContentRegionInsetDp = Float.NaN

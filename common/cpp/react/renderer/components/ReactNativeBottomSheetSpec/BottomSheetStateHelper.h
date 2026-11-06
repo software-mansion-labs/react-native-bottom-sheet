@@ -8,8 +8,8 @@ namespace facebook::react {
 
 // Pushes a complete snapshot of the sheet's natively measured state: the
 // content origin offset and scale, the frame size (consumed by the component
-// descriptor only in overlay mode), and the content region's inset (applied as
-// Yoga bottom padding in every mode).
+// descriptor only in overlay mode), the content region's inset (applied in every
+// mode), and the surface's overflow.
 //
 // A complete snapshot is mandatory: the EventQueue coalesces consecutive
 // state updates for the same family by dropping the older update wholesale
@@ -22,6 +22,7 @@ void updateBottomSheetState(
     float contentOffsetY,
     float contentScale,
     Size frameSize,
-    Float contentRegionInset);
+    Float contentRegionInset,
+    Float surfaceOverflow);
 
 } // namespace facebook::react

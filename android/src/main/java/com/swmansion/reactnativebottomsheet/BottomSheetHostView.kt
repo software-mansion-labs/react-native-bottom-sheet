@@ -448,8 +448,18 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   fun setSurfaceShadowColor(color: Int) = card.setSurfaceShadowColor(color)
 
   /** Forwarded to [ContentRegion.onStateCommitted]. */
-  fun onStateCommitted(frameWidthDp: Double, frameHeightDp: Double, contentRegionInsetDp: Double) =
-    contentRegion.onStateCommitted(frameWidthDp, frameHeightDp, contentRegionInsetDp)
+  fun onStateCommitted(
+    frameWidthDp: Double,
+    frameHeightDp: Double,
+    contentRegionInsetDp: Double,
+    surfaceOverflowDp: Double,
+  ) =
+    contentRegion.onStateCommitted(
+      frameWidthDp,
+      frameHeightDp,
+      contentRegionInsetDp,
+      surfaceOverflowDp,
+    )
 
   // MARK: - Touch handling
 

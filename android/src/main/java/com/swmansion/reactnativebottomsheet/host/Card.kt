@@ -85,19 +85,33 @@ internal class Card(
    * are moved and clipped. Only side gaps that change as the sheet moves redraw the shadows.
    */
   fun updateCardGeometry() {
-    val position =
-      maxOf(
-        state.height.toFloat() - state.sheetContainer.translationY,
-        state.firstOpenDetentPosition,
-        0f,
-      )
+    val position = currentPosition()
     val insets = cardInsetsAt(position)
     val left = insets.left
     val right = (state.sheetContainer.width - insets.right).coerceAtLeast(left)
-    val bottom = (position - insets.bottom).coerceIn(0f, state.sheetContainer.height.toFloat())
+    val bottom = cardBottomAt(position, insets)
     clipContainer.setCard(left, 0f, right, bottom)
     updateContentTransform(left, right)
     updateCardShadows(left, right, bottom)
+  }
+
+  private fun currentPosition(): Float =
+    maxOf(
+      state.height.toFloat() - state.sheetContainer.translationY,
+      state.firstOpenDetentPosition,
+      0f,
+    )
+
+  private fun cardBottomAt(position: Float, insets: DetentInsets): Float =
+    (position - insets.bottom).coerceIn(0f, state.sheetContainer.height.toFloat())
+
+  /** The height the card has right now, in layout units. */
+  fun currentLayoutHeightPx(): Float {
+    val position = currentPosition()
+    val insets = cardInsetsAt(position)
+    val height = cardBottomAt(position, insets)
+    val scale = state.contentScale(insets)
+    return if (scale > 0f) height / scale else height
   }
 
   /** Scales the surface and content to the card's width and pins them to its top-left corner. */

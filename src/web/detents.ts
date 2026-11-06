@@ -38,33 +38,64 @@ const availableCardHeight = (
   );
 
 /**
- * The height the content wrapper is laid out in: the card's height at the
- * tallest detent, clamped to the space its insets leave. A trailing `content`
- * detent is bounded by that space alone, since it is measured from this very
- * region.
+ * The tallest the card gets at a detent. A `content` detent is bounded by the
+ * space its insets leave alone, since it is measured from the content region.
  */
-export const contentRegionHeight = (host: DetentsHost) => {
-  const tallest = host.rawDetents[host.rawDetents.length - 1];
-  if (tallest === undefined) return host.hostHeight;
+const cardHeightBound = (host: DetentsHost, spec: RawDetent) => {
   const available = availableCardHeight(
-    tallest,
+    spec,
     host.hostHeight,
     host.statusBarOverlap
   );
   let bound: number;
-  switch (tallest.kind) {
+  switch (spec.kind) {
     case 'points':
-      bound = tallest.value;
+      bound = spec.value;
       break;
     case 'percentage':
-      bound = available * tallest.value;
+      bound = available * spec.value;
       break;
     default:
       bound = available;
   }
-  const height = clamp(bound, 0, available);
+  return clamp(bound, 0, available);
+};
+
+/**
+ * The height the content wrapper is laid out in: the card's height at the
+ * tallest detent. In layout units, so divided by the scale at that detent: a
+ * narrow card's region can outgrow the host.
+ */
+export const contentRegionHeight = (host: DetentsHost) => {
+  const tallest = host.rawDetents[host.rawDetents.length - 1];
+  if (tallest === undefined) return host.hostHeight;
+  const height = cardHeightBound(host, tallest);
   const scale = contentScale(host, tallest);
-  return scale > 0 ? Math.min(height / scale, host.hostHeight) : height;
+  return scale > 0 ? height / scale : height;
+};
+
+/**
+ * How far the surface extends below the host, in layout units, so that once
+ * scaled it still covers the card. A card's height and width are linear in the
+ * sheet's position between detents, so their ratio peaks at a detent. A detents
+ * change can leave the card above all of them, so its current height counts too.
+ * A `content` detent counts at its bound rather than its measured height on
+ * purpose, matching the native platforms, where a surface following the
+ * measurement would be a commit behind a card that grows, showing a gap. One
+ * that's too tall is just clipped.
+ */
+export const surfaceOverflow = (
+  host: DetentsHost,
+  currentCardLayoutHeight: number
+) => {
+  let tallest = Math.max(host.hostHeight, currentCardLayoutHeight);
+  for (const spec of host.rawDetents) {
+    const scale = contentScale(host, spec);
+    if (scale > 0) {
+      tallest = Math.max(tallest, cardHeightBound(host, spec) / scale);
+    }
+  }
+  return tallest - host.hostHeight;
 };
 
 /**
@@ -105,11 +136,8 @@ export const resolveDetentSpecs = (
   host: DetentsHost
 ): ResolvedDetent[] | null => {
   const maxHeight = host.hostHeight;
-  const contentHeight = measureContentHeight(host);
   const measuredContentHeight =
-    maxHeight > 0 && contentHeight !== null
-      ? Math.min(contentHeight, maxHeight)
-      : null;
+    maxHeight > 0 ? measureContentHeight(host) : null;
   const resolved: ResolvedDetent[] = [];
 
   for (const [index, spec] of host.rawDetents.entries()) {

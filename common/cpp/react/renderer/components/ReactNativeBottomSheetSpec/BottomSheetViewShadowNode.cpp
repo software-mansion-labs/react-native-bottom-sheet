@@ -1,6 +1,8 @@
 #include "BottomSheetStateHelper.h"
 #include "ShadowNodes.h"
 
+#include <algorithm>
+
 namespace facebook::react {
 
 Point BottomSheetViewShadowNode::getContentOriginOffset(
@@ -36,14 +38,25 @@ std::shared_ptr<const ShadowNode> BottomSheetViewShadowNode::withCardGeometry(
   auto content = bottomSheetCardContentOf(*child);
   const auto& state =
       static_cast<const ConcreteState&>(*getState()).getData();
-  if (content == nullptr ||
-      content->hasCardGeometry(state.contentOffsetX, state.contentScale)) {
+  if (content == nullptr) {
     return child;
   }
-  // Props, state and layout stay shared, so the mounting layer sees no change.
+  Float bottomOverflow =
+      content->kind() == BottomSheetCardContent::Kind::Surface
+      ? state.surfaceOverflow
+      : std::max<Float>(-state.contentRegionInset, 0);
+  if (content->hasCardGeometry(
+          state.contentOffsetX, state.contentScale, bottomOverflow)) {
+    return child;
+  }
+  // Props, state and layout stay shared, so the mounting layer sees no change,
+  // unless the overflow moved, which needs a new layout pass.
+  if (!content->hasBottomOverflow(bottomOverflow)) {
+    yogaNode_.setDirty(true);
+  }
   auto clone = child->clone({});
   bottomSheetCardContentOf(*clone)->setCardGeometry(
-      state.contentOffsetX, state.contentScale);
+      state.contentOffsetX, state.contentScale, bottomOverflow);
   return clone;
 }
 
@@ -68,12 +81,13 @@ void updateBottomSheetState(
     float contentOffsetY,
     float contentScale,
     Size frameSize,
-    Float contentRegionInset) {
+    Float contentRegionInset,
+    Float surfaceOverflow) {
   auto concreteState =
       std::static_pointer_cast<const BottomSheetViewShadowNode::ConcreteState>(
           state);
   concreteState->updateState(
-      [contentOffsetX, contentOffsetY, contentScale, frameSize, contentRegionInset](
+      [contentOffsetX, contentOffsetY, contentScale, frameSize, contentRegionInset, surfaceOverflow](
           const BottomSheetViewState& /*oldState*/)
           -> BottomSheetViewShadowNode::ConcreteState::SharedData {
         // Every field is set: updates coalesce by wholesale replacement (see
@@ -85,6 +99,7 @@ void updateBottomSheetState(
         mutableState.contentScale = contentScale;
         mutableState.frameSize = frameSize;
         mutableState.contentRegionInset = contentRegionInset;
+        mutableState.surfaceOverflow = surfaceOverflow;
         return newState;
       });
 }

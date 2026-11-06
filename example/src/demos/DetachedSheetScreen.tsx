@@ -91,6 +91,16 @@ const SCENARIOS: Scenario[] = [
     scrollable: true,
   },
   {
+    label: 'Narrow when full',
+    expect: 'The surface and the last row reach the narrow card’s bottom.',
+    detents: [
+      0,
+      { value: 180, insets: { left: 24, right: 24, bottom: 24 } },
+      { value: '100%', insets: { left: 64, right: 64 } },
+    ],
+    scrollable: true,
+  },
+  {
     label: 'Lopsided gaps',
     expect: 'The gap moves across. The blue band keeps touching the card.',
     detents: [

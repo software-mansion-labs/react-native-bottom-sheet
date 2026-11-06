@@ -75,10 +75,7 @@ export class SheetCard {
     const elements = hostState.elements;
     if (elements === null || hostState.config === null) return;
     const { card, content, host, shadow, surface } = elements;
-    const position = Math.max(
-      hostState.hostHeight - hostState.translateY,
-      firstOpenPosition(hostState.detents)
-    );
+    const position = this.currentPosition();
     const {
       insetLeft: left,
       insetRight: right,
@@ -123,6 +120,26 @@ export class SheetCard {
     card.style.clipPath = this.clipsToCard()
       ? `inset(0px ${right}px ${clipInset}px ${left}px round ${this.cardCorners})`
       : '';
+  }
+
+  private currentPosition() {
+    return Math.max(
+      this.host.hostHeight - this.host.translateY,
+      firstOpenPosition(this.host.detents)
+    );
+  }
+
+  /** The height the card has right now, in layout units. */
+  currentLayoutHeight() {
+    const hostState = this.host;
+    const position = this.currentPosition();
+    const { insetLeft, insetRight, insetBottom } = this.cardInsets(position);
+    const height = clamp(position - insetBottom, 0, hostState.hostHeight);
+    const width = hostState.elements?.host.clientWidth ?? 0;
+    const widest = width - hostState.widestCardGaps;
+    const scale =
+      widest > 0 ? Math.max(0, width - insetLeft - insetRight) / widest : 1;
+    return scale > 0 ? height / scale : height;
   }
 
   /**

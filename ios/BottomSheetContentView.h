@@ -38,6 +38,9 @@ NS_ASSUME_NONNULL_BEGIN
 // The natively measured inset of the content region: the gap between the
 // sheet's height and the content region's.
 - (CGFloat)contentRegionInset;
+// How far the surface extends below the sheet, in layout units. A moving sheet
+// keeps at least `previous`, the overflow last reported.
+- (CGFloat)surfaceOverflowHolding:(CGFloat)previous;
 - (void)setDetentIndex:(NSInteger)newIndex;
 - (void)setScrimColor:(UIColor *_Nullable)color;
 - (void)setScrimAccessibilityLabel:(NSString *_Nullable)label;

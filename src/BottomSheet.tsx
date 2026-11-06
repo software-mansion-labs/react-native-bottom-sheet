@@ -450,8 +450,9 @@ export const BottomSheet = (props: BottomSheetProps) => {
             // side reports the region's inset (the gap between the sheet's
             // height and the tallest detent, clamped to the space its insets leave) into
             // the shadow tree, where it is applied as Yoga bottom padding on
-            // the sheet node — so this in-flow flex: 1 child resolves to the
-            // region the sheet can actually show, on every device and in
+            // the sheet node, or as this wrapper's overflow when a narrow card's
+            // region outgrows the sheet — so this in-flow flex: 1 child resolves
+            // to the region the sheet can actually show, on every device and in
             // every mode. Its own component so `measure` includes the card's
             // scale, which its shadow node reports.
             style={[
