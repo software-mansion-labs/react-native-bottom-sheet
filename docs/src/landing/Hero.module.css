@@ -1,0 +1,436 @@
+/*
+ * The sheet's lowest stop, which the component reads for the detent. Everything
+ * else that depends on it here derives from it. It rises at 420px.
+ */
+:root {
+  --hero-stop: 96px;
+}
+
+/* Fills the first screen. The navbar floats over it. */
+.hero {
+  /* Matches the navbar's. */
+  --gutter: var(--ifm-navbar-padding-horizontal);
+  /*
+   * The page's colors: the docs' own, navy for the logo and the button, and the
+   * docs' separator color, as on the sidebar's edge, for the guidelines. Infima
+   * leaves the light background transparent over a white canvas, but the
+   * markers need it opaque.
+   */
+  --page: #fff;
+  --ink: var(--ifm-font-color-base);
+  --accent: var(--swm-navy-light-100);
+  --on-accent: var(--swm-white);
+  --guide: var(--ifm-toc-border-color);
+  /* The sheet's, which the copy over it takes on. */
+  --sheet: var(--swm-navy-light-100);
+  --sheet-ink: var(--swm-white);
+  --sheet-accent: var(--swm-blue-dark-80);
+  --sheet-on-accent: var(--sheet);
+  --sheet-hint: var(--swm-blue-dark-80);
+  /* The page's guide-to-background contrast, 1.36:1, on the navy. */
+  --sheet-guide: rgb(252 252 255 / 0.12);
+  --blue: var(--swm-blue-light-100);
+
+  position: relative;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  color: var(--ink);
+  background-color: var(--page);
+  /* The font's own, rather than Infima's 1.65 and 1.25. */
+  line-height: normal;
+}
+
+/* A dark page, with the light page's colors on the sheet rising over it. */
+[data-theme='dark'] .hero {
+  --page: var(--ifm-background-color);
+  --accent: var(--swm-blue-dark-80);
+  --on-accent: var(--swm-navy-dark-140);
+  /* Infima's light text and separator colors. */
+  --sheet: #fff;
+  --sheet-ink: #1c1e21;
+  --sheet-accent: var(--swm-navy-light-100);
+  --sheet-on-accent: var(--swm-white);
+  /* The docs' link color in light mode. */
+  --sheet-hint: var(--swm-blue-light-100);
+  --sheet-guide: #dadde1;
+  --blue: var(--swm-blue-dark-80);
+}
+
+:where(.hero) a,
+:where(.hero) a:hover {
+  color: inherit;
+  text-decoration: none;
+}
+
+:where(.hero) :is(h1, p) {
+  margin: 0;
+  line-height: inherit;
+}
+
+:where(.hero) button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Also where the copy over the sheet shows the page's focus. */
+.hero :is(:focus-visible, [data-focused]) {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+/* Every layer starts below the navbar, so the sheet's '100%' ends there. */
+.copy,
+.sheetLayer {
+  position: absolute;
+  inset: var(--ifm-navbar-height) 0 0;
+}
+
+.copy {
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* Centered between the navbar and the sheet's lowest stop. */
+  justify-content: center;
+  padding: 0 var(--gutter) var(--hero-stop);
+  text-align: center;
+}
+
+/* Guidelines across the page at the top and bottom edge of each element. */
+.creator,
+.headline,
+.lede,
+.cta {
+  position: relative;
+}
+
+:is(.creator, .headline, .lede, .cta)::before,
+:is(.creator, .headline, .lede, .cta)::after {
+  content: '';
+  position: absolute;
+  /* The page's width, centered on the element, which is centered on the page. */
+  left: 50%;
+  width: 100vw;
+  margin-left: -50vw;
+  border-top: 1px solid var(--guide);
+  mask-image: linear-gradient(90deg, transparent, black, transparent);
+  pointer-events: none;
+  /* Behind the content, within its layer. */
+  z-index: -1;
+}
+
+:is(.creator, .headline, .lede, .cta)::before {
+  top: 0;
+}
+
+:is(.creator, .headline, .lede, .cta)::after {
+  bottom: 0;
+}
+
+/* Just outside the button's 1px outline. */
+.cta::before {
+  top: -1px;
+}
+
+.cta::after {
+  bottom: -1px;
+}
+
+/*
+ * Above the real sheet, so drags fall through to it everywhere but the buttons.
+ * Clipped to the sheet, it also carries the guidelines over it, in its colors.
+ */
+.copySheet {
+  --page: var(--sheet);
+  --ink: var(--sheet-ink);
+  --accent: var(--sheet-accent);
+  --on-accent: var(--sheet-on-accent);
+  --guide: var(--sheet-guide);
+  z-index: 4;
+  color: var(--ink);
+  clip-path: inset(100% 0 0 0);
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.copySheet :is(a, button) {
+  pointer-events: auto;
+}
+
+/*
+ * Under the sheet's layer, so the sheet covers it as it opens. The arrow's tip
+ * is 10px from the drawing's right edge, over the handle, and ends 12px above
+ * the sheet's lowest stop.
+ */
+.dragHint {
+  position: absolute;
+  z-index: 1;
+  right: 50%;
+  bottom: calc(var(--hero-stop) + 12px);
+  margin-right: -10px;
+  display: flex;
+  align-items: flex-start;
+  /* The button's label-to-arrow distance, as its arrow is inset 4px. */
+  gap: 12px;
+  font-size: 16px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Centered on the line's start cap, 14px down the drawing. */
+.dragHint span {
+  margin-top: 14px;
+  translate: 0 -50%;
+}
+
+/* The library's host is full-size: only the sheet itself should catch the pointer. */
+.sheetLayer {
+  z-index: 2;
+  display: flex;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.surface {
+  position: absolute;
+  inset: 0;
+  background: var(--sheet);
+}
+
+/* The library's content layer sits above the surface, so it needs the cursor too. */
+.grabber {
+  position: absolute;
+  inset: 0;
+}
+
+.grabber::before {
+  content: '';
+  display: block;
+  width: 36px;
+  height: 4px;
+  margin: 8px auto 0;
+  border-radius: 2px;
+  background: var(--sheet-ink);
+}
+
+.grab {
+  cursor: grab;
+}
+
+.grab:active {
+  cursor: grabbing;
+}
+
+/* A drag can leave the sheet or cross a button, so it holds for the whole press. */
+:global(html[data-sheet-grabbing]),
+:global(html[data-sheet-grabbing]) * {
+  cursor: grabbing !important;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* As on the ExecuTorch landing page. */
+.creator {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 16px;
+}
+
+.creator a {
+  display: flex;
+  color: var(--accent);
+}
+
+/* Text sizes and breakpoints from the Fishjam and ExecuTorch landing pages. */
+.headline {
+  margin-top: 16px;
+  font-size: 40px;
+  font-weight: 500;
+  /* Fishjam's, for comparison. */
+  line-height: 1.08;
+  text-wrap: balance;
+}
+
+.lede {
+  margin-top: 16px;
+  max-width: 640px;
+  font-size: 18px;
+  /* Fishjam's, for comparison. */
+  line-height: 26px;
+  text-wrap: balance;
+}
+
+/*
+ * As the "Book now" button on swmansion.com: it empties on hover and focus. It
+ * fades as the docs' links do.
+ */
+.cta {
+  margin-top: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0 20px 0 28px;
+  border: 1px solid var(--accent);
+  border-radius: 9999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 16px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    color var(--ifm-transition-fast) var(--ifm-transition-timing-default),
+    background-color var(--ifm-transition-fast)
+      var(--ifm-transition-timing-default);
+}
+
+.cta:is(:hover, :focus-visible, [data-focused]) {
+  background: transparent;
+  color: var(--accent);
+}
+
+.rule {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid var(--guide);
+  mask-image: linear-gradient(90deg, transparent 50%, black);
+}
+
+.callout {
+  position: absolute;
+  right: var(--gutter);
+  display: flex;
+  align-items: center;
+  /* As the drag hint's. */
+  gap: 12px;
+  translate: 0 -50%;
+  font-size: 16px;
+  white-space: nowrap;
+}
+
+/* Hangs below its line rather than sitting above it. */
+.calloutBelow {
+  translate: 0 50%;
+}
+
+.callout span {
+  opacity: 0.72;
+}
+
+.callout i {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--ink);
+  border-radius: 50%;
+  font-style: normal;
+  font-weight: 500;
+  background: var(--page);
+  transition:
+    color var(--ifm-transition-fast) var(--ifm-transition-timing-default),
+    background-color var(--ifm-transition-fast)
+      var(--ifm-transition-timing-default);
+}
+
+/*
+ * Filled for the current stop, and on hover where a tap doesn't leave it. The
+ * outline is the fill's color either way.
+ */
+.callout[aria-pressed='true'] i {
+  background: var(--ink);
+  color: var(--page);
+}
+
+@media (hover: hover) {
+  .callout:hover i {
+    background: var(--ink);
+    color: var(--page);
+  }
+}
+
+/*
+ * Centered in the sheet's lowest stop below the handle, which is 8px down and
+ * 4px thick, so 12px in all.
+ */
+.readout {
+  position: absolute;
+  left: var(--gutter);
+  right: var(--gutter);
+  bottom: calc((var(--hero-stop) - 12px) / 2);
+  translate: 0 50%;
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Argument names are hints, not code. They're left out where they'd wrap. */
+.readout span {
+  display: none;
+  color: var(--sheet-hint);
+}
+
+.readout b {
+  font-weight: 400;
+  /* Without the hints, the values take their color. */
+  color: var(--sheet-hint);
+}
+
+@media (min-width: 375px) {
+  .headline {
+    font-size: 48px;
+  }
+}
+
+/*
+ * The sheet's own breakpoint: the readout with hints and a four-digit position,
+ * plus the gutters. The lowest stop rises with it, leaving more room.
+ */
+@media (min-width: 420px) {
+  :root {
+    --hero-stop: 128px;
+  }
+
+  .readout span {
+    display: inline;
+  }
+
+  .readout b {
+    color: inherit;
+  }
+}
+
+@media (min-width: 768px) {
+  .headline {
+    font-size: 60px;
+  }
+
+  .headline,
+  .lede {
+    margin-top: 20px;
+  }
+
+  .cta {
+    margin-top: 40px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .headline {
+    font-size: 72px;
+  }
+
+  .lede {
+    font-size: 20px;
+    line-height: 28px;
+  }
+}
