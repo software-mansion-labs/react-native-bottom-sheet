@@ -64,13 +64,13 @@ class BottomSheetHostViewSidewaysDragTest {
       withSheet { sheet, content ->
         // Keep the opposite direction in handoff mode so a nested target is
         // prepared, as it is with the default expand-handoff/collapse-initial pair.
-        sheet.scrollableExpandNegotiation = if (dy < 0) 1 else 2
-        sheet.scrollableCollapseNegotiation = if (dy > 0) 1 else 2
+        sheet.scrollExpandCoordination = if (dy < 0) 1 else 2
+        sheet.scrollCollapseCoordination = if (dy > 0) 1 else 2
         content.addView(tallScrollView(sheet.context))
         layout(sheet, content)
 
         assertEquals(
-          "initial negotiation, dy=$dy",
+          "initial coordination, dy=$dy",
           listOf(false, true),
           sheet.interceptsMoves(-120f to 0f, -120f to dy),
         )
@@ -82,13 +82,13 @@ class BottomSheetHostViewSidewaysDragTest {
   fun `a sideways start then vertical movement stays with content in the none direction`() {
     for (dy in listOf(-60f, 60f)) {
       withSheet { sheet, content ->
-        sheet.scrollableExpandNegotiation = if (dy < 0) 0 else 1
-        sheet.scrollableCollapseNegotiation = if (dy > 0) 0 else 1
+        sheet.scrollExpandCoordination = if (dy < 0) 0 else 1
+        sheet.scrollCollapseCoordination = if (dy > 0) 0 else 1
         content.addView(tallScrollView(sheet.context))
         layout(sheet, content)
 
         assertEquals(
-          "none negotiation, dy=$dy",
+          "none coordination, dy=$dy",
           listOf(false, false),
           sheet.interceptsMoves(-120f to 0f, -120f to dy),
         )
@@ -100,14 +100,14 @@ class BottomSheetHostViewSidewaysDragTest {
   fun `a sideways start then vertical movement uses nested scrolling in the handoff direction`() {
     for (dy in listOf(-60f, 60f)) {
       withSheet { sheet, content ->
-        sheet.scrollableExpandNegotiation = if (dy < 0) 2 else 1
-        sheet.scrollableCollapseNegotiation = if (dy > 0) 2 else 1
+        sheet.scrollExpandCoordination = if (dy < 0) 2 else 1
+        sheet.scrollCollapseCoordination = if (dy > 0) 2 else 1
         val list = tallScrollView(sheet.context)
         content.addView(list)
         layout(sheet, content)
 
         assertEquals(
-          "handoff negotiation, dy=$dy",
+          "handoff coordination, dy=$dy",
           listOf(false, false),
           sheet.interceptsMoves(-120f to 0f, -120f to dy),
         )
@@ -245,8 +245,8 @@ class BottomSheetHostViewSidewaysDragTest {
     val sheet = BottomSheetHostView(activity)
     try {
       sheet.animateIn = false
-      sheet.scrollableExpandNegotiation = 1
-      sheet.scrollableCollapseNegotiation = 1
+      sheet.scrollExpandCoordination = 1
+      sheet.scrollCollapseCoordination = 1
       sheet.setDetents(listOf(points(0.0), points(300.0), points(600.0)))
       sheet.setIndex(1)
       // Stands in for the Fabric-measured content wrapper; the host places it.

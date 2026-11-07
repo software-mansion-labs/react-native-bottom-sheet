@@ -42,8 +42,8 @@ export interface NativeProps extends ViewProps {
   // not otherwise observable, so Android (and the web host) use this to decide
   // whether a modal should own Back/Escape input.
   hasCloseRequestHandler: boolean;
-  scrollableExpandNegotiation: CodegenTypes.Int32;
-  scrollableCollapseNegotiation: CodegenTypes.Int32;
+  scrollExpandCoordination: CodegenTypes.Int32;
+  scrollCollapseCoordination: CodegenTypes.Int32;
   scrimColor?: ColorValue;
   // The label of the scrim's dismiss control for screen readers, exposed while
   // tapping the scrim would dismiss a modal sheet.

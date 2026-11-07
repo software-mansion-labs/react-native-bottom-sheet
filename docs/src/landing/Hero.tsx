@@ -141,7 +141,7 @@ const HeroCopy = ({
         Your surface.
       </h1>
       <p className={styles.lede}>
-        Gestures, snapping, and scroll negotiation run in native code.
+        Gestures, snapping, and scroll coordination run in native code.
         Everything you see is plain React Native—on iOS, Android, and the web.
       </p>
       <Link className={styles.cta} to="/docs/getting-started" {...focus('cta')}>

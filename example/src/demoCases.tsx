@@ -24,7 +24,7 @@ export type CaseKey =
   | 'inline-flat-list'
   | 'inline-nested-flat-list'
   | 'invalid-detents'
-  | 'scrollable-negotiation'
+  | 'scroll-coordination'
   | 'scroll-interaction'
   | 'programmatic-detent-drag'
   | 'percentage-detents'
@@ -171,9 +171,9 @@ export const DEMO_CASES: DemoCase[] = [
     throws: true,
   },
   {
-    key: 'scrollable-negotiation',
-    title: 'Scrollable negotiation modes',
-    href: '/scrollable-negotiation',
+    key: 'scroll-coordination',
+    title: 'Scroll coordination modes',
+    href: '/scroll-coordination',
   },
   {
     key: 'scroll-interaction',

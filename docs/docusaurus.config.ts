@@ -31,6 +31,12 @@ const config: Config = {
     [
       '@docusaurus/plugin-client-redirects',
       {
+        redirects: [
+          {
+            from: ['/scrollable-negotiation', '/docs/scrollable-negotiation'],
+            to: '/docs/scroll-coordination',
+          },
+        ],
         // The docs used to sit at the root, with the overview at /overview.
         createRedirects: (path) => {
           if (path === '/docs' || path === '/docs/') return '/overview';

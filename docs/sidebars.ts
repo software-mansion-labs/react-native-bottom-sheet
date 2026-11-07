@@ -9,7 +9,7 @@ const sidebars: SidebarsConfig = {
     'modal-sheets',
     'surface',
     'keyboard-handling',
-    'scrollable-negotiation',
+    'scroll-coordination',
     'detents-and-index',
     'position-tracking',
   ],

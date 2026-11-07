@@ -196,7 +196,7 @@ extension BottomSheetHostingView {
     unlockActiveScrollViews()
     activeScrollViewStates = []
     panCoordinationMode = .sheet
-    activeScrollableNegotiationLevel = .none
+    activeScrollCoordinationLevel = .none
     didMoveSheetDuringPan = false
     didCancelTouchesForPan = false
     scrollViewOwnsLowerBoundary = false
@@ -269,7 +269,7 @@ extension BottomSheetHostingView {
   /// movement instead, so nothing is deferred and the sheet yields to it as
   /// before.
   func holdDeferralScrollViews(at location: CGPoint) -> [UIScrollView] {
-    guard hasAnyScrollableNegotiation else { return [] }
+    guard hasAnyScrollCoordination else { return [] }
     let views = touchedViews(at: location)
     let chain = scrollableAncestorChain(in: views).map(\.scrollView)
     guard !chain.isEmpty else { return [] }
@@ -372,9 +372,9 @@ extension BottomSheetHostingView {
     }
   }
 
-  func negotiationLevel(forVerticalVelocity velocityY: CGFloat) -> ScrollableNegotiationLevel {
-    let rawValue = velocityY < 0 ? scrollableExpandNegotiation : scrollableCollapseNegotiation
-    return ScrollableNegotiationLevel(clamping: rawValue)
+  func coordinationLevel(forVerticalVelocity velocityY: CGFloat) -> ScrollCoordinationLevel {
+    let rawValue = velocityY < 0 ? scrollExpandCoordination : scrollCollapseCoordination
+    return ScrollCoordinationLevel(clamping: rawValue)
   }
 
   /// The pan's vertical direction, negative up: the one its hold decided when
@@ -383,8 +383,8 @@ extension BottomSheetHostingView {
     panGesture.holdDecidedDirection ? panGesture.decidedVerticalDirection : gesture.velocity(in: self).y
   }
 
-  var hasAnyScrollableNegotiation: Bool {
-    ScrollableNegotiationLevel(clamping: scrollableExpandNegotiation) != .none
-      || ScrollableNegotiationLevel(clamping: scrollableCollapseNegotiation) != .none
+  var hasAnyScrollCoordination: Bool {
+    ScrollCoordinationLevel(clamping: scrollExpandCoordination) != .none
+      || ScrollCoordinationLevel(clamping: scrollCollapseCoordination) != .none
   }
 }

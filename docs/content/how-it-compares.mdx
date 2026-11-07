@@ -8,14 +8,14 @@ title: How it compares
 React Native already has strong bottom-sheet options, but they make
 different tradeoffs. React Native Bottom Sheet gives you composable React Native
 primitives backed by native sheet mechanics: You compose the surface in React,
-while the sheet host, gestures, snapping, and scroll negotiation run in
+while the sheet host, gestures, snapping, and scroll coordination run in
 native code.
 
 [`@gorhom/bottom-sheet`](https://gorhom.dev/react-native-bottom-sheet) is the
 closest match in day-to-day functionality: configurable
-detents, dynamic sizing, scrollable coordination, inline sheets, and modal
+detents, dynamic sizing, scroll coordination, inline sheets, and modal
 presentation. The main difference is the implementation model. React Native
-Bottom Sheet moves the sheet host, gestures, snapping, and scroll negotiation
+Bottom Sheet moves the sheet host, gestures, snapping, and scroll coordination
 into native code, so heavy React rendering and busy JS work are less likely to
 affect drag and snap performance. It also does not require Reanimated or React
 Native Gesture Handler. Because scroll coordination is native, regular React

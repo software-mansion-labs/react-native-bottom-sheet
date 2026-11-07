@@ -51,26 +51,25 @@ export type PositionChangeEventData = Readonly<{
   index: number;
 }>;
 
-export type ScrollableNegotiationMode = 'none' | 'initial' | 'handoff';
+export type ScrollCoordinationMode = 'none' | 'initial' | 'handoff';
 
-export type ScrollableNegotiation =
-  | ScrollableNegotiationMode
+export type ScrollCoordination =
+  | ScrollCoordinationMode
   | Readonly<{
-      expand: ScrollableNegotiationMode;
-      collapse: ScrollableNegotiationMode;
+      expand: ScrollCoordinationMode;
+      collapse: ScrollCoordinationMode;
     }>;
 
-const SCROLLABLE_NEGOTIATION_LEVEL: Record<ScrollableNegotiationMode, number> =
-  {
-    none: 0,
-    initial: 1,
-    handoff: 2,
-  };
+const SCROLL_COORDINATION_LEVEL: Record<ScrollCoordinationMode, number> = {
+  none: 0,
+  initial: 1,
+  handoff: 2,
+};
 
-const DEFAULT_SCROLLABLE_NEGOTIATION = {
+const DEFAULT_SCROLL_COORDINATION = {
   expand: 'handoff',
   collapse: 'initial',
-} as const satisfies Exclude<ScrollableNegotiation, string>;
+} as const satisfies Exclude<ScrollCoordination, string>;
 
 /**
  * Props for the inline bottom-sheet component.
@@ -211,9 +210,7 @@ export interface BottomSheetProps {
    *
    * @default { expand: 'handoff', collapse: 'initial' }
    */
-  scrollableNegotiation?: ScrollableNegotiation;
-  /** @deprecated Use `scrollableNegotiation="none"` instead. */
-  disableScrollableNegotiation?: boolean;
+  scrollCoordination?: ScrollCoordination;
 }
 
 type ModalOnlyBottomSheetProps = {
@@ -263,24 +260,15 @@ export const BottomSheet = (props: BottomSheetProps) => {
     wrapNativeView,
     modal = false,
     nativeOverlay = false,
-    scrollableNegotiation,
-    disableScrollableNegotiation,
+    scrollCoordination,
     scrimColor,
     scrimAccessibilityLabel,
   } = props as BottomSheetInternalProps;
-  const resolvedScrollableNegotiation =
-    scrollableNegotiation ??
-    (disableScrollableNegotiation
-      ? ('none' as const)
-      : DEFAULT_SCROLLABLE_NEGOTIATION);
-  const resolvedExpandNegotiation =
-    typeof resolvedScrollableNegotiation === 'string'
-      ? resolvedScrollableNegotiation
-      : resolvedScrollableNegotiation.expand;
-  const resolvedCollapseNegotiation =
-    typeof resolvedScrollableNegotiation === 'string'
-      ? resolvedScrollableNegotiation
-      : resolvedScrollableNegotiation.collapse;
+  const coordination = scrollCoordination ?? DEFAULT_SCROLL_COORDINATION;
+  const resolvedExpandCoordination =
+    typeof coordination === 'string' ? coordination : coordination.expand;
+  const resolvedCollapseCoordination =
+    typeof coordination === 'string' ? coordination : coordination.collapse;
   const usesNativeOverlay = modal && nativeOverlay;
   // All real geometry — the sheet's frame, the content wrapper's bounds, and
   // the default top inset (the overlapping status-bar inset) — is measured
@@ -410,11 +398,11 @@ export const BottomSheet = (props: BottomSheetProps) => {
           nativeOverlay={usesNativeOverlay}
           openOrder={openOrder}
           hasCloseRequestHandler={hasCloseRequestHandler}
-          scrollableExpandNegotiation={
-            SCROLLABLE_NEGOTIATION_LEVEL[resolvedExpandNegotiation]
+          scrollExpandCoordination={
+            SCROLL_COORDINATION_LEVEL[resolvedExpandCoordination]
           }
-          scrollableCollapseNegotiation={
-            SCROLLABLE_NEGOTIATION_LEVEL[resolvedCollapseNegotiation]
+          scrollCollapseCoordination={
+            SCROLL_COORDINATION_LEVEL[resolvedCollapseCoordination]
           }
           scrimColor={scrimColor}
           // An empty label would leave the button unlabeled, so it falls back too.

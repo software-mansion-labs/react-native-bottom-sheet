@@ -6,13 +6,13 @@ internal enum class DetentKind {
   CONTENT,
 }
 
-internal enum class ScrollableNegotiationLevel(val value: Int) {
+internal enum class ScrollCoordinationLevel(val value: Int) {
   NONE(0),
   INITIAL(1),
   HANDOFF(2);
 
   companion object {
-    fun from(value: Int): ScrollableNegotiationLevel =
+    fun from(value: Int): ScrollCoordinationLevel =
       entries.firstOrNull { it.value == value.coerceIn(0, 2) } ?: NONE
   }
 }

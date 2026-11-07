@@ -149,9 +149,9 @@ export default function RootLayout() {
               options={{ title: 'Invalid props', headerShown: false }}
             />
             <Stack.Screen
-              name="scrollable-negotiation"
+              name="scroll-coordination"
               options={{
-                title: 'Scrollable negotiation modes',
+                title: 'Scroll coordination modes',
                 headerShown: false,
               }}
             />

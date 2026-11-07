@@ -85,8 +85,8 @@ public final class BottomSheetHostingView: UIView {
   /// the value the current translation was computed with.
   var lastAppliedMaxDetentHeight: CGFloat = .nan
 
-  public var scrollableExpandNegotiation: Int = ScrollableNegotiationLevel.handoff.rawValue
-  public var scrollableCollapseNegotiation: Int = ScrollableNegotiationLevel.initial.rawValue
+  public var scrollExpandCoordination: Int = ScrollCoordinationLevel.handoff.rawValue
+  public var scrollCollapseCoordination: Int = ScrollCoordinationLevel.initial.rawValue
 
   var rawDetentSpecs: [RawDetentSpec] = []
   /// Whether any detent keeps a gap at the card's sides or bottom, so the card
@@ -138,7 +138,7 @@ public final class BottomSheetHostingView: UIView {
   var activeDragDetentSpecs: [DetentSpec]?
   var activeScrollViewStates: [ActiveScrollViewState] = []
   var panCoordinationMode: PanCoordinationMode = .sheet
-  var activeScrollableNegotiationLevel: ScrollableNegotiationLevel = .none
+  var activeScrollCoordinationLevel: ScrollCoordinationLevel = .none
   var didMoveSheetDuringPan = false
   /// Whether the spring a pan stopped as it began emitted `onSettle`; nil when
   /// no spring was running.

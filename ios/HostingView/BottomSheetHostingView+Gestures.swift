@@ -22,7 +22,7 @@ extension BottomSheetHostingView {
       didCancelTouchesForPan = false
       scrollViewOwnsLowerBoundary = false
       let verticalDirection = panVerticalDirection(gesture)
-      activeScrollableNegotiationLevel = negotiationLevel(forVerticalVelocity: verticalDirection)
+      activeScrollCoordinationLevel = coordinationLevel(forVerticalVelocity: verticalDirection)
 
       activeScrollViewStates = initialScrollViewStates
 
@@ -38,12 +38,12 @@ extension BottomSheetHostingView {
         let range = activeDragRange ?? draggableRange(including: panStartingIndex)
         let isAtLargestDetent = sheetContainer.transform.ty <= range.minTy + 0.5
         if
-          activeScrollableNegotiationLevel == .handoff,
+          activeScrollCoordinationLevel == .handoff,
           isAtLargestDetent, verticalDirection < 0 || !activeScrollViewsAreAtStart()
         {
           panCoordinationMode = .scrollView
         } else if
-          activeScrollableNegotiationLevel == .handoff,
+          activeScrollCoordinationLevel == .handoff,
           verticalDirection < 0,
           activeScrollViewsArePulledPastStart()
         {
@@ -67,7 +67,7 @@ extension BottomSheetHostingView {
       let range = activeDragRange ?? draggableRange(including: panStartingIndex)
 
       if
-        activeScrollableNegotiationLevel == .handoff,
+        activeScrollCoordinationLevel == .handoff,
         !activeScrollViewStates.isEmpty,
         panCoordinationMode == .scrollView
       {
@@ -115,7 +115,7 @@ extension BottomSheetHostingView {
       pinActiveScrollViews()
 
       if
-        activeScrollableNegotiationLevel == .handoff,
+        activeScrollCoordinationLevel == .handoff,
         !activeScrollViewStates.isEmpty,
         delta < 0,
         newTy <= minTy + 0.5
@@ -126,7 +126,7 @@ extension BottomSheetHostingView {
         scrollViewOwnsLowerBoundary = false
         unlockActiveScrollViews()
       } else if
-        activeScrollableNegotiationLevel == .handoff,
+        activeScrollCoordinationLevel == .handoff,
         !activeScrollViewStates.isEmpty,
         delta > 0,
         newTy >= maxTy - 0.5
@@ -226,7 +226,7 @@ extension BottomSheetHostingView {
         : currentTy < range.maxTy - 0.5
     }
 
-    let level = negotiationLevel(forVerticalVelocity: verticalDirection)
+    let level = coordinationLevel(forVerticalVelocity: verticalDirection)
     guard level != .none else { return false }
 
     let range = draggableRange(including: targetIndex)
@@ -256,7 +256,7 @@ extension BottomSheetHostingView {
 extension BottomSheetHostingView: UIGestureRecognizerDelegate {
   private func canCoordinate(with other: UIGestureRecognizer) -> Bool {
     guard
-      hasAnyScrollableNegotiation,
+      hasAnyScrollCoordination,
       let scrollView = other.view as? UIScrollView,
       other === scrollView.panGestureRecognizer,
       scrollView.isDescendant(of: sheetContainer),
@@ -293,8 +293,8 @@ extension BottomSheetHostingView: UIGestureRecognizerDelegate {
         for: touch,
         usable: .init(up: canBeginUp, down: canBeginDown),
         handoff: .init(
-          up: canBeginUp && negotiationLevel(forVerticalVelocity: -1) == .handoff,
-          down: canBeginDown && negotiationLevel(forVerticalVelocity: 1) == .handoff
+          up: canBeginUp && coordinationLevel(forVerticalVelocity: -1) == .handoff,
+          down: canBeginDown && coordinationLevel(forVerticalVelocity: 1) == .handoff
         )
       )
     }

@@ -3,9 +3,9 @@
 import { clamp, isScrollbarHit, isTextEditingTarget } from './dom';
 import {
   isAtStart,
-  NEGOTIATION_HANDOFF,
-  NEGOTIATION_NONE,
-  negotiationLevel,
+  COORDINATION_HANDOFF,
+  COORDINATION_NONE,
+  coordinationLevel,
   scrollableChain,
   scrollChainBy,
   type ScrollableEntry,
@@ -40,7 +40,7 @@ type Gesture = {
   // In `scroll` mode, whether this controller scrolls the chain itself (it has
   // been preventing the browser's own scrolling) or the browser is scrolling.
   manualScroll: boolean;
-  negotiationLevel: number;
+  coordinationLevel: number;
   startingIndex: number;
   dragDetents: ResolvedDetent[];
   dragRange: { minTy: number; maxTy: number };
@@ -241,7 +241,7 @@ export class SheetGestures {
       chain: scrollableChain(target, host.elements?.container),
       mode: 'pending',
       manualScroll: false,
-      negotiationLevel: NEGOTIATION_NONE,
+      coordinationLevel: COORDINATION_NONE,
       startingIndex: host.targetIndex,
       dragDetents: host.detents,
       dragRange: { minTy: 0, maxTy: 0 },
@@ -265,9 +265,9 @@ export class SheetGestures {
       dy < 0 ? currentTy > range.minTy + 0.5 : currentTy < range.maxTy - 0.5;
     if (gesture.chain.length === 0) return canMoveSheet;
 
-    const level = negotiationLevel(dy, host.requireConfig());
-    if (level === NEGOTIATION_NONE || !canMoveSheet) return false;
-    if (level === NEGOTIATION_HANDOFF) return true;
+    const level = coordinationLevel(dy, host.requireConfig());
+    if (level === COORDINATION_NONE || !canMoveSheet) return false;
+    if (level === COORDINATION_HANDOFF) return true;
 
     // Initial-only collapse is available at the largest detent only when all
     // scrollable ancestors were already at their visual start.
@@ -291,7 +291,7 @@ export class SheetGestures {
     gesture.startingIndex = host.targetIndex;
     gesture.dragDetents = host.detents;
     gesture.dragRange = host.snapping.draggableRange(host.targetIndex);
-    gesture.negotiationLevel = negotiationLevel(dy, host.requireConfig());
+    gesture.coordinationLevel = coordinationLevel(dy, host.requireConfig());
 
     const container = host.elements!.container;
     const activeElement = document.activeElement;
@@ -307,7 +307,7 @@ export class SheetGestures {
       const isAtLargestDetent =
         host.translateY <= gesture.dragRange.minTy + 0.5;
       if (
-        gesture.negotiationLevel === NEGOTIATION_HANDOFF &&
+        gesture.coordinationLevel === COORDINATION_HANDOFF &&
         isAtLargestDetent &&
         (dy < 0 || !gesture.chain.every((entry) => isAtStart(entry)))
       ) {
@@ -369,7 +369,7 @@ export class SheetGestures {
     const delta = y - gesture.lastY;
     gesture.lastY = y;
     const range = gesture.dragRange;
-    const handoff = gesture.negotiationLevel === NEGOTIATION_HANDOFF;
+    const handoff = gesture.coordinationLevel === COORDINATION_HANDOFF;
 
     if (gesture.mode === 'scroll') {
       if (gesture.manualScroll) {

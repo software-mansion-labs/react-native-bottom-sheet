@@ -13,7 +13,7 @@ import com.facebook.react.views.scroll.ReactHorizontalScrollView
 import com.facebook.react.views.scroll.ReactScrollView
 import kotlin.math.roundToInt
 
-/** Negotiates a touch between the sheet and the scrollables inside it. */
+/** Coordinates touch handling between the sheet and the scrollables inside it. */
 internal class ScrollCoordination(private val state: SheetState, private val snapping: Snapping) {
 
   private val hitTestInverseMatrix = Matrix()
@@ -29,15 +29,15 @@ internal class ScrollCoordination(private val state: SheetState, private val sna
   val nestedScrollAxes: Int
     get() = nestedScrollingParentHelper.nestedScrollAxes
 
-  fun negotiationLevel(expanding: Boolean): ScrollableNegotiationLevel =
-    ScrollableNegotiationLevel.from(
-      if (expanding) state.scrollableExpandNegotiation else state.scrollableCollapseNegotiation,
+  fun coordinationLevel(expanding: Boolean): ScrollCoordinationLevel =
+    ScrollCoordinationLevel.from(
+      if (expanding) state.scrollExpandCoordination else state.scrollCollapseCoordination,
     )
 
-  val hasAnyHandoffNegotiation: Boolean
+  val hasAnyHandoffCoordination: Boolean
     get() =
-      negotiationLevel(expanding = true) == ScrollableNegotiationLevel.HANDOFF ||
-        negotiationLevel(expanding = false) == ScrollableNegotiationLevel.HANDOFF
+      coordinationLevel(expanding = true) == ScrollCoordinationLevel.HANDOFF ||
+        coordinationLevel(expanding = false) == ScrollCoordinationLevel.HANDOFF
 
   private fun beginNestedPanIfNeeded() {
     if (state.isPanning) return
@@ -58,7 +58,7 @@ internal class ScrollCoordination(private val state: SheetState, private val sna
   fun onStartNestedScroll(child: View, target: View, axes: Int, type: Int): Boolean {
     return type == ViewCompat.TYPE_TOUCH &&
       axes and ViewCompat.SCROLL_AXIS_VERTICAL != 0 &&
-      hasAnyHandoffNegotiation &&
+      hasAnyHandoffCoordination &&
       nestedTouchTarget != null &&
       target.isDescendantOf(state.sheetContainer)
   }
@@ -88,12 +88,12 @@ internal class ScrollCoordination(private val state: SheetState, private val sna
 
     val normalizedDy = if (nestedTouchInverted) -dy else dy
     if (
-      normalizedDy > 0 && negotiationLevel(expanding = true) == ScrollableNegotiationLevel.HANDOFF
+      normalizedDy > 0 && coordinationLevel(expanding = true) == ScrollCoordinationLevel.HANDOFF
     ) {
       consumed[1] += consumeNestedSheetScroll(dy)
     } else if (
       normalizedDy < 0 &&
-        negotiationLevel(expanding = false) == ScrollableNegotiationLevel.HANDOFF &&
+        coordinationLevel(expanding = false) == ScrollCoordinationLevel.HANDOFF &&
         scrollableAncestorsAreAtStart()
     ) {
       // Consume before native overscroll/RefreshControl while the sheet still
@@ -116,7 +116,7 @@ internal class ScrollCoordination(private val state: SheetState, private val sna
 
     val normalizedDy = if (nestedTouchInverted) -dyUnconsumed else dyUnconsumed
     if (
-      normalizedDy < 0 && negotiationLevel(expanding = false) == ScrollableNegotiationLevel.HANDOFF
+      normalizedDy < 0 && coordinationLevel(expanding = false) == ScrollCoordinationLevel.HANDOFF
     ) {
       consumed[1] += consumeNestedSheetScroll(dyUnconsumed)
     }
@@ -126,9 +126,7 @@ internal class ScrollCoordination(private val state: SheetState, private val sna
     if (!nestedScrollInProgress || !nestedSheetMoved) return false
 
     val normalizedVelocityY = if (nestedTouchInverted) -velocityY else velocityY
-    if (
-      negotiationLevel(expanding = normalizedVelocityY > 0) != ScrollableNegotiationLevel.HANDOFF
-    ) {
+    if (coordinationLevel(expanding = normalizedVelocityY > 0) != ScrollCoordinationLevel.HANDOFF) {
       return false
     }
     val range = state.activeDragRange ?: snapping.draggableRange(state.panStartingIndex)

@@ -1,18 +1,18 @@
 ---
-title: Scrollable negotiation
+title: Scroll coordination
 ---
 
-import { NegotiationModesExample } from '@site/src/examples/scrollable-negotiation';
+import { CoordinationModesExample } from '@site/src/examples/scroll-coordination';
 
-# Scrollable negotiation
+# Scroll coordination
 
-`scrollableNegotiation` controls how vertical gestures that start inside a
+`scrollCoordination` controls how vertical gestures that start inside a
 nested scrollable, such as a `ScrollView` or `FlatList`, interact with the
 sheet. Expansion and collapse can be configured independently:
 
 ```tsx
 <BottomSheet
-  scrollableNegotiation={{
+  scrollCoordination={{
     expand: 'handoff',
     collapse: 'initial',
   }}
@@ -37,7 +37,7 @@ Each direction accepts one of three modes:
 | `initial` | The sheet or scrollable is selected when the gesture begins, and that owner is kept until the finger lifts.          |
 | `handoff` | Uses the same initial selection but can transfer between the sheet and scrollable at their boundary without lifting. |
 
-<NegotiationModesExample />
+<CoordinationModesExample />
 
 For example, with expansion set to `handoff`, dragging up first moves the sheet
 to its largest detent and then scrolls the content. With collapse set to
@@ -48,13 +48,13 @@ boundary does not fling the content.
 Pass a string to use the same mode in both directions:
 
 ```tsx
-<BottomSheet scrollableNegotiation="none">{/* ... */}</BottomSheet>
+<BottomSheet scrollCoordination="none">{/* ... */}</BottomSheet>
 ```
 
 Or pass an object to configure the directions separately:
 
 ```tsx
-<BottomSheet scrollableNegotiation={{ expand: 'initial', collapse: 'handoff' }}>
+<BottomSheet scrollCoordination={{ expand: 'initial', collapse: 'handoff' }}>
   {/* ... */}
 </BottomSheet>
 ```

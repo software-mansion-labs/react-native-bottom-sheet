@@ -12,7 +12,7 @@ import {
   View,
   type ViewStyle,
 } from 'react-native';
-import type { ScrollableNegotiationMode } from '@swmansion/react-native-bottom-sheet';
+import type { ScrollCoordinationMode } from '@swmansion/react-native-bottom-sheet';
 
 import {
   Control,
@@ -36,7 +36,7 @@ const MODES = (['none', 'initial', 'handoff'] as const).map((value) => ({
   label: value,
 }));
 
-const EXPAND_HINTS: Record<ScrollableNegotiationMode, string> = {
+const EXPAND_HINTS: Record<ScrollCoordinationMode, string> = {
   none: 'Dragging up in the list never moves the sheet.',
   initial:
     'Dragging up moves the sheet, which stops at the top until you lift. Drag up again to scroll the list.',
@@ -44,7 +44,7 @@ const EXPAND_HINTS: Record<ScrollableNegotiationMode, string> = {
     'Dragging up moves the sheet to the top, then scrolls the list without lifting.',
 };
 
-const COLLAPSE_HINTS: Record<ScrollableNegotiationMode, string> = {
+const COLLAPSE_HINTS: Record<ScrollCoordinationMode, string> = {
   none: 'Dragging down in the list never moves the sheet.',
   initial:
     'Dragging down from a scrolled list only scrolls it. From its start, it moves the sheet.',
@@ -98,12 +98,11 @@ const FingerIndicator = () => {
   return <div ref={ref} style={FINGER_STYLE} aria-hidden />;
 };
 
-export const NegotiationModesExample = interactiveExample(
+export const CoordinationModesExample = interactiveExample(
   () => {
     const [index, setIndex] = useState(0);
-    const [expand, setExpand] = useState<ScrollableNegotiationMode>('handoff');
-    const [collapse, setCollapse] =
-      useState<ScrollableNegotiationMode>('initial');
+    const [expand, setExpand] = useState<ScrollCoordinationMode>('handoff');
+    const [collapse, setCollapse] = useState<ScrollCoordinationMode>('initial');
     const sheetValueRef = useRef<HTMLSpanElement>(null);
     const sheetFillRef = useRef<HTMLDivElement>(null);
     const listValueRef = useRef<HTMLSpanElement>(null);
@@ -185,7 +184,7 @@ export const NegotiationModesExample = interactiveExample(
               detents={DETENTS}
               index={index}
               onIndexChange={setIndex}
-              scrollableNegotiation={{ expand, collapse }}
+              scrollCoordination={{ expand, collapse }}
               onPositionChange={({ nativeEvent }) => {
                 sheetValueRef.current!.textContent =
                   nativeEvent.position.toFixed(0);
@@ -256,7 +255,7 @@ export const NegotiationModesExample = interactiveExample(
   detents={[200, 320]}
   index={index}
   onIndexChange={setIndex}
-  scrollableNegotiation={{ expand: '${expand}', collapse: '${collapse}' }}
+  scrollCoordination={{ expand: '${expand}', collapse: '${collapse}' }}
   surface={
     <View style={[StyleSheet.absoluteFill, { backgroundColor: 'white' }]} />
   }

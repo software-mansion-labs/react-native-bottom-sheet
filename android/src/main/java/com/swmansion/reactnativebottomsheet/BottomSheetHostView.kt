@@ -81,16 +81,16 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
       updateInteractionState()
     }
 
-  var scrollableExpandNegotiation: Int
-    get() = state.scrollableExpandNegotiation
+  var scrollExpandCoordination: Int
+    get() = state.scrollExpandCoordination
     set(value) {
-      state.scrollableExpandNegotiation = value
+      state.scrollExpandCoordination = value
     }
 
-  var scrollableCollapseNegotiation: Int
-    get() = state.scrollableCollapseNegotiation
+  var scrollCollapseCoordination: Int
+    get() = state.scrollCollapseCoordination
     set(value) {
-      state.scrollableCollapseNegotiation = value
+      state.scrollCollapseCoordination = value
     }
 
   // MARK: - Internal

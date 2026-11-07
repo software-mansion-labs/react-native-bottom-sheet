@@ -2,8 +2,8 @@ export { BottomSheet } from './BottomSheet';
 export type {
   BottomSheetProps,
   PositionChangeEventData,
-  ScrollableNegotiation,
-  ScrollableNegotiationMode,
+  ScrollCoordination,
+  ScrollCoordinationMode,
 } from './BottomSheet';
 export { ModalBottomSheet } from './ModalBottomSheet';
 export type { ModalBottomSheetProps } from './ModalBottomSheet';

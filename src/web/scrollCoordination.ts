@@ -3,9 +3,9 @@
 import { clamp } from './dom';
 import type { BottomSheetWebConfig } from './types';
 
-// `scrollableNegotiation` levels: none, initial (1), and handoff.
-export const NEGOTIATION_NONE = 0;
-export const NEGOTIATION_HANDOFF = 2;
+// `scrollCoordination` levels: none, initial (1), and handoff.
+export const COORDINATION_NONE = 0;
+export const COORDINATION_HANDOFF = 2;
 
 const EDGE_TOLERANCE = 0.5;
 // Per-millisecond velocity retention of a released manual scroll, matching
@@ -68,15 +68,15 @@ export const scrollableChain = (
   return chain;
 };
 
-export const negotiationLevel = (
+export const coordinationLevel = (
   deltaY: number,
   config: BottomSheetWebConfig
 ) => {
   const raw =
     deltaY < 0
-      ? config.scrollableExpandNegotiation
-      : config.scrollableCollapseNegotiation;
-  return clamp(Math.round(raw), NEGOTIATION_NONE, NEGOTIATION_HANDOFF);
+      ? config.scrollExpandCoordination
+      : config.scrollCollapseCoordination;
+  return clamp(Math.round(raw), COORDINATION_NONE, COORDINATION_HANDOFF);
 };
 
 /** Scrolls the chain, innermost first, as a finger moving by `delta` would. */

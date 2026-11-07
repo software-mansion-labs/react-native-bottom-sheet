@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import {
   BottomSheet,
-  type ScrollableNegotiationMode,
+  type ScrollCoordinationMode,
 } from '@swmansion/react-native-bottom-sheet';
 
 import {
@@ -25,19 +25,18 @@ import {
   useSheetBottomPadding,
 } from '../demoShared';
 
-const MODES: ScrollableNegotiationMode[] = ['none', 'initial', 'handoff'];
+const MODES: ScrollCoordinationMode[] = ['none', 'initial', 'handoff'];
 
-export const ScrollableNegotiationScreen = () => {
+export const ScrollCoordinationScreen = () => {
   const [index, setIndex] = useState(0);
-  const [expand, setExpand] = useState<ScrollableNegotiationMode>('handoff');
-  const [collapse, setCollapse] =
-    useState<ScrollableNegotiationMode>('initial');
+  const [expand, setExpand] = useState<ScrollCoordinationMode>('handoff');
+  const [collapse, setCollapse] = useState<ScrollCoordinationMode>('initial');
   const [scrollEnabled, setScrollEnabled] = useState(true);
   const sheetBottomPadding = useSheetBottomPadding();
 
   return (
     <DemoScreen
-      title="Scrollable negotiation"
+      title="Scroll coordination"
       sheet={
         <BottomSheet
           detents={[
@@ -48,11 +47,11 @@ export const ScrollableNegotiationScreen = () => {
           ]}
           index={index}
           onIndexChange={setIndex}
-          scrollableNegotiation={{ expand, collapse }}
+          scrollCoordination={{ expand, collapse }}
           surface={<SheetBackground style={StyleSheet.absoluteFill} />}
         >
           <SheetHeader
-            title="Scrollable negotiation"
+            title="Scroll coordination"
             onClose={() => setIndex(0)}
           />
           <FlatList
@@ -93,8 +92,8 @@ const ModeSelector = ({
   onChange,
 }: {
   label: string;
-  value: ScrollableNegotiationMode;
-  onChange: (value: ScrollableNegotiationMode) => void;
+  value: ScrollCoordinationMode;
+  onChange: (value: ScrollCoordinationMode) => void;
 }) => (
   <View style={styles.selector}>
     <Text style={styles.selectorLabel}>{label}</Text>

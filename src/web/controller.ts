@@ -32,7 +32,7 @@ import type {
 
 // The web counterpart of `BottomSheetHostingView.swift` and
 // `BottomSheetHostView.kt`. It owns the same geometry, snapping, scrim, and
-// scrollable-negotiation behavior, driven by DOM measurement, pointer and touch
+// scroll coordination behavior, driven by DOM measurement, pointer and touch
 // events, and requestAnimationFrame instead of a native view hierarchy. The
 // sheet is moved by writing the container's transform directly, so a drag or
 // settle never re-renders React.

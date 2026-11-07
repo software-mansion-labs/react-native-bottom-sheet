@@ -51,7 +51,7 @@ internal class Gestures(
         lastTouchY = event.y
         activePointerId = event.getPointerId(0)
         scrollCoordination.nestedTouchTarget =
-          if (scrollCoordination.hasAnyHandoffNegotiation)
+          if (scrollCoordination.hasAnyHandoffCoordination)
             scrollCoordination.prepareNestedScrollableAtTouch()
           else null
         scrollCoordination.nestedTouchInverted =
@@ -90,14 +90,14 @@ internal class Gestures(
           if (!canMoveSheet) return false
 
           if (touchedHit != null) {
-            val level = scrollCoordination.negotiationLevel(expanding = dy < 0)
-            if (level == ScrollableNegotiationLevel.NONE) return false
+            val level = scrollCoordination.coordinationLevel(expanding = dy < 0)
+            if (level == ScrollCoordinationLevel.NONE) return false
 
             // A supported nested-scrolling child keeps the touch stream for a
             // handoff direction. Initial-only—and unsupported handoff—use the
             // original touch-down owner selection below.
             if (
-              level == ScrollableNegotiationLevel.HANDOFF &&
+              level == ScrollCoordinationLevel.HANDOFF &&
                 scrollCoordination.nestedTouchTarget != null
             ) {
               return false

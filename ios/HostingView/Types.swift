@@ -46,12 +46,12 @@ enum PanCoordinationMode {
   case scrollView
 }
 
-enum ScrollableNegotiationLevel: Int {
+enum ScrollCoordinationLevel: Int {
   case none = 0
   case initial = 1
   case handoff = 2
 
   init(clamping value: Int) {
-    self = ScrollableNegotiationLevel(rawValue: min(max(value, 0), 2)) ?? .none
+    self = ScrollCoordinationLevel(rawValue: min(max(value, 0), 2)) ?? .none
   }
 }

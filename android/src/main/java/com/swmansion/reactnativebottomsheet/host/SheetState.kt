@@ -38,8 +38,8 @@ internal class SheetState(val hostView: ViewGroup, val sheetContainer: BottomShe
   var animateContentHeight: Boolean = true
   var modal: Boolean = false
 
-  var scrollableExpandNegotiation: Int = ScrollableNegotiationLevel.HANDOFF.value
-  var scrollableCollapseNegotiation: Int = ScrollableNegotiationLevel.INITIAL.value
+  var scrollExpandCoordination: Int = ScrollCoordinationLevel.HANDOFF.value
+  var scrollCollapseCoordination: Int = ScrollCoordinationLevel.INITIAL.value
   var pendingIndex: Int? = null
   var hasLaidOut = false
   var isPanning = false

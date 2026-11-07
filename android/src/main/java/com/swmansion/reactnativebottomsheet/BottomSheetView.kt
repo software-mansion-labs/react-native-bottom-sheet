@@ -160,16 +160,16 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       refreshCloseRequestControllers()
     }
 
-  var scrollableExpandNegotiation: Int
-    get() = host.scrollableExpandNegotiation
+  var scrollExpandCoordination: Int
+    get() = host.scrollExpandCoordination
     set(value) {
-      host.scrollableExpandNegotiation = value
+      host.scrollExpandCoordination = value
     }
 
-  var scrollableCollapseNegotiation: Int
-    get() = host.scrollableCollapseNegotiation
+  var scrollCollapseCoordination: Int
+    get() = host.scrollCollapseCoordination
     set(value) {
-      host.scrollableCollapseNegotiation = value
+      host.scrollCollapseCoordination = value
     }
 
   fun setScrimColor(color: Int?) = host.setScrimColor(color)

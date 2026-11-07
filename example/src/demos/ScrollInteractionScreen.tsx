@@ -143,7 +143,7 @@ export const ScrollInteractionScreen = () => {
           animateIn={false}
           onIndexChange={selectHeight}
           onSettle={setSettledIndex}
-          scrollableNegotiation={{
+          scrollCoordination={{
             expand:
               selectedCase.id === 'initial-expand' ? 'initial' : 'handoff',
             collapse: 'initial',

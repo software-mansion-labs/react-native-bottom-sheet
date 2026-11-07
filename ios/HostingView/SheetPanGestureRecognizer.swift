@@ -29,7 +29,7 @@ final class SheetPanGestureRecognizer: UIPanGestureRecognizer {
   private static let verticalSlop: CGFloat = 10
 
   /// Whether the start is held: a touch inside a vertical scrollable the sheet
-  /// negotiates with.
+  /// coordinates with.
   private(set) var isHoldingStart = false
   /// The contact the hold follows. A pull toward the edge of the screen can land
   /// a second contact and end the first; the gesture continues on the one left,

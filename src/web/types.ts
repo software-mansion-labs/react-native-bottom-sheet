@@ -38,8 +38,8 @@ export type BottomSheetWebConfig = Readonly<{
   hasCloseRequestHandler: boolean;
   /** When the sheet last opened, relative to other sheets. */
   openOrder: number;
-  scrollableExpandNegotiation: number;
-  scrollableCollapseNegotiation: number;
+  scrollExpandCoordination: number;
+  scrollCollapseCoordination: number;
   /** Physical corner radii: top-left, top-right, bottom-right, bottom-left. */
   cornerRadii: ReadonlyArray<number>;
   shadows: ReadonlyArray<

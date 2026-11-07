@@ -166,12 +166,12 @@ class BottomSheetViewManager :
     view.setHasCloseRequestHandler(value)
   }
 
-  override fun setScrollableExpandNegotiation(view: BottomSheetView, value: Int) {
-    view.scrollableExpandNegotiation = value
+  override fun setScrollExpandCoordination(view: BottomSheetView, value: Int) {
+    view.scrollExpandCoordination = value
   }
 
-  override fun setScrollableCollapseNegotiation(view: BottomSheetView, value: Int) {
-    view.scrollableCollapseNegotiation = value
+  override fun setScrollCollapseCoordination(view: BottomSheetView, value: Int) {
+    view.scrollCollapseCoordination = value
   }
 
   override fun setScrimColor(view: BottomSheetView, scrimColor: Int?) {

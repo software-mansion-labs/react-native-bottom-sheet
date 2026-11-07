@@ -159,12 +159,12 @@ using namespace facebook::react;
 
   // Compare against native state: codegen defaults to 0 (none), while the
   // hosting view defaults to handoff/initial, so a props diff can skip none.
-  if (newViewProps.scrollableExpandNegotiation != _sheetView.scrollableExpandNegotiation) {
-    _sheetView.scrollableExpandNegotiation = newViewProps.scrollableExpandNegotiation;
+  if (newViewProps.scrollExpandCoordination != _sheetView.scrollExpandCoordination) {
+    _sheetView.scrollExpandCoordination = newViewProps.scrollExpandCoordination;
   }
 
-  if (newViewProps.scrollableCollapseNegotiation != _sheetView.scrollableCollapseNegotiation) {
-    _sheetView.scrollableCollapseNegotiation = newViewProps.scrollableCollapseNegotiation;
+  if (newViewProps.scrollCollapseCoordination != _sheetView.scrollCollapseCoordination) {
+    _sheetView.scrollCollapseCoordination = newViewProps.scrollCollapseCoordination;
   }
 
   if (newViewProps.scrimColor != oldViewProps.scrimColor) {
