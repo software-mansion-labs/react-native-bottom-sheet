@@ -1,6 +1,7 @@
 import { themes as prismThemes } from 'prism-react-renderer';
 import type { Config } from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
+import type { Options as RedirectsOptions } from '@docusaurus/plugin-client-redirects';
 import reactNativeWeb from './plugins/react-native-web.mjs';
 import swmGeo from './plugins/swm-geo.mjs';
 
@@ -24,7 +25,21 @@ const config: Config = {
     locales: ['en'],
   },
 
-  plugins: [reactNativeWeb, swmGeo],
+  plugins: [
+    reactNativeWeb,
+    swmGeo,
+    [
+      '@docusaurus/plugin-client-redirects',
+      {
+        // The docs used to sit at the root, with the overview at /overview.
+        createRedirects: (path) => {
+          if (path === '/docs' || path === '/docs/') return '/overview';
+          if (path.startsWith('/docs/')) return path.slice('/docs'.length);
+          return undefined;
+        },
+      } satisfies RedirectsOptions,
+    ],
+  ],
 
   presets: [
     [
@@ -32,7 +47,6 @@ const config: Config = {
       {
         docs: {
           path: './content',
-          routeBasePath: '/',
           breadcrumbs: false,
           sidebarPath: './sidebars.ts',
           editUrl:
@@ -54,6 +68,12 @@ const config: Config = {
     navbar: {
       title: 'React Native Bottom Sheet',
       items: [
+        {
+          type: 'docSidebar',
+          sidebarId: 'docsSidebar',
+          label: 'Docs',
+          position: 'left',
+        },
         {
           href: 'https://github.com/software-mansion-labs/react-native-bottom-sheet',
           label: 'GitHub',
