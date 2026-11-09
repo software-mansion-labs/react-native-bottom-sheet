@@ -146,7 +146,7 @@ extension BottomSheetHostingView {
     let clampedRatio = min(max(velocityRatio, -5), 5)
     let v0 = clampedRatio * distance
 
-    let duration: CFTimeInterval = 0.45
+    let duration = settleDuration > 0 ? settleDuration : Self.defaultSettleDuration
     // Pick the stiffness so the sheet looks settled (within ~0.5% of target)
     // right at `duration`. For a critically-damped spring that point is
     // ω·t ≈ 8, so ω = 8 / duration.

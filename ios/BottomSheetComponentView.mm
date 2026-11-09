@@ -167,6 +167,10 @@ using namespace facebook::react;
     _sheetView.scrollCollapseCoordination = newViewProps.scrollCollapseCoordination;
   }
 
+  if (newViewProps.settleDuration != oldViewProps.settleDuration) {
+    _sheetView.settleDuration = newViewProps.settleDuration;
+  }
+
   if (newViewProps.scrimColor != oldViewProps.scrimColor) {
     [_sheetView setScrimColor:RCTUIColorFromSharedColor(newViewProps.scrimColor)];
   }

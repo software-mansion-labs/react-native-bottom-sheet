@@ -1,5 +1,6 @@
 package com.swmansion.reactnativebottomsheet.host
 
+import android.os.SystemClock
 import androidx.dynamicanimation.animation.DynamicAnimation
 import androidx.dynamicanimation.animation.SpringAnimation
 import androidx.dynamicanimation.animation.SpringForce
@@ -7,11 +8,17 @@ import com.swmansion.reactnativebottomsheet.closerequest.CloseRequestPresentatio
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
+import kotlin.math.roundToLong
 
 // Seconds of release velocity projected onto the sheet's position before the nearest-detent search
 // that resolves a drag release, so a gentle but deliberate swipe counts toward the detent it was
 // aimed at. Matches `releaseProjection` on iOS and web.
 private const val RELEASE_PROJECTION = 0.1f
+
+// Matches `defaultSettleDuration` on iOS.
+private const val DEFAULT_SETTLE_DURATION = 0.45f
+private const val SETTLE_MIN_VISIBLE_CHANGE = 0.001f
 
 /** Snap math, the spring that settles the sheet, and the position it reports along the way. */
 internal class Snapping(
@@ -49,12 +56,6 @@ internal class Snapping(
   fun translationY(index: Int): Float {
     return state.height.toFloat() - (state.detentSpecs.getOrNull(index)?.position ?: 0f)
   }
-
-  private val minDetentTranslationY: Float
-    get() = state.detentSpecs.indices.minOfOrNull(::translationY) ?: 0f
-
-  private val maxDetentTranslationY: Float
-    get() = state.detentSpecs.indices.maxOfOrNull(::translationY) ?: 0f
 
   private fun snapCandidateIndices(includeIndex: Int? = null): List<Int> {
     val indices =
@@ -150,28 +151,40 @@ internal class Snapping(
     state.activeAnimation?.cancel()
 
     val currentTy = state.sheetContainer.translationY
-
-    val minAnimationTy = minOf(minDetentTranslationY, currentTy, targetTy)
-    val maxAnimationTy = maxOf(maxDetentTranslationY, currentTy, targetTy)
     val distance = targetTy - currentTy
     val velocityRatio = if (distance != 0f) velocity / distance else 0f
     val initialVelocity = velocityRatio.coerceIn(-5f, 5f) * distance
+    val settleDuration =
+      if (state.settleDuration > 0f) state.settleDuration else DEFAULT_SETTLE_DURATION
+    val settleDeadline = SystemClock.uptimeMillis() + (settleDuration * 1000f).roundToLong()
 
     val spring =
       SpringAnimation(state.sheetContainer, DynamicAnimation.TRANSLATION_Y, targetTy).apply {
         spring =
           SpringForce(targetTy).apply {
             dampingRatio = SpringForce.DAMPING_RATIO_NO_BOUNCY
-            stiffness = SpringForce.STIFFNESS_MEDIUM
+            // A critically damped spring is settled (within ~0.5% of target) at omega*t ~= 8, and
+            // SpringForce's stiffness is omega^2, so a duration maps to 8/duration squared. This
+            // is the spring iOS runs, so both platforms settle at the same speed.
+            stiffness = (8f / settleDuration).pow(2)
           }
-        setMinValue(minAnimationTy)
-        setMaxValue(maxAnimationTy)
+        // No min/max clamp: with a long duration a fast release carries the sheet briefly past
+        // the detent and back, as on iOS. A clamp would pin it at the outermost detent and end
+        // the spring early. Like iOS, the duration fixes when the settle ends rather than how
+        // close to the target the spring has to get: keep the spring from ending itself before
+        // the deadline.
+        setMinimumVisibleChange(SETTLE_MIN_VISIBLE_CHANGE)
         setStartVelocity(initialVelocity)
         // Forward the position on every frame of the settle. The listener fires
         // immediately after the spring writes `translationY`, so `emitPosition`
         // reads the value being shown this frame — keeping followers that track
         // `onPositionChange` (e.g. a Reanimated view) in lockstep with the sheet.
-        addUpdateListener { _, _, _ -> emitPosition() }
+        addUpdateListener { animation, _, _ ->
+          emitPosition()
+          if (SystemClock.uptimeMillis() >= settleDeadline) {
+            (animation as SpringAnimation).skipToEnd()
+          }
+        }
         addEndListener { _, canceled, _, _ ->
           if (canceled) {
             return@addEndListener

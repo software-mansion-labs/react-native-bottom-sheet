@@ -8,12 +8,16 @@ const FLICK_VELOCITY = 600;
 // deliberate swipe counts toward the detent it was aimed at. Matches
 // `releaseProjection` on iOS and `RELEASE_PROJECTION` on Android.
 const RELEASE_PROJECTION = 0.1;
+// Matches `defaultSettleDuration` on iOS and `DEFAULT_SETTLE_DURATION` on Android.
+const DEFAULT_SETTLE_DURATION = 0.45;
 
 /** The controller's state and effects that snapping drives. */
 export type SnappingHost = {
   readonly detents: ResolvedDetent[];
   readonly hostHeight: number;
   readonly translateY: number;
+  /** Seconds the settle spring takes. 0 uses the default. */
+  readonly settleDuration: number;
   targetIndex: number;
   pendingIndex: number | null;
   scrimPinnedFull: boolean;
@@ -194,7 +198,13 @@ export class SheetSnapping {
 
     this.springEmitsSettle = emitSettle;
     this.springTargetIndex = index;
-    this.spring = new CriticalSpring(currentTy, targetTy, v0, now);
+    this.spring = new CriticalSpring(
+      currentTy,
+      targetTy,
+      v0,
+      now,
+      host.settleDuration > 0 ? host.settleDuration : DEFAULT_SETTLE_DURATION
+    );
     host.requestFrame();
     host.updateCloseRequestRegistration();
 

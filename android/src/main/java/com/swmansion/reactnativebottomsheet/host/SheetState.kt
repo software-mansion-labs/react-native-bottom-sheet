@@ -40,6 +40,9 @@ internal class SheetState(val hostView: ViewGroup, val sheetContainer: BottomShe
 
   var scrollExpandCoordination: Int = ScrollCoordinationLevel.HANDOFF.value
   var scrollCollapseCoordination: Int = ScrollCoordinationLevel.INITIAL.value
+
+  // Seconds the settle spring takes. 0 uses the default, the same on every platform.
+  var settleDuration = 0f
   var pendingIndex: Int? = null
   var hasLaidOut = false
   var isPanning = false

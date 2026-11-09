@@ -174,6 +174,10 @@ class BottomSheetViewManager :
     view.scrollCollapseCoordination = value
   }
 
+  override fun setSettleDuration(view: BottomSheetView, value: Double) {
+    view.settleDuration = value.toFloat()
+  }
+
   override fun setScrimColor(view: BottomSheetView, scrimColor: Int?) {
     view.setScrimColor(scrimColor)
   }

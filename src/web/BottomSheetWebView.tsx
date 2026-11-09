@@ -60,6 +60,7 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
     hasCloseRequestHandler,
     scrollExpandCoordination,
     scrollCollapseCoordination,
+    settleDuration,
     scrimColor,
     scrimAccessibilityLabel,
     surfaceCornerRadii = DEFAULT_CORNER_RADII,
@@ -171,6 +172,7 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
       openOrder,
       scrollExpandCoordination,
       scrollCollapseCoordination,
+      settleDuration: settleDuration ?? 0,
       cornerRadii: surfaceCornerRadii,
       shadows: surfaceShadows,
     });

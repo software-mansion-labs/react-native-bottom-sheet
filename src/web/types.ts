@@ -40,6 +40,8 @@ export type BottomSheetWebConfig = Readonly<{
   openOrder: number;
   scrollExpandCoordination: number;
   scrollCollapseCoordination: number;
+  /** Seconds the settle spring takes. 0 uses the default. */
+  settleDuration: number;
   /** Physical corner radii: top-left, top-right, bottom-right, bottom-left. */
   cornerRadii: ReadonlyArray<number>;
   shadows: ReadonlyArray<
