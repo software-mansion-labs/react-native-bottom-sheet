@@ -217,8 +217,9 @@ export interface BottomSheetProps {
    * settle.
    *
    * The spring is critically damped, so this is also its stiffness: a longer
-   * duration is a softer settle. Above about 1.6 seconds, a fast release can
-   * briefly carry the sheet past the detent.
+   * duration is a softer settle. It starts at the release velocity and never
+   * passes the detent, so a release faster than the spring can stop in time
+   * finishes sooner.
    *
    * @default 0.45
    */

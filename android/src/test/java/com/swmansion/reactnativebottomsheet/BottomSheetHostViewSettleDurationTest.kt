@@ -31,7 +31,7 @@ class BottomSheetHostViewSettleDurationTest {
   }
 
   @Test
-  fun `a long settle carries the release briefly past the largest detent, as on iOS`() {
+  fun `a long settle never carries a fast release past the largest detent`() {
     withSheet(listOf(0.0, 300.0, 600.0)) { sheet, listener ->
       sheet.settleDuration = 4f
 
@@ -41,7 +41,8 @@ class BottomSheetHostViewSettleDurationTest {
       idleFor(10_000L)
 
       assertEquals(listOf(2), listener.settles)
-      assertTrue(listener.peakPosition > 610.0)
+      assertTrue(listener.peakPosition > 590.0)
+      assertTrue(listener.peakPosition <= 600.0)
     }
   }
 

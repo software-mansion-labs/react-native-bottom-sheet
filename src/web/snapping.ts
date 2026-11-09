@@ -1,5 +1,4 @@
 import { CriticalSpring } from './criticalSpring';
-import { clamp } from './dom';
 import type { BottomSheetWebCallbacks, ResolvedDetent } from './types';
 
 const FLICK_VELOCITY = 600;
@@ -193,18 +192,21 @@ export class SheetSnapping {
       this.spring !== null ? this.cancelSpring(now) : host.translateY;
     const targetTy = this.translationY(index);
     const distance = targetTy - currentTy;
+    const settleDuration =
+      host.settleDuration > 0 ? host.settleDuration : DEFAULT_SETTLE_DURATION;
+    // The spring starts at the release velocity, as native sheets do. A positive
+    // ratio heads toward the target; above omega (8 / duration) the spring would
+    // carry the sheet past it, so stiffen it to the ratio instead: the sheet
+    // keeps the release velocity, decays straight onto the target and finishes
+    // sooner. Moving away from the target, the spring turns the sheet around.
     const velocityRatio = distance !== 0 ? velocity / distance : 0;
-    const v0 = clamp(velocityRatio, -5, 5) * distance;
+    const v0 = Math.max(velocityRatio, -5) * distance;
+    const omega = Math.max(8 / settleDuration, velocityRatio);
+    const duration = 8 / omega;
 
     this.springEmitsSettle = emitSettle;
     this.springTargetIndex = index;
-    this.spring = new CriticalSpring(
-      currentTy,
-      targetTy,
-      v0,
-      now,
-      host.settleDuration > 0 ? host.settleDuration : DEFAULT_SETTLE_DURATION
-    );
+    this.spring = new CriticalSpring(currentTy, targetTy, v0, now, duration);
     host.requestFrame();
     host.updateCloseRequestRegistration();
 

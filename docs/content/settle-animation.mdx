@@ -23,7 +23,9 @@ takes 0.45 seconds on every platform.
 The spring is critically damped, so the duration is also its stiffness: a longer
 duration is a softer settle.
 
-Release velocity is carried into the spring at any duration, so a fast release
-still starts fast. Above about 1.6 seconds, a fast release can briefly carry the
-sheet past the detent before it returns, because the release velocity outlasts
-the softer spring.
+The spring starts at the release velocity, as native sheets do, so the sheet
+moves on at the speed the finger let go and never jumps or stalls. The sheet
+never passes its detent either: when a release is faster than the spring can
+stop in time, the spring stiffens just enough to land on the detent, so a fast
+fling finishes sooner than `settleDuration`. A settle that starts without
+velocity, such as an `index` change, always takes the full duration.

@@ -152,27 +152,30 @@ internal class Snapping(
 
     val currentTy = state.sheetContainer.translationY
     val distance = targetTy - currentTy
-    val velocityRatio = if (distance != 0f) velocity / distance else 0f
-    val initialVelocity = velocityRatio.coerceIn(-5f, 5f) * distance
     val settleDuration =
       if (state.settleDuration > 0f) state.settleDuration else DEFAULT_SETTLE_DURATION
-    val settleDeadline = SystemClock.uptimeMillis() + (settleDuration * 1000f).roundToLong()
+    // A critically damped spring is settled (within ~0.5% of target) at omega*t ~= 8, so a
+    // duration maps to omega = 8/duration. This is the spring iOS runs, so both platforms settle
+    // at the same speed.
+    // The spring starts at the release velocity, as native sheets do. A positive ratio heads
+    // toward the target; above omega the spring would carry the sheet past it, so stiffen it to
+    // the ratio instead: the sheet keeps the release velocity, decays straight onto the target
+    // and finishes sooner. Moving away from the target, the spring turns the sheet around.
+    val velocityRatio = if (distance != 0f) velocity / distance else 0f
+    val initialVelocity = max(velocityRatio, -5f) * distance
+    val omega = max(8f / settleDuration, velocityRatio)
+    val settleDeadline = SystemClock.uptimeMillis() + (8000f / omega).roundToLong()
 
     val spring =
       SpringAnimation(state.sheetContainer, DynamicAnimation.TRANSLATION_Y, targetTy).apply {
         spring =
           SpringForce(targetTy).apply {
             dampingRatio = SpringForce.DAMPING_RATIO_NO_BOUNCY
-            // A critically damped spring is settled (within ~0.5% of target) at omega*t ~= 8, and
-            // SpringForce's stiffness is omega^2, so a duration maps to 8/duration squared. This
-            // is the spring iOS runs, so both platforms settle at the same speed.
-            stiffness = (8f / settleDuration).pow(2)
+            // SpringForce's stiffness is omega^2.
+            stiffness = omega.pow(2)
           }
-        // No min/max clamp: with a long duration a fast release carries the sheet briefly past
-        // the detent and back, as on iOS. A clamp would pin it at the outermost detent and end
-        // the spring early. Like iOS, the duration fixes when the settle ends rather than how
-        // close to the target the spring has to get: keep the spring from ending itself before
-        // the deadline.
+        // Like iOS, the duration fixes when the settle ends rather than how close to the target
+        // the spring has to get: keep the spring from ending itself before the deadline.
         setMinimumVisibleChange(SETTLE_MIN_VISIBLE_CHANGE)
         setStartVelocity(initialVelocity)
         // Forward the position on every frame of the settle. The listener fires

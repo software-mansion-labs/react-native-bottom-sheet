@@ -142,15 +142,20 @@ extension BottomSheetHostingView {
     let targetTy = translationY(for: index)
     let distance = targetTy - currentTy
 
-    let velocityRatio = distance != 0 ? velocity / distance : 0
-    let clampedRatio = min(max(velocityRatio, -5), 5)
-    let v0 = clampedRatio * distance
-
-    let duration = settleDuration > 0 ? settleDuration : Self.defaultSettleDuration
+    let settleDuration = self.settleDuration > 0 ? self.settleDuration : Self.defaultSettleDuration
     // Pick the stiffness so the sheet looks settled (within ~0.5% of target)
-    // right at `duration`. For a critically-damped spring that point is
+    // right at the duration. For a critically-damped spring that point is
     // ω·t ≈ 8, so ω = 8 / duration.
-    let omega = 8.0 / CGFloat(duration)
+    let settleOmega = 8.0 / CGFloat(settleDuration)
+
+    // The spring starts at the release velocity, as native sheets do. A positive ratio heads
+    // toward the target; above ω the spring would carry the sheet past it, so stiffen it to the
+    // ratio instead: the sheet keeps the release velocity, decays straight onto the target and
+    // finishes sooner. Moving away from the target, the spring turns the sheet around.
+    let velocityRatio = distance != 0 ? velocity / distance : 0
+    let v0 = max(velocityRatio, -5) * distance
+    let omega = max(settleOmega, velocityRatio)
+    let duration = CFTimeInterval(8.0 / omega)
     activeSpringEmitsSettle = emitSettle
     activeSpringTargetIndex = index
 
