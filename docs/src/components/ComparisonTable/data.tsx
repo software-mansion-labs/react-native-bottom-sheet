@@ -85,7 +85,7 @@ export const groups: Group[] = [
         feature: 'Stacked modal sheets',
         cells: {
           rnbs: 'yes',
-          gorhom: { status: 'partial', note: 'Documented for v3 only' },
+          gorhom: 'yes',
           expoUi: { status: 'partial', note: 'Nested in the parent on iOS' },
           formSheet: 'no',
           trueSheet: 'yes',
