@@ -96,8 +96,11 @@ export const groups: Group[] = [
         cells: {
           rnbs: { status: 'yes', note: 'Insets per detent' },
           gorhom: 'yes',
-          expoUi: 'no',
-          formSheet: 'no',
+          expoUi: { status: 'partial', note: 'iOS 26+ system style only' },
+          formSheet: {
+            status: 'partial',
+            note: 'iOS 26+ system style only',
+          },
           trueSheet: { status: 'partial', note: 'iOS and web only' },
         },
       },
