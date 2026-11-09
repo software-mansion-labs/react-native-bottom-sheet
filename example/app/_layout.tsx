@@ -196,6 +196,10 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
+              name="settle-duration"
+              options={{ title: 'Settle duration', headerShown: false }}
+            />
+            <Stack.Screen
               name="no-animate-in"
               options={{ title: 'No animate in', headerShown: false }}
             />
