@@ -1,5 +1,10 @@
 import UIKit
 
+/// Seconds of release velocity projected onto the sheet's position before the nearest-detent
+/// search that resolves a drag release, so a gentle but deliberate swipe counts toward the detent
+/// it was aimed at. Matches `RELEASE_PROJECTION` on Android and web.
+private let releaseProjection: CGFloat = 0.15
+
 extension BottomSheetHostingView {
   func detent(at index: Int) -> DetentSpec {
     guard detentSpecs.indices.contains(index) else {
@@ -272,8 +277,14 @@ extension BottomSheetHostingView {
         ?? candidates.first ?? targetIndex
     }
 
+    // Resolve against where the release was heading rather than where it stopped. `velocity` is
+    // downward-positive translation while `position` grows upward, hence the minus. The flick
+    // branches above keep using the raw `position`: they mean "one detent along from where the
+    // sheet actually is", and projecting there could skip past one.
+    let projectedPosition = position - velocity * releaseProjection
     return candidates.min(by: {
-      abs(detentSpecs[$0].position - position) < abs(detentSpecs[$1].position - position)
+      abs(detentSpecs[$0].position - projectedPosition)
+        < abs(detentSpecs[$1].position - projectedPosition)
     }) ?? targetIndex
   }
 
@@ -297,8 +308,10 @@ extension BottomSheetHostingView {
         ?? candidates.first ?? targetIndex
     }
 
+    // Same projection as `bestSnapIndex`, so a release resolves identically with `including:`.
+    let projectedPosition = position - velocity * releaseProjection
     return candidates.min(by: {
-      abs(specs[$0].position - position) < abs(specs[$1].position - position)
+      abs(specs[$0].position - projectedPosition) < abs(specs[$1].position - projectedPosition)
     }) ?? targetIndex
   }
 

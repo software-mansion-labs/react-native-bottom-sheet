@@ -3,6 +3,11 @@ import { clamp } from './dom';
 import type { BottomSheetWebCallbacks, ResolvedDetent } from './types';
 
 const FLICK_VELOCITY = 600;
+// Seconds of release velocity projected onto the sheet's position before the
+// nearest-detent search that resolves a drag release, so a gentle but
+// deliberate swipe counts toward the detent it was aimed at. Matches
+// `releaseProjection` on iOS and `RELEASE_PROJECTION` on Android.
+const RELEASE_PROJECTION = 0.15;
 
 /** The controller's state and effects that snapping drives. */
 export type SnappingHost = {
@@ -105,9 +110,15 @@ export class SheetSnapping {
         candidates[0]!
       );
     }
+    // Resolve against where the release was heading rather than where it
+    // stopped. `velocity` is downward-positive while `position` grows upward,
+    // hence the minus. The flick branches above keep using the raw `position`:
+    // they mean "one detent along from where the sheet actually is", and
+    // projecting there could skip past one.
+    const projected = position - velocity * RELEASE_PROJECTION;
     return candidates.reduce((best, index) =>
-      Math.abs(detents[index]!.position - position) <
-      Math.abs(detents[best]!.position - position)
+      Math.abs(detents[index]!.position - projected) <
+      Math.abs(detents[best]!.position - projected)
         ? index
         : best
     );

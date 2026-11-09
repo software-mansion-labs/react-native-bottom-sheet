@@ -6,6 +6,11 @@ import androidx.dynamicanimation.animation.SpringForce
 import com.swmansion.reactnativebottomsheet.closerequest.CloseRequestPresentationTracker
 import kotlin.math.abs
 
+// Seconds of release velocity projected onto the sheet's position before the nearest-detent search
+// that resolves a drag release, so a gentle but deliberate swipe counts toward the detent it was
+// aimed at. Matches `releaseProjection` on iOS and web.
+private const val RELEASE_PROJECTION = 0.15f
+
 /** Snap math, the spring that settles the sheet, and the position it reports along the way. */
 internal class Snapping(
   private val state: SheetState,
@@ -219,7 +224,12 @@ internal class Snapping(
         ?: state.targetIndex
     }
 
-    return candidates.minByOrNull { abs(state.detentSpecs[it].position - currentHeight) }
+    // Resolve against where the release was heading rather than where it stopped. `velocity` is
+    // downward-positive while position grows upward, hence the minus. The flick branches above keep
+    // using the raw `currentHeight`: they mean "one detent along from where the sheet actually is",
+    // and projecting there could skip past one.
+    val projectedHeight = currentHeight - velocity * RELEASE_PROJECTION
+    return candidates.minByOrNull { abs(state.detentSpecs[it].position - projectedHeight) }
       ?: state.targetIndex
   }
 
@@ -245,7 +255,9 @@ internal class Snapping(
         ?: state.targetIndex
     }
 
-    return candidates.minByOrNull { abs(specs[it].position - currentHeight) } ?: state.targetIndex
+    // Same projection as `bestSnapIndex`, so a release resolves identically with `includeIndex`.
+    val projectedHeight = currentHeight - velocity * RELEASE_PROJECTION
+    return candidates.minByOrNull { abs(specs[it].position - projectedHeight) } ?: state.targetIndex
   }
 
   fun settleActivePan(velocity: Float) {

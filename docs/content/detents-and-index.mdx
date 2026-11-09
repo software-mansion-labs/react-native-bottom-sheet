@@ -177,6 +177,15 @@ the current index and animates to the updated detent height when needed. If an
 update shortens the array, set a matching in-range `index` in the same render;
 the library does not clamp a now-out-of-range index.
 
+## Where a drag ends
+
+When a drag ends, a release faster than 600 layout units per second moves one
+detent along in its direction. A slower release goes to the nearest detent,
+measured from where the sheet was heading: 0.15 seconds of the release speed is
+added to where it was let go. A gentle swipe toward the next detent therefore
+reaches it without travelling past the midpoint, while a drag that stops before
+it is let go resolves on where it stopped.
+
 ## Programmatic-only detents
 
 If you want a detent to be reachable only via code (not by dragging), set
