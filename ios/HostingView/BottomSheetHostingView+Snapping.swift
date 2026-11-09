@@ -3,7 +3,7 @@ import UIKit
 /// Seconds of release velocity projected onto the sheet's position before the nearest-detent
 /// search that resolves a drag release, so a gentle but deliberate swipe counts toward the detent
 /// it was aimed at. Matches `RELEASE_PROJECTION` on Android and web.
-private let releaseProjection: CGFloat = 0.15
+private let releaseProjection: CGFloat = 0.1
 
 extension BottomSheetHostingView {
   func detent(at index: Int) -> DetentSpec {

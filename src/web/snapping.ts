@@ -7,7 +7,7 @@ const FLICK_VELOCITY = 600;
 // nearest-detent search that resolves a drag release, so a gentle but
 // deliberate swipe counts toward the detent it was aimed at. Matches
 // `releaseProjection` on iOS and `RELEASE_PROJECTION` on Android.
-const RELEASE_PROJECTION = 0.15;
+const RELEASE_PROJECTION = 0.1;
 
 /** The controller's state and effects that snapping drives. */
 export type SnappingHost = {

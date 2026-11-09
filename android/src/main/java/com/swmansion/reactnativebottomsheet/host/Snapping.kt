@@ -9,7 +9,7 @@ import kotlin.math.abs
 // Seconds of release velocity projected onto the sheet's position before the nearest-detent search
 // that resolves a drag release, so a gentle but deliberate swipe counts toward the detent it was
 // aimed at. Matches `releaseProjection` on iOS and web.
-private const val RELEASE_PROJECTION = 0.15f
+private const val RELEASE_PROJECTION = 0.1f
 
 /** Snap math, the spring that settles the sheet, and the position it reports along the way. */
 internal class Snapping(
