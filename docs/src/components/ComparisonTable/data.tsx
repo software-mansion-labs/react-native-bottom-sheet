@@ -110,7 +110,7 @@ export const groups: Group[] = [
           rnbs: 'yes',
           gorhom: 'yes',
           expoUi: { status: 'partial', note: 'Color only' },
-          formSheet: { status: 'partial', note: 'Color and corner radius' },
+          formSheet: { status: 'partial', note: 'Color, radius, elevation' },
           trueSheet: 'yes',
         },
       },
@@ -144,7 +144,7 @@ export const groups: Group[] = [
           },
           trueSheet: {
             status: 'partial',
-            note: 'Fractions only, up to 3',
+            note: 'No fixed heights, max 3',
           },
         },
       },
@@ -170,7 +170,7 @@ export const groups: Group[] = [
         feature: 'Regular React Native scrollables',
         cells: {
           rnbs: 'yes',
-          gorhom: { status: 'no', note: 'Library list components' },
+          gorhom: { status: 'no', note: 'Needs library scroll wrappers' },
           expoUi: {
             status: 'partial',
             note: (
@@ -228,9 +228,9 @@ export const groups: Group[] = [
         feature: 'Web',
         cells: {
           rnbs: 'yes',
-          gorhom: { status: 'partial', note: 'Mobile web' },
+          gorhom: { status: 'partial', note: 'Mobile web per docs' },
           expoUi: 'yes',
-          formSheet: { status: 'no', note: 'Separate route' },
+          formSheet: { status: 'no', note: 'Renders as full page' },
           trueSheet: 'yes',
         },
       },
