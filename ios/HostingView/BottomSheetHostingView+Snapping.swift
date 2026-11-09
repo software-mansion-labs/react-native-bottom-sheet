@@ -1,5 +1,10 @@
 import UIKit
 
+/// Seconds of release velocity projected onto the sheet's position before the nearest-detent
+/// search that resolves a drag release, so a gentle but deliberate swipe counts toward the detent
+/// it was aimed at. Matches `RELEASE_PROJECTION` on Android and web.
+private let releaseProjection: CGFloat = 0.1
+
 extension BottomSheetHostingView {
   func detent(at index: Int) -> DetentSpec {
     guard detentSpecs.indices.contains(index) else {
@@ -272,8 +277,17 @@ extension BottomSheetHostingView {
         ?? candidates.first ?? targetIndex
     }
 
+    // Resolve against where the release was heading rather than where it stopped. The flick
+    // branches above keep using the raw `position`: they mean "one detent along from where the
+    // sheet actually is".
+    let projectedPosition = projectedReleasePosition(
+      from: position,
+      velocity: velocity,
+      positions: candidates.map { detentSpecs[$0].position }
+    )
     return candidates.min(by: {
-      abs(detentSpecs[$0].position - position) < abs(detentSpecs[$1].position - position)
+      abs(detentSpecs[$0].position - projectedPosition)
+        < abs(detentSpecs[$1].position - projectedPosition)
     }) ?? targetIndex
   }
 
@@ -297,9 +311,34 @@ extension BottomSheetHostingView {
         ?? candidates.first ?? targetIndex
     }
 
+    // Same projection as `bestSnapIndex`, so a release resolves identically with `including:`.
+    let projectedPosition = projectedReleasePosition(
+      from: position,
+      velocity: velocity,
+      positions: candidates.map { specs[$0].position }
+    )
     return candidates.min(by: {
-      abs(specs[$0].position - position) < abs(specs[$1].position - position)
+      abs(specs[$0].position - projectedPosition) < abs(specs[$1].position - projectedPosition)
     }) ?? targetIndex
+  }
+
+  /// Where a slower-than-flick release was heading: `releaseProjection` seconds of its velocity
+  /// past where it was let go, but never past the first detent ahead of it, since projecting
+  /// further would skip a detent that a slightly faster flick stops at. `velocity` is
+  /// downward-positive translation while `position` grows upward, hence the minus.
+  private func projectedReleasePosition(
+    from position: CGFloat,
+    velocity: CGFloat,
+    positions: [CGFloat]
+  ) -> CGFloat {
+    let projected = position - velocity * releaseProjection
+    if projected > position, let above = positions.filter({ $0 > position }).min() {
+      return min(projected, above)
+    }
+    if projected < position, let below = positions.filter({ $0 < position }).max() {
+      return max(projected, below)
+    }
+    return projected
   }
 
   var currentTranslationY: CGFloat {

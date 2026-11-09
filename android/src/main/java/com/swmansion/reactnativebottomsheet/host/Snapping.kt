@@ -5,6 +5,13 @@ import androidx.dynamicanimation.animation.SpringAnimation
 import androidx.dynamicanimation.animation.SpringForce
 import com.swmansion.reactnativebottomsheet.closerequest.CloseRequestPresentationTracker
 import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
+
+// Seconds of release velocity projected onto the sheet's position before the nearest-detent search
+// that resolves a drag release, so a gentle but deliberate swipe counts toward the detent it was
+// aimed at. Matches `releaseProjection` on iOS and web.
+private const val RELEASE_PROJECTION = 0.1f
 
 /** Snap math, the spring that settles the sheet, and the position it reports along the way. */
 internal class Snapping(
@@ -202,51 +209,29 @@ internal class Snapping(
     spring.start()
   }
 
-  private fun bestSnapIndex(currentHeight: Float, velocity: Float, includeIndex: Int? = null): Int {
-    val candidates = snapCandidateIndices(includeIndex)
-    if (candidates.isEmpty()) return state.targetIndex
+  private fun bestSnapIndex(currentHeight: Float, velocity: Float, includeIndex: Int? = null): Int =
+    releaseSnapIndex(
+      snapCandidateIndices(includeIndex),
+      { state.detentSpecs[it].position },
+      currentHeight,
+      velocity,
+      600f * state.density,
+    ) ?: state.targetIndex
 
-    val flickThreshold = 600f * state.density
-
-    if (velocity < -flickThreshold) {
-      return candidates.firstOrNull { state.detentSpecs[it].position > currentHeight }
-        ?: candidates.lastOrNull()
-        ?: state.targetIndex
-    }
-    if (velocity > flickThreshold) {
-      return candidates.lastOrNull { state.detentSpecs[it].position < currentHeight }
-        ?: candidates.firstOrNull()
-        ?: state.targetIndex
-    }
-
-    return candidates.minByOrNull { abs(state.detentSpecs[it].position - currentHeight) }
-      ?: state.targetIndex
-  }
-
+  // Same resolution as `bestSnapIndex`, against the detents captured when the drag began.
   private fun snapshotBestSnapIndex(
     currentHeight: Float,
     velocity: Float,
     includeIndex: Int?,
     specs: List<DetentSpec>,
-  ): Int {
-    val candidates = snapshotCandidateIndices(includeIndex, specs)
-    if (candidates.isEmpty()) return state.targetIndex
-
-    val flickThreshold = 600f * state.density
-
-    if (velocity < -flickThreshold) {
-      return candidates.firstOrNull { specs[it].position > currentHeight }
-        ?: candidates.lastOrNull()
-        ?: state.targetIndex
-    }
-    if (velocity > flickThreshold) {
-      return candidates.lastOrNull { specs[it].position < currentHeight }
-        ?: candidates.firstOrNull()
-        ?: state.targetIndex
-    }
-
-    return candidates.minByOrNull { abs(specs[it].position - currentHeight) } ?: state.targetIndex
-  }
+  ): Int =
+    releaseSnapIndex(
+      snapshotCandidateIndices(includeIndex, specs),
+      { specs[it].position },
+      currentHeight,
+      velocity,
+      600f * state.density,
+    ) ?: state.targetIndex
 
   fun settleActivePan(velocity: Float) {
     val maxHeight = state.height.toFloat()
@@ -262,4 +247,35 @@ internal class Snapping(
     state.activeDragDetentSpecs = null
     snapToIndex(index, velocity)
   }
+}
+
+/**
+ * The detent a drag release resolves to, or null without candidates. [candidates] are detent
+ * indices in ascending position order and [positionOf] gives each one's height. `velocity` is
+ * downward-positive while heights grow upward.
+ */
+internal fun releaseSnapIndex(
+  candidates: List<Int>,
+  positionOf: (Int) -> Float,
+  currentHeight: Float,
+  velocity: Float,
+  flickThreshold: Float,
+): Int? {
+  val above = candidates.firstOrNull { positionOf(it) > currentHeight }
+  val below = candidates.lastOrNull { positionOf(it) < currentHeight }
+
+  // A flick moves one detent along from where the sheet actually is.
+  if (velocity < -flickThreshold) return above ?: candidates.lastOrNull()
+  if (velocity > flickThreshold) return below ?: candidates.firstOrNull()
+
+  // A slower release resolves against where it was heading, but never past the first detent ahead
+  // of it: projecting further would skip a detent that a slightly faster flick stops at.
+  val projected = currentHeight - velocity * RELEASE_PROJECTION
+  val heading =
+    when {
+      projected > currentHeight && above != null -> min(projected, positionOf(above))
+      projected < currentHeight && below != null -> max(projected, positionOf(below))
+      else -> projected
+    }
+  return candidates.minByOrNull { abs(positionOf(it) - heading) }
 }
