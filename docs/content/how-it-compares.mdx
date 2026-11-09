@@ -3,7 +3,18 @@ sidebar_position: 2
 title: How it compares
 ---
 
+import ComparisonTable from '@site/src/components/ComparisonTable';
+import { groups, products } from '@site/src/components/ComparisonTable/data';
+
 # How it compares
+
+This table compares documented first-class behavior.
+
+<ComparisonTable
+  caption="Feature comparison of React Native bottom-sheet libraries"
+  products={products}
+  groups={groups}
+/>
 
 React Native already has strong bottom-sheet options, but they make
 different tradeoffs. React Native Bottom Sheet gives you composable React Native
