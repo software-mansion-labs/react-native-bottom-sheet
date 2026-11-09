@@ -172,6 +172,12 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       host.scrollCollapseCoordination = value
     }
 
+  var settleDuration: Float
+    get() = host.settleDuration
+    set(value) {
+      host.settleDuration = value
+    }
+
   fun setScrimColor(color: Int?) = host.setScrimColor(color)
 
   fun setScrimAccessibilityLabel(label: String?) = host.setScrimAccessibilityLabel(label)

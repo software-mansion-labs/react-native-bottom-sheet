@@ -70,6 +70,16 @@
   _impl.scrollCollapseCoordination = scrollCollapseCoordination;
 }
 
+- (NSTimeInterval)settleDuration
+{
+  return _impl.settleDuration;
+}
+
+- (void)setSettleDuration:(NSTimeInterval)settleDuration
+{
+  _impl.settleDuration = settleDuration;
+}
+
 - (BOOL)modal
 {
   return _impl.modal;

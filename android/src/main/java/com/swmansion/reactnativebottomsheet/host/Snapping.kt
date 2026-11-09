@@ -1,5 +1,6 @@
 package com.swmansion.reactnativebottomsheet.host
 
+import android.os.SystemClock
 import androidx.dynamicanimation.animation.DynamicAnimation
 import androidx.dynamicanimation.animation.SpringAnimation
 import androidx.dynamicanimation.animation.SpringForce
@@ -7,11 +8,17 @@ import com.swmansion.reactnativebottomsheet.closerequest.CloseRequestPresentatio
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
+import kotlin.math.roundToLong
 
 // Seconds of release velocity projected onto the sheet's position before the nearest-detent search
 // that resolves a drag release, so a gentle but deliberate swipe counts toward the detent it was
 // aimed at. Matches `releaseProjection` on iOS and web.
 private const val RELEASE_PROJECTION = 0.1f
+
+// Matches `defaultSettleDuration` on iOS.
+private const val DEFAULT_SETTLE_DURATION = 0.45f
+private const val SETTLE_MIN_VISIBLE_CHANGE = 0.001f
 
 /** Snap math, the spring that settles the sheet, and the position it reports along the way. */
 internal class Snapping(
@@ -49,12 +56,6 @@ internal class Snapping(
   fun translationY(index: Int): Float {
     return state.height.toFloat() - (state.detentSpecs.getOrNull(index)?.position ?: 0f)
   }
-
-  private val minDetentTranslationY: Float
-    get() = state.detentSpecs.indices.minOfOrNull(::translationY) ?: 0f
-
-  private val maxDetentTranslationY: Float
-    get() = state.detentSpecs.indices.maxOfOrNull(::translationY) ?: 0f
 
   private fun snapCandidateIndices(includeIndex: Int? = null): List<Int> {
     val indices =
@@ -150,28 +151,43 @@ internal class Snapping(
     state.activeAnimation?.cancel()
 
     val currentTy = state.sheetContainer.translationY
-
-    val minAnimationTy = minOf(minDetentTranslationY, currentTy, targetTy)
-    val maxAnimationTy = maxOf(maxDetentTranslationY, currentTy, targetTy)
     val distance = targetTy - currentTy
+    val settleDuration =
+      if (state.settleDuration > 0f) state.settleDuration else DEFAULT_SETTLE_DURATION
+    // A critically damped spring is settled (within ~0.5% of target) at omega*t ~= 8, so a
+    // duration maps to omega = 8/duration. This is the spring iOS runs, so both platforms settle
+    // at the same speed.
+    // The spring starts at the release velocity, as native sheets do. A positive ratio heads
+    // toward the target; above omega the spring would carry the sheet past it, so stiffen it to
+    // the ratio instead: the sheet keeps the release velocity, decays straight onto the target
+    // and finishes sooner. Moving away from the target, the spring turns the sheet around.
     val velocityRatio = if (distance != 0f) velocity / distance else 0f
-    val initialVelocity = velocityRatio.coerceIn(-5f, 5f) * distance
+    val initialVelocity = max(velocityRatio, -5f) * distance
+    val omega = max(8f / settleDuration, velocityRatio)
+    val settleDeadline = SystemClock.uptimeMillis() + (8000f / omega).roundToLong()
 
     val spring =
       SpringAnimation(state.sheetContainer, DynamicAnimation.TRANSLATION_Y, targetTy).apply {
         spring =
           SpringForce(targetTy).apply {
             dampingRatio = SpringForce.DAMPING_RATIO_NO_BOUNCY
-            stiffness = SpringForce.STIFFNESS_MEDIUM
+            // SpringForce's stiffness is omega^2.
+            stiffness = omega.pow(2)
           }
-        setMinValue(minAnimationTy)
-        setMaxValue(maxAnimationTy)
+        // Like iOS, the duration fixes when the settle ends rather than how close to the target
+        // the spring has to get: keep the spring from ending itself before the deadline.
+        setMinimumVisibleChange(SETTLE_MIN_VISIBLE_CHANGE)
         setStartVelocity(initialVelocity)
         // Forward the position on every frame of the settle. The listener fires
         // immediately after the spring writes `translationY`, so `emitPosition`
         // reads the value being shown this frame — keeping followers that track
         // `onPositionChange` (e.g. a Reanimated view) in lockstep with the sheet.
-        addUpdateListener { _, _, _ -> emitPosition() }
+        addUpdateListener { animation, _, _ ->
+          emitPosition()
+          if (SystemClock.uptimeMillis() >= settleDeadline) {
+            (animation as SpringAnimation).skipToEnd()
+          }
+        }
         addEndListener { _, canceled, _, _ ->
           if (canceled) {
             return@addEndListener

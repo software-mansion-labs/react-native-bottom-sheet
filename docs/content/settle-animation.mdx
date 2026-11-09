@@ -1,0 +1,32 @@
+---
+title: Settle animation
+---
+
+# Settle animation
+
+When a drag ends or the index changes, a spring carries the sheet to its detent.
+`settleDuration` is how long, in seconds, that spring takes. Left unset, it
+takes 0.45 seconds on every platform. It must be a finite number greater than 0;
+the library throws an `Error` for values such as `0`, `-1` or `NaN`.
+
+```tsx
+<BottomSheet
+  detents={[0, 'content']}
+  index={index}
+  onIndexChange={setIndex}
+  settleDuration={0.55}
+  surface={/* ... */}
+>
+  {/* ... */}
+</BottomSheet>
+```
+
+The spring is critically damped, so the duration is also its stiffness: a longer
+duration is a softer settle.
+
+The spring starts at the release velocity, as native sheets do, so the sheet
+moves on at the speed the finger let go and never jumps or stalls. The sheet
+never passes its detent either: when a release is faster than the spring can
+stop in time, the spring stiffens just enough to land on the detent, so a fast
+fling finishes sooner than `settleDuration`. A settle that starts without
+velocity, such as an `index` change, always takes the full duration.

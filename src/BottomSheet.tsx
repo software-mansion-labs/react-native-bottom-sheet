@@ -23,6 +23,7 @@ import {
   resolveSurfaceStyle,
   type SurfaceStyle,
   validateIndex,
+  validateSettleDuration,
 } from './bottomSheetUtils';
 export type {
   Detent,
@@ -211,6 +212,20 @@ export interface BottomSheetProps {
    * @default { expand: 'handoff', collapse: 'initial' }
    */
   scrollCoordination?: ScrollCoordination;
+  /**
+   * Seconds the spring that carries the sheet to a resolved detent takes to
+   * settle.
+   *
+   * The spring is critically damped, so this is also its stiffness: a longer
+   * duration is a softer settle. It starts at the release velocity and never
+   * passes the detent, so a release faster than the spring can stop in time
+   * finishes sooner.
+   *
+   * Must be a finite number greater than 0; leave it unset for the default.
+   *
+   * @default 0.45
+   */
+  settleDuration?: number;
 }
 
 type ModalOnlyBottomSheetProps = {
@@ -263,6 +278,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
     scrollCoordination,
     scrimColor,
     scrimAccessibilityLabel,
+    settleDuration,
   } = props as BottomSheetInternalProps;
   const coordination = scrollCoordination ?? DEFAULT_SCROLL_COORDINATION;
   const resolvedExpandCoordination =
@@ -282,6 +298,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
   // host's height whenever detents are refreshed. Point detents retain
   // their requested height; native layout clamps both kinds to it.
   validateIndex(index, detents.length);
+  validateSettleDuration(settleDuration);
   const normalizedDetents = normalizeDetents(detents, topInset, modal);
 
   const selectedNormalizedDetent = normalizedDetents[index]!;
@@ -404,6 +421,8 @@ export const BottomSheet = (props: BottomSheetProps) => {
           scrollCollapseCoordination={
             SCROLL_COORDINATION_LEVEL[resolvedCollapseCoordination]
           }
+          // 0 tells native to use its default.
+          settleDuration={settleDuration ?? 0}
           scrimColor={scrimColor}
           // An empty label would leave the button unlabeled, so it falls back too.
           scrimAccessibilityLabel={scrimAccessibilityLabel || 'Dismiss'}

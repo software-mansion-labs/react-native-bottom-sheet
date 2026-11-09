@@ -250,6 +250,10 @@ export class BottomSheetWebController {
     this.requestFrame();
   };
 
+  get settleDuration() {
+    return this.config?.settleDuration ?? 0;
+  }
+
   requireConfig(): BottomSheetWebConfig {
     return this.config!;
   }

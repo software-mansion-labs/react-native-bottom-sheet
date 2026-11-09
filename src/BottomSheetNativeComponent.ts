@@ -44,6 +44,8 @@ export interface NativeProps extends ViewProps {
   hasCloseRequestHandler: boolean;
   scrollExpandCoordination: CodegenTypes.Int32;
   scrollCollapseCoordination: CodegenTypes.Int32;
+  // Seconds the settle animation takes. 0 uses the default.
+  settleDuration?: CodegenTypes.WithDefault<CodegenTypes.Double, 0>;
   scrimColor?: ColorValue;
   // The label of the scrim's dismiss control for screen readers, exposed while
   // tapping the scrim would dismiss a modal sheet.

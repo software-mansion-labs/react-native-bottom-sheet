@@ -93,6 +93,12 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
       state.scrollCollapseCoordination = value
     }
 
+  var settleDuration: Float
+    get() = state.settleDuration
+    set(value) {
+      state.settleDuration = value
+    }
+
   // MARK: - Internal
 
   private val sheetContainer = BottomSheetCardContainer(context)

@@ -88,6 +88,10 @@ public final class BottomSheetHostingView: UIView {
   public var scrollExpandCoordination: Int = ScrollCoordinationLevel.handoff.rawValue
   public var scrollCollapseCoordination: Int = ScrollCoordinationLevel.initial.rawValue
 
+  /// Duration of the spring that carries the sheet to the detent a release
+  /// resolved to. `0` (the default) uses `defaultSettleDuration`.
+  public var settleDuration: CFTimeInterval = 0
+
   var rawDetentSpecs: [RawDetentSpec] = []
   /// Whether any detent keeps a gap at the card's sides or bottom, so the card
   /// is narrower or shorter than the surface and has to clip it. A top inset
@@ -169,6 +173,8 @@ public final class BottomSheetHostingView: UIView {
   /// (and thus its safe-area insets) can change before the marker's layout
   /// mutation runs. NaN before the first transaction completes.
   var appliedContentRegionInset: CGFloat = .nan
+  /// Settle duration used when `settleDuration` is left at 0.
+  static let defaultSettleDuration: CFTimeInterval = 0.45
   static let springAnimationKey = "bottomSheetSettle"
   static let cardBoundsAnimationKey = "bottomSheetCardBounds"
   static let cardPositionAnimationKey = "bottomSheetCardPosition"

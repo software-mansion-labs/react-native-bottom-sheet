@@ -25,6 +25,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL modal;
 @property (nonatomic) NSInteger scrollExpandCoordination;
 @property (nonatomic) NSInteger scrollCollapseCoordination;
+@property (nonatomic) NSTimeInterval settleDuration;
 @property (nonatomic, readonly) UIView *sheetContainer;
 @property (nonatomic, readonly) BOOL isModalAccessibilityActive;
 

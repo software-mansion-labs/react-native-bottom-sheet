@@ -32,6 +32,7 @@ export type CaseKey =
   | 'dynamic-content-height'
   | 'z-indexed-content'
   | 'snap-callbacks'
+  | 'settle-duration'
   | 'no-animate-in'
   | 'ui-thread-position'
   | 'ui-thread-modal-position';
@@ -209,6 +210,11 @@ export const DEMO_CASES: DemoCase[] = [
     key: 'snap-callbacks',
     title: 'Snap lifecycle callbacks',
     href: '/snap-callbacks',
+  },
+  {
+    key: 'settle-duration',
+    title: 'Settle duration',
+    href: '/settle-duration',
   },
   {
     key: 'no-animate-in',

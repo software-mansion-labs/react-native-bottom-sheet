@@ -1,5 +1,4 @@
 import { CriticalSpring } from './criticalSpring';
-import { clamp } from './dom';
 import type { BottomSheetWebCallbacks, ResolvedDetent } from './types';
 
 const FLICK_VELOCITY = 600;
@@ -8,12 +7,16 @@ const FLICK_VELOCITY = 600;
 // deliberate swipe counts toward the detent it was aimed at. Matches
 // `releaseProjection` on iOS and `RELEASE_PROJECTION` on Android.
 const RELEASE_PROJECTION = 0.1;
+// Matches `defaultSettleDuration` on iOS and `DEFAULT_SETTLE_DURATION` on Android.
+const DEFAULT_SETTLE_DURATION = 0.45;
 
 /** The controller's state and effects that snapping drives. */
 export type SnappingHost = {
   readonly detents: ResolvedDetent[];
   readonly hostHeight: number;
   readonly translateY: number;
+  /** Seconds the settle spring takes. 0 uses the default. */
+  readonly settleDuration: number;
   targetIndex: number;
   pendingIndex: number | null;
   scrimPinnedFull: boolean;
@@ -189,12 +192,21 @@ export class SheetSnapping {
       this.spring !== null ? this.cancelSpring(now) : host.translateY;
     const targetTy = this.translationY(index);
     const distance = targetTy - currentTy;
+    const settleDuration =
+      host.settleDuration > 0 ? host.settleDuration : DEFAULT_SETTLE_DURATION;
+    // The spring starts at the release velocity, as native sheets do. A positive
+    // ratio heads toward the target; above omega (8 / duration) the spring would
+    // carry the sheet past it, so stiffen it to the ratio instead: the sheet
+    // keeps the release velocity, decays straight onto the target and finishes
+    // sooner. Moving away from the target, the spring turns the sheet around.
     const velocityRatio = distance !== 0 ? velocity / distance : 0;
-    const v0 = clamp(velocityRatio, -5, 5) * distance;
+    const v0 = Math.max(velocityRatio, -5) * distance;
+    const omega = Math.max(8 / settleDuration, velocityRatio);
+    const duration = 8 / omega;
 
     this.springEmitsSettle = emitSettle;
     this.springTargetIndex = index;
-    this.spring = new CriticalSpring(currentTy, targetTy, v0, now);
+    this.spring = new CriticalSpring(currentTy, targetTy, v0, now, duration);
     host.requestFrame();
     host.updateCloseRequestRegistration();
 
