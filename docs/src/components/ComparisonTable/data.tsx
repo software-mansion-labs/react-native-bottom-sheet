@@ -87,7 +87,7 @@ export const groups: Group[] = [
           rnbs: 'yes',
           gorhom: 'yes',
           expoUi: { status: 'partial', note: 'Nested in the parent on iOS' },
-          formSheet: 'no',
+          formSheet: 'yes',
           trueSheet: 'yes',
         },
       },
@@ -101,7 +101,7 @@ export const groups: Group[] = [
             status: 'partial',
             note: 'iOS 26+ system style only',
           },
-          trueSheet: { status: 'partial', note: 'iOS and web only' },
+          trueSheet: { status: 'partial', note: 'Web only' },
         },
       },
       {
@@ -109,7 +109,7 @@ export const groups: Group[] = [
         cells: {
           rnbs: 'yes',
           gorhom: 'yes',
-          expoUi: { status: 'partial', note: 'Color only, view on iOS' },
+          expoUi: { status: 'partial', note: 'Color only' },
           formSheet: { status: 'partial', note: 'Color and corner radius' },
           trueSheet: 'yes',
         },
