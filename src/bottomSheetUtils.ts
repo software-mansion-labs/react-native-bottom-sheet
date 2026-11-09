@@ -570,10 +570,11 @@ export const validateIndex = (index: number, detentCount: number) => {
  * Validates `settleDuration`. It is a duration in seconds, so a negative value
  * has no meaning: it would produce a spring with no solution.
  */
-export const validateSettleDuration = (settleDuration: number) => {
-  if (!Number.isFinite(settleDuration) || settleDuration < 0) {
+export const validateSettleDuration = (settleDuration: number | undefined) => {
+  if (settleDuration === undefined) return;
+  if (!Number.isFinite(settleDuration) || settleDuration <= 0) {
     throw new Error(
-      `Invalid bottom sheet settleDuration: received ${String(settleDuration)}. Expected a finite, non-negative number of seconds.`
+      `Invalid bottom sheet settleDuration: received ${String(settleDuration)}. Expected a finite number of seconds greater than 0.`
     );
   }
 };

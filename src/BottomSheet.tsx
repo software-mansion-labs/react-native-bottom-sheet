@@ -221,6 +221,8 @@ export interface BottomSheetProps {
    * passes the detent, so a release faster than the spring can stop in time
    * finishes sooner.
    *
+   * Must be a finite number greater than 0; leave it unset for the default.
+   *
    * @default 0.45
    */
   settleDuration?: number;
@@ -276,7 +278,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
     scrollCoordination,
     scrimColor,
     scrimAccessibilityLabel,
-    settleDuration = 0,
+    settleDuration,
   } = props as BottomSheetInternalProps;
   const coordination = scrollCoordination ?? DEFAULT_SCROLL_COORDINATION;
   const resolvedExpandCoordination =
@@ -419,7 +421,8 @@ export const BottomSheet = (props: BottomSheetProps) => {
           scrollCollapseCoordination={
             SCROLL_COORDINATION_LEVEL[resolvedCollapseCoordination]
           }
-          settleDuration={settleDuration}
+          // 0 tells native to use its default.
+          settleDuration={settleDuration ?? 0}
           scrimColor={scrimColor}
           // An empty label would leave the button unlabeled, so it falls back too.
           scrimAccessibilityLabel={scrimAccessibilityLabel || 'Dismiss'}

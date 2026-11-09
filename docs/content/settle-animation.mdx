@@ -6,7 +6,8 @@ title: Settle animation
 
 When a drag ends or the index changes, a spring carries the sheet to its detent.
 `settleDuration` is how long, in seconds, that spring takes. Left unset, it
-takes 0.45 seconds on every platform.
+takes 0.45 seconds on every platform. It must be a finite number greater than 0;
+the library throws an `Error` for values such as `0`, `-1` or `NaN`.
 
 ```tsx
 <BottomSheet
