@@ -1,0 +1,3 @@
+# The Exact experiment (packages/) is not part of the React Native library or
+# this app; keep its sources and multi-GB build output out of the fingerprint.
+../packages/**
