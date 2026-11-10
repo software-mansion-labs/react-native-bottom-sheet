@@ -299,13 +299,23 @@
   }
 }
 
-/* Here the copy's top padding is 32px less than the room under the logos. */
-@media (min-width: 768px) and (max-width: 1023px) {
+/*
+ * At these widths the copy's top padding and the room under the lowest logos
+ * differ by 32px. Spare room makes up the difference, so the two read as
+ * centered.
+ */
+@media (min-width: 768px) and (max-width: 1023px), (min-width: 1280px) {
   .balance {
     display: block;
-    order: -1;
     flex: 1 1 0;
     max-height: 32px;
+  }
+}
+
+/* Here the padding is the smaller one, so the spare room goes above the copy. */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .balance {
+    order: -1;
   }
 }
 
@@ -328,16 +338,6 @@
 @media (min-width: 1280px) {
   .content {
     padding-block: 112px;
-  }
-
-  /*
-   * The copy's top padding is 32px more than the room under the lowest logos
-   * here. Spare room makes up the difference, so the two read as centered.
-   */
-  .balance {
-    display: block;
-    flex: 1 1 0;
-    max-height: 32px;
   }
 }
 

@@ -1,7 +1,6 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -10,24 +9,13 @@ import {
 import { BottomSheet } from '@swmansion/react-native-bottom-sheet';
 import clsx from 'clsx';
 
-import { clamp, Icon, SlideActiveContext } from '../shared/pieces';
-import landing from '../landing.module.css';
+import { grab } from '../shared/grab';
+import { clamp, SlideActiveContext } from '../shared/pieces';
 import styles from './styles.module.css';
 
-export type Slide = {
-  id: string;
-  /** Names the slide on the bar that shows before it opens, on small screens. */
-  label: string;
-  tone: 'paper' | 'sky' | 'ending';
-  content: ReactNode;
-};
-
-/** How much of the next sheet shows at the bottom of a slide. */
-const PEEK = 56;
-const DETENTS: [number, `${number}%`] = [PEEK, '100%'];
 // The hero is the page as it first loads, so nothing waits on top of it: the
-// sheet after it rests below the screen until a scroll brings it up.
-const DETENTS_AFTER_HERO: [number, `${number}%`] = [0, '100%'];
+// sheet rests below the screen until a scroll brings it up.
+const DETENTS: [number, `${number}%`] = [0, '100%'];
 const RECEDE_QUERY =
   '(min-width: 861px) and (prefers-reduced-motion: no-preference)';
 
@@ -133,13 +121,13 @@ const useWheelSteps = (step: (way: number) => void) => {
 };
 
 /**
- * With nothing of the next sheet on screen, a finger brings it up by swiping up
- * the hero. A swipe that moved the hero's own sheet is that sheet's: the library
+ * With nothing of the sheet on screen, a finger brings it up by swiping up the
+ * hero. A swipe that moved the hero's own sheet is that sheet's: the library
  * cancels its moves.
  */
 const useSwipeUp = (
   stack: { current: HTMLElement | null },
-  slides: { current: HTMLElement | null },
+  sheet: { current: HTMLElement | null },
   step: (way: number) => void
 ) => {
   useEffect(() => {
@@ -148,8 +136,8 @@ const useSwipeUp = (
     let isSheetDrag = false;
 
     const onStart = (event: TouchEvent) => {
-      // A slide's sheets take a finger wherever it lands.
-      if (slides.current!.contains(event.target as Node)) {
+      // The sheet takes a finger wherever it lands.
+      if (sheet.current!.contains(event.target as Node)) {
         start = null;
         return;
       }
@@ -180,10 +168,10 @@ const useSwipeUp = (
       target.removeEventListener('touchmove', onMove);
       target.removeEventListener('touchend', onEnd);
     };
-  }, [stack, slides, step]);
+  }, [stack, sheet, step]);
 };
 
-const useKeySteps = (step: (way: number) => void, count: number) => {
+const useKeySteps = (step: (way: number) => void) => {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const { target } = event;
@@ -203,45 +191,19 @@ const useKeySteps = (step: (way: number) => void, count: number) => {
       if (event.key === 'ArrowDown' || event.key === 'PageDown') way = 1;
       else if (event.key === 'ArrowUp' || event.key === 'PageUp') way = -1;
       else if (event.key === ' ' && !isControl) way = event.shiftKey ? -1 : 1;
-      else if (event.key === 'Home') way = -count;
-      else if (event.key === 'End') way = count;
+      else if (event.key === 'Home') way = -1;
+      else if (event.key === 'End') way = 1;
       if (way === 0 || scrollsInside(target, way)) return;
       event.preventDefault();
       step(way);
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [step, count]);
+  }, [step]);
 };
 
 /**
- * Holds the grabbing cursor for a whole press on a sheet. The library follows a
- * drag on the window, so the pointer can leave the sheet or cross a button.
- */
-const useGrabbingCursor = () => {
-  useEffect(() => {
-    const root = document.documentElement;
-    const grab = `.${CSS.escape(landing.grab!)}`;
-    const onDown = (event: PointerEvent) => {
-      if (event.button !== 0 || !(event.target instanceof Element)) return;
-      if (event.target.closest(grab) === null) return;
-      root.dataset.sheetGrabbing = '';
-    };
-    const onUp = () => delete root.dataset.sheetGrabbing;
-    window.addEventListener('pointerdown', onDown, true);
-    window.addEventListener('pointerup', onUp, true);
-    window.addEventListener('pointercancel', onUp, true);
-    return () => {
-      onUp();
-      window.removeEventListener('pointerdown', onDown, true);
-      window.removeEventListener('pointerup', onUp, true);
-      window.removeEventListener('pointercancel', onUp, true);
-    };
-  }, []);
-};
-
-/**
- * With a mouse only the top strip drags a slide, so the text on it can be
+ * With a mouse only the top strip drags the sheet, so the text on it can be
  * selected. A finger can start anywhere, the way it would scroll a page.
  */
 const useMouseDragsHandleOnly = () => {
@@ -257,164 +219,56 @@ const useMouseDragsHandleOnly = () => {
   return body;
 };
 
-const SlideSheet = ({
-  slide,
-  open,
-  isCurrent,
-  isNext,
-  hasNext,
-  followsHero,
-  onOpenChange,
-  onPosition,
-  onOpen,
-}: {
-  slide: Slide;
-  open: boolean;
-  isCurrent: boolean;
-  isNext: boolean;
-  hasNext: boolean;
-  followsHero: boolean;
-  onOpenChange: (open: boolean) => void;
-  onPosition: (position: number) => void;
-  onOpen: () => void;
-}) => {
-  const body = useMouseDragsHandleOnly();
-  const nextBar = useRef<HTMLSpanElement>(null);
-  return (
-    <div className={styles.host}>
-      <BottomSheet
-        detents={followsHero ? DETENTS_AFTER_HERO : DETENTS}
-        // Without it, receding moves this host above the screen, which the
-        // library reads as a status bar and shortens the sheet's '100%' for.
-        topInset={0}
-        index={open ? 1 : 0}
-        animateIn={false}
-        onIndexChange={(index) => onOpenChange(index === 1)}
-        onPositionChange={(event) => {
-          const { position } = event.nativeEvent;
-          onPosition(position);
-          // Only reads as a label at rest: it clears as the sheet opens.
-          if (nextBar.current) {
-            nextBar.current.style.opacity = `${1 - clamp((position - PEEK) / (PEEK * 2))}`;
-          }
-        }}
-        // The surface draws its own corners and shadow. Given them, the library
-        // would clip the whole slide on every frame, repainting all of it; without
-        // them a slide moves as a single GPU transform.
-        surface={<div className={styles.surface} data-tone={slide.tone} />}
-      >
-        <div className={styles.slide} data-tone={slide.tone}>
-          <button
-            className={clsx(landing.grab, styles.handle)}
-            type="button"
-            aria-label={`Open ${slide.label}`}
-            tabIndex={isNext ? 0 : -1}
-            onClick={isNext ? onOpen : undefined}
-          >
-            <span className={styles.grabber} />
-            {/* Rests below the screen after the hero, so it has no bar to show. */}
-            {!followsHero && (
-              <span ref={nextBar} className={styles.nextBar}>
-                <span>
-                  <small>Next</small>
-                  {slide.label}
-                </span>
-                <Icon d="M6 15l6-6 6 6" size={20} />
-              </span>
-            )}
-          </button>
-          <div
-            ref={body}
-            className={styles.body}
-            data-slide-body
-            data-tone={slide.tone}
-            data-has-next={hasNext}
-            inert={!isCurrent}
-          >
-            <SlideActiveContext.Provider value={isCurrent}>
-              {slide.content}
-            </SlideActiveContext.Provider>
-          </div>
-        </div>
-      </BottomSheet>
-    </div>
-  );
-};
-
 /**
- * The page's slides: each one is a real sheet, resting with its top edge showing
- * until it's dragged, flicked, or stepped open over the one before. As a sheet
- * moves, it brings the next one along below it and sends the last one back.
+ * The hero, with a real sheet resting below the screen until it's scrolled,
+ * swiped, or stepped open over it. As the sheet rises, the hero recedes.
  */
 export const SlideStack = ({
   hero,
-  slides,
+  sheet,
+  label,
 }: {
   hero: ReactNode;
-  slides: Slide[];
+  sheet: ReactNode;
+  /** Names the sheet for the button that opens it. */
+  label: string;
 }) => {
-  // 0 is the hero, and each slide after it is one higher.
-  const [active, setActive] = useState(0);
+  const [isOpen, setIsOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
-  // Where the slides move, kept apart from the hero.
+  // Where the sheet moves, kept apart from the hero.
   const area = useRef<HTMLDivElement>(null);
-  const layers = useRef<(HTMLDivElement | null)[]>([]);
-  const receders = useRef<(HTMLDivElement | null)[]>([]);
-  const dims = useRef<(HTMLDivElement | null)[]>([]);
-  const positions = useRef<number[]>([]);
+  const receder = useRef<HTMLDivElement>(null);
+  const dim = useRef<HTMLDivElement>(null);
+  const body = useMouseDragsHandleOnly();
+  const position = useRef(0);
   // Kept rather than read each frame, when reading it would force a layout.
   const height = useRef(0);
   const recedes = useMemo(() => window.matchMedia(RECEDE_QUERY), []);
-  const count = slides.length;
 
-  const step = useCallback(
-    (way: number) => setActive((current) => clamp(current + way, 0, count)),
-    [count]
-  );
+  const step = useCallback((way: number) => setIsOpen(way > 0), []);
   useWheelSteps(step);
   useSwipeUp(root, area, step);
-  useKeySteps(step, count);
-  useGrabbingCursor();
+  useKeySteps(step);
 
   // Written directly on the elements that need it, never through React state.
   const applyPosition = useCallback(
-    (layer: number, position: number) => {
-      positions.current[layer] = position;
-      const next = layers.current[layer + 1];
-      if (next) {
-        next.style.transform = `translate3d(0, ${height.current - position}px, 0)`;
-      }
-
-      const below = receders.current[layer - 1];
-      const dim = dims.current[layer - 1];
-      if (!below || !dim) return;
-      const progress = recedes.matches
-        ? clamp((position - PEEK) / (height.current - PEEK))
-        : 0;
-      below.style.transform =
+    (next: number) => {
+      position.current = next;
+      const progress = recedes.matches ? clamp(next / height.current) : 0;
+      receder.current!.style.transform =
         progress > 0
           ? `scale(${1 - 0.06 * progress}) translateY(${-1.5 * progress}%)`
           : '';
-      dim.style.opacity = `${0.45 * progress}`;
+      dim.current!.style.opacity = `${0.45 * progress}`;
     },
     [recedes]
   );
-
-  // Sheets further on wait below the screen until the one before brings them up.
-  useLayoutEffect(() => {
-    height.current = area.current!.clientHeight;
-    layers.current.slice(2).forEach((layer) => {
-      if (layer) layer.style.transform = 'translate3d(0, 100%, 0)';
-    });
-  }, []);
 
   useEffect(() => {
     const element = area.current!;
     const observer = new ResizeObserver(() => {
       height.current = element.clientHeight;
-      positions.current.forEach((position, layer) =>
-        applyPosition(layer, position)
-      );
+      applyPosition(position.current);
     });
     observer.observe(element);
     return () => observer.disconnect();
@@ -422,68 +276,43 @@ export const SlideStack = ({
 
   return (
     <div className={styles.stack} ref={root}>
-      <div
-        className={styles.layer}
-        data-covered={active > 1}
-        ref={(element) => {
-          layers.current[0] = element;
-        }}
-      >
-        <div
-          className={styles.receder}
-          inert={active !== 0}
-          ref={(element) => {
-            receders.current[0] = element;
-          }}
-        >
-          {hero}
-          <div
-            className={styles.dim}
-            ref={(element) => {
-              dims.current[0] = element;
-            }}
-          />
-        </div>
+      <div className={styles.receder} inert={isOpen} ref={receder}>
+        {hero}
+        <div className={styles.dim} ref={dim} />
       </div>
-      <div className={styles.slides} ref={area}>
-        {slides.map((slide, i) => {
-          const layer = i + 1;
-          return (
-            <div
-              key={slide.id}
-              className={styles.layer}
-              data-covered={active > layer + 1}
-              ref={(element) => {
-                layers.current[layer] = element;
-              }}
+      <div className={styles.area} ref={area}>
+        <BottomSheet
+          detents={DETENTS}
+          // Opens right up to the navbar, with no room kept for a status bar.
+          topInset={0}
+          index={isOpen ? 1 : 0}
+          animateIn={false}
+          onIndexChange={(index) => setIsOpen(index === 1)}
+          onPositionChange={(event) =>
+            applyPosition(event.nativeEvent.position)
+          }
+          // The surface draws its own shadow. Given one, the library would clip
+          // the whole sheet on every frame, repainting all of it; without it the
+          // sheet moves as a single GPU transform.
+          surface={<div className={styles.surface} />}
+        >
+          <div className={styles.sheet}>
+            <button
+              className={clsx(grab, styles.handle)}
+              type="button"
+              aria-label={`Open ${label}`}
+              tabIndex={isOpen ? -1 : 0}
+              onClick={() => setIsOpen(true)}
             >
-              <div
-                className={styles.receder}
-                ref={(element) => {
-                  receders.current[layer] = element;
-                }}
-              >
-                <SlideSheet
-                  slide={slide}
-                  open={active >= layer}
-                  isCurrent={active === layer}
-                  isNext={active === layer - 1}
-                  hasNext={layer < count}
-                  followsHero={layer === 1}
-                  onOpenChange={(open) => setActive(open ? layer : layer - 1)}
-                  onPosition={(position) => applyPosition(layer, position)}
-                  onOpen={() => setActive(layer)}
-                />
-                <div
-                  className={styles.dim}
-                  ref={(element) => {
-                    dims.current[layer] = element;
-                  }}
-                />
-              </div>
+              <span className={styles.grabber} />
+            </button>
+            <div ref={body} className={styles.body} inert={!isOpen}>
+              <SlideActiveContext.Provider value={isOpen}>
+                {sheet}
+              </SlideActiveContext.Provider>
             </div>
-          );
-        })}
+          </div>
+        </BottomSheet>
       </div>
     </div>
   );

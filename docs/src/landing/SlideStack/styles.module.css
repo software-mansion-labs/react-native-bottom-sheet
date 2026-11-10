@@ -4,32 +4,13 @@
   overflow: hidden;
 }
 
-.layer {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-/* Fully behind the slide above: nothing to draw. */
-.layer[data-covered='true'] {
-  opacity: 0;
-}
-
-/* What a sheet does to the screen beneath it, written as the sheet rises. */
+/* What the sheet does to the hero beneath it, written as the sheet rises. */
 .receder {
   position: absolute;
   inset: 0;
   overflow: hidden;
   transform-origin: 50% 0;
   will-change: transform;
-}
-
-.host {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  /* The library's host is full-size: only the sheet itself should catch the pointer. */
-  pointer-events: none;
 }
 
 .dim {
@@ -41,37 +22,30 @@
   will-change: opacity;
 }
 
+/* The library's host is full-size: only the sheet itself should catch the pointer. */
+.area {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  pointer-events: none;
+}
+
 .surface {
   position: absolute;
   inset: 0;
-  border-radius: 32px 32px 0 0;
-  background: var(--off-white);
+  background: var(--sheet);
   box-shadow:
     inset 0 1px 0 var(--navy-20),
     var(--sheet-shadow);
 }
 
-.surface[data-tone='sky'] {
-  background: var(--sheet-sky);
-}
-
-.surface[data-tone='ending'] {
-  background: var(--sheet-ending);
-}
-
-/* The ending reads as the page's last screen, not a card: square corners. */
-:is(.surface, .slide)[data-tone='ending'] {
-  border-radius: 0;
-}
-
-.slide {
+.sheet {
   position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-radius: 32px 32px 0 0;
 }
 
 .body {
@@ -84,23 +58,14 @@
   overflow-y: auto;
 }
 
-/* The next sheet covers this much, so nothing here sits under it. */
-.body[data-has-next='true'] {
-  padding-bottom: var(--peek);
-}
-
-.body[data-tone='sky'] {
-  --offset-shadow: var(--sky-offset);
-}
-
-/* The strip that shows when this sheet is next, and what drags it between its stops. */
+/* The strip along the sheet's top edge that drags it between its stops. */
 .handle {
   position: absolute;
   z-index: 1;
   top: 0;
   left: 0;
   right: 0;
-  height: var(--peek);
+  height: 56px;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
@@ -118,47 +83,8 @@
   transition: background-color 160ms ease;
 }
 
-.nextBar {
-  display: none;
-}
-
-/*
- * On small screens the next slide reads as a labeled bar, not as another sheet,
- * so it can't be mistaken for the sheet inside an example.
- */
-@media (max-width: 860px) {
-  .nextBar {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 20px;
-    background: var(--navy);
-    color: var(--white);
-    font-size: 15px;
-    font-weight: 500;
-    line-height: 1.2;
-    text-align: left;
-    pointer-events: none;
-  }
-
-  .nextBar small {
-    display: block;
-    font-size: 11.5px;
-    font-weight: 400;
-    opacity: 0.75;
-  }
-}
-
 @media (hover: hover) {
   .handle:hover .grabber {
     background: var(--navy-60);
   }
-}
-
-.slides {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
 }

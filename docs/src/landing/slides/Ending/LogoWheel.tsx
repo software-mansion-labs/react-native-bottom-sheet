@@ -126,6 +126,8 @@ const DRAG_SLOP_PX = 6;
 /** A fling keeps this share of its speed each frame. */
 const FLING_KEEP = 0.92;
 const FLING_STOP = 0.02;
+/** Wide enough for the wheel; narrower screens get the strip instead. */
+const WIDE_QUERY = '(min-width: 768px)';
 
 /** Turns `degrees` into 0-360. */
 const wrap = (degrees: number) => ((degrees % 360) + 360) % 360;
@@ -182,6 +184,7 @@ export const LogoWheel = () => {
   useEffect(() => {
     if (!isActive) return;
     const element = wheel.current!;
+    const wide = window.matchMedia(WIDE_QUERY);
     const spin = window.matchMedia('(prefers-reduced-motion: reduce)').matches
       ? 0
       : 360 / TURN_SECONDS / 1000;
@@ -254,11 +257,9 @@ export const LogoWheel = () => {
       angle = next;
     };
 
+    // The browser releases the pointer capture on its own.
     const onUp = (event: PointerEvent) => {
       if (press === null || event.pointerId !== press.pointerId) return;
-      if (press.target.hasPointerCapture(event.pointerId)) {
-        press.target.releasePointerCapture(event.pointerId);
-      }
       press = null;
       isDragging = false;
     };
@@ -285,9 +286,13 @@ export const LogoWheel = () => {
     };
 
     let last = performance.now();
+    let shown = NaN;
     let handle = requestAnimationFrame(function tick(now) {
       const dt = Math.min(now - last, 64);
       last = now;
+      handle = requestAnimationFrame(tick);
+      // Hidden behind the strip on phones.
+      if (!wide.matches) return;
       if (!isDragging) {
         if (Math.abs(velocity) > FLING_STOP) {
           rotation.current = wrap(rotation.current + velocity);
@@ -296,8 +301,10 @@ export const LogoWheel = () => {
           rotation.current = wrap(rotation.current + spin * dt);
         }
       }
+      // Paused or held still, the wheel needs no new style.
+      if (rotation.current === shown) return;
+      shown = rotation.current;
       apply();
-      handle = requestAnimationFrame(tick);
     });
 
     element.addEventListener('pointerdown', onDown);

@@ -15,8 +15,8 @@ export const clamp = (value: number, min = 0, max = 1) =>
 /** Whether this slide is the one showing, so hidden ones can stop their work. */
 export const SlideActiveContext = createContext(true);
 
-/** Fires once, when the element comes near the viewport. */
-export const useInView = <T extends HTMLElement>(margin = '200px') => {
+/** Fires once, when the element comes into the viewport, less `margin`. */
+const useInView = <T extends HTMLElement>(margin: string) => {
   const ref = useRef<T>(null);
   const [inView, setInView] = useState(false);
   useEffect(() => {
@@ -35,32 +35,6 @@ export const useInView = <T extends HTMLElement>(margin = '200px') => {
   }, [margin]);
   return [ref, inView] as const;
 };
-
-export const Icon = ({
-  d,
-  size = 22,
-  fill = 'none',
-  strokeWidth = 1.8,
-}: {
-  d: string;
-  size?: number;
-  fill?: string;
-  strokeWidth?: number;
-}) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill={fill}
-    stroke={fill === 'none' ? 'currentColor' : 'none'}
-    strokeWidth={strokeWidth}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden
-  >
-    <path d={d} />
-  </svg>
-);
 
 export const Reveal = ({ className, ...props }: ComponentProps<'div'>) => {
   const [ref, inView] = useInView<HTMLDivElement>('-8% 0px');
