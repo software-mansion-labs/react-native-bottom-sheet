@@ -1,137 +1,361 @@
-/* The same ending as the Reanimated and Gesture Handler docs. */
+/* The same section as at the bottom of the Enriched docs. */
 .ending {
+  --contact-hover: var(--swm-navy-light-80);
+
   flex: 1;
   display: flex;
   flex-direction: column;
   width: 100%;
 }
 
-.hire {
+[data-theme='dark'] .ending {
+  --contact-hover: var(--swm-navy-light-20);
+}
+
+/*
+ * The copy and the wheel under it, centered in the room above the footer. When
+ * the sheet has none to spare, the wheel rests on the footer as on the Enriched
+ * docs. The spacers start at nothing, so they never make the section taller.
+ */
+.main {
   flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  max-width: 1080px;
-  margin: 0 auto;
-  padding: 72px var(--gutter) 40px;
-  text-align: center;
 }
 
-.hireTitle {
-  font-size: clamp(38px, 4.45vw, 64px);
-  line-height: 1.2;
-  letter-spacing: 0.01em;
-  font-weight: 700;
-  text-wrap: balance;
+.main::before,
+.main::after {
+  content: '';
+  flex: 1 1 0;
 }
 
-.hireTitle span {
-  color: var(--swm-purple-light-80);
-}
-
-.hireBody {
-  margin-top: 40px;
-  font-size: clamp(18px, 1.67vw, 24px);
-  line-height: 1.6;
-  text-wrap: pretty;
-}
-
-.hire .hireCta {
-  height: 60px;
-  margin-top: 60px;
-  padding: 0 30px 0 20px;
-  font-size: 20px;
-}
-
-.sponsor,
-.sponsor:hover {
-  color: var(--navy-60);
-}
-
-.sponsor {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 48px;
-  font-size: 15px;
-  text-decoration: none;
-}
-
-.sponsor img {
-  display: block;
-  height: 40px;
-}
-
-/* Each theme shows the sponsor's logo made for it. */
-.sponsor .forDark,
-[data-theme='dark'] .sponsor .forLight {
+.balance {
   display: none;
 }
 
-[data-theme='dark'] .sponsor .forDark {
-  display: block;
+.content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 40px;
+  width: 100%;
+  max-width: 1536px;
+  margin: 0 auto;
+  /* The wheel reaches up into the bottom of this, as on the Enriched docs. */
+  padding: 48px 24px;
+  text-align: center;
 }
 
-.siteFooter {
+.title {
+  max-width: 768px;
+  color: var(--navy);
+  font-size: 48px;
+  font-weight: 500;
+  line-height: 56px;
+  letter-spacing: 0.6px;
+}
+
+.description {
+  max-width: 800px;
+  font-size: 20px;
+  line-height: 1.4;
+  text-wrap: pretty;
+}
+
+.description p + p {
+  margin-top: 20px;
+}
+
+/* Above the wheel, which reaches up behind it. */
+.action {
+  position: relative;
+  z-index: 2;
+}
+
+.contact,
+.contact:hover {
+  color: var(--white);
+}
+
+.contact {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 12px 24px;
+  background: var(--navy);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: normal;
+  transition:
+    background-color 150ms ease,
+    transform 160ms var(--ease-out);
+}
+
+.contact:hover {
+  background: var(--contact-hover);
+}
+
+.contact:active {
+  transform: scale(0.97);
+}
+
+.wheelReveal {
+  position: relative;
+  z-index: 1;
+}
+
+/* Shows the bottom of the wheel's rim, fading out toward the copy above. */
+.wheelFrame {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  height: 352px;
+  margin-top: -200px;
+  mask-image: linear-gradient(to bottom, transparent 0%, black 35%);
+  pointer-events: none;
+}
+
+.wheel {
+  position: absolute;
+  left: 50%;
+  bottom: 112px;
+  width: 3200px;
+  height: 3200px;
+  margin-left: -1600px;
+  border-radius: 50%;
+  transform: translate3d(0, 0, 0) rotateZ(var(--wheel-rot, 0deg));
+  will-change: transform;
+}
+
+.spoke {
+  position: absolute;
+  top: 50%;
+  left: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 40px;
+  width: max-content;
+  height: max-content;
+}
+
+/* Turned back as the wheel turns, so every logo stays upright. */
+.logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate3d(0, 0, 0) rotateZ(calc(-1 * var(--wheel-rot, 0deg)));
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.logo:active {
+  cursor: grabbing;
+}
+
+.item {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 160px;
+  height: 70px;
+}
+
+.item a {
+  display: block;
   width: 100%;
-  max-width: 1320px;
+  height: 100%;
+}
+
+.item img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transform: scale(1.02);
+  -webkit-user-drag: none;
+}
+
+/* Each theme shows the logos made for it. */
+.item .forDark,
+[data-theme='dark'] .item .forLight {
+  display: none;
+}
+
+[data-theme='dark'] .item .forDark {
+  display: block;
+}
+
+/* On phones the logos scroll past in a line instead. */
+.strip {
+  display: none;
+  overflow: hidden;
+  width: 100%;
+  padding: 24px 0 48px;
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 8%,
+    black 92%,
+    transparent
+  );
+}
+
+.stripTrack {
+  display: flex;
+  width: max-content;
+  animation: marquee 120s linear infinite;
+}
+
+.stripTrack[data-active='false'] {
+  animation-play-state: paused;
+}
+
+.stripCopy {
+  display: flex;
+  gap: 32px;
+  padding-right: 32px;
+}
+
+@media (hover: hover) {
+  .stripTrack:hover {
+    animation-play-state: paused;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stripTrack {
+    animation-play-state: paused;
+  }
+}
+
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.legal {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  width: calc(100% - 48px);
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 40px var(--gutter);
-  color: var(--navy-60);
-  font-size: 16px;
+  padding: 32px 0;
+  border-top: 1px solid var(--navy-20);
 }
 
-.siteFooter p {
-  min-width: 0;
+.legalStart {
+  display: flex;
+  align-items: center;
+  gap: 32px;
 }
 
-.siteFooterLogo,
-.siteFooterLogo:hover {
+.swm,
+.swm:hover,
+.privacy,
+.privacy:hover,
+.social,
+.social:hover {
   color: var(--navy);
 }
 
-.siteFooterLogo {
-  flex: none;
+.swm svg {
   display: block;
 }
 
-.siteFooterLogo svg {
-  display: block;
+.privacy {
+  font-size: 14px;
 }
 
-.siteFooter p a,
-.siteFooter p a:hover {
-  color: var(--blue);
+.privacy:hover {
+  text-decoration: underline;
 }
 
-@media (max-width: 860px) {
-  .hire {
-    padding-top: 56px;
+.socials {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+}
+
+.social {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  transition: opacity 150ms ease;
+}
+
+@media (hover: hover) {
+  .social:hover {
+    opacity: 0.7;
+  }
+}
+
+/* Here the copy's top padding is 32px less than the room under the logos. */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .balance {
+    display: block;
+    order: -1;
+    flex: 1 1 0;
+    max-height: 32px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .content {
+    padding: 80px 64px;
   }
 
-  .hireBody {
-    margin-top: 24px;
+  .title {
+    font-size: 60px;
+    line-height: 66px;
+    letter-spacing: 1.2px;
   }
 
-  .hire .hireCta {
-    height: 52px;
-    margin-top: 32px;
-    font-size: 17px;
+  .legal {
+    width: calc(100% - 128px);
+  }
+}
+
+@media (min-width: 1280px) {
+  .content {
+    padding-block: 112px;
   }
 
-  .sponsor {
-    margin-top: 28px;
+  /*
+   * The copy's top padding is 32px more than the room under the lowest logos
+   * here. Spare room makes up the difference, so the two read as centered.
+   */
+  .balance {
+    display: block;
+    flex: 1 1 0;
+    max-height: 32px;
+  }
+}
+
+@media (max-width: 767px) {
+  .wheelFrame {
+    display: none;
   }
 
-  .siteFooter {
-    gap: 16px;
-    padding-block: 24px;
-    font-size: 13.5px;
+  .strip {
+    display: block;
+  }
+
+  .legal {
+    flex-direction: column;
+  }
+
+  .legalStart {
+    flex-direction: column;
+    gap: 24px;
   }
 }

@@ -21,8 +21,9 @@ export const useInView = <T extends HTMLElement>(margin = '200px') => {
   const [inView, setInView] = useState(false);
   useEffect(() => {
     const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry!.isIntersecting) {
+      (entries) => {
+        // One batch can hold several changes: the last one is the current.
+        if (entries.at(-1)!.isIntersecting) {
           setInView(true);
           observer.disconnect();
         }
@@ -34,16 +35,6 @@ export const useInView = <T extends HTMLElement>(margin = '200px') => {
   }, [margin]);
   return [ref, inView] as const;
 };
-
-export const Arrow = () => (
-  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
-    <path
-      d="M3 9h11M10 4.5 14.5 9 10 13.5"
-      stroke="currentColor"
-      strokeWidth="1.6"
-    />
-  </svg>
-);
 
 export const Icon = ({
   d,

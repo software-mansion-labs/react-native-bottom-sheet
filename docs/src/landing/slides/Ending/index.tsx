@@ -1,74 +1,85 @@
-import useBaseUrl from '@docusaurus/useBaseUrl';
-import clsx from 'clsx';
+import type { CSSProperties } from 'react';
 
-import { Arrow, Reveal } from '../../shared/pieces';
-import landing from '../../landing.module.css';
+import { Reveal } from '../../shared/pieces';
+import { LogoWheel } from './LogoWheel';
+import { SOCIALS } from './socials';
 import styles from './styles.module.css';
+import SwmLogo from './swm.svg';
 
+// Each part rises a beat after the one above it, as on the Enriched docs.
+const after = (ms: number): CSSProperties => ({ transitionDelay: `${ms}ms` });
+
+/** "We are Software Mansion", as at the bottom of the Enriched docs. */
 export const Ending = () => (
   <div className={styles.ending}>
-    <Reveal className={styles.hire}>
-      <h2 className={styles.hireTitle}>
-        We are <span>Software Mansion</span>
-      </h2>
-      <p className={styles.hireBody}>
-        React Native Core Contributors and experts in dealing with all kinds of
-        React Native issues. No matter if you need help with gestures,
-        animations or React Native development we can help.
-      </p>
-      <a
-        className={clsx(landing.cta, landing.press, styles.hireCta)}
-        href="https://swmansion.com/contact/projects?utm_source=react-native-bottom-sheet&utm_medium=docs"
-      >
-        Hire us <Arrow />
-      </a>
-      <a className={styles.sponsor} href="https://www.gobimaps.com">
-        <span>Sponsored by</span>
-        <img
-          className={styles.forLight}
-          src={useBaseUrl('/img/gobi-light.svg')}
-          alt="Gobi Maps"
-        />
-        <img
-          className={styles.forDark}
-          src={useBaseUrl('/img/gobi-dark.svg')}
-          alt="Gobi Maps"
-        />
-      </a>
+    <div className={styles.main}>
+      <div className={styles.content}>
+        <Reveal>
+          <h2 className={styles.title}>We are Software Mansion</h2>
+        </Reveal>
+        <Reveal style={after(120)}>
+          <div className={styles.description}>
+            <p>
+              We create award-winning mobile apps, real-time multimedia
+              products, and AI solutions. Our open-source libraries — like React
+              Native Reanimated, Gesture Handler, and Screens — are used by
+              hundreds of thousands of developers worldwide.
+            </p>
+            <p>
+              Planning to add bottom sheets to your app? Get in touch — we can
+              help at every stage of the journey.
+            </p>
+          </div>
+        </Reveal>
+        <Reveal className={styles.action} style={after(240)}>
+          <a className={styles.contact} href="https://swmansion.com/contact/">
+            Contact us
+          </a>
+        </Reveal>
+      </div>
+      <Reveal className={styles.wheelReveal} style={after(360)}>
+        <LogoWheel />
+      </Reveal>
+      <div className={styles.balance} />
+    </div>
+    <Reveal style={after(360)}>
+      <footer className={styles.legal}>
+        <div className={styles.legalStart}>
+          <a
+            className={styles.swm}
+            href="https://swmansion.com/"
+            aria-label="Software Mansion"
+          >
+            <SwmLogo aria-hidden />
+          </a>
+          <a
+            className={styles.privacy}
+            href="https://swmansion.com/privacy/policy/"
+          >
+            Privacy Policy
+          </a>
+        </div>
+        <div className={styles.socials}>
+          {SOCIALS.map(({ label, href, path, evenOdd }) => (
+            <a
+              key={label}
+              className={styles.social}
+              href={href}
+              aria-label={label}
+            >
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden
+              >
+                <path d={path} fillRule={evenOdd ? 'evenodd' : undefined} />
+              </svg>
+            </a>
+          ))}
+        </div>
+      </footer>
     </Reveal>
-    <footer className={styles.siteFooter}>
-      <a
-        className={styles.siteFooterLogo}
-        href="https://swmansion.com/"
-        aria-label="Software Mansion"
-      >
-        <svg
-          width="74"
-          height="40"
-          viewBox="0 0 74 40"
-          fill="currentColor"
-          aria-hidden
-        >
-          <path
-            fillRule="evenodd"
-            clipRule="evenodd"
-            d="M11.9946 0.115234H12.3739H72.8476H73.7652L73.7631 1.03209L73.7025 27.4563L73.7016 27.8326L73.4361 28.0993L62.1541 39.4327L61.8857 39.7023H61.505H1.03123H0.115723V38.7876V12.3633V11.9844L0.383869 11.7165L11.7265 0.383161L11.9946 0.115234ZM12.7531 1.94475L3.24145 11.4486H61.1257L70.6374 1.94475H12.7531ZM71.927 3.24346L62.4205 12.7422V36.5707L71.8723 27.0759L71.927 3.24346ZM1.94674 37.8728V13.2781H60.5895V37.8728H1.94674Z"
-          />
-          <path d="M16.6804 28.1822C16.6804 30.1822 15.4066 31.8792 12.1919 31.8792C10.7968 31.8792 9.70498 31.5762 8.67383 31.1519V28.4247C9.70498 28.9701 10.9787 29.2731 12.1312 29.2731C13.1624 29.2731 13.7083 28.9701 13.7083 28.364C13.7083 26.5459 8.67383 27.0913 8.67383 23.3337C8.67383 21.0307 10.5542 19.5762 13.1017 19.5762C14.1935 19.5762 15.164 19.8186 16.1951 20.4247V23.3337C14.8001 22.4853 13.8296 22.1822 13.041 22.1822C12.0705 22.1822 11.5853 22.5459 11.5853 23.0913C11.5853 24.8489 16.6804 24.1822 16.6804 28.1822Z" />
-          <path d="M36.7575 19.8789L32.9362 31.6365H30.0248L27.4166 23.5759L24.869 31.6365H21.9575L18.1362 19.8789H21.4116L23.5346 27.7577L26.0215 19.8789H28.933L31.4198 27.7577L33.5428 19.8789C33.5428 19.8789 36.7575 19.8789 36.7575 19.8789Z" />
-          <path d="M55.0149 23.8792V31.6368H52.1641V24.3641C52.1641 23.0913 51.2543 22.3641 50.2838 22.3641C49.2526 22.3641 48.4034 23.0913 48.4034 24.3641V31.6368H45.492V24.3641C45.492 23.0913 44.5821 22.3641 43.6116 22.3641C42.5805 22.3641 41.7313 23.0913 41.7313 24.3641V31.6368H38.8198V19.8792H41.5493V20.7277C42.3985 19.8792 43.3083 19.5762 44.4002 19.5762C45.6133 19.5762 46.7051 20.1216 47.4329 21.0913C48.4034 20.061 49.6165 19.5762 51.0116 19.5762C53.3165 19.6368 55.0149 21.3944 55.0149 23.8792Z" />
-        </svg>
-      </a>
-      <p>
-        © <a href="https://swmansion.com/">Software Mansion</a>{' '}
-        {new Date().getFullYear()}.
-        <span>
-          {' '}
-          All trademarks and copyrights belong to their respective owners. Read
-          about our{' '}
-        </span>
-        <a href="https://swmansion.com/privacy/policy/">Privacy Policy</a>.
-      </p>
-    </footer>
   </div>
 );

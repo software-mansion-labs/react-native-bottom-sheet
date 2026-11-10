@@ -107,40 +107,6 @@
   outline-offset: 2px;
 }
 
-.press {
-  transition: transform 160ms var(--ease-out);
-}
-
-.press:active {
-  transform: scale(0.97);
-}
-
-.cta,
-.cta:hover {
-  color: var(--white);
-}
-
-.cta {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  height: 52px;
-  padding: 0 22px;
-  background: var(--navy);
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.cta svg {
-  transition: transform 200ms var(--ease-out);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .cta:hover svg {
-    transform: translateX(3px);
-  }
-}
-
 /* Sections rise once. Decoration only: nothing waits for it. */
 .reveal {
   transition:
