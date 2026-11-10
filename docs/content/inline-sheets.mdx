@@ -6,10 +6,15 @@ import { InlineSheetExample } from '@site/src/examples/inline-sheets';
 
 # Inline sheets
 
-`BottomSheet` renders within your screen layout.
+`BottomSheet` renders within your screen layout. With the default detents,
+`[0, 'content']`, index `1` opens the sheet to its content height and `0` closes
+it.
 
 ```tsx
-const [index, setIndex] = useState(0);
+import { BottomSheet } from '@swmansion/react-native-bottom-sheet';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const [index, setIndex] = useState(1);
 const insets = useSafeAreaInsets();
 ```
 
@@ -26,5 +31,9 @@ const insets = useSafeAreaInsets();
   </View>
 </BottomSheet>
 ```
+
+The sheet’s host view fills its container, so place `BottomSheet` in the view it
+should cover. Use `style` to adjust that host view, for example to set its
+`zIndex`.
 
 <InlineSheetExample />

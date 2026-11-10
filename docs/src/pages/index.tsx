@@ -5,7 +5,7 @@ import Layout from '@theme/Layout';
 import { Hero, HeroPoster } from '../landing/Hero';
 
 const DESCRIPTION =
-  'Gestures, snapping, and scroll coordination run in native code. Everything you see is plain React Native—on iOS, Android, and the web.';
+  'Gestures, snapping, and scroll coordination run in native code on iOS and Android, and in JavaScript on the web. Everything you see is plain React Native.';
 
 // Added to the classes Docusaurus puts on <html>, rather than replacing them.
 const Home = () => (

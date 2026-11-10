@@ -571,7 +571,11 @@ const [popped, setPopped] = useState(${popped});
 
 return popped ? null : (
   <BottomSheet
-    detents={[0, \`\${height}%\`]} // Now '${height}%'.
+    detents={[
+      0,
+      // Now '${height}%'. The left inset leaves room for the pump.
+      { value: \`\${height}%\`, insets: { left: 124, right: 16 } },
+    ]}
     index={index}
     onIndexChange={setIndex}
     onPositionChange={(event) => {

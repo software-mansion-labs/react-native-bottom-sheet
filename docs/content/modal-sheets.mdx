@@ -64,7 +64,10 @@ When several modal sheets are open, the one opened most recently is on top,
 whatever order they appear in your tree. Reopening a sheet, even while it is
 still closing, brings it back to the top. `nativeOverlay` sheets are always
 above portal sheets and stack among themselves the same way. Close requests
-(Android Back, and Escape on Android and the web) go to the top sheet.
+(Android Back, and Escape on Android and the web) go to the top sheet. On the
+web, only sheets with `onCloseRequest` take part, so Escape goes to the topmost
+sheet that has a handler; a top sheet without one does not block those below it
+(on Android it does, see [Presentation ordering](#presentation-ordering)).
 
 <StackingExample />
 
@@ -86,8 +89,9 @@ customize the scrim color:
 
 By default, the scrim fades in as the sheet opens and then holds at full
 opacity, so detents above the first share the same scrim. Set a detent’s
-`scrimOpacity` to control the opacity there: It takes a value in 0–1 and
-interpolates linearly as the sheet is dragged between detents.
+`scrimOpacity` to control the opacity there: It takes a value from 0 through 1
+(the library throws an `Error` otherwise) and interpolates linearly as the sheet
+is dragged between detents.
 
 A detent without `scrimOpacity` defaults to 0 when it is closed and 1 otherwise,
 so the scrim is transparent at any closed detent and fully opaque at every open
@@ -118,15 +122,17 @@ as a “Dismiss” button to VoiceOver, TalkBack, and screen readers on the web.
 addition:
 
 - On iOS, VoiceOver’s escape gesture (a two-finger Z) dismisses the sheet.
-- On Android, TalkBack offers a Dismiss action (in its actions menu) while
-  focus is inside the sheet’s content.
+- On Android, TalkBack offers a Dismiss action (in its actions menu) while focus
+  is inside the sheet’s content.
 
-These paths require a non-programmatic closed detent and a visible scrim, and
-they select the closed detent directly, without calling `onCloseRequest`. While
-the scrim is visible but dismissal is unavailable, as with a programmatic-only
-closed detent, VoiceOver’s escape gesture is consumed by the sheet instead of
-reaching the screen behind it. A sheet that fills its host leaves no scrim for
-the button, but the escape gesture and dismiss action remain.
+These paths require a non-programmatic closed detent and a visible scrim—one
+whose opacity at the current position is above 0, even when `scrimColor` is
+transparent—and they select the closed detent directly, without calling
+`onCloseRequest`. While the scrim is visible but dismissal is unavailable, as
+with a programmatic-only closed detent, VoiceOver’s escape gesture is consumed
+by the sheet instead of reaching the screen behind it. A sheet that fills its
+host leaves no scrim for the button, but the escape gesture and dismiss action
+remain.
 
 Use `scrimAccessibilityLabel` to localize the button’s label, which defaults to
 “Dismiss”:
@@ -142,7 +148,7 @@ Use `scrimAccessibilityLabel` to localize the button’s label, which defaults t
 </ModalBottomSheet>
 ```
 
-## Android close requests
+## Close requests
 
 `onCloseRequest` is **Android and web only**. Android system Back, a committed
 predictive Back gesture, and a complete, unmodified physical-keyboard Escape

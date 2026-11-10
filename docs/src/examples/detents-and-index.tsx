@@ -253,7 +253,10 @@ export const FloatingCardExample = interactiveExample(
     { value: '100%', insets: { left: ${Math.round(insets.topSide)}, right: ${Math.round(insets.topSide)}, bottom: ${Math.round(insets.topBottom)} } },
   ]}
   topInset={${Math.round(insets.top)}}
-  surfaceStyle={{ borderRadius: 28 }}
+  surfaceStyle={{
+    borderRadius: 28,
+    boxShadow: '0 2 16 rgba(0, 16, 72, 0.16)',
+  }}
   index={index}
   onIndexChange={setIndex}
   surface={
