@@ -56,7 +56,8 @@
 
 @font-face {
   font-family: 'Aeonik';
-  src: url('@site/static/fonts/aeonik/Aeonik-RegularItalic.woff2') format('woff2');
+  src: url('@site/static/fonts/aeonik/Aeonik-RegularItalic.woff2')
+    format('woff2');
   font-style: italic;
   font-weight: 400;
   font-display: swap;
@@ -72,7 +73,8 @@
 
 @font-face {
   font-family: 'Aeonik';
-  src: url('@site/static/fonts/aeonik/Aeonik-MediumItalic.woff2') format('woff2');
+  src: url('@site/static/fonts/aeonik/Aeonik-MediumItalic.woff2')
+    format('woff2');
   font-style: italic;
   font-weight: 500;
   font-display: swap;
@@ -112,7 +114,6 @@
 
 /* Software Mansion brand palette from react-native-gesture-handler. */
 :root {
-
   --swm-navy-light-100: #001a72;
   --swm-navy-light-80: #33488e;
   --swm-navy-light-60: #6676aa;
@@ -208,20 +209,97 @@
   --swm-navy: #232736;
   --swm-navy-transparent: #23273613;
 
-  --ifm-color-primary: var(--swm-blue-light-100);
+  /* Docs design tokens: navy ink on near-white, blue as the one accent.
+     Header after Enriched Markdown with Pulsar's blue underline; sidebar
+     and page body after Pulsar and Detour. */
+  --bs-bg: var(--swm-white);
+  --bs-surface: #ffffff;
+  --bs-subtle: var(--swm-off-white);
+  --bs-line: var(--swm-navy-light-20);
+  --bs-line-strong: var(--swm-navy-light-40);
+  --bs-line-soft: #e3e6f5;
+  --bs-heading: var(--swm-navy-light-100);
+  --bs-text: var(--swm-navy-light-80);
+  --bs-muted: var(--swm-navy-light-60);
+  --bs-accent: var(--swm-blue-light-100);
+  --bs-accent-ink: var(--swm-blue-dark-120);
+  --bs-tint: var(--swm-blue-light-20);
+  --bs-tint-strong: var(--swm-blue-light-40);
+  --bs-code-bg: var(--swm-navy-light-10);
+  --bs-header-line: var(--swm-blue-light-100);
+  --bs-font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --bs-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+
+  --ifm-color-primary: var(--swm-blue-dark-120);
   --ifm-color-primary-dark: var(--swm-blue-dark-120);
   --ifm-color-primary-darker: var(--swm-blue-dark-140);
   --ifm-color-primary-darkest: var(--swm-blue-dark-140);
-  --ifm-color-primary-light: var(--swm-blue-light-80);
-  --ifm-color-primary-lighter: var(--swm-blue-light-60);
-  --ifm-color-primary-lightest: var(--swm-blue-light-40);
+  --ifm-color-primary-light: var(--swm-blue-light-100);
+  --ifm-color-primary-lighter: var(--swm-blue-light-80);
+  --ifm-color-primary-lightest: var(--swm-blue-light-60);
+
   --ifm-font-family-base: 'Aeonik', system-ui, -apple-system, sans-serif;
   --ifm-heading-font-family: 'Aeonik', system-ui, -apple-system, sans-serif;
-  --ifm-code-font-size: 95%;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+  --ifm-font-family-monospace: var(--bs-font-mono);
+  --ifm-font-size-base: 100%;
+  --ifm-line-height-base: 1.7;
+  --ifm-heading-font-weight: 500;
+  --ifm-heading-line-height: 1.2;
+
+  --ifm-background-color: var(--bs-bg);
+  --ifm-background-surface-color: var(--bs-bg);
+  --ifm-font-color-base: var(--bs-text);
+  --ifm-heading-color: var(--bs-heading);
+  --ifm-color-content: var(--bs-text);
+  --ifm-color-content-secondary: var(--bs-muted);
+  --ifm-link-color: var(--bs-accent-ink);
+  --ifm-link-hover-color: var(--bs-heading);
+  --ifm-toc-border-color: var(--bs-line-soft);
+  --ifm-hr-border-color: var(--bs-line-soft);
+  --ifm-global-radius: 4px;
+
+  --ifm-navbar-height: 60px;
+  --ifm-navbar-background-color: var(--bs-bg);
+  --ifm-navbar-shadow: none;
+  --ifm-navbar-padding-horizontal: 24px;
+  --ifm-navbar-link-color: var(--bs-heading);
+  --ifm-navbar-link-hover-color: var(--bs-accent-ink);
+
+  --doc-sidebar-width: 290px;
+  --ifm-menu-color: var(--bs-text);
+  --ifm-menu-color-active: var(--bs-heading);
+  --ifm-menu-color-background-active: var(--bs-tint);
+  --ifm-menu-color-background-hover: var(--swm-navy-light-10);
+
+  --ifm-code-font-size: 88%;
+  --ifm-code-background: var(--bs-code-bg);
+  --ifm-code-border-radius: 4px;
+  --ifm-code-padding-horizontal: 0.35em;
+  --ifm-pre-background: var(--bs-subtle);
+  --docusaurus-highlighted-code-line-bg: rgba(56, 172, 221, 0.14);
+
+  --ifm-table-border-color: var(--bs-line-soft);
+  --ifm-table-head-background: var(--bs-subtle);
+  --ifm-table-stripe-background: transparent;
 }
 
 [data-theme='dark'] {
+  --bs-bg: #1b1e2b;
+  --bs-surface: var(--swm-navy);
+  --bs-subtle: var(--swm-navy);
+  --bs-line: #3a4057;
+  --bs-line-strong: #4c5473;
+  --bs-line-soft: #2c3144;
+  --bs-heading: var(--swm-white);
+  --bs-text: var(--swm-navy-dark-20);
+  --bs-muted: var(--swm-navy-dark-60);
+  --bs-accent: var(--swm-blue-dark-80);
+  --bs-accent-ink: var(--swm-blue-dark-80);
+  --bs-tint: rgba(0, 169, 240, 0.12);
+  --bs-tint-strong: rgba(0, 169, 240, 0.22);
+  --bs-code-bg: var(--swm-off-navy);
+  --bs-header-line: var(--swm-blue-dark-120);
+
   --ifm-color-primary: var(--swm-blue-dark-80);
   --ifm-color-primary-dark: var(--swm-blue-dark-100);
   --ifm-color-primary-darker: var(--swm-blue-dark-120);
@@ -229,7 +307,75 @@
   --ifm-color-primary-light: var(--swm-blue-dark-60);
   --ifm-color-primary-lighter: var(--swm-blue-dark-40);
   --ifm-color-primary-lightest: var(--swm-blue-light-20);
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+  --ifm-menu-color-background-hover: rgba(252, 252, 255, 0.05);
+  --docusaurus-highlighted-code-line-bg: rgba(111, 206, 245, 0.12);
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ---------- Header ---------- */
+
+.navbar {
+  border-bottom: 1px solid var(--bs-header-line);
+  padding-block: 0;
+}
+
+.navbar__brand {
+  margin-right: 24px;
+}
+
+.navbar__logo {
+  height: 36px;
+  margin-right: 0;
+}
+
+.navbar__logo img {
+  height: 36px;
+  width: auto;
+}
+
+.navbar__items--right {
+  gap: 8px;
+}
+
+.navbar__link {
+  font-weight: 500;
+  padding: 4px 12px;
+  transition: color 150ms ease;
+}
+
+.navbar__link--active {
+  color: var(--bs-heading);
+}
+
+/* Header order after Enriched Markdown: color mode, Docs, GitHub. */
+.navbar__items--right > [class*='colorModeToggle'] {
+  order: -1;
+  margin-right: 8px;
+}
+
+.navbar-github {
+  display: grid;
+  place-items: center;
+  padding: 4px 8px;
+}
+
+.navbar-github svg {
+  display: block;
+}
+
+/* On narrow screens Docs and GitHub move into the menu; only the toggle stays. */
+@media (max-width: 996px) {
+  .navbar-github {
+    display: none;
+  }
+
+  .navbar__brand {
+    margin-right: auto;
+  }
 }
 
 /* The landing page's navbar floats over the hero. */
@@ -237,14 +383,311 @@ html.landing-page .navbar {
   position: fixed;
   inset: 0 0 auto;
   background-color: transparent;
+  border-bottom-color: transparent;
   box-shadow: none;
 }
 
-.footer {
-  --ifm-footer-background-color: var(--ifm-background-color);
-  border-top: 1px solid var(--ifm-toc-border-color);
+/* ---------- Sidebar ---------- */
+
+.theme-doc-sidebar-container {
+  border-right: 1px solid var(--bs-line-soft) !important;
+}
+
+.theme-doc-sidebar-menu.menu__list {
+  padding-top: 8px;
+}
+
+.menu {
+  padding: 16px 12px 24px !important;
+}
+
+.menu__link {
+  position: relative;
+  border-radius: 0;
+  padding: 5px 12px;
+  font-size: 15px;
+  line-height: 24px;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.menu__link--active:not(.menu__link--sublist) {
+  font-weight: 500;
+  box-shadow: inset 2px 0 0 var(--bs-accent);
+}
+
+.menu__list .menu__list {
+  margin-left: 12px;
+  padding-left: 0;
+  border-left: 1px solid var(--bs-line-soft);
+}
+
+/* ---------- Table of contents ---------- */
+
+.theme-doc-toc-desktop {
+  padding-top: 8px;
+}
+
+.theme-doc-toc-desktop::before {
+  content: 'On this page';
+  display: block;
+  margin: 0 0 8px;
+  color: var(--bs-muted);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.table-of-contents {
+  padding: 0;
+  border-left: 1px solid var(--bs-line-soft);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.table-of-contents li {
+  margin: 0;
+}
+
+.table-of-contents ul {
+  padding-left: 12px;
+}
+
+.table-of-contents__link {
+  display: block;
+  margin-left: -1px;
+  padding: 5px 0 5px 14px;
+  border-left: 2px solid transparent;
+  color: var(--bs-muted);
+  transition:
+    color 150ms ease,
+    border-color 150ms ease;
+}
+
+.table-of-contents__link:hover,
+.table-of-contents__link--active {
+  color: var(--bs-heading);
+}
+
+.table-of-contents__link--active {
+  border-left-color: var(--bs-accent);
+}
+
+/* ---------- Page body ---------- */
+
+.theme-doc-markdown {
+  --bs-measure: 46rem;
+}
+
+.markdown {
+  font-size: 16px;
+}
+
+.markdown h1:first-child {
+  --ifm-h1-font-size: clamp(2rem, 1.6rem + 1.4vw, 2.5rem);
+  margin-bottom: 20px;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+.markdown h2 {
+  --ifm-h2-font-size: 1.75rem;
+  margin-top: 48px;
+  padding-top: 32px;
+  border-top: 1px solid var(--bs-line-soft);
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.markdown h3 {
+  --ifm-h3-font-size: 1.25rem;
+  margin-top: 32px;
 }
 
 .markdown :where(p, li, dd, blockquote) {
   text-wrap: pretty;
+}
+
+.markdown a:not(.card-link) {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+  text-underline-offset: 3px;
+  transition:
+    text-decoration-color 150ms ease,
+    color 150ms ease;
+}
+
+.markdown a:not(.card-link):hover {
+  text-decoration-color: currentColor;
+}
+
+.markdown strong {
+  color: var(--bs-heading);
+  font-weight: 500;
+}
+
+/* Numbered steps get square counters, after Detour. */
+.markdown > ol {
+  counter-reset: step;
+  list-style: none;
+  padding-left: 0;
+}
+
+.markdown > ol > li {
+  position: relative;
+  padding-left: 40px;
+  counter-increment: step;
+}
+
+.markdown > ol > li + li {
+  margin-top: 16px;
+}
+
+.markdown > ol > li::before {
+  content: counter(step);
+  position: absolute;
+  top: 2px;
+  left: 0;
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  background: var(--bs-tint);
+  color: var(--bs-accent-ink);
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.markdown > ul > li::marker {
+  color: var(--bs-accent);
+}
+
+/* Inline code */
+.markdown :not(pre) > code {
+  border: 0;
+  color: var(--bs-heading);
+  vertical-align: baseline;
+}
+
+/* Code blocks */
+.theme-code-block {
+  --prism-background-color: var(--bs-subtle) !important;
+  border: 1px solid var(--bs-line-soft);
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.theme-code-block pre {
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* Admonitions, after Detour: hairline frame with a colored inner edge. */
+.theme-admonition {
+  --bs-admonition: var(--bs-accent);
+  border: 1px solid var(--bs-line-soft);
+  border-radius: 4px;
+  background: var(--bs-subtle);
+  box-shadow: inset 3px 0 0 var(--bs-admonition);
+  color: var(--bs-text);
+}
+
+.theme-admonition.alert--success {
+  --bs-admonition: var(--swm-green-light-100);
+}
+
+.theme-admonition.alert--warning {
+  --bs-admonition: var(--swm-yellow-light-100);
+}
+
+.theme-admonition.alert--danger {
+  --bs-admonition: var(--swm-red-light-100);
+}
+
+.theme-admonition [class*='admonitionHeading'] {
+  color: var(--bs-heading);
+  font-size: 14px;
+  font-weight: 500;
+  text-transform: none;
+}
+
+/* Tables */
+.markdown table {
+  display: table;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+
+.markdown th {
+  color: var(--bs-heading);
+  font-weight: 500;
+  text-align: left;
+}
+
+/* ---------- Page footer ---------- */
+
+.theme-doc-footer {
+  margin-top: 48px;
+  font-size: 14px;
+}
+
+.theme-edit-this-page {
+  color: var(--bs-muted);
+}
+
+.pagination-nav {
+  margin-top: 24px;
+  gap: 16px;
+}
+
+.pagination-nav__link {
+  border: 1px solid var(--bs-line-soft);
+  border-radius: 4px;
+  padding: 16px 20px;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+
+.pagination-nav__sublabel {
+  color: var(--bs-muted);
+  font-size: 13px;
+}
+
+.pagination-nav__label {
+  color: var(--bs-heading);
+  font-weight: 500;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .pagination-nav__link:hover {
+    border-color: var(--bs-accent);
+    background: var(--bs-tint);
+  }
+}
+
+.footer {
+  --ifm-footer-background-color: var(--ifm-background-color);
+  --ifm-footer-color: var(--bs-muted);
+  border-top: 1px solid var(--bs-line-soft);
+  font-size: 14px;
+}
+
+/* ---------- Focus ---------- */
+
+:where(a, button, summary):focus-visible {
+  outline: 2px solid var(--bs-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0ms !important;
+  }
 }
