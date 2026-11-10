@@ -1,9 +1,9 @@
-import { themes as prismThemes } from 'prism-react-renderer';
 import type { Config } from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 import type { Options as RedirectsOptions } from '@docusaurus/plugin-client-redirects';
 import reactNativeWeb from './plugins/react-native-web.mjs';
 import swmGeo from './plugins/swm-geo.mjs';
+import { swmDark, swmLight } from './src/prism/swm';
 
 const config: Config = {
   title: 'React Native Bottom Sheet',
@@ -101,8 +101,8 @@ const config: Config = {
       copyright: `© ${new Date().getFullYear()} Software Mansion`,
     },
     prism: {
-      theme: prismThemes.github,
-      darkTheme: prismThemes.oneDark,
+      theme: swmLight,
+      darkTheme: swmDark,
     },
   } satisfies Preset.ThemeConfig,
 };

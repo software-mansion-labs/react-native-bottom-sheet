@@ -585,6 +585,48 @@ html.landing-page .navbar {
   line-height: 1.6;
 }
 
+.theme-code-block [class*='codeBlockTitle'] {
+  border-bottom: 1px solid var(--bs-line-soft);
+  background: var(--bs-bg);
+  color: var(--bs-muted);
+  font-family: var(--bs-font-mono);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+/* Highlighted lines carry the accent edge used across the page. */
+.theme-code-block-highlighted-line {
+  box-shadow: inset 2px 0 0 var(--bs-accent);
+}
+
+/* Copy and wrap buttons: square, hairline, tinted like the color mode switch. */
+.theme-code-block [class*='buttonGroup'] {
+  gap: 4px;
+}
+
+.theme-code-block [class*='buttonGroup'] button {
+  border: 1px solid var(--bs-line);
+  border-radius: 0;
+  background: var(--bs-bg);
+  color: var(--bs-muted);
+  transition:
+    opacity 150ms ease,
+    color 150ms ease,
+    border-color 150ms ease,
+    transform 160ms var(--bs-ease-out);
+}
+
+.theme-code-block [class*='buttonGroup'] button:active {
+  transform: scale(0.97);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .theme-code-block [class*='buttonGroup'] button:hover {
+    border-color: var(--bs-accent);
+    color: var(--bs-heading);
+  }
+}
+
 /* Admonitions, after Detour: hairline frame with a colored inner edge. */
 .theme-admonition {
   --bs-admonition: var(--bs-accent);
