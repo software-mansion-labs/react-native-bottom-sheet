@@ -1,0 +1,197 @@
+.lead {
+  max-width: 38rem;
+  margin-bottom: 28px;
+  color: var(--bs-text);
+  font-size: 1.1875rem;
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+/* Start-here cards: hairline tiles that tint on hover, after Pulsar's active row. */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 32px 0 8px;
+}
+
+@media (max-width: 640px) {
+  .cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.card {
+  display: grid;
+  gap: 4px;
+  padding: 16px 18px;
+  border: 1px solid var(--bs-line-soft);
+  background: var(--bs-surface);
+  color: var(--bs-text);
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    transform 160ms var(--bs-ease-out);
+}
+
+.card:hover {
+  color: var(--bs-text);
+  text-decoration: none;
+}
+
+.card:active {
+  transform: scale(0.98);
+}
+
+.cardTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--bs-heading);
+  font-weight: 500;
+}
+
+.arrow {
+  flex: none;
+  color: var(--bs-accent);
+  transition: transform 200ms var(--bs-ease-out);
+}
+
+.cardBody {
+  color: var(--bs-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .card:hover {
+    border-color: var(--bs-accent);
+    background: var(--bs-tint);
+  }
+
+  .card:hover .arrow {
+    transform: translateX(3px);
+  }
+}
+
+/* Highlights: two columns of short claims with a square marker. */
+.highlights ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 32px;
+  padding: 0;
+  list-style: none;
+}
+
+@media (max-width: 640px) {
+  .highlights ul {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.highlights li {
+  position: relative;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.highlights li::before {
+  content: '';
+  position: absolute;
+  top: 0.62em;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  background: var(--bs-accent);
+}
+
+/* Credits */
+.credits {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 24px 0;
+}
+
+@media (max-width: 640px) {
+  .credits {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.credit {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid var(--bs-line-soft);
+  transition:
+    border-color 150ms ease,
+    transform 160ms var(--bs-ease-out);
+}
+
+.credit:hover {
+  text-decoration: none;
+}
+
+.credit:active {
+  transform: scale(0.98);
+}
+
+.credit img {
+  display: block;
+  height: 38px;
+  width: auto;
+}
+
+.creditLabel {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.creditBody {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.swm {
+  border-color: var(--swm-navy-light-100);
+  background: var(--swm-navy-light-100);
+  color: var(--swm-navy-light-20);
+}
+
+.swm:hover {
+  color: var(--swm-navy-light-20);
+}
+
+.gobi {
+  background: var(--bs-surface);
+  color: var(--bs-muted);
+}
+
+.gobi:hover {
+  color: var(--bs-muted);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .swm:hover {
+    border-color: var(--bs-accent);
+  }
+
+  .gobi:hover {
+    border-color: var(--bs-accent);
+  }
+}
+
+[data-theme='dark'] .swm {
+  border-color: var(--bs-line);
+  background: var(--swm-navy-dark-120);
+}
+
+.lead > p {
+  margin: 0;
+}

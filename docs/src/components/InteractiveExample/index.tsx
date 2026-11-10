@@ -202,10 +202,14 @@ export const Example = ({ stage, controls, code }: ExampleProps) => {
           <div ref={codeRef} className={styles.codePane} inert={tab !== 'code'}>
             {highlightedCode}
           </div>
+        </div>
+        {/* A toolbar over the right pane: reset on the left, view and copy on the right. */}
+        <div className={styles.header}>
           <button
             type="button"
             className={clsx(styles.iconButton, styles.reset)}
             aria-label="Reset example"
+            title="Reset example"
             inert={tab !== 'preview'}
             onClick={reset}
           >
@@ -216,10 +220,10 @@ export const Example = ({ stage, controls, code }: ExampleProps) => {
               <path d="M4 20v-4.5h4.5" />
             </svg>
           </button>
-        </div>
-        <div className={styles.header}>
-          <Tabs />
-          <CopyButton code={code} />
+          <div className={styles.headerEnd}>
+            <Tabs />
+            <CopyButton code={code} />
+          </div>
         </div>
       </div>
     </div>

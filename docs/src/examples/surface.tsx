@@ -117,7 +117,7 @@ export const SurfaceExample = interactiveExample(
               </StageContent>
             )}
             <StageSheet
-              detents={[0, 'content', '90%']}
+              detents={[0, 'content', '100%']}
               {...(surface.element === undefined
                 ? {}
                 : { surface: surface.element })}
@@ -177,7 +177,7 @@ export const SurfaceExample = interactiveExample(
         code={`const [index, setIndex] = useState(1);
 
 <ModalBottomSheet
-  detents={[0, 'content', '90%']}${animates ? '' : '\n  animateContentHeight={false}'}
+  detents={[0, 'content', '100%']}${animates ? '' : '\n  animateContentHeight={false}'}
   index={index}
   onIndexChange={setIndex}
   surface={
