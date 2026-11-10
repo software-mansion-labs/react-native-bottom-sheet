@@ -1,0 +1,45 @@
+.search {
+  flex: none;
+  padding: 4px 16px 12px;
+}
+
+.search :global(.navbar__search),
+.search :global(.navbar__search) > span,
+.search :global(.navbar__search) :global(.navbar__search-input) {
+  width: 100%;
+}
+
+.search :global(.navbar__search) :global(.navbar__search-input) {
+  height: 40px;
+  padding-right: 36px;
+}
+
+.search :global(.navbar__search) [class*='dropdownMenu'] {
+  width: 100%;
+  max-width: none;
+  margin-top: 8px;
+}
+
+.links {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin: 0;
+  padding: 14px 16px 18px;
+  border-top: 1px solid var(--bs-line-soft);
+  list-style: none;
+}
+
+.links :global(.menu__link) {
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--bs-accent-ink);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.links :global(.menu__link--active) {
+  color: var(--bs-heading);
+}

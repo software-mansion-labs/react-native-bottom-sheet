@@ -5,7 +5,7 @@ import useBaseUrl from '@docusaurus/useBaseUrl';
 import styles from './styles.module.css';
 
 export const Lead = ({ children }: { children: ReactNode }) => (
-  <p className={styles.lead}>{children}</p>
+  <div className={styles.lead}>{children}</div>
 );
 
 const START = [

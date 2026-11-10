@@ -191,3 +191,7 @@
   border-color: var(--bs-line);
   background: var(--swm-navy-dark-120);
 }
+
+.lead > p {
+  margin: 0;
+}
