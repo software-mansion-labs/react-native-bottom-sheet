@@ -351,7 +351,7 @@ body {
   color: var(--bs-heading);
 }
 
-/* Header order after Enriched Markdown: color mode, Docs, GitHub. */
+/* Header order after Enriched Markdown: search, color mode, Docs, GitHub. */
 .navbar__items--right > [class*='colorModeToggle'] {
   order: -1;
   margin-right: 8px;
@@ -373,19 +373,12 @@ html:not(.landing-page) .navbar__items--right > .navbar-docs {
   display: block;
 }
 
-/* Narrow screens follow Reanimated's docs: the header keeps the logo, and
-   search and the menu button on the right. The color-mode switch, Docs and
-   GitHub live in the menu, which slides in from the left. */
+/* Narrow screens: the header keeps the logo, search and the menu button.
+   The color-mode switch and GitHub live in the menu, a full-width page
+   under the header. */
 @media (max-width: 996px) {
   .navbar__items--right > :not([class*='navbarSearchContainer']) {
     display: none;
-  }
-
-  /* Docusaurus pins search to the right edge here; ours sits in the row,
-     just left of the menu button. */
-  .navbar__items--right > [class*='navbarSearchContainer'] {
-    position: static;
-    margin-right: 0;
   }
 
   .navbar__inner > .navbar__items:not(.navbar__items--right) {
@@ -423,16 +416,8 @@ html:not(.landing-page) .navbar__items--right > .navbar-docs {
     transition-timing-function: ease;
   }
 
-  .navbar-sidebar--show .navbar-sidebar {
-    transform: none;
-  }
-
   .navbar-sidebar__backdrop {
     display: none;
-  }
-
-  .navbar-sidebar__item {
-    padding: 8px;
   }
 
   /* Docs and GitHub sit at the bottom of the menu instead. */
@@ -466,12 +451,6 @@ html:not(.landing-page) .navbar__items--right > .navbar-docs {
   }
 }
 
-@media (max-width: 996px) and (prefers-reduced-motion: reduce) {
-  .navbar-sidebar {
-    transition: none;
-  }
-}
-
 /* The landing page's navbar floats over the hero. */
 html.landing-page .navbar {
   position: fixed;
@@ -481,17 +460,26 @@ html.landing-page .navbar {
   box-shadow: none;
 }
 
-/* No search field in the landing header; ⌘K still opens search. */
-html.landing-page .navbar__items--right > [class*='navbarSearchContainer'] {
-  display: none;
-}
-
 /* ---------- Search ---------- */
 
 /* The trigger and dialog are styled in src/theme/SearchBar. */
 .navbar__items--right > [class*='navbarSearchContainer'] {
   order: -2;
   margin-right: 8px;
+}
+
+/* Docusaurus pins search to the right edge on narrow screens; ours sits in
+   the row, just left of the menu button. */
+@media (max-width: 996px) {
+  .navbar__items--right > [class*='navbarSearchContainer'] {
+    position: static;
+    margin-right: 0;
+  }
+}
+
+/* No search field in the landing header; ⌘K still opens search. */
+html.landing-page .navbar__items--right > [class*='navbarSearchContainer'] {
+  display: none;
 }
 
 /* Search terms marked on the page a result opened. */
@@ -590,10 +578,6 @@ article mark {
 }
 
 /* ---------- Page body ---------- */
-
-.theme-doc-markdown {
-  --bs-measure: 46rem;
-}
 
 .markdown {
   font-size: 16px;

@@ -36,22 +36,16 @@ function Panel({ children, inert }: { children: ReactNode; inert: boolean }) {
   );
 }
 
-// The navbar items as menu links, minus the given item types. Icon-only
-// items (GitHub) keep the header's icon and add their accessible name as
+// The navbar items as menu links, without search and the Docs link (the
+// docs tree covers it). Icon-only items (GitHub) keep the header's icon and add their accessible name as
 // text next to it.
-function NavLinks({
-  className,
-  exclude,
-}: {
-  className: string;
-  exclude: string[];
-}) {
+function NavLinks({ className }: { className: string }) {
   const mobileSidebar = useNavbarMobileSidebar();
   const items = useThemeConfig().navbar.items as Record<string, unknown>[];
   return (
     <ul className={className}>
       {items
-        .filter((item) => !exclude.includes(item.type as string))
+        .filter((item) => item.type !== 'search' && item.type !== 'docSidebar')
         .map(({ className: _className, ...item }, i) => {
           const props = {
             ...item,
@@ -86,17 +80,12 @@ export default function NavbarMobileSidebarLayout({
         <Panel inert={secondaryMenuShown}>
           {/* Outside the docs (the landing page) the menu holds only GitHub
               and the color-mode switch. */}
-          <NavLinks className="menu__list" exclude={['search', 'docSidebar']} />
+          <NavLinks className="menu__list" />
         </Panel>
         <Panel inert={!secondaryMenuShown}>{secondaryMenu}</Panel>
       </div>
       <div className={styles.footer}>
-        {secondaryMenuShown && (
-          <NavLinks
-            className={styles.links}
-            exclude={['search', 'docSidebar']}
-          />
-        )}
+        {secondaryMenuShown && <NavLinks className={styles.links} />}
         <NavbarColorModeToggle className={styles.colorMode} />
       </div>
     </div>

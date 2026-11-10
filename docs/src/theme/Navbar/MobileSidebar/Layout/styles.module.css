@@ -29,10 +29,6 @@
   font-weight: 500;
 }
 
-.links :global(.menu__link--active) {
-  color: var(--bs-heading);
-}
-
 /* Icon-only navbar items (GitHub): the header's icon with its name. */
 .iconLink {
   display: inline-flex;
