@@ -1,0 +1,203 @@
+/*
+ * The page fills the window and never scrolls: each slide is a real sheet, so
+ * moving between them is the library's job.
+ */
+.landing {
+  --peek: 56px;
+  --gutter: clamp(20px, 4vw, 56px);
+  --sans: var(--ifm-font-family-base);
+  --mono: var(--ifm-font-family-monospace);
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ifm-link-hover-decoration: none;
+  --sheet-sky: var(--swm-blue-light-20);
+  --sheet-ending: var(--swm-white);
+  --sky-offset: var(--swm-blue-light-40);
+  --sheet-shadow:
+    0 -18px 56px -6px rgb(0 26 114 / 0.42), 0 -3px 12px rgb(0 26 114 / 0.26);
+  --dim: var(--swm-navy-light-100);
+  --navy: var(--swm-navy-light-100);
+  --navy-deep: var(--swm-navy-light-100);
+  --navy-60: var(--swm-navy-light-60);
+  --navy-20: var(--swm-navy-light-20);
+  --blue: var(--swm-blue-light-100);
+  --off-white: var(--swm-off-white);
+  --white: var(--swm-white);
+
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: var(--navy-deep);
+  color: var(--navy);
+  font-family: var(--sans);
+  font-size: 17px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* The hero's roles swap: a dark page with a light sheet rising over it. */
+[data-theme='dark'] .landing {
+  --sheet-sky: var(--swm-navy-light-100);
+  --sheet-ending: var(--swm-navy-light-100);
+  --sky-offset: var(--swm-blue-dark-140);
+  --sheet-shadow:
+    0 -18px 56px -4px rgb(0 0 0 / 0.75), 0 -3px 12px rgb(0 0 0 / 0.5);
+  --dim: black;
+  --navy-deep: var(--swm-navy-dark-120);
+  --navy: var(--swm-navy-light-10);
+  --navy-60: var(--swm-navy-light-40);
+  --navy-20: var(--swm-navy-light-80);
+  --off-white: var(--swm-navy-dark-120);
+  --white: var(--swm-navy-dark-140);
+  --blue: var(--swm-blue-dark-80);
+}
+
+/* The docs' own element styles don't apply here. */
+.landing *,
+.landing *::before,
+.landing *::after {
+  box-sizing: border-box;
+}
+
+:where(.landing) a {
+  color: inherit;
+  text-decoration: none;
+}
+
+:where(.landing) a:hover {
+  color: inherit;
+}
+
+:where(.landing) :is(h1, h2, h3, p, pre) {
+  margin: 0;
+}
+
+:where(.landing) h2 {
+  font: inherit;
+}
+
+:where(.landing) pre {
+  padding: 0;
+  background: none;
+  border-radius: 0;
+  color: inherit;
+  overflow: visible;
+}
+
+:where(.landing) code {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--mono);
+  font-size: 0.86em;
+  vertical-align: baseline;
+}
+
+:where(.landing) button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.landing :focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.press {
+  transition: transform 160ms var(--ease-out);
+}
+
+.press:active {
+  transform: scale(0.97);
+}
+
+.cta,
+.cta:hover {
+  color: var(--white);
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 52px;
+  padding: 0 22px;
+  background: var(--navy);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.cta svg {
+  transition: transform 200ms var(--ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .cta:hover svg {
+    transform: translateX(3px);
+  }
+}
+
+/* Sections rise once. Decoration only: nothing waits for it. */
+.reveal {
+  transition:
+    opacity 600ms ease,
+    transform 700ms var(--ease-out);
+}
+
+.reveal[data-in='false'] {
+  opacity: 0;
+  transform: translateY(14px);
+}
+
+.grab {
+  cursor: grab;
+}
+
+.grab:active {
+  cursor: grabbing;
+}
+
+/* A drag can leave the sheet or cross a button, so it holds for the whole press. */
+:global(html[data-sheet-grabbing]),
+:global(html[data-sheet-grabbing]) * {
+  cursor: grabbing !important;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal[data-in='false'] {
+    transform: none;
+  }
+}
+
+/*
+ * The hero sheet's lowest stop, raised by the next slide's peek, so the hero
+ * shows as much of its sheet as it does on its own. The hero reads it from the
+ * root before the page's class is there, so it outranks the hero's own instead.
+ */
+:global(:root:root) {
+  --hero-stop: 152px;
+}
+
+@media (min-width: 420px) {
+  :global(:root:root) {
+    --hero-stop: 184px;
+  }
+}
+
+/* Clear over the hero, and the docs' own over a slide. */
+:global(html.landing-page .navbar) {
+  transition:
+    background-color 200ms ease,
+    box-shadow 200ms ease;
+}
+
+:global(html.landing-page[data-landing-covered] .navbar) {
+  background-color: var(--ifm-navbar-background-color);
+  box-shadow: var(--ifm-navbar-shadow);
+}
