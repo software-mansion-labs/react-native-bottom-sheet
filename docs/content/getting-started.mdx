@@ -5,17 +5,45 @@ title: Getting started
 
 # Getting started
 
+## Requirements
+
+- React Native 0.82 or later and React 19.1.1 or later.
+- The New Architecture (Fabric). The legacy architecture is not supported.
+- A native build. The library ships native code, so it does not run in Expo Go;
+  use a
+  [development build](https://docs.expo.dev/develop/development-builds/introduction/)
+  (`npx expo run:ios`, `npx expo run:android`) or a bare React Native app.
+
+## Installation
+
 1. Install React Native Bottom Sheet:
 
    ```sh
    npm i @swmansion/react-native-bottom-sheet
    ```
 
-2. Wrap your app with `BottomSheetProvider`:
+   On iOS in a bare React Native app, install the pods afterwards with
+   `cd ios && pod install`.
+
+2. If you use `ModalBottomSheet`, wrap your app with `BottomSheetProvider`.
+   Modal sheets render into it so they cover the whole screen. Inline
+   `BottomSheet` and `ModalBottomSheet` with `nativeOverlay` don't need it.
 
    ```tsx
+   import { BottomSheetProvider } from '@swmansion/react-native-bottom-sheet';
+
    const App = () => <BottomSheetProvider>{/* ... */}</BottomSheetProvider>;
    ```
+
+## Web
+
+The library also runs on the web through
+[React Native Web](https://necolas.github.io/react-native-web/). There,
+gestures, snapping, and scroll coordination run in JavaScript instead of native
+code. Install `react-dom` and `react-native-web` alongside it; in an Expo
+project, run `npx expo install react-dom react-native-web`.
+
+## Usage
 
 The library provides two components: `BottomSheet` (inline) and
 `ModalBottomSheet` (modal). Both render their children as the sheet content,

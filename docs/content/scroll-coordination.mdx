@@ -6,9 +6,9 @@ import { CoordinationModesExample } from '@site/src/examples/scroll-coordination
 
 # Scroll coordination
 
-`scrollCoordination` controls how vertical gestures that start inside a
-nested scrollable, such as a `ScrollView` or `FlatList`, interact with the
-sheet. Expansion and collapse can be configured independently:
+`scrollCoordination` controls how vertical gestures that start inside a nested
+scrollable, such as a `ScrollView` or `FlatList`, interact with the sheet.
+Expansion and collapse can be configured independently:
 
 ```tsx
 <BottomSheet
@@ -67,12 +67,11 @@ is resolved like a vertical one: the sheet takes any start the scrollable would
 have accepted as a scroll, so a shallow angle cannot scroll content the sheet
 would otherwise move, although on iOS the content may move briefly before the
 sheet takes the drag. A horizontal scrollable under the touch keeps sideways
-gestures as before. On iOS, a vertical start in a direction the sheet cannot
-move, such as downward at its lowest draggable detent, stays with the
-scrollable. If the drag reverses into a `handoff` direction, the sheet can take
-over without lifting once any bounce or refresh pull has scrolled back; an
-`initial` direction keeps the original owner. On web, a sideways start is left
-to the browser.
+gestures as before. On every platform, a vertical start in a direction the sheet
+cannot move, such as downward at its lowest draggable detent, stays with the
+scrollable. On iOS, if the drag reverses into a `handoff` direction, the sheet
+can take over without lifting once any bounce or refresh pull has scrolled back;
+an `initial` direction keeps the original owner.
 
 ## Platform support
 
@@ -91,3 +90,10 @@ implement the Android nested-scrolling-child contract and have nested scrolling
 enabled. Components such as `WebView` and bespoke scrollers that do not
 participate in nested scrolling use `initial` behavior as a fallback and cannot
 switch consumers in the middle of a gesture.
+
+On the web, handoff works with any ancestor element of the touch that has
+`overflow-y: auto` or `scroll` and actually overflows. Inverted lists are
+recognized by a negative vertical scale, as React Native Web renders them. Mouse
+drags that hand off to content scroll it directly, since browsers don't
+drag-scroll with a mouse. A start that is at least as horizontal as it is
+vertical is always left to the browser, inside or outside a scrollable.

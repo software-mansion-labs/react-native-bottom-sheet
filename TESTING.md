@@ -2,7 +2,8 @@
 
 ## Android JVM tests
 
-Install JDK 17 and make it available to Gradle.
+Install JDK 21 and make it available to Gradle. Robolectric needs Java 21 to run
+tests that target Android API 36.
 
 Prepare the native example project and run all Android JVM tests with:
 
