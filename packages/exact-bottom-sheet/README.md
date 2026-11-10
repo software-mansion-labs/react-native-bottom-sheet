@@ -25,6 +25,7 @@ bun run exact web          # build the demo for the web (packages/exact-demo/tar
 bun run exact web --run    # serve the demo's dev loop at http://127.0.0.1:8765/ (--port <n>)
 bun run exact ios          # build the demo for an iOS simulator and install it
 bun run exact ios --run    # ...and launch it (--sim <udid|name> or EXACT_SIM when several are booted)
+bun run exact ios --device --run   # build for a connected iPhone, install and launch it (--phone <udid|name>)
 ```
 
 `scripts/exact.mjs` finds or clones the pinned Exact checkout, checks the
@@ -57,7 +58,10 @@ Environment:
   missing; that only matters for Exact's headless web driver (`agent web`,
   `test web`), not for building or serving the demo.
 - iOS: Xcode, and Rust's simulator target, which the setup did not add here:
-  `rustup target add aarch64-apple-ios-sim --toolchain 1.97.0`.
+  `rustup target add aarch64-apple-ios-sim --toolchain 1.97.0`. A phone
+  (`--device`) needs `aarch64-apple-ios` instead, an Apple Development identity
+  and a provisioning profile on this Mac that covers the phone and the bundle id
+  (a team wildcard profile does); Exact picks them automatically.
 - About 10 GB of free disk for the first iOS build (the Rust target directory
   alone is several GB).
 
@@ -178,6 +182,26 @@ Rules for authors, which follow from how Exact patches its views:
   itself, so the sheet reports the region (`regionchange`) and a scrolling
   content binds `height` to it (the demo's scroll screen). A content detent is
   measured from the node's own height.
+- **Bind the width too when detents have side insets.** React Native lays the
+  content out at the widest card's width; on iOS Exact keeps the node at its
+  parent's width, so it overflows a detached card. Bind `width` to the region's
+  width, which is the widest card's:
+
+  ```contract
+  state contentWidth = 0
+  action sized(r: SheetRegion)
+    contentWidth = r.width
+  // on the content node:
+  //   width=(contentWidth == 0 ? "100%" : `${contentWidth}px`)
+  // on the tag:
+  //   regionchange=sized
+  ```
+
+  With it, the content's frames at each detent match React Native's (measured
+  with insets 24/24/24 at 180 and 64/64/0 at 100%: 354 wide in a 354 card, then
+  scaled to 274 in a 274 card). The web adapter lays the content out at that
+  width itself.
+
 - **Give the tag the sheet's box**, usually `position="absolute" inset=0` over
   the area the sheet and its scrim may cover. Touches outside the card and the
   scrim reach what is under the tag (iOS: the hosting view's hit test returns
@@ -209,9 +233,9 @@ Rules for authors, which follow from how Exact patches its views:
   gets synthesized clicks, so the Kotlin sheet could neither host Contract
   content nor receive drags.
 - **One content node, no surface node.** `surface` is limited to `surfaceColor`;
-  a Contract-drawn surface (an image, a gradient) is not adopted. The content
-  isn't relaid out against the widest card's width when detents have side insets
-  (Exact lays it out at its own width); it is still scaled with the card.
+  a Contract-drawn surface (an image, a gradient) is not adopted. On iOS the
+  content follows the widest card's width only when the author binds it (see the
+  authoring rules above).
 - **Not mapped**: `lazy`, `nativeOverlay`/`openOrder` (the sheet covers the
   tag's box, not the window), `wrapNativeView`, `surfaceElevation` and
   `surfaceShadowColor` (Android only).

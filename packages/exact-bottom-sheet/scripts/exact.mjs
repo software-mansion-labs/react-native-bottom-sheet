@@ -1,4 +1,4 @@
-// `bun run exact <web|ios> [--run] [--port <n>] [--sim <udid|name>]` from the
+// `bun run exact <web|ios> [--run] [--port <n>] [--sim <udid|name>] [--device]` from the
 // repository root: builds (and with --run, runs) the Exact demo app in
 // packages/exact-demo against @swmansion/exact-bottom-sheet.
 //
@@ -24,12 +24,14 @@ const exactHome = resolve(
   process.env.EXACT_HOME ?? resolve(homedir(), '.cache/exact/checkout')
 );
 
-const usage = `usage: bun run exact <web|ios> [--run] [--port <n>] [--sim <udid|name>]
+const usage = `usage: bun run exact <web|ios> [--run] [--port <n>] [--sim <udid|name>] [--device [--phone <udid|name>]]
 
   web          build the demo for the web (target/web-dist); --run serves the dev loop
                (default port 8765, --port to choose)
   ios          build the demo for an iOS simulator and install it; --run launches it
-               (--sim or EXACT_SIM picks the simulator when several are booted)
+               (--sim or EXACT_SIM picks the simulator when several are booted);
+               --device builds for a connected iPhone instead (--phone picks one),
+               signed with a development identity and a profile on this Mac
 
 Environment: EXACT_HOME (the Exact checkout, default ~/.cache/exact/checkout),
 EXACT_BUN (a Bun ${pin.bun} binary, default ~/.bun-${pin.bun}/bin/bun or bun on PATH).`;
@@ -51,6 +53,7 @@ if (
 const flag = (name) =>
   args.includes(name) ? args[args.indexOf(name) + 1] : undefined;
 const run = args.includes('--run');
+const device = args.includes('--device');
 
 const fail = (message) => {
   console.error(`exact: ${message}`);
@@ -144,7 +147,7 @@ if (!existsSync(resolve(exactHome, 'node_modules'))) {
 if (target === 'ios') {
   if (process.platform !== 'darwin' || !output('xcrun', ['--find', 'swiftc']))
     missing.push('Xcode (for iOS)');
-  const sim = 'aarch64-apple-ios-sim';
+  const sim = device ? 'aarch64-apple-ios' : 'aarch64-apple-ios-sim';
   if (
     toolchain &&
     !(
@@ -185,7 +188,9 @@ const verb =
     : [
         'ios',
         ...(run ? ['--run'] : []),
-        ...(flag('--sim') ? ['--sim', flag('--sim')] : []),
+        ...(device ? ['--device'] : []),
+        ...(device && flag('--phone') ? ['--phone', flag('--phone')] : []),
+        ...(!device && flag('--sim') ? ['--sim', flag('--sim')] : []),
       ];
 say(
   `bun exact.mjs ${verb.join(' ')} (in packages/exact-demo, EXACT2=${exactHome})`
