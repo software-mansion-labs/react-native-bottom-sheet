@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import Link from '@docusaurus/Link';
 import useBaseUrl from '@docusaurus/useBaseUrl';
+import ThemedImage from '@theme/ThemedImage';
 
 import styles from './styles.module.css';
 
@@ -63,7 +64,10 @@ export const Highlights = ({ children }: { children: ReactNode }) => (
 );
 
 export const Credits = () => {
-  const gobi = useBaseUrl('/img/gobi.png');
+  const gobi = {
+    light: useBaseUrl('/img/gobi-light.svg'),
+    dark: useBaseUrl('/img/gobi-dark.svg'),
+  };
   return (
     <div className={styles.credits}>
       <a
@@ -88,10 +92,10 @@ export const Credits = () => {
         href="https://www.gobimaps.com"
       >
         <span className={styles.creditLabel}>Sponsored by</span>
-        <img
-          src={gobi}
+        <ThemedImage
+          sources={gobi}
           alt="Gobi Maps"
-          width="115"
+          width="110"
           height="38"
           loading="lazy"
         />
