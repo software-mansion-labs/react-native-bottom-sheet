@@ -38,6 +38,10 @@ export type BottomSheetWebConfig = Readonly<{
   hasCloseRequestHandler: boolean;
   /** When the sheet last opened, relative to other sheets. */
   openOrder: number;
+  /** Whether the sheet is presented in the overlay layer, above portal sheets. */
+  nativeOverlay: boolean;
+  /** Whether the sheet pushes back the open modal sheet beneath it. */
+  stacked: boolean;
   scrollExpandCoordination: number;
   scrollCollapseCoordination: number;
   /** Seconds the settle spring takes. 0 uses the default. */

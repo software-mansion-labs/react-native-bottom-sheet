@@ -99,7 +99,11 @@ export const detentIndex = (position: number, detents: ResolvedDetent[]) =>
     detents.map((_, index) => index)
   );
 
-const interpolate = (
+/**
+ * Interpolates a per-detent value (one per detent, by index) by the sheet
+ * position, using each detent's resolved position as the breakpoint.
+ */
+export const interpolate = (
   position: number,
   detents: ResolvedDetent[],
   values: number[]

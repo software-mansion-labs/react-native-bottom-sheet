@@ -1,10 +1,10 @@
 import UIKit
 
 extension BottomSheetHostingView {
-  /// The default top inset: the part of the window's top (status bar / notch)
-  /// inset that actually overlaps this view. Measured from real window geometry
-  /// in every mode — inline, portal, and overlay — so no JS-estimated dimensions
-  /// are involved. Before the view is in a window, nothing overlaps it.
+  /// The part of the window's top (status bar / notch) inset that actually
+  /// overlaps this view. Measured from real window geometry in every mode —
+  /// inline, portal, and overlay — so no JS-estimated dimensions are involved.
+  /// Before the view is in a window, nothing overlaps it.
   private var statusBarOverlap: CGFloat {
     guard let window else { return 0 }
     let originYInWindow = convert(CGPoint.zero, to: window).y
@@ -42,6 +42,7 @@ extension BottomSheetHostingView {
   /// content region, so bounding the region by it would be circular.
   private func cardHeightBound(for spec: RawDetentSpec) -> CGFloat {
     let available = availableCardHeight(for: spec)
+    let tallest = tallestCardHeight(for: spec)
     let bound: CGFloat
     switch spec.kind {
     case .points:
@@ -49,16 +50,24 @@ extension BottomSheetHostingView {
     case .percentage:
       bound = available * spec.value
     case .content:
-      bound = available
+      bound = tallest
     }
-    return min(max(0, bound), available)
+    return min(max(0, bound), tallest)
   }
 
-  /// The tallest the card can be at a detent: the host's height, less the
-  /// detent's top and bottom insets. Percentages resolve against it, so `100%`
-  /// fits.
+  /// The space a detent's insets leave the card: the host's height, less its
+  /// top and bottom insets. Percentages resolve against it, so `100%` fits.
   private func availableCardHeight(for spec: RawDetentSpec) -> CGFloat {
     max(0, bounds.height - (spec.insets.top ?? statusBarOverlap) - spec.insets.bottom)
+  }
+
+  /// The tallest the card may get at a detent: the available height, less the
+  /// peek for a stacked sheet on the default top inset. Its card then stops
+  /// below the edge of the sheet it covers, as native iOS sheets do, while its
+  /// percentages still match those of the sheet beneath.
+  private func tallestCardHeight(for spec: RawDetentSpec) -> CGFloat {
+    let available = availableCardHeight(for: spec)
+    return stacked && spec.insets.top == nil ? max(0, available - stackPeek) : available
   }
 
   /// The natively measured inset of the content region: the gap between the
@@ -121,7 +130,7 @@ extension BottomSheetHostingView {
           measuredContentHeight.map { $0 * contentScale(for: spec.insets) }
             ?? unresolvedContentDetentHeight(after: index, maxHeight: maxHeight)
       }
-      let resolvedHeight = min(max(0, height), available)
+      let resolvedHeight = min(max(0, height), tallestCardHeight(for: spec))
       let position = resolvedHeight > 0 ? resolvedHeight + spec.insets.bottom : 0
       if let previous = resolvedDetents.last, position < previous.position {
         let message =
@@ -157,7 +166,7 @@ extension BottomSheetHostingView {
         continue
       }
       // Whatever its inset, this detent must not rise above the next one's top.
-      return min(max(0, height), available) + spec.insets.bottom
+      return min(max(0, height), tallestCardHeight(for: spec)) + spec.insets.bottom
         - rawDetentSpecs[index].insets.bottom
     }
     return maxHeight

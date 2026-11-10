@@ -116,6 +116,42 @@ public final class BottomSheetHostingView: UIView {
   public var animateIn: Bool = true
   public var animateContentHeight: Bool = true
 
+  /// Whether this modal sheet pushes back the open modal sheet beneath it.
+  public var stacked: Bool = false {
+    didSet {
+      if stacked != oldValue {
+        // It changes how tall the card may get, which bounds the detents.
+        setNeedsLayout()
+        Self.updateStacks()
+      }
+    }
+  }
+
+  /// When the sheet last opened, relative to other sheets.
+  public var openOrder: Int = 0 {
+    didSet {
+      if openOrder != oldValue {
+        Self.updateStacks()
+      }
+    }
+  }
+
+  /// Whether the sheet is presented in the native overlay, above portal sheets.
+  public var nativeOverlay: Bool = false {
+    didSet {
+      if nativeOverlay != oldValue {
+        Self.updateStacks()
+      }
+    }
+  }
+
+  /// Holds the sheet, and carries the transform that pushes it back while a
+  /// stacked sheet covers it. Apart from the scrim, which stays put, and from
+  /// the sheet container, whose transform stays the sheet's translation alone.
+  let stackView = UIView()
+  /// The candidates' settle animations the running stack animation was built
+  /// for, so it is rebuilt only when one starts or ends.
+  var stackAnimationSources: [CAKeyframeAnimation] = []
   public let sheetContainer = UIView()
   let clipContainer = CardClipView()
   /// Casts the card's shadows. A sibling below the clipping container, so the
@@ -193,6 +229,9 @@ public final class BottomSheetHostingView: UIView {
   /// The settle animation the card is following, kept so the content's keyframes
   /// can be rebuilt when a layout moves the content mid-settle.
   var cardSettleAnimation: CAKeyframeAnimation?
+  /// The sheet's running settle animation. A sheet this one covers rebuilds
+  /// its stack animation as this starts and ends.
+  var settleAnimation: CAKeyframeAnimation?
   /// The centers and sizes that the running content keyframes were built from.
   var contentAnimationLayouts: [CGRect] = []
 
@@ -224,7 +263,9 @@ public final class BottomSheetHostingView: UIView {
 
     sheetContainer.backgroundColor = .clear
     sheetContainer.clipsToBounds = false
-    addSubview(sheetContainer)
+    stackView.backgroundColor = .clear
+    addSubview(stackView)
+    stackView.addSubview(sheetContainer)
 
     // Anchored at its origin, so a card height change animates the bounds alone
     // and the origin stays put. Its bounds origin equals its frame origin, so
@@ -291,6 +332,7 @@ public final class BottomSheetHostingView: UIView {
   override public func didMoveToWindow() {
     super.didMoveToWindow()
     surfaceTouchHandler = nil
+    updateStackRegistration()
     guard window != nil else { return }
     // The default top inset becomes computable once a window exists.
     refreshDetentsFromLayout()
@@ -321,6 +363,9 @@ public final class BottomSheetHostingView: UIView {
     }
 
     scrimView.frame = bounds
+    // Not through `frame`, which is undefined under the stack transform.
+    stackView.bounds = bounds
+    stackView.center = CGPoint(x: bounds.midX, y: bounds.midY)
     refreshDetentsFromLayout()
     let maxHeight = sheetContainerHeight
     lastAppliedMaxDetentHeight = maxHeight
@@ -339,6 +384,8 @@ public final class BottomSheetHostingView: UIView {
     // Report fresh native geometry so the component layer can push the content
     // wrapper's target size (and the overlay frame) into the shadow tree.
     eventDelegate?.bottomSheetHostingViewDidLayout(self)
+    // The host's size and the detents both shape the stack.
+    defer { Self.updateStacks() }
 
     if !hasLaidOut && !detentSpecs.isEmpty {
       let indexToApply = pendingIndex ?? targetIndex
@@ -395,6 +442,8 @@ public final class BottomSheetHostingView: UIView {
   /// presentation layer, which lags one commit behind right after a snap
   /// starts. The container's transform is translation-only.
   private func presentedCardContains(_ point: CGPoint) -> Bool {
+    // The card is drawn where the stack transform puts it.
+    let point = convert(point, to: stackView)
     let card = presentedCardFrame
     guard card.contains(point) else { return false }
     guard isCardShaped else { return true }
@@ -624,6 +673,7 @@ public final class BottomSheetHostingView: UIView {
     committedContentRegionInset = .nan
     appliedContentRegionInset = .nan
     surfaceView = nil
+    resetStack()
     sheetContainer.transform = .identity
     scrimView.alpha = 0
     scrimView.isHidden = true

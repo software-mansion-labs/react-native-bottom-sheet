@@ -293,6 +293,92 @@ export const StackingExample = interactiveExample(
   { height: 420 }
 );
 
+export const StackedExample = interactiveExample(
+  () => {
+    const [first, setFirst] = useState(2);
+    const [second, setSecond] = useState(2);
+    const [stacked, setStacked] = useState(true);
+
+    return (
+      <Example
+        stage={
+          <>
+            <StageContent>
+              <StageButton label="Open sheet" onPress={() => setFirst(2)} />
+            </StageContent>
+            <StageSheet
+              detents={[0, 200, 340]}
+              index={first}
+              onIndexChange={setFirst}
+              scrimColor="rgba(0, 0, 0, 0.25)"
+              surfaceColor="var(--example-tint-blue)"
+            >
+              <SheetBody title="First sheet">
+                <StageButton
+                  secondary
+                  label="Open second sheet"
+                  onPress={() => setSecond(2)}
+                />
+              </SheetBody>
+            </StageSheet>
+            <StageSheet
+              stacked={stacked}
+              detents={[0, 200, 340]}
+              index={second}
+              onIndexChange={setSecond}
+              scrimColor="rgba(0, 0, 0, 0.25)"
+              surfaceColor="var(--example-tint-green)"
+            >
+              <SheetBody title="Second sheet">
+                <SheetText>
+                  Drag me down to the shorter detent, and the first sheet comes
+                  back.
+                </SheetText>
+              </SheetBody>
+            </StageSheet>
+          </>
+        }
+        controls={
+          <>
+            <ControlGroup>
+              <Toggle label="stacked" value={stacked} onChange={setStacked} />
+              <Toggle
+                label="Second sheet"
+                value={second > 0}
+                onChange={(open) => setSecond(open ? 2 : 0)}
+              />
+            </ControlGroup>
+            <ControlGroup>
+              <Hint>
+                At its tall detent the second sheet covers the first one’s top
+                edge, so the first is pushed back. At its short detent it
+                doesn’t, and the first stays where it is.
+              </Hint>
+            </ControlGroup>
+          </>
+        }
+        code={`<>
+  <ModalBottomSheet
+    detents={[0, 200, 340]}
+    index={first}
+    onIndexChange={setFirst}
+  >
+    {/* First sheet */}
+  </ModalBottomSheet>
+  <ModalBottomSheet${stacked ? '\n    stacked' : ''}
+    detents={[0, 200, 340]}
+    index={second}
+    onIndexChange={setSecond}
+  >
+    {/* Second sheet */}
+  </ModalBottomSheet>
+</>;`}
+      />
+    );
+  },
+  { height: 420 }
+);
+
 export const CloseRequestExample = interactiveExample(
   () => {
     const [index, setIndex] = useState(1);

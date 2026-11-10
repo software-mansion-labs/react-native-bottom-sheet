@@ -2,6 +2,7 @@
 
 import { CONTENT_HEIGHT_MARKER_NATIVE_ID } from '../bottomSheetUtils';
 import { clamp } from './dom';
+import { STACK_PEEK } from './stacking';
 import type {
   BottomSheetWebCallbacks,
   BottomSheetWebConfig,
@@ -14,6 +15,7 @@ import type {
 export type DetentsHost = {
   readonly elements: BottomSheetWebElements | null;
   readonly rawDetents: ReadonlyArray<RawDetent>;
+  readonly config: BottomSheetWebConfig | null;
   readonly hostHeight: number;
   readonly statusBarOverlap: number;
   readonly widestCardGaps: number;
@@ -22,8 +24,8 @@ export type DetentsHost = {
 };
 
 /**
- * The tallest the card can be at a detent: the host's height, less the detent's
- * top and bottom insets. Percentages resolve against it, so `100%` fits.
+ * The space a detent's insets leave the card: the host's height, less its top
+ * and bottom insets. Percentages resolve against it, so `100%` fits.
  */
 const availableCardHeight = (
   spec: RawDetent,
@@ -38,6 +40,21 @@ const availableCardHeight = (
   );
 
 /**
+ * The tallest the card may get at a detent: the `available` height, less the
+ * peek for a stacked sheet on the default top inset. Its card then stops below
+ * the edge of the sheet it covers, as native iOS sheets do, while its
+ * percentages still match those of the sheet beneath.
+ */
+const tallestCardHeight = (
+  host: DetentsHost,
+  spec: RawDetent,
+  available: number
+) =>
+  host.config?.stacked === true && spec.usesStatusBarTopInset
+    ? Math.max(0, available - STACK_PEEK)
+    : available;
+
+/**
  * The tallest the card gets at a detent. A `content` detent is bounded by the
  * space its insets leave alone, since it is measured from the content region.
  */
@@ -47,6 +64,7 @@ const cardHeightBound = (host: DetentsHost, spec: RawDetent) => {
     host.hostHeight,
     host.statusBarOverlap
   );
+  const tallest = tallestCardHeight(host, spec, available);
   let bound: number;
   switch (spec.kind) {
     case 'points':
@@ -56,9 +74,9 @@ const cardHeightBound = (host: DetentsHost, spec: RawDetent) => {
       bound = available * spec.value;
       break;
     default:
-      bound = available;
+      bound = tallest;
   }
-  return clamp(bound, 0, available);
+  return clamp(bound, 0, tallest);
 };
 
 /**
@@ -160,7 +178,11 @@ export const resolveDetentSpecs = (
             ? measuredContentHeight * contentScale(host, spec)
             : null) ?? unresolvedContentDetentHeight(host, index, maxHeight);
     }
-    const resolvedHeight = clamp(height, 0, available);
+    const resolvedHeight = clamp(
+      height,
+      0,
+      tallestCardHeight(host, spec, available)
+    );
     const position = resolvedHeight > 0 ? resolvedHeight + spec.insetBottom : 0;
     const previous = resolved[resolved.length - 1];
     if (previous !== undefined && position < previous.position) {
@@ -199,7 +221,7 @@ const unresolvedContentDetentHeight = (
     const height = spec.kind === 'points' ? spec.value : available * spec.value;
     // Whatever its inset, this detent must not rise above the next one's top.
     return (
-      clamp(height, 0, available) +
+      clamp(height, 0, tallestCardHeight(host, spec, available)) +
       spec.insetBottom -
       host.rawDetents[index]!.insetBottom
     );

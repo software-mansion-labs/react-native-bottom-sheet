@@ -50,6 +50,27 @@ export interface ModalBottomSheetProps extends Omit<
    * @default false
    */
   nativeOverlay?: boolean;
+  /**
+   * Stack this sheet onto the open modal sheets beneath it, as native iOS
+   * sheets do: at its tallest detent, this sheet pushes back each sheet whose
+   * top edge it covers, scaling it down so its edge peeks out above this one,
+   * even with a shorter sheet between them. Its other detents leave the sheets
+   * beneath in place, and the effect follows this sheet as it is dragged or
+   * settles between its two tallest detents.
+   *
+   * Like a native sheet, a stacked sheet's card stops 10 points below where the
+   * default top inset would let it rise, so a full-height stacked sheet rests
+   * 10 points lower and the sheet beneath shrinks in place; shorter detents are
+   * unaffected. An explicit `topInset` is respected, and the sheet beneath is
+   * then shifted up as far as its edge needs to show.
+   *
+   * Set it on the sheet that goes on top. Only sheets that fill the same area
+   * stack: a `nativeOverlay` sheet over a portal sheet does when the provider
+   * spans the window.
+   *
+   * @default false
+   */
+  stacked?: boolean;
   /** Scrim color shown behind the modal sheet. */
   scrimColor?: string;
   /**

@@ -22,6 +22,7 @@ import com.swmansion.reactnativebottomsheet.host.ScrollCoordination
 import com.swmansion.reactnativebottomsheet.host.SheetHost
 import com.swmansion.reactnativebottomsheet.host.SheetState
 import com.swmansion.reactnativebottomsheet.host.Snapping
+import com.swmansion.reactnativebottomsheet.host.Stacking
 
 interface BottomSheetViewListener {
   fun onIndexChange(index: Int)
@@ -81,6 +82,32 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
       updateInteractionState()
     }
 
+  /** Whether this modal sheet pushes back the open modal sheet beneath it. */
+  var stacked: Boolean
+    get() = stacking.stacked
+    set(value) {
+      if (stacking.stacked == value) return
+      stacking.stacked = value
+      // It changes how tall the card may get, which bounds the content region and the detents.
+      contentRegion.recomputeNativeGeometry()
+      detents.refreshDetentsFromLayout()
+      requestLayout()
+    }
+
+  /** When the sheet last opened, relative to other sheets. */
+  var openOrder: Int
+    get() = stacking.openOrder
+    set(value) {
+      stacking.openOrder = value
+    }
+
+  /** Whether the sheet is presented in the native overlay, above portal sheets. */
+  var nativeOverlay: Boolean
+    get() = stacking.nativeOverlay
+    set(value) {
+      stacking.nativeOverlay = value
+    }
+
   var scrollExpandCoordination: Int
     get() = state.scrollExpandCoordination
     set(value) {
@@ -122,6 +149,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   private val scrim = Scrim(state)
   private val card = Card(state, clipContainer, scrim)
   private val cardTouchSensor = BottomSheetCardTouchSensor(context, card::onTouchTargeting)
+  private val stacking = Stacking(state, card)
 
   private var hasPerformedHostLayoutSinceAttach = false
   private val closeRequestPresentationTracker = CloseRequestPresentationTracker()
@@ -290,6 +318,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     if (detents.pendingInitialContentDetentSnap) {
       detents.observePendingInitialContentDetent()
     }
+    stacking.attach()
   }
 
   override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -311,6 +340,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     // references so a later re-attach registers on the new live observer.
     detents.removePendingInitialContentDetentObserver()
     state.scrollIndicators.releaseAll()
+    stacking.detach()
     super.onDetachedFromWindow()
   }
 
@@ -376,6 +406,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     card.updateCardGeometry()
     contentRegion.updateShadowState(sheetContainer.translationY)
     notifyCloseRequestStateChanged()
+    // The host's size and the detents both shape the stack.
+    Stacking.updateAll()
   }
 
   override fun dispatchDraw(canvas: Canvas) {
@@ -603,6 +635,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
       card.resetContentTransform(clipContainer.getChildAt(i))
     }
     clipContainer.removeAllViews()
+    stacking.reset()
     stateWrapper = null
     contentRegion.clearShadowOffset()
     card.clearShadowContentTransform()

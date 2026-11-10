@@ -26,6 +26,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL animateIn;
 @property (nonatomic) BOOL animateContentHeight;
 @property (nonatomic) BOOL modal;
+@property (nonatomic) BOOL nativeOverlay;
+@property (nonatomic) BOOL stacked;
+@property (nonatomic) NSInteger openOrder;
 @property (nonatomic) NSInteger scrollExpandCoordination;
 @property (nonatomic) NSInteger scrollCollapseCoordination;
 @property (nonatomic) NSTimeInterval settleDuration;

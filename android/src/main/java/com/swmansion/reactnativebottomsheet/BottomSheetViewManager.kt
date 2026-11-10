@@ -158,6 +158,10 @@ class BottomSheetViewManager :
     view.setNativeOverlay(value)
   }
 
+  override fun setStacked(view: BottomSheetView, value: Boolean) {
+    view.setStacked(value)
+  }
+
   override fun setOpenOrder(view: BottomSheetView, value: Int) {
     view.setOpenOrder(value)
   }

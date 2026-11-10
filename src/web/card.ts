@@ -165,6 +165,13 @@ export class SheetCard {
     };
   }
 
+  /** The card's left and right edges at a sheet position. */
+  cardSides(position: number) {
+    const { insetLeft, insetRight } = this.cardInsets(position);
+    const width = this.host.elements?.host.clientWidth ?? 0;
+    return { left: insetLeft, right: Math.max(insetLeft, width - insetRight) };
+  }
+
   /** Whether the card is cut out of the surface: rounded, or keeping gaps. */
   private clipsToCard() {
     return (
