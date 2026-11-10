@@ -47,9 +47,9 @@ const EXPAND_HINTS: Record<ScrollCoordinationMode, string> = {
 const COLLAPSE_HINTS: Record<ScrollCoordinationMode, string> = {
   none: 'Dragging down in the list never moves the sheet.',
   initial:
-    'Dragging down from a scrolled list only scrolls it. From its start, it moves the sheet.',
+    'At the top, dragging down from a scrolled list only scrolls it. From its start, it moves the sheet.',
   handoff:
-    'Dragging down scrolls the list to its start, then moves the sheet without lifting.',
+    'At the top, dragging down scrolls the list to its start, then moves the sheet without lifting.',
 };
 
 /** How far a mouse moves before a press counts as a drag. */

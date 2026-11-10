@@ -7,7 +7,8 @@ import { swmDark, swmLight } from './src/prism/swm';
 
 const config: Config = {
   title: 'React Native Bottom Sheet',
-  tagline: 'Native bottom-sheet components for React Native',
+  tagline:
+    'Bottom-sheet components for React Native, native on iOS and Android and running on the web',
 
   future: {
     v4: true,
