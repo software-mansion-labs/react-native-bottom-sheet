@@ -1,0 +1,13 @@
+{
+  "kind": "implementation",
+  "implements": "@swmansion/exact-bottom-sheet@^0.1",
+  "platform": "web",
+  "targets": ["web"],
+  "shapes": {},
+  "options": {},
+  "names": [],
+  "views": ["swm-bottom-sheet"],
+  "hatches": [],
+  "sources": { "javascript": ["index.js"] },
+  "artifacts": []
+}

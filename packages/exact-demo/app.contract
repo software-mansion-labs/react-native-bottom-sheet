@@ -1,0 +1,172 @@
+// The bottom sheet in Exact: three of the React Native example's demos
+// (example/src/demos), each a `swm-bottom-sheet` from
+// @swmansion/exact-bottom-sheet with the same detents, so the two can be
+// compared side by side.
+//
+// A package view takes no Contract children, so each demo's sheet content is
+// an ordinary node beside the tag, named by the tag's `contentId`; the sheet
+// adopts it. Each demo keeps its children static (the content first, under the
+// page; the tag last) and chooses inside the content with `if`, never around
+// it. See packages/exact/README.md.
+use SheetDetent, SheetPosition, SheetRegion from "@swmansion/exact-bottom-sheet"
+
+// Demos (all state is the root's: a package view's typed events must name
+// actions of the root component):
+// BasicModalScreen: a modal sheet with the default detents [0, 'content'],
+// a scrim, closed by a drag, the scrim, the close button or Escape (web).
+// InlineDetentsScreen: an inline sheet with detents
+// [0, SHEET_HEADER_HEIGHT + SECTION_HEIGHT, 'content'] = [0, 256, 'content'].
+// ScrollCoordinationScreen: an inline sheet holding a 48-row list, detents
+// [0, SHEET_HEADER_HEIGHT + LIST_ITEM_HEIGHT * 5, 'content'] =
+// [0, 320, 'content'], scroll coordination { expand: handoff, collapse:
+// initial } (the defaults). The content fills the sheet's content region,
+// which the sheet reports (`regionchange`), as the React Native content
+// wrapper fills it.
+component ExactExample
+  state demo = "basic"
+  action show(name: string)
+    demo = name
+  state bIndex = 0
+  state bSettled = -1
+  state bTaps = 0
+  action bOpen
+    bIndex = 1
+  action bClose
+    bIndex = 0
+  action bChanged(i: number)
+    bIndex = i
+  action bRested(i: number)
+    bSettled = i
+  action bTap
+    bTaps = bTaps + 1
+  state iIndex = 0
+  state iSettled = -1
+  state iTaps = 0
+  state iPosition = 0
+  action iOpen
+    iIndex = 1
+  action iOpenFully
+    iIndex = 2
+  action iClose
+    iIndex = 0
+  action iChanged(i: number)
+    iIndex = i
+  action iRested(i: number)
+    iSettled = i
+  action iMoved(p: SheetPosition)
+    iPosition = round(p.position)
+  action iTap
+    iTaps = iTaps + 1
+  state sIndex = 0
+  state sSettled = -1
+  state sRegion = 0
+  state sExpand = "handoff"
+  state sCollapse = "initial"
+  state sPicked = ""
+  action sOpen
+    sIndex = 1
+  action sOpenFully
+    sIndex = 2
+  action sClose
+    sIndex = 0
+  action sChanged(i: number)
+    sIndex = i
+  action sRested(i: number)
+    sSettled = i
+  action sSized(r: SheetRegion)
+    sRegion = r.height
+  action sPick(name: string)
+    sPicked = name
+  action sCycleExpand
+    sExpand = (sExpand == "handoff" ? "initial" : (sExpand == "initial" ? "none" : "handoff"))
+  action sCycleCollapse
+    sCollapse = (sCollapse == "initial" ? "handoff" : (sCollapse == "handoff" ? "none" : "initial"))
+  view
+    main testId="root" viewport-fit="cover" width="100%" height="100%" display="flex" flex-direction="column" background-color="#f2f2f7"
+      row gap=8 padding=12 padding-top="calc(env(safe-area-inset-top) + 8px)" background-color="#ffffff" flex-shrink=0
+        button press=show("basic") buttonStyle=(demo == "basic" ? "filled" : "bordered") testId="tab-basic"
+          text "Basic modal"
+        button press=show("inline") buttonStyle=(demo == "inline" ? "filled" : "bordered") testId="tab-inline"
+          text "Inline detents"
+        button press=show("scroll") buttonStyle=(demo == "scroll" ? "filled" : "bordered") testId="tab-scroll"
+          text "Scroll"
+      if demo == "basic"
+        column position="relative" flex=1 min-height=0 box-sizing="border-box" testId="basic-demo"
+          column testId="basic-content" position="absolute" top=0 left=0 width="100%"
+            SheetHeader(title="Basic modal")
+              button press=bClose aria-label="Close" testId="basic-close" width=40 height=40 box-sizing="border-box" border-radius=20 background-color="#eeeeee" align-items="center" justify-content="center"
+                text "✕" color="#000000"
+            column height="calc(176px + env(safe-area-inset-bottom))" box-sizing="border-box" padding-bottom="env(safe-area-inset-bottom)" align-items="center" justify-content="center" gap=12
+              text "Swipe down or tap scrim to dismiss" color="#000000"
+              button press=bTap buttonStyle="bordered" testId="basic-tap"
+                text `Tapped ${bTaps}`
+          column position="absolute" inset=0 padding=16 gap=12 background-color="#f2f2f7"
+            text "Basic modal" font-size=22 font-weight=700
+            button press=bOpen buttonStyle="filled" testId="basic-open"
+              text "Open sheet"
+            text `index ${bIndex}` testId="basic-index"
+            text `settled ${bSettled}` testId="basic-settled"
+          swm-bottom-sheet testId="basic-sheet" contentId="basic-content" position="absolute" inset=0 modal=true index=bIndex detents=[SheetDetent(value="0", programmatic=none, insets=none, scrimOpacity=none), SheetDetent(value="content", programmatic=none, insets=none, scrimOpacity=none)] scrimColor="rgba(0, 0, 0, 0.5)" surfaceColor="#ffffff" surfaceCornerRadii=[16, 16, 0, 0] handlesCloseRequest=true indexchange=bChanged settle=bRested closerequest=bClose
+      if demo == "inline"
+        column position="relative" flex=1 min-height=0 box-sizing="border-box" testId="inline-demo"
+          column testId="inline-content" position="absolute" top=0 left=0 width="100%"
+            SheetHeader(title="Inline with detents")
+              button press=iClose aria-label="Close" testId="inline-close" width=40 height=40 box-sizing="border-box" border-radius=20 background-color="#eeeeee" align-items="center" justify-content="center"
+                text "✕" color="#000000"
+            column height=176 box-sizing="border-box" align-items="center" justify-content="center" gap=12
+              text "Section 1" color="#000000"
+              button press=iTap buttonStyle="bordered" testId="inline-tap"
+                text `Tapped ${iTaps}`
+            column height="calc(176px + env(safe-area-inset-bottom))" box-sizing="border-box" padding-bottom="env(safe-area-inset-bottom)" align-items="center" justify-content="center" border-top="1px solid #eeeeee"
+              text "Section 2" color="#000000"
+          column position="absolute" inset=0 padding=16 gap=12 background-color="#f2f2f7"
+            text "Inline with detents" font-size=22 font-weight=700
+            row gap=8
+              button press=iOpen buttonStyle="filled" testId="inline-open"
+                text "Open sheet"
+              button press=iOpenFully buttonStyle="bordered" testId="inline-open-full"
+                text "Open fully"
+            text `index ${iIndex}` testId="inline-index"
+            text `settled ${iSettled}` testId="inline-settled"
+            text `position ${iPosition}` testId="inline-position"
+          swm-bottom-sheet testId="inline-sheet" contentId="inline-content" position="absolute" inset=0 index=iIndex detents=[SheetDetent(value="0", programmatic=none, insets=none, scrimOpacity=none), SheetDetent(value="256", programmatic=none, insets=none, scrimOpacity=none), SheetDetent(value="content", programmatic=none, insets=none, scrimOpacity=none)] surfaceColor="#ffffff" surfaceCornerRadii=[16, 16, 0, 0] indexchange=iChanged settle=iRested positionchange=iMoved
+      if demo == "scroll"
+        column position="relative" flex=1 min-height=0 box-sizing="border-box" testId="scroll-demo"
+          column testId="scroll-content" position="absolute" top=0 left=0 width="100%" height=sRegion display="flex" flex-direction="column"
+            SheetHeader(title="Scroll coordination")
+              button press=sClose aria-label="Close" testId="scroll-close" width=40 height=40 box-sizing="border-box" border-radius=20 background-color="#eeeeee" align-items="center" justify-content="center"
+                text "✕" color="#000000"
+            scroll flex=1 min-height=0 testId="scroll-list" padding-bottom="calc(24px + env(safe-area-inset-bottom))"
+              for n in range(48) key=n
+                button press=sPick(`Item ${n + 1}`) width="100%" height=48 box-sizing="border-box" flex-shrink=0 padding-left=16 padding-right=16 justify-content="center" align-items="flex-start" border-bottom="1px solid #f0f0f0" testId=`row-${n + 1}`
+                  text `Item ${n + 1}` color="#1f1f1f"
+          column position="absolute" inset=0 padding=16 gap=12 background-color="#f2f2f7"
+            text "Scroll coordination" font-size=22 font-weight=700
+            row gap=8 flex-wrap="wrap"
+              button press=sCycleExpand buttonStyle="bordered" testId="scroll-expand"
+                text `Expand: ${sExpand}`
+              button press=sCycleCollapse buttonStyle="bordered" testId="scroll-collapse"
+                text `Collapse: ${sCollapse}`
+            row gap=8
+              button press=sOpen buttonStyle="filled" testId="scroll-open"
+                text "Open preview"
+              button press=sOpenFully buttonStyle="bordered" testId="scroll-open-full"
+                text "Open fully"
+            text `index ${sIndex}` testId="scroll-index"
+            text `settled ${sSettled}` testId="scroll-settled"
+            text `picked ${sPicked}` testId="scroll-picked"
+          swm-bottom-sheet testId="scroll-sheet" contentId="scroll-content" position="absolute" inset=0 index=sIndex detents=[SheetDetent(value="0", programmatic=none, insets=none, scrimOpacity=none), SheetDetent(value="320", programmatic=none, insets=none, scrimOpacity=none), SheetDetent(value="content", programmatic=none, insets=none, scrimOpacity=none)] scrollExpand=some(sExpand) scrollCollapse=some(sCollapse) surfaceColor="#ffffff" surfaceCornerRadii=[16, 16, 0, 0] indexchange=sChanged settle=sRested regionchange=sSized
+
+// The sheet's header (demoShared's SheetHeader): a grabber, then a close
+// button and the title over a hairline. 80 points tall.
+component SheetHeader
+  props
+    title: string
+  slot
+  view
+    column flex-shrink=0
+      column align-items="center" padding-top=8 padding-bottom=4
+        view width=36 height=4 border-radius=2 background-color="#dddddd"
+      row align-items="center" gap=16 height=64 box-sizing="border-box" padding-left=16 padding-right=16 border-bottom="1px solid #eeeeee"
+        children
+        text title font-size=20 font-weight=700 color="#000000"

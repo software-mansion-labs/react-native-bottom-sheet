@@ -1,0 +1,66 @@
+{
+  "kind": "interface",
+  "name": "@swmansion/exact-bottom-sheet",
+  "version": "0.1.0",
+  "substitute": "implementation",
+  "shapes": {
+    "SheetInsets": {
+      "left": "number",
+      "right": "number",
+      "bottom": "number"
+    },
+    "SheetDetent": {
+      "value": "string",
+      "programmatic": "option<bool>",
+      "insets": "option<SheetInsets>",
+      "scrimOpacity": "option<number>"
+    },
+    "SheetShadow": {
+      "offsetX": "number",
+      "offsetY": "number",
+      "blurRadius": "number",
+      "spreadDistance": "number",
+      "color": "string",
+      "opacity": "number"
+    },
+    "SheetPosition": {
+      "position": "number",
+      "index": "number"
+    },
+    "SheetRegion": {
+      "width": "number",
+      "height": "number"
+    }
+  },
+  "views": {
+    "swm-bottom-sheet": {
+      "props": {
+        "contentId": "string",
+        "detents": "SheetDetent[]",
+        "index": "number",
+        "topInset": "option<number>",
+        "modal": "option<bool>",
+        "handlesCloseRequest": "option<bool>",
+        "animateIn": "option<bool>",
+        "animateContentHeight": "option<bool>",
+        "settleDuration": "option<number>",
+        "scrollExpand": "option<string>",
+        "scrollCollapse": "option<string>",
+        "scrimColor": "option<string>",
+        "scrimLabel": "option<string>",
+        "surfaceColor": "option<string>",
+        "surfaceCornerRadii": "option<number[]>",
+        "surfaceCornerCurve": "option<string>",
+        "surfaceShadows": "option<SheetShadow[]>"
+      },
+      "events": [
+        { "event": "indexchange", "args": ["number"] },
+        { "event": "settle", "args": ["number"] },
+        { "event": "positionchange", "args": ["SheetPosition"] },
+        { "event": "regionchange", "args": ["SheetRegion"] },
+        { "event": "closerequest", "args": [] }
+      ]
+    }
+  },
+  "names": []
+}

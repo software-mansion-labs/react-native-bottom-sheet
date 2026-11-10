@@ -1,0 +1,4 @@
+test "the basic modal opens to its content detent"
+  tap "basic-open"
+  clock settle
+  expect text "basic-index" == "index 1"

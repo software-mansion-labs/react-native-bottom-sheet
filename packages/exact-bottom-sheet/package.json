@@ -1,0 +1,17 @@
+{
+  "name": "@swmansion/exact-bottom-sheet",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Experimental: @swmansion/react-native-bottom-sheet's native sheet as an Exact package view (iOS and web), reusing the library's ios/HostingView and src/web code in place.",
+  "license": "MIT",
+  "exports": {
+    ".": "./exact.json",
+    "./apple": "./apple/exact.json",
+    "./web": "./web/exact.json"
+  },
+  "exact": {
+    "repository": "https://github.com/expo/exact.git",
+    "commit": "956ae33a35ffa5313d7be3cebc55ed84f9480e0a",
+    "bun": "1.4.2"
+  }
+}

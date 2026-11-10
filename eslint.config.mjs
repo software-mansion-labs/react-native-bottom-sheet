@@ -26,6 +26,16 @@ export default defineConfig([
     },
   },
   {
-    ignores: ['**/build/', 'docs/', 'node_modules/', 'lib/'],
+    ignores: [
+      '**/build/',
+      'docs/',
+      'node_modules/',
+      'lib/',
+      'packages/exact-bottom-sheet/web/generated/',
+      'packages/exact-demo/target/',
+      'packages/exact-demo/.exact/',
+      'packages/exact-demo/node_modules/',
+      'packages/exact-demo/app.contract.d.ts',
+    ],
   },
 ]);
