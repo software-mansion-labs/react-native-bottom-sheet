@@ -1,6 +1,6 @@
 /*
- * The page fills the window and never scrolls: each slide is a real sheet, so
- * moving between them is the library's job.
+ * The page fills the window below the navbar and never scrolls: each slide is a
+ * real sheet, so moving between them is the library's job.
  */
 .landing {
   --peek: 56px;
@@ -24,7 +24,7 @@
   --white: var(--swm-white);
 
   position: fixed;
-  inset: 0;
+  inset: var(--ifm-navbar-height) 0 0;
   overflow: hidden;
   background: var(--navy-deep);
   color: var(--navy);
@@ -173,31 +173,4 @@
   .reveal[data-in='false'] {
     transform: none;
   }
-}
-
-/*
- * The hero sheet's lowest stop, raised by the next slide's peek, so the hero
- * shows as much of its sheet as it does on its own. The hero reads it from the
- * root before the page's class is there, so it outranks the hero's own instead.
- */
-:global(:root:root) {
-  --hero-stop: 152px;
-}
-
-@media (min-width: 420px) {
-  :global(:root:root) {
-    --hero-stop: 184px;
-  }
-}
-
-/* Clear over the hero, and the docs' own over a slide. */
-:global(html.landing-page .navbar) {
-  transition:
-    background-color 200ms ease,
-    box-shadow 200ms ease;
-}
-
-:global(html.landing-page[data-landing-covered] .navbar) {
-  background-color: var(--ifm-navbar-background-color);
-  box-shadow: var(--ifm-navbar-shadow);
 }

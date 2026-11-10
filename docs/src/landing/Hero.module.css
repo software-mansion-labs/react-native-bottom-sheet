@@ -6,7 +6,7 @@
   --hero-stop: 96px;
 }
 
-/* Fills the first screen. The navbar floats over it. */
+/* Fills the screen below the navbar. */
 .hero {
   /* Matches the navbar's. */
   --gutter: var(--ifm-navbar-padding-horizontal);
@@ -22,8 +22,7 @@
   --sheet-guide: rgb(255 255 255 / 0.22);
 
   position: relative;
-  height: 100vh;
-  height: 100dvh;
+  height: 100%;
   overflow: hidden;
   color: var(--ink);
   background-color: var(--page);
@@ -57,11 +56,10 @@
   outline-offset: 2px;
 }
 
-/* Every layer starts below the navbar, so the sheet's '100%' ends there. */
 .copy,
 .sheetLayer {
   position: absolute;
-  inset: var(--ifm-navbar-height) 0 0;
+  inset: 0;
 }
 
 .copy {

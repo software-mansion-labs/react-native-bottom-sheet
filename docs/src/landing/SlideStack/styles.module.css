@@ -21,7 +21,6 @@
   inset: 0;
   overflow: hidden;
   transform-origin: 50% 0;
-  transition: border-radius 200ms ease;
   will-change: transform;
 }
 
@@ -58,6 +57,11 @@
 
 .surface[data-tone='ending'] {
   background: var(--sheet-ending);
+}
+
+/* The ending reads as the page's last screen, not a card: square corners. */
+:is(.surface, .slide)[data-tone='ending'] {
+  border-radius: 0;
 }
 
 .slide {
@@ -139,12 +143,6 @@
     pointer-events: none;
   }
 
-  /* The hero's own sheet is this color, so the bar after it takes the other one. */
-  .nextBar[data-follows-hero='true'] {
-    background: var(--white);
-    color: var(--navy);
-  }
-
   .nextBar small {
     display: block;
     font-size: 11.5px;
@@ -159,9 +157,8 @@
   }
 }
 
-/* The slides open up to the docs navbar, which stays over the page. */
 .slides {
   position: absolute;
-  inset: var(--ifm-navbar-height) 0 0;
+  inset: 0;
   pointer-events: none;
 }

@@ -348,13 +348,10 @@ html:not(.landing-page) .navbar__items--right > .navbar-docs {
   }
 }
 
-/* The landing page's navbar floats over the hero. */
+/* The landing page's navbar stays put, and the page moves beneath it. */
 html.landing-page .navbar {
   position: fixed;
   inset: 0 0 auto;
-  background-color: transparent;
-  border-bottom-color: transparent;
-  box-shadow: none;
 }
 
 /* ---------- Search ---------- */

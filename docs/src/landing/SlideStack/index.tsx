@@ -25,6 +25,9 @@ export type Slide = {
 /** How much of the next sheet shows at the bottom of a slide. */
 const PEEK = 56;
 const DETENTS: [number, `${number}%`] = [PEEK, '100%'];
+// The hero is the page as it first loads, so nothing waits on top of it: the
+// sheet after it rests below the screen until a scroll brings it up.
+const DETENTS_AFTER_HERO: [number, `${number}%`] = [0, '100%'];
 const RECEDE_QUERY =
   '(min-width: 861px) and (prefers-reduced-motion: no-preference)';
 
@@ -34,6 +37,8 @@ const SETTLE_MS = 450;
 const WHEEL_QUIET_MS = 140;
 // Wheel movement that commits to a step, so a resting hand's jitter doesn't.
 const WHEEL_COMMIT = 20;
+// How far a finger travels up the hero before the sheet after it comes up.
+const SWIPE_COMMIT = 40;
 
 /** Whether something under the pointer, like a list, can use this scroll itself. */
 const scrollsInside = (target: EventTarget | null, direction: number) => {
@@ -125,6 +130,57 @@ const useWheelSteps = (step: (way: number) => void) => {
     window.addEventListener('wheel', onWheel, { passive: false });
     return () => window.removeEventListener('wheel', onWheel);
   }, [step]);
+};
+
+/**
+ * With nothing of the next sheet on screen, a finger brings it up by swiping up
+ * the hero. A swipe that moved the hero's own sheet is that sheet's: the library
+ * cancels its moves.
+ */
+const useSwipeUp = (
+  stack: { current: HTMLElement | null },
+  slides: { current: HTMLElement | null },
+  step: (way: number) => void
+) => {
+  useEffect(() => {
+    const target = stack.current!;
+    let start: { x: number; y: number } | null = null;
+    let isSheetDrag = false;
+
+    const onStart = (event: TouchEvent) => {
+      // A slide's sheets take a finger wherever it lands.
+      if (slides.current!.contains(event.target as Node)) {
+        start = null;
+        return;
+      }
+      const touch = event.touches[0]!;
+      start =
+        event.touches.length === 1
+          ? { x: touch.clientX, y: touch.clientY }
+          : null;
+      isSheetDrag = false;
+    };
+    const onMove = (event: TouchEvent) => {
+      if (event.defaultPrevented) isSheetDrag = true;
+    };
+    const onEnd = (event: TouchEvent) => {
+      const touch = event.changedTouches[0];
+      if (start === null || touch === undefined || isSheetDrag) return;
+      const dy = start.y - touch.clientY;
+      const dx = Math.abs(touch.clientX - start.x);
+      start = null;
+      if (dy > SWIPE_COMMIT && dy > dx) step(1);
+    };
+
+    target.addEventListener('touchstart', onStart, { passive: true });
+    target.addEventListener('touchmove', onMove, { passive: true });
+    target.addEventListener('touchend', onEnd);
+    return () => {
+      target.removeEventListener('touchstart', onStart);
+      target.removeEventListener('touchmove', onMove);
+      target.removeEventListener('touchend', onEnd);
+    };
+  }, [stack, slides, step]);
 };
 
 const useKeySteps = (step: (way: number) => void, count: number) => {
@@ -227,7 +283,7 @@ const SlideSheet = ({
   return (
     <div className={styles.host}>
       <BottomSheet
-        detents={DETENTS}
+        detents={followsHero ? DETENTS_AFTER_HERO : DETENTS}
         // Without it, receding moves this host above the screen, which the
         // library reads as a status bar and shortens the sheet's '100%' for.
         topInset={0}
@@ -247,7 +303,7 @@ const SlideSheet = ({
         // them a slide moves as a single GPU transform.
         surface={<div className={styles.surface} data-tone={slide.tone} />}
       >
-        <div className={styles.slide}>
+        <div className={styles.slide} data-tone={slide.tone}>
           <button
             className={clsx(landing.grab, styles.handle)}
             type="button"
@@ -256,17 +312,16 @@ const SlideSheet = ({
             onClick={isNext ? onOpen : undefined}
           >
             <span className={styles.grabber} />
-            <span
-              ref={nextBar}
-              className={styles.nextBar}
-              data-follows-hero={followsHero}
-            >
-              <span>
-                <small>Next</small>
-                {slide.label}
+            {/* Rests below the screen after the hero, so it has no bar to show. */}
+            {!followsHero && (
+              <span ref={nextBar} className={styles.nextBar}>
+                <span>
+                  <small>Next</small>
+                  {slide.label}
+                </span>
+                <Icon d="M6 15l6-6 6 6" size={20} />
               </span>
-              <Icon d="M6 15l6-6 6 6" size={20} />
-            </span>
+            )}
           </button>
           <div
             ref={body}
@@ -301,7 +356,7 @@ export const SlideStack = ({
   // 0 is the hero, and each slide after it is one higher.
   const [active, setActive] = useState(0);
   const root = useRef<HTMLDivElement>(null);
-  // Where the slides move: the screen below the docs navbar.
+  // Where the slides move, kept apart from the hero.
   const area = useRef<HTMLDivElement>(null);
   const layers = useRef<(HTMLDivElement | null)[]>([]);
   const receders = useRef<(HTMLDivElement | null)[]>([]);
@@ -317,18 +372,9 @@ export const SlideStack = ({
     [count]
   );
   useWheelSteps(step);
+  useSwipeUp(root, area, step);
   useKeySteps(step, count);
   useGrabbingCursor();
-
-  // The navbar floats over the hero, and needs a background over anything else.
-  useEffect(() => {
-    if (active === 0) return;
-    const root = document.documentElement;
-    root.dataset.landingCovered = '';
-    return () => {
-      delete root.dataset.landingCovered;
-    };
-  }, [active]);
 
   // Written directly on the elements that need it, never through React state.
   const applyPosition = useCallback(
@@ -349,7 +395,6 @@ export const SlideStack = ({
         progress > 0
           ? `scale(${1 - 0.06 * progress}) translateY(${-1.5 * progress}%)`
           : '';
-      below.style.borderRadius = progress > 0 ? '28px' : '';
       dim.style.opacity = `${0.45 * progress}`;
     },
     [recedes]
