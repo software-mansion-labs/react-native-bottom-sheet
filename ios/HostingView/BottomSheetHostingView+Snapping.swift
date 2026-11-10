@@ -186,7 +186,7 @@ extension BottomSheetHostingView {
     animation.delegate = self
 
     setSheetTranslation(targetTy)
-    fitScrollIndicators(of: initialScrollViewStates)
+    refitScrollIndicators(atTranslation: currentTy)
     sheetContainer.layer.add(animation, forKey: Self.springAnimationKey)
     addCardAnimations(matching: animation)
     activeSpring = spring
@@ -215,7 +215,9 @@ extension BottomSheetHostingView {
 
   private func stepSpring(targetTime: CFTimeInterval) {
     guard let spring = activeSpring else { return }
-    emitPosition(overrideTy: spring.value(at: targetTime))
+    let ty = spring.value(at: targetTime)
+    refitScrollIndicators(atTranslation: ty)
+    emitPosition(overrideTy: ty)
   }
 
   private func finishSpring() {
@@ -230,7 +232,7 @@ extension BottomSheetHostingView {
     removeSettleAnimations()
 
     setSheetTranslation(targetTy)
-    fitScrollIndicators(of: initialScrollViewStates)
+    refitScrollIndicators()
     emitPosition()
     scrimPinnedFull = false
     setContentInteractionEnabled(true)

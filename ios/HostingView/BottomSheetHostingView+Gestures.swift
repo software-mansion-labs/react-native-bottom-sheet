@@ -109,7 +109,7 @@ extension BottomSheetHostingView {
         cancelContentTouchesForPanIfNeeded()
         didMoveSheetDuringPan = true
         setSheetTranslation(newTy)
-        fitScrollIndicators(of: activeScrollViewStates)
+        refitScrollIndicators()
         emitPosition()
       }
       pinActiveScrollViews()

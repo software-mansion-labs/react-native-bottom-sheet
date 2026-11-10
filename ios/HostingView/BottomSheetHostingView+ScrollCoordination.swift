@@ -20,10 +20,12 @@ private extension UIScrollView {
 final class ScrollIndicatorFit {
   var callerInset: CGFloat
   var appliedInset: CGFloat
+  let inverted: Bool
 
-  init(inset: CGFloat) {
+  init(inset: CGFloat, inverted: Bool) {
     callerInset = inset
     appliedInset = inset
+    self.inverted = inverted
   }
 }
 
@@ -399,22 +401,40 @@ extension BottomSheetHostingView {
   func fitScrollIndicators(of states: [ActiveScrollViewState]) {
     for state in states {
       guard let scrollView = state.scrollView else { continue }
-      let hidden = max(0, scrollView.convert(scrollView.bounds, to: self).maxY - bounds.height)
-      let insets = scrollView.verticalScrollIndicatorInsets
-      let current = state.inverted ? insets.top : insets.bottom
-      let fit = scrollIndicatorFits.object(forKey: scrollView) ?? ScrollIndicatorFit(inset: current)
-      scrollIndicatorFits.setObject(fit, forKey: scrollView)
-      // Any other inset than the one applied last is the caller's.
-      if current != fit.appliedInset {
-        fit.callerInset = current
-      }
-      fit.appliedInset = fit.callerInset + hidden
-      guard fit.appliedInset != current else { continue }
-      if state.inverted {
-        scrollView.verticalScrollIndicatorInsets.top = fit.appliedInset
-      } else {
-        scrollView.verticalScrollIndicatorInsets.bottom = fit.appliedInset
-      }
+      fitScrollIndicator(of: scrollView, inverted: state.inverted, shift: 0)
+    }
+  }
+
+  /// Refits every scroll view fitted so far, as the sheet moves. A visible
+  /// indicator then shrinks and grows with the sheet, as in a native sheet,
+  /// rather than keeping the size of the detent it was last shown at. During a
+  /// settle the model transform already holds the target, so `translation`
+  /// passes the sheet's visual position.
+  func refitScrollIndicators(atTranslation translation: CGFloat? = nil) {
+    let shift = translation.map { $0 - sheetContainer.transform.ty } ?? 0
+    for case let scrollView as UIScrollView in scrollIndicatorFits.keyEnumerator().allObjects {
+      guard let fit = scrollIndicatorFits.object(forKey: scrollView) else { continue }
+      fitScrollIndicator(of: scrollView, inverted: fit.inverted, shift: shift)
+    }
+  }
+
+  private func fitScrollIndicator(of scrollView: UIScrollView, inverted: Bool, shift: CGFloat) {
+    let hidden = max(0, scrollView.convert(scrollView.bounds, to: self).maxY + shift - bounds.height)
+    let insets = scrollView.verticalScrollIndicatorInsets
+    let current = inverted ? insets.top : insets.bottom
+    let fit = scrollIndicatorFits.object(forKey: scrollView)
+      ?? ScrollIndicatorFit(inset: current, inverted: inverted)
+    scrollIndicatorFits.setObject(fit, forKey: scrollView)
+    // Any other inset than the one applied last is the caller's.
+    if current != fit.appliedInset {
+      fit.callerInset = current
+    }
+    fit.appliedInset = fit.callerInset + hidden
+    guard fit.appliedInset != current else { return }
+    if inverted {
+      scrollView.verticalScrollIndicatorInsets.top = fit.appliedInset
+    } else {
+      scrollView.verticalScrollIndicatorInsets.bottom = fit.appliedInset
     }
   }
 
@@ -478,7 +498,7 @@ extension BottomSheetHostingView {
           drag.handoff?.releasedAtLargestDetent = true
           handoff.pin.stopPinning()
           setSheetTranslation(handoff.range.minTy)
-          fitScrollIndicators(of: [handoff.pin])
+          refitScrollIndicators()
           emitPosition()
         }
         return
@@ -493,7 +513,7 @@ extension BottomSheetHostingView {
       let newTy = max(handoff.range.minTy, handoff.anchorTy + y - handoff.anchorY)
       if abs(newTy - sheetContainer.transform.ty) > .ulpOfOne {
         setSheetTranslation(newTy)
-        fitScrollIndicators(of: [handoff.pin])
+        refitScrollIndicators()
         emitPosition()
       }
 
