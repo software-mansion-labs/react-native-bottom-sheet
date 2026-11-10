@@ -30,7 +30,8 @@
 
 /* The hero's roles swap: a dark page with a light sheet rising over it. */
 [data-theme='dark'] .landing {
-  --sheet: var(--swm-navy-light-100);
+  /* The hero's page color, as in the light theme. */
+  --sheet: var(--ifm-background-color);
   --sheet-shadow:
     0 -18px 56px -4px rgb(0 0 0 / 0.75), 0 -3px 12px rgb(0 0 0 / 0.5);
   --dim: black;
