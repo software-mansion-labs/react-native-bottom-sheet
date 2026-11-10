@@ -64,6 +64,12 @@ export interface ModalBottomSheetProps extends Omit<
    * unaffected. An explicit `topInset` is respected, and the sheet beneath is
    * then shifted up as far as its edge needs to show.
    *
+   * It dims like a native sheet as well: each sheet it covers is dimmed on its
+   * own card, by 12% black under one stacked sheet and 16% under two or more
+   * (29% and 38% in dark appearance), and this sheet's scrim is not painted over the open sheets beneath it,
+   * whose scrim already dims the background, while a tap there still reaches
+   * it.
+   *
    * Set it on the sheet that goes on top. Only sheets that fill the same area
    * stack: a `nativeOverlay` sheet over a portal sheet does when the provider
    * spans the window.

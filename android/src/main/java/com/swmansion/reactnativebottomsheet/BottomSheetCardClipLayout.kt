@@ -2,7 +2,9 @@ package com.swmansion.reactnativebottomsheet
 
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Outline
+import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Rect
 import android.graphics.RectF
@@ -59,6 +61,10 @@ internal class BottomSheetCardClipLayout(context: Context) :
   }
 
   private var clipMode = ClipMode.NONE
+
+  /** Dims the card while stacked sheets cover it, drawn over the surface and content. */
+  private val dimPaint = Paint().apply { color = Color.BLACK }
+  private var dimAlpha = 0f
 
   override val pointerEvents: PointerEvents = PointerEvents.BOX_NONE
 
@@ -159,6 +165,14 @@ internal class BottomSheetCardClipLayout(context: Context) :
     if (clipMode == ClipMode.CANVAS_PATH) invalidate()
   }
 
+  /** How dark the card is dimmed, in 0-1. */
+  fun setDim(value: Float) {
+    if (value == dimAlpha) return
+    dimAlpha = value
+    dimPaint.alpha = (value * 255f).toInt().coerceIn(0, 255)
+    invalidate()
+  }
+
   /** The elevation shadow, cast from the card's outline, in px. */
   fun setCardElevation(value: Float) {
     if (value == elevation) return
@@ -239,6 +253,8 @@ internal class BottomSheetCardClipLayout(context: Context) :
     val saveCount = canvas.save()
     if (clipMode == ClipMode.CANVAS_PATH) canvas.clipPath(buildCardPath())
     super.dispatchDraw(canvas)
+    // Inside the clip, so it is cut to the card's corners as the content is.
+    if (dimAlpha > 0f) canvas.drawRect(cardRect, dimPaint)
     canvas.restoreToCount(saveCount)
   }
 

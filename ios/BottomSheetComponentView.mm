@@ -147,7 +147,7 @@ using namespace facebook::react;
   // `prepareForRecycle`, so it diffs correctly across recycling.
   if (newViewProps.nativeOverlay != _nativeOverlay) {
     _nativeOverlay = newViewProps.nativeOverlay;
-    _sheetView.nativeOverlay = _nativeOverlay;
+    [_sheetView setNativeOverlay:_nativeOverlay];
     [self updateOverlayPresentation];
     [self updatePortalHost];
   }
@@ -162,7 +162,7 @@ using namespace facebook::react;
   if (newViewProps.openOrder != _openOrder) {
     BOOL didOpen = newViewProps.openOrder > _openOrder;
     _openOrder = newViewProps.openOrder;
-    _sheetView.openOrder = _openOrder;
+    [_sheetView setOpenOrder:_openOrder];
     if (didOpen) {
       [self bringOverlayToFront];
     }
@@ -561,8 +561,8 @@ using namespace facebook::react;
   // reused instance starts from the default presentation.
   _nativeOverlay = NO;
   _openOrder = 0;
-  _sheetView.nativeOverlay = NO;
-  _sheetView.openOrder = 0;
+  [_sheetView setNativeOverlay:NO];
+  [_sheetView setOpenOrder:0];
   _sheetView.stacked = NO;
   [self restoreInlinePresentation];
   [_portalHost setSheet:self isModal:NO];

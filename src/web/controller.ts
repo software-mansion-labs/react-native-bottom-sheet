@@ -22,7 +22,7 @@ import { SheetGestures } from './gestures';
 import { applyScrim, detentIndex } from './scrim';
 import { ScrollMomentum } from './scrollCoordination';
 import { SheetSnapping } from './snapping';
-import { setStackRegistration, updateStacks } from './stacking';
+import { applyStacks, setStackRegistration, updateStacks } from './stacking';
 import type {
   BottomSheetWebCallbacks,
   BottomSheetWebConfig,
@@ -64,6 +64,8 @@ export class BottomSheetWebController {
   hostRect: DOMRect | null = null;
   /** The scale that pushes the sheet back, after its translation. */
   private stackTransform = '';
+  /** How much of the scrim is painted; see `setScrimPaint`. */
+  scrimPaint = 1;
   lastReportedError: string | null = null;
 
   scrimPinnedFull = false;
@@ -207,8 +209,8 @@ export class BottomSheetWebController {
     }
     this.updateScrim();
     this.updateCloseRequestRegistration();
-    // The open order, `stacked` and the target detent all shape the stack.
-    updateStacks();
+    // The open order and `stacked` shape the stack without the sheet moving.
+    applyStacks();
   }
 
   emit(event: (callbacks: BottomSheetWebCallbacks) => void) {
@@ -444,6 +446,17 @@ export class BottomSheetWebController {
 
   cardSides(position: number) {
     return this.card.cardSides(position);
+  }
+
+  setStackDim(opacity: number) {
+    const dim = this.elements?.stackDim;
+    if (dim) dim.style.opacity = String(opacity);
+  }
+
+  setScrimPaint(opacity: number) {
+    if (opacity === this.scrimPaint) return;
+    this.scrimPaint = opacity;
+    this.updateScrim();
   }
 
   setStackTransform(

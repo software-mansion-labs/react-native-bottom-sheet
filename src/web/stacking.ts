@@ -10,6 +10,22 @@ const STACK_WIDTH_INSET = 32;
 // Matches `stackPeek` on iOS and `STACK_PEEK` on Android.
 export const STACK_PEEK = 10;
 
+// How dark a covered card is dimmed, in black, under one stacked sheet and
+// under two or more, in light and dark appearance: what native iOS sheets draw
+// over a covered sheet. Matches `stackDimming` on iOS and Android.
+const stackDimming = (dark: boolean) =>
+  dark ? { single: 0.29, deep: 0.38 } : { single: 0.12, deep: 0.16 };
+
+// The appearance a covered card's dimming follows, read once it is needed.
+let darkScheme: MediaQueryList | null = null;
+const isDarkScheme = () => {
+  if (darkScheme === null) {
+    darkScheme = window.matchMedia('(prefers-color-scheme: dark)');
+    darkScheme.addEventListener('change', () => applyStacks());
+  }
+  return darkScheme.matches;
+};
+
 // How far a sheet is pushed back for `progress`, the covering sheet's linear
 // progress towards its tallest detent: the curve measured on native iOS sheets,
 // which push back quickly at first and ease into the end.
@@ -35,6 +51,13 @@ export type StackSheet = {
   setStackTransform(
     transform: { scale: number; originX: number; originY: number } | null
   ): void;
+  /** Dims the card while stacked sheets cover it, in 0-1. */
+  setStackDim(opacity: number): void;
+  /**
+   * How much of the scrim is painted, in 0-1. A stacked sheet leaves the
+   * background to the sheet beneath it, which dims it already.
+   */
+  setScrimPaint(opacity: number): void;
 };
 
 // A `stacked` modal sheet pushes back the open modal sheets beneath it, as
@@ -45,6 +68,10 @@ export type StackSheet = {
 //
 // The sheet beneath never moves on its own clock: its transform is a function
 // of the positions of the sheets above, applied in the frame they move in.
+//
+// Dimming follows native sheets too: a covered card is dimmed on its own, and a
+// stacked sheet leaves the background to the scrim of the sheet beneath it, so
+// the background is dimmed once however many sheets are open.
 
 // Every attached sheet. Few enough that each update walks them all.
 const sheets: StackSheet[] = [];
@@ -60,8 +87,10 @@ export const setStackRegistration = (
   } else {
     sheets.splice(index, 1);
     sheet.setStackTransform(null);
+    sheet.setStackDim(0);
+    sheet.setScrimPaint(1);
   }
-  updateStacks();
+  applyStacks();
 };
 
 const isParticipant = (sheet: StackSheet) =>
@@ -86,6 +115,17 @@ const isAbove = (sheet: StackSheet, other: StackSheet) => {
  */
 const restingPosition = (sheet: StackSheet) =>
   sheet.detents[sheet.targetIndex]?.position ?? 0;
+
+/**
+ * How open a sheet is, from closed (0) to any open detent (1), and in between
+ * as it moves: how far it dims what it covers.
+ */
+const openProgress = (sheet: StackSheet) =>
+  interpolate(
+    sheet.hostHeight - sheet.translateY,
+    sheet.detents,
+    sheet.detents.map((detent) => (detent.position > 0 ? 1 : 0))
+  );
 
 /** Only sheets that fill the same area stack; positions compare directly. */
 const fillSameArea = (sheet: StackSheet, other: StackSheet) => {
@@ -135,26 +175,37 @@ const stackPush = (above: StackSheet, resting: number) => {
 
 /**
  * Pushes the sheet back as far as the `stacked` sheet above it that covers it
- * most, in progress and shift alike.
+ * most, in progress and shift alike, and dims it under all of them. Returns
+ * the stacked sheets above it.
  */
 const follow = (sheet: StackSheet, participants: StackSheet[]) => {
-  const resting = restingPosition(sheet);
-  if (!isParticipant(sheet) || resting <= 0) {
-    sheet.setStackTransform(null);
-    return;
-  }
+  const above = isParticipant(sheet)
+    ? participants.filter(
+        (other) =>
+          other !== sheet &&
+          other.config?.stacked === true &&
+          isAbove(other, sheet) &&
+          fillSameArea(other, sheet)
+      )
+    : [];
+  // As native sheets dim a card under one sheet, and a little more under two
+  // or more. Each fades in and out with its sheet.
+  const covering = above.map(openProgress).sort((a, b) => b - a);
+  const dimming = stackDimming(isDarkScheme());
+  sheet.setStackDim(
+    dimming.single * (covering[0] ?? 0) +
+      (dimming.deep - dimming.single) * (covering[1] ?? 0)
+  );
 
+  // A sheet that is closing is not pushed: the push reads where it rests.
+  const resting = restingPosition(sheet);
+  if (above.length === 0 || resting <= 0) {
+    sheet.setStackTransform(null);
+    return above;
+  }
   let progress = 0;
   let shift = 0;
-  for (const other of participants) {
-    if (
-      other === sheet ||
-      other.config?.stacked !== true ||
-      !isAbove(other, sheet) ||
-      !fillSameArea(other, sheet)
-    ) {
-      continue;
-    }
+  for (const other of above) {
     const push = stackPush(other, resting);
     progress = Math.max(progress, push.progress);
     shift = Math.max(shift, push.shift);
@@ -165,7 +216,7 @@ const follow = (sheet: StackSheet, participants: StackSheet[]) => {
     width > STACK_WIDTH_INSET ? 1 - (progress * STACK_WIDTH_INSET) / width : 1;
   if (scale >= 1) {
     sheet.setStackTransform(null);
-    return;
+    return above;
   }
   // The container's top is the card's. Scaling about a point above it also
   // moves the top up, by the origin's distance times how much the scale takes
@@ -175,16 +226,36 @@ const follow = (sheet: StackSheet, participants: StackSheet[]) => {
     originX: (left + right) / 2,
     originY: -shift / (1 - scale),
   });
+  return above;
 };
 
 /**
- * Finds how far every sheet is pushed back again and brings its transform up
- * to date. Cheap enough to run on every frame a sheet moves in: without a
- * stacked sheet it only finds each sheet unscaled, as it already is.
+ * Brings the stack up to date after a sheet moved. Free while no sheet is
+ * stacked.
  */
 export const updateStacks = () => {
+  if (sheets.some((sheet) => sheet.config?.stacked === true)) {
+    applyStacks();
+  }
+};
+
+/**
+ * Finds how far every sheet is pushed back and dimmed again and brings it up
+ * to date. Also run when a sheet's props change, which is when the last stacked
+ * sheet can go, to put the others back.
+ */
+export const applyStacks = () => {
   const participants = sheets.filter(isParticipant);
+  // How open the sheets beneath each stacked sheet are, which dim the
+  // background already.
+  const openBeneath = new Map<StackSheet, number>();
   for (const sheet of sheets) {
-    follow(sheet, participants);
+    const open = openProgress(sheet);
+    for (const above of follow(sheet, participants)) {
+      openBeneath.set(above, Math.max(openBeneath.get(above) ?? 0, open));
+    }
+  }
+  for (const sheet of sheets) {
+    sheet.setScrimPaint(1 - (openBeneath.get(sheet) ?? 0));
   }
 };

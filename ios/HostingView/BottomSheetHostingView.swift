@@ -53,7 +53,7 @@ public final class BottomSheetHostingView: UIView {
   }
 
   public var scrimColor: UIColor? = .clear {
-    didSet { scrimView.backgroundColor = scrimColor }
+    didSet { scrimPaintView.backgroundColor = scrimColor }
   }
 
   /// The label VoiceOver announces for the scrim while it is exposed as a
@@ -122,7 +122,7 @@ public final class BottomSheetHostingView: UIView {
       if stacked != oldValue {
         // It changes how tall the card may get, which bounds the detents.
         setNeedsLayout()
-        Self.updateStacks()
+        updateStackRegistration()
       }
     }
   }
@@ -131,7 +131,7 @@ public final class BottomSheetHostingView: UIView {
   public var openOrder: Int = 0 {
     didSet {
       if openOrder != oldValue {
-        Self.updateStacks()
+        Self.applyStacks()
       }
     }
   }
@@ -140,7 +140,7 @@ public final class BottomSheetHostingView: UIView {
   public var nativeOverlay: Bool = false {
     didSet {
       if nativeOverlay != oldValue {
-        Self.updateStacks()
+        Self.applyStacks()
       }
     }
   }
@@ -149,9 +149,14 @@ public final class BottomSheetHostingView: UIView {
   /// stacked sheet covers it. Apart from the scrim, which stays put, and from
   /// the sheet container, whose transform stays the sheet's translation alone.
   let stackView = UIView()
-  /// The candidates' settle animations the running stack animation was built
-  /// for, so it is rebuilt only when one starts or ends.
-  var stackAnimationSources: [CAKeyframeAnimation] = []
+  /// When the candidates' springs that the running stack animation follows
+  /// started, so it is rebuilt only when one starts or ends.
+  var stackAnimationSprings: [CFTimeInterval] = []
+  /// The `stacked` sheets above this one, which push it back and dim it.
+  var stackAbove: [BottomSheetHostingView] = []
+  /// Dims the card while stacked sheets cover it. A layer of the clipping
+  /// container, above the surface and content, so it is cut to the card.
+  let stackDimLayer = CALayer()
   public let sheetContainer = UIView()
   let clipContainer = CardClipView()
   /// Casts the card's shadows. A sibling below the clipping container, so the
@@ -162,6 +167,10 @@ public final class BottomSheetHostingView: UIView {
   /// corner radius cannot express. Nil while the layer's corners suffice.
   var cardMask: CAShapeLayer?
   let scrimView = BottomSheetScrimControl()
+  /// Paints the scrim. Apart from the scrim control, whose alpha also decides
+  /// whether it takes touches, so a stacked sheet can leave the background to
+  /// the sheet beneath it and still close on a tap there.
+  let scrimPaintView = UIView()
   var panGesture: SheetPanGestureRecognizer!
   var activeSpring: CriticalSpring?
   var activeSpringTargetIndex: Int = 0
@@ -229,9 +238,6 @@ public final class BottomSheetHostingView: UIView {
   /// The settle animation the card is following, kept so the content's keyframes
   /// can be rebuilt when a layout moves the content mid-settle.
   var cardSettleAnimation: CAKeyframeAnimation?
-  /// The sheet's running settle animation. A sheet this one covers rebuilds
-  /// its stack animation as this starts and ends.
-  var settleAnimation: CAKeyframeAnimation?
   /// The centers and sizes that the running content keyframes were built from.
   var contentAnimationLayouts: [CGRect] = []
 
@@ -250,7 +256,10 @@ public final class BottomSheetHostingView: UIView {
     backgroundColor = .clear
     clipsToBounds = false
 
-    scrimView.backgroundColor = scrimColor
+    scrimView.backgroundColor = .clear
+    scrimPaintView.backgroundColor = scrimColor
+    scrimPaintView.isUserInteractionEnabled = false
+    scrimView.addSubview(scrimPaintView)
     scrimView.alpha = 0
     scrimView.isHidden = true
     scrimView.addTarget(self, action: #selector(handleScrimPress), for: .touchUpInside)
@@ -277,6 +286,11 @@ public final class BottomSheetHostingView: UIView {
     shadowView.isUserInteractionEnabled = false
     sheetContainer.addSubview(shadowView)
     sheetContainer.addSubview(clipContainer)
+    stackDimLayer.backgroundColor = UIColor.black.cgColor
+    stackDimLayer.opacity = 0
+    // Above the surface and content, whatever order Fabric mounts them in.
+    stackDimLayer.zPosition = 1
+    clipContainer.layer.addSublayer(stackDimLayer)
 
     panGesture = SheetPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
     panGesture.delegate = self
@@ -290,6 +304,7 @@ public final class BottomSheetHostingView: UIView {
     if #available(iOS 17.0, *) {
       registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (self: Self, _) in
         self.updateCardShadowColors()
+        Self.updateStackDimming()
       }
     }
   }
@@ -304,6 +319,7 @@ public final class BottomSheetHostingView: UIView {
     }
     if traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
       updateCardShadowColors()
+      Self.updateStackDimming()
     }
   }
 
@@ -363,6 +379,7 @@ public final class BottomSheetHostingView: UIView {
     }
 
     scrimView.frame = bounds
+    scrimPaintView.frame = scrimView.bounds
     // Not through `frame`, which is undefined under the stack transform.
     stackView.bounds = bounds
     stackView.center = CGPoint(x: bounds.midX, y: bounds.midY)
@@ -377,6 +394,12 @@ public final class BottomSheetHostingView: UIView {
     // how short the content becomes. Sized from the top via frame — never via
     // anchorPoint.
     shadowView.frame = sheetContainer.bounds
+    // In sheet-container coordinates, which the clipping container keeps. It
+    // spans the whole container, and the clip cuts it to the card.
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    stackDimLayer.frame = sheetContainer.bounds
+    CATransaction.commit()
     // From the model translation: mid-settle the card animation drives the
     // presented geometry and the model already holds the target.
     applyCardGeometry(forPosition: maxHeight - sheetContainer.transform.ty)
@@ -384,8 +407,6 @@ public final class BottomSheetHostingView: UIView {
     // Report fresh native geometry so the component layer can push the content
     // wrapper's target size (and the overlay frame) into the shadow tree.
     eventDelegate?.bottomSheetHostingViewDidLayout(self)
-    // The host's size and the detents both shape the stack.
-    defer { Self.updateStacks() }
 
     if !hasLaidOut && !detentSpecs.isEmpty {
       let indexToApply = pendingIndex ?? targetIndex
@@ -417,6 +438,9 @@ public final class BottomSheetHostingView: UIView {
     }
 
     if activeSpring != nil || isPanning {
+      // Every other path moves the sheet, which updates the stack. The host's
+      // size and the detents shape it too.
+      Self.updateStacks()
       return
     }
     setSheetTranslation(translationY(for: targetIndex))
@@ -693,6 +717,7 @@ public final class BottomSheetHostingView: UIView {
     updateScrim(forPosition: position)
     updateSheetVisibility(forPosition: position)
     updateInteractionState()
+    Self.updateStackDimming()
     eventDelegate?.bottomSheetHostingView(
       self, didChangePosition: position, index: detentIndex(forPosition: position)
     )

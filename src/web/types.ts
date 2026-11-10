@@ -84,4 +84,6 @@ export type BottomSheetWebElements = Readonly<{
   /** Spans the sheet like `content`, so one transform scales the surface. */
   surface: HTMLElement;
   content: HTMLElement;
+  /** Dims the card while stacked sheets cover it, above the surface and content. */
+  stackDim: HTMLElement;
 }>;

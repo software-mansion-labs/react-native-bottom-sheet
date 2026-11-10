@@ -90,11 +90,6 @@
   _impl.modal = modal;
 }
 
-- (BOOL)nativeOverlay
-{
-  return _impl.nativeOverlay;
-}
-
 - (void)setNativeOverlay:(BOOL)nativeOverlay
 {
   _impl.nativeOverlay = nativeOverlay;
@@ -108,11 +103,6 @@
 - (void)setStacked:(BOOL)stacked
 {
   _impl.stacked = stacked;
-}
-
-- (NSInteger)openOrder
-{
-  return _impl.openOrder;
 }
 
 - (void)setOpenOrder:(NSInteger)openOrder

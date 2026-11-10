@@ -106,11 +106,17 @@ points lower, the sheet beneath shrinks in place, and its edge shows above the
 new sheet. Shorter detents are unaffected. With an explicit `topInset`, the
 sheet beneath is shifted up instead, as far as its edge needs to show.
 
-The sheet beneath is dimmed only by the top sheet’s own scrim, so use
-`scrimColor` and `scrimOpacity` to control it. Natively, a covered sheet is
-dimmed by about 12% black, which `scrimColor="rgba(0, 0, 0, 0.12)"`
-approximates. Only sheets that fill the same area stack: a `nativeOverlay` sheet
-stacks over a portal sheet when `BottomSheetProvider` spans the window.
+Stacked sheets dim like native ones too. Each sheet beneath a `stacked` sheet
+is dimmed on its own card, by 12% black, or 16% under two or more stacked
+sheets, fading in and out with them. In dark appearance it is 29% and 38%. A `stacked` sheet’s scrim isn’t painted
+over the open sheets beneath it, whose scrim already dims the background, so the
+background is dimmed once however many sheets are open, by the `scrimColor` of
+the sheet at the bottom. Native sheets dim it by 20% black, or 48% in dark
+appearance, which a `scrimColor` picked with `useColorScheme()` matches. A tap above a `stacked` sheet still
+closes it, as on its own.
+
+Only sheets that fill the same area stack: a `nativeOverlay` sheet stacks over a
+portal sheet when `BottomSheetProvider` spans the window.
 
 <StackedExample />
 

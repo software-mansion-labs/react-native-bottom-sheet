@@ -1,6 +1,7 @@
 package com.swmansion.reactnativebottomsheet
 
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Canvas
 import android.view.MotionEvent
 import android.view.View
@@ -88,25 +89,21 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     set(value) {
       if (stacking.stacked == value) return
       stacking.stacked = value
-      // It changes how tall the card may get, which bounds the content region and the detents.
+      // It changes how tall the card may get, which bounds the content region and the detents:
+      // republish the region's inset, then re-resolve the detents, as a detents change does.
       contentRegion.recomputeNativeGeometry()
       detents.refreshDetentsFromLayout()
-      requestLayout()
     }
 
   /** When the sheet last opened, relative to other sheets. */
-  var openOrder: Int
-    get() = stacking.openOrder
-    set(value) {
-      stacking.openOrder = value
-    }
+  fun setOpenOrder(value: Int) {
+    stacking.openOrder = value
+  }
 
   /** Whether the sheet is presented in the native overlay, above portal sheets. */
-  var nativeOverlay: Boolean
-    get() = stacking.nativeOverlay
-    set(value) {
-      stacking.nativeOverlay = value
-    }
+  fun setNativeOverlay(value: Boolean) {
+    stacking.nativeOverlay = value
+  }
 
   var scrollExpandCoordination: Int
     get() = state.scrollExpandCoordination
@@ -149,7 +146,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   private val scrim = Scrim(state)
   private val card = Card(state, clipContainer, scrim)
   private val cardTouchSensor = BottomSheetCardTouchSensor(context, card::onTouchTargeting)
-  private val stacking = Stacking(state, card)
+  private val stacking = Stacking(state, card, scrim)
 
   private var hasPerformedHostLayoutSinceAttach = false
   private val closeRequestPresentationTracker = CloseRequestPresentationTracker()
@@ -319,6 +316,12 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
       detents.observePendingInitialContentDetent()
     }
     stacking.attach()
+  }
+
+  override fun onConfigurationChanged(newConfig: Configuration) {
+    super.onConfigurationChanged(newConfig)
+    // A covered card's dimming follows the appearance.
+    Stacking.updateAll()
   }
 
   override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {

@@ -438,7 +438,6 @@ extension BottomSheetHostingView {
 
   func removeSettleAnimations() {
     cardSettleAnimation = nil
-    settleAnimation = nil
     contentAnimationLayouts = []
     sheetContainer.layer.removeAnimation(forKey: Self.springAnimationKey)
     clipContainer.layer.removeAnimation(forKey: Self.cardBoundsAnimationKey)

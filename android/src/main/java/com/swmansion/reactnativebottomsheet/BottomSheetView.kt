@@ -206,7 +206,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   fun setNativeOverlay(value: Boolean) {
     if (value == nativeOverlay) return
     nativeOverlay = value
-    host.nativeOverlay = value
+    host.setNativeOverlay(value)
     if (value) {
       portalCloseRequestController.clear()
       presentOverlay()
@@ -225,7 +225,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     if (value == openOrder) return
     val didOpen = value > openOrder
     openOrder = value
-    host.openOrder = value
+    host.setOpenOrder(value)
     portalCloseRequestController.onOpenOrderChanged()
     if (didOpen) bringOverlayToFront()
   }

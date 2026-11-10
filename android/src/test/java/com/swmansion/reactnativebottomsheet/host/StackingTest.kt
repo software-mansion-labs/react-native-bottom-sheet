@@ -198,4 +198,29 @@ class StackingTest {
       push(3, 800f, Sheet(rank = 1, position = 800f), Sheet(rank = 2, position = 800f)),
     )
   }
+
+  @Test
+  fun `a card under one open sheet is dimmed as native sheets dim it`() {
+    assertEquals(0.12f, stackDimming(listOf(1f), dark = false), 1e-4f)
+  }
+
+  @Test
+  fun `a card under two or more open sheets is dimmed a little more, and no further`() {
+    assertEquals(0.16f, stackDimming(listOf(1f, 1f), dark = false), 1e-4f)
+    assertEquals(0.16f, stackDimming(listOf(1f, 1f, 1f), dark = false), 1e-4f)
+  }
+
+  @Test
+  fun `the dimming fades in and out with the sheets above`() {
+    assertEquals(0f, stackDimming(emptyList(), dark = false), 1e-4f)
+    assertEquals(0.06f, stackDimming(listOf(0.5f), dark = false), 1e-4f)
+    // The more open sheet sets the first share, whatever the order.
+    assertEquals(0.12f + 0.04f * 0.5f, stackDimming(listOf(0.5f, 1f), dark = false), 1e-4f)
+  }
+
+  @Test
+  fun `cards are dimmed more in dark appearance, as native sheets dim them`() {
+    assertEquals(0.29f, stackDimming(listOf(1f), dark = true), 1e-4f)
+    assertEquals(0.38f, stackDimming(listOf(1f, 1f), dark = true), 1e-4f)
+  }
 }

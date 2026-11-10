@@ -84,9 +84,11 @@ export const StackedSheetsScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  // The corners of a native iOS page sheet.
   card: {
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderTopLeftRadius: 38,
+    borderTopRightRadius: 38,
+    borderCurve: 'continuous',
     boxShadow: '0px -1px 11px rgba(0, 0, 0, 0.16)',
   },
   content: { padding: 16, gap: 12, alignItems: 'flex-start' },
