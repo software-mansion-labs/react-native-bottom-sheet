@@ -357,6 +357,12 @@ body {
   margin-right: 8px;
 }
 
+/* The Docs link is only for the landing page; inside the docs the sidebar
+   already covers it. */
+html:not(.landing-page) .navbar__items--right > .navbar-docs {
+  display: none;
+}
+
 .navbar-github {
   display: grid;
   place-items: center;
@@ -400,39 +406,69 @@ body {
     padding: 6px;
   }
 
-  /* Menu top row: the switch on the left, close on the right, no logo. */
-  .navbar-sidebar__brand {
-    padding: 0 16px;
-    box-shadow: none;
+  /* The menu is a full-width page under the header, as in Pulsar and
+     Detour: it fades in rather than sliding, with no backdrop. */
+  :root {
+    --ifm-navbar-sidebar-width: 100vw;
   }
 
-  .navbar-sidebar__brand .navbar__brand {
+  .navbar-sidebar {
+    top: var(--ifm-navbar-height);
+    display: flex;
+    flex-direction: column;
+    box-shadow: none;
+    transform: none;
+    transition-property: opacity, visibility;
+    transition-duration: 150ms;
+    transition-timing-function: ease;
+  }
+
+  .navbar-sidebar--show .navbar-sidebar {
+    transform: none;
+  }
+
+  .navbar-sidebar__backdrop {
     display: none;
   }
 
-  .navbar-sidebar__brand [class*='colorModeToggle'] {
-    margin-right: auto !important;
+  .navbar-sidebar__item {
+    padding: 8px;
   }
 
-  /* Docs and GitHub sit at the bottom of the menu instead; the tree takes
-     the space between search and those links. */
+  /* Docs and GitHub sit at the bottom of the menu instead. */
   .navbar-sidebar__back {
     display: none;
   }
 
-  .navbar-sidebar {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .navbar-sidebar__brand {
-    flex: none;
-  }
-
+  /* No slide between the top-level menu and the docs tree, which would
+     flash the wrong list while the menu fades in. */
   .navbar-sidebar__items {
     flex: 1;
     min-height: 0;
     height: auto;
+    transition: none;
+  }
+
+  /* The landing page has no menu: the header keeps the color-mode switch
+     and GitHub, with no menu button. */
+  html.landing-page .navbar__toggle {
+    display: none;
+  }
+
+  html.landing-page .navbar__items--right > [class*='colorModeToggle'] {
+    display: inline-flex;
+    margin-right: 4px;
+  }
+
+  html.landing-page .navbar__items--right > .navbar-github {
+    display: grid;
+    padding: 4px 0 4px 8px;
+  }
+}
+
+@media (max-width: 996px) and (prefers-reduced-motion: reduce) {
+  .navbar-sidebar {
+    transition: none;
   }
 }
 
@@ -445,12 +481,24 @@ html.landing-page .navbar {
   box-shadow: none;
 }
 
+/* No search field in the landing header; ⌘K still opens search. */
+html.landing-page .navbar__items--right > [class*='navbarSearchContainer'] {
+  display: none;
+}
+
 /* ---------- Search ---------- */
 
 /* The trigger and dialog are styled in src/theme/SearchBar. */
 .navbar__items--right > [class*='navbarSearchContainer'] {
   order: -2;
   margin-right: 8px;
+}
+
+/* Search terms marked on the page a result opened. */
+article mark {
+  padding: 0 1px;
+  background-color: var(--bs-tint-strong);
+  color: inherit;
 }
 
 /* ---------- Sidebar ---------- */

@@ -1,12 +1,23 @@
-.links {
+.footer {
+  display: flex;
   flex: none;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--bs-line-soft);
+}
+
+.links {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 20px;
   margin: 0;
-  padding: 14px 16px 18px;
-  border-top: 1px solid var(--bs-line-soft);
+  padding: 0;
   list-style: none;
+}
+
+.colorMode {
+  margin-left: auto;
 }
 
 .links :global(.menu__link) {
@@ -20,4 +31,18 @@
 
 .links :global(.menu__link--active) {
   color: var(--bs-heading);
+}
+
+/* Icon-only navbar items (GitHub): the header's icon with its name. */
+.iconLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.iconLink svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+  flex: none;
 }

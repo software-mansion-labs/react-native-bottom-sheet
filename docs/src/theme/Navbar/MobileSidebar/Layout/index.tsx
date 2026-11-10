@@ -6,13 +6,16 @@ import {
   useNavbarSecondaryMenu,
 } from '@docusaurus/theme-common/internal';
 import NavbarItem, { type Props as NavbarItemProps } from '@theme/NavbarItem';
+import NavbarColorModeToggle from '@theme/Navbar/ColorModeToggle';
 import type { Props } from '@theme/Navbar/MobileSidebar/Layout';
 
 import styles from './styles.module.css';
 
-// The phone menu after Reanimated's docs: the color-mode switch and close
-// button on top, then the docs tree, and the top-nav links at the
-// bottom instead of behind a "Back to main menu" step.
+// The phone menu after Pulsar and Detour: a full-width page under the
+// header (whose menu button turns into close), with the docs tree and a
+// bottom row holding GitHub and the color-mode switch. That row replaces the
+// "Back to main menu" step; the Docs link is left out, as in the docs
+// header. On pages without a docs tree the menu lists only GitHub.
 
 function inertProps(inert: boolean) {
   const isBeforeReact19 = parseInt(version.split('.')[0]!, 10) < 19;
@@ -33,18 +36,28 @@ function Panel({ children, inert }: { children: ReactNode; inert: boolean }) {
   );
 }
 
-function FooterLinks() {
+// The navbar items as menu links, minus the given item types. Icon-only
+// items (GitHub) keep the header's icon and add their accessible name as
+// text next to it.
+function NavLinks({
+  className,
+  exclude,
+}: {
+  className: string;
+  exclude: string[];
+}) {
   const mobileSidebar = useNavbarMobileSidebar();
   const items = useThemeConfig().navbar.items as Record<string, unknown>[];
   return (
-    <ul className={styles.links}>
+    <ul className={className}>
       {items
-        .filter((item) => item.type !== 'search')
-        // Icon-only items (GitHub) show their accessible name as text here.
-        .map(({ html, className: _className, ...item }, i) => {
+        .filter((item) => !exclude.includes(item.type as string))
+        .map(({ className: _className, ...item }, i) => {
           const props = {
             ...item,
-            label: item.label ?? (html ? item['aria-label'] : undefined),
+            ...(typeof item.html === 'string' && {
+              html: `<span class="${styles.iconLink}">${item.html}<span>${String(item['aria-label'])}</span></span>`,
+            }),
             mobile: true,
             onClick: () => mobileSidebar.toggle(),
           } as NavbarItemProps;
@@ -55,8 +68,6 @@ function FooterLinks() {
 }
 
 export default function NavbarMobileSidebarLayout({
-  header,
-  primaryMenu,
   secondaryMenu,
 }: Props): ReactNode {
   const { shown: secondaryMenuShown } = useNavbarSecondaryMenu();
@@ -67,16 +78,27 @@ export default function NavbarMobileSidebarLayout({
         'navbar-sidebar'
       )}
     >
-      {header}
       <div
         className={clsx('navbar-sidebar__items', {
           'navbar-sidebar__items--show-secondary': secondaryMenuShown,
         })}
       >
-        <Panel inert={secondaryMenuShown}>{primaryMenu}</Panel>
+        <Panel inert={secondaryMenuShown}>
+          {/* Outside the docs (the landing page) the menu holds only GitHub
+              and the color-mode switch. */}
+          <NavLinks className="menu__list" exclude={['search', 'docSidebar']} />
+        </Panel>
         <Panel inert={!secondaryMenuShown}>{secondaryMenu}</Panel>
       </div>
-      {secondaryMenuShown && <FooterLinks />}
+      <div className={styles.footer}>
+        {secondaryMenuShown && (
+          <NavLinks
+            className={styles.links}
+            exclude={['search', 'docSidebar']}
+          />
+        )}
+        <NavbarColorModeToggle className={styles.colorMode} />
+      </div>
     </div>
   );
 }

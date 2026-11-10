@@ -100,6 +100,7 @@ const config: Config = {
           sidebarId: 'docsSidebar',
           label: 'Docs',
           position: 'right',
+          className: 'navbar-docs',
         },
         {
           'href':

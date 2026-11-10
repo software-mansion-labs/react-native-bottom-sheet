@@ -10,7 +10,7 @@ import {
 import { createPortal } from 'react-dom';
 import clsx from 'clsx';
 import Link from '@docusaurus/Link';
-import { useHistory } from '@docusaurus/router';
+import { useHistory, useLocation } from '@docusaurus/router';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import {
   fetchIndexesByWorker,
@@ -341,10 +341,43 @@ function SearchDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
+type MarkInstance = {
+  unmark: () => void;
+  mark: (keywords: string[], options?: object) => void;
+};
+
+// Marks the search terms on the page a result opened (`?_highlight=`), as
+// the plugin's own search bar does.
+function useHighlightTerms() {
+  const location = useLocation();
+  useEffect(() => {
+    if (!Mark) return;
+    const keywords = new URLSearchParams(location.search).getAll('_highlight');
+    // Code blocks re-render after effects run, so mark after a macro task.
+    const timer = setTimeout(() => {
+      const root = document.querySelector('article');
+      if (!root) return;
+      const MarkClass = Mark as new (root: Element) => MarkInstance;
+      const mark = new MarkClass(root);
+      mark.unmark();
+      if (keywords.length > 0) {
+        mark.mark(keywords, { exclude: ['.theme-doc-toc-mobile > button'] });
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [location.search, location.pathname]);
+}
+
 export default function SearchBar(): ReactNode {
+  useHighlightTerms();
   const [open, setOpen] = useState(false);
   const [isMac, setIsMac] = useState(true);
-  const close = useCallback(() => setOpen(false), []);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  // The dialog unmounts on close, so hand focus back to the trigger.
+  const close = useCallback(() => {
+    setOpen(false);
+    triggerRef.current?.focus({ preventScroll: true });
+  }, []);
 
   useEffect(() => {
     setIsMac(/Mac|iPhone|iPad/.test(navigator.platform));
@@ -361,6 +394,7 @@ export default function SearchBar(): ReactNode {
   return (
     <>
       <button
+        ref={triggerRef}
         type="button"
         className={styles.trigger}
         aria-label="Search"
