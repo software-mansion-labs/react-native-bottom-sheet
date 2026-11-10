@@ -159,6 +159,10 @@
   -webkit-user-select: none;
 }
 
+.copySheet .headline {
+  color: inherit;
+}
+
 .copySheet :is(a, button) {
   pointer-events: auto;
 }
