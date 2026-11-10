@@ -10,7 +10,6 @@
     0 -18px 56px -6px rgb(0 26 114 / 0.42), 0 -3px 12px rgb(0 26 114 / 0.26);
   --dim: var(--swm-navy-light-100);
   --navy: var(--swm-navy-light-100);
-  --navy-deep: var(--swm-navy-light-100);
   --navy-60: var(--swm-navy-light-60);
   --navy-20: var(--swm-navy-light-20);
   --blue: var(--swm-blue-light-100);
@@ -19,7 +18,8 @@
   position: fixed;
   inset: var(--ifm-navbar-height) 0 0;
   overflow: hidden;
-  background: var(--navy-deep);
+  /* What shows around the hero as it recedes: the color it dims toward. */
+  background: var(--dim);
   color: var(--navy);
   font-family: var(--ifm-font-family-base);
   font-size: 17px;
@@ -34,7 +34,6 @@
   --sheet-shadow:
     0 -18px 56px -4px rgb(0 0 0 / 0.75), 0 -3px 12px rgb(0 0 0 / 0.5);
   --dim: black;
-  --navy-deep: var(--swm-navy-dark-120);
   --navy: var(--swm-navy-light-10);
   --navy-60: var(--swm-navy-light-40);
   --navy-20: var(--swm-navy-light-80);

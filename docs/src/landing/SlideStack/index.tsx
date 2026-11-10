@@ -16,8 +16,8 @@ import styles from './styles.module.css';
 // The hero is the page as it first loads, so nothing waits on top of it: the
 // sheet rests below the screen until a scroll brings it up.
 const DETENTS: [number, `${number}%`] = [0, '100%'];
-const RECEDE_QUERY =
-  '(min-width: 861px) and (prefers-reduced-motion: no-preference)';
+// With reduced motion, the hero only dims behind the sheet.
+const STILL_QUERY = '(prefers-reduced-motion: reduce)';
 
 // The sheet's spring takes this long, and input during it is still that gesture.
 const SETTLE_MS = 450;
@@ -243,7 +243,7 @@ export const SlideStack = ({
   const position = useRef(0);
   // Kept rather than read each frame, when reading it would force a layout.
   const height = useRef(0);
-  const recedes = useMemo(() => window.matchMedia(RECEDE_QUERY), []);
+  const still = useMemo(() => window.matchMedia(STILL_QUERY), []);
 
   const step = useCallback((way: number) => setIsOpen(way > 0), []);
   useWheelSteps(step);
@@ -254,14 +254,14 @@ export const SlideStack = ({
   const applyPosition = useCallback(
     (next: number) => {
       position.current = next;
-      const progress = recedes.matches ? clamp(next / height.current) : 0;
+      const progress = clamp(next / height.current);
       receder.current!.style.transform =
-        progress > 0
+        progress > 0 && !still.matches
           ? `scale(${1 - 0.06 * progress}) translateY(${-1.5 * progress}%)`
           : '';
       dim.current!.style.opacity = `${0.45 * progress}`;
     },
-    [recedes]
+    [still]
   );
 
   useEffect(() => {
