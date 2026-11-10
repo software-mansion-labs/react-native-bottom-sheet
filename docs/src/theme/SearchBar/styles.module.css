@@ -1,0 +1,371 @@
+/* ---------- Header trigger ---------- */
+
+/* Drawn like the color-mode toggle: a hairline square field. */
+.trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 240px;
+  height: 34px;
+  padding: 0 7px 0 11px;
+  border: 1px solid var(--bs-line);
+  background-color: var(--bs-bg);
+  color: var(--bs-muted);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    color 150ms ease;
+}
+
+.triggerIcon {
+  flex: none;
+}
+
+.triggerLabel {
+  flex: 1;
+  text-align: left;
+}
+
+.keys {
+  display: flex;
+  gap: 3px;
+}
+
+.keys kbd {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background-color: var(--bs-tint);
+  color: var(--bs-accent-ink);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
+  text-align: center;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .trigger:hover {
+    border-color: var(--bs-line-strong);
+    color: var(--bs-text);
+  }
+}
+
+.trigger:focus-visible {
+  outline: 2px solid var(--bs-accent);
+  outline-offset: 2px;
+}
+
+/* Narrow screens: a bare icon next to the menu button, like Pulsar. */
+@media (max-width: 996px) {
+  .trigger {
+    width: 40px;
+    height: 40px;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--bs-heading);
+  }
+
+  .triggerIcon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .triggerLabel,
+  .keys {
+    display: none;
+  }
+}
+
+/* ---------- Dialog ---------- */
+
+.dialog {
+  width: min(640px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100dvh - 128px);
+  margin: 64px auto auto;
+  padding: 0;
+  border: 1px solid var(--bs-line);
+  border-radius: 4px;
+  background-color: var(--bs-surface);
+  color: var(--bs-text);
+  box-shadow: 0 24px 48px -16px rgb(0 26 114 / 0.28);
+  overflow: hidden;
+}
+
+.dialog[open] {
+  display: flex;
+  animation: dialog-in 200ms var(--bs-ease-out);
+}
+
+.dialog::backdrop {
+  background-color: rgb(0 26 114 / 0.28);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+[data-theme='dark'] .dialog {
+  box-shadow: 0 24px 48px -16px rgb(0 0 0 / 0.7);
+}
+
+[data-theme='dark'] .dialog::backdrop {
+  background-color: rgb(8 10 20 / 0.6);
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+}
+
+.frame {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
+}
+
+.top {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid var(--bs-line-soft);
+}
+
+.field {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+}
+
+.fieldIcon {
+  position: absolute;
+  left: 14px;
+  width: 18px;
+  height: 18px;
+  color: var(--bs-muted);
+  pointer-events: none;
+}
+
+.input {
+  width: 100%;
+  height: 48px;
+  padding: 0 44px;
+  border: 1px solid var(--bs-accent);
+  border-radius: 0;
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--bs-accent);
+  background-color: var(--bs-subtle);
+  color: var(--bs-heading);
+  font: inherit;
+  font-size: 17px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.input::placeholder {
+  color: var(--bs-muted);
+}
+
+.input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.clear {
+  position: absolute;
+  right: 6px;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--bs-muted);
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .clear:hover {
+    color: var(--bs-heading);
+  }
+}
+
+.cancel {
+  display: none;
+  flex: none;
+  padding: 8px 0;
+  border: 0;
+  background: none;
+  color: var(--bs-accent-ink);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  padding: 4px 16px 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.status {
+  margin: 12px 0;
+  color: var(--bs-muted);
+  font-size: 14px;
+}
+
+.status strong {
+  color: var(--bs-heading);
+  font-weight: 600;
+}
+
+/* ---------- Results ---------- */
+
+.groups,
+.hits {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.group {
+  margin: 0 0 12px;
+  border: 1px solid var(--bs-line-soft);
+}
+
+.group + .group {
+  margin-top: 12px;
+}
+
+.page,
+.hit {
+  display: flex;
+  color: inherit;
+  text-decoration: none !important;
+  transition: background-color 100ms ease;
+}
+
+.page {
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  color: var(--bs-heading);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.pageIcon {
+  flex: none;
+  color: var(--bs-muted);
+}
+
+.hits {
+  border-top: 1px solid var(--bs-line-soft);
+}
+
+.hits li + li {
+  border-top: 1px solid var(--bs-line-soft);
+}
+
+.hit {
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px 10px 42px;
+  position: relative;
+}
+
+/* The guide line nested lists use in the sidebar. */
+.hit::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 22px;
+  width: 1px;
+  background-color: var(--bs-line);
+  content: '';
+}
+
+.hitTitle {
+  color: var(--bs-heading);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.excerpt {
+  color: var(--bs-muted);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.page mark,
+.hit mark {
+  background: none;
+  color: var(--bs-accent-ink);
+  font-weight: 600;
+}
+
+/* The active result, marked like the current page in the sidebar. */
+.active {
+  background-color: var(--bs-tint);
+  box-shadow: inset 2px 0 0 var(--bs-accent);
+}
+
+.page:focus-visible,
+.hit:focus-visible {
+  outline: 2px solid var(--bs-accent);
+  outline-offset: -2px;
+}
+
+/* ---------- Narrow screens: full screen ---------- */
+
+@media (max-width: 768px) {
+  .dialog {
+    width: 100vw;
+    height: 100dvh;
+    max-height: none;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .dialog[open] {
+    animation: none;
+  }
+
+  .top {
+    padding: 12px 16px;
+  }
+
+  .input {
+    height: 44px;
+    font-size: 16px;
+  }
+
+  .cancel {
+    display: block;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog[open] {
+    animation: none;
+  }
+}

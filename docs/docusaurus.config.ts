@@ -57,8 +57,6 @@ const config: Config = {
         docsRouteBasePath: '/docs',
         highlightSearchTermsOnTargetPage: true,
         explicitSearchResultPath: true,
-        searchBarShortcutHint: true,
-        searchBarPosition: 'right',
       },
     ],
   ],

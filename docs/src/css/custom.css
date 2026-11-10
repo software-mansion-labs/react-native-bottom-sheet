@@ -367,12 +367,19 @@ body {
   display: block;
 }
 
-/* Narrow screens follow Reanimated's docs: the header keeps only the logo
-   and the menu button on the right. Search, the color-mode switch, Docs and
+/* Narrow screens follow Reanimated's docs: the header keeps the logo, and
+   search and the menu button on the right. The color-mode switch, Docs and
    GitHub live in the menu, which slides in from the left. */
 @media (max-width: 996px) {
-  .navbar__items--right {
+  .navbar__items--right > :not([class*='navbarSearchContainer']) {
     display: none;
+  }
+
+  /* Docusaurus pins search to the right edge here; ours sits in the row,
+     just left of the menu button. */
+  .navbar__items--right > [class*='navbarSearchContainer'] {
+    position: static;
+    margin-right: 0;
   }
 
   .navbar__inner > .navbar__items:not(.navbar__items--right) {
@@ -440,133 +447,10 @@ html.landing-page .navbar {
 
 /* ---------- Search ---------- */
 
-/* A field in the header like Pulsar's: magnifier, placeholder, and a
-   shortcut hint, drawn with the same hairline and corners as the toggle. */
-:root {
-  --search-local-modal-background: var(--bs-surface);
-  --search-local-modal-shadow:
-    0 0 0 1px var(--bs-line), 0 16px 40px -16px rgb(0 26 114 / 0.28);
-  --search-local-modal-width: 480px;
-  --search-local-spacing: 8px;
-  --search-local-hit-background: transparent;
-  --search-local-hit-shadow: none;
-  --search-local-hit-color: var(--bs-text);
-  --search-local-hit-active-color: var(--bs-heading);
-  --search-local-hit-height: 52px;
-  --search-local-highlight-color: var(--bs-accent-ink);
-  --search-local-muted-color: var(--bs-muted);
-  --search-local-input-active-border-color: var(--bs-accent);
-}
-
-[data-theme='dark'] {
-  --search-local-modal-shadow:
-    0 0 0 1px var(--bs-line), 0 16px 40px -16px rgb(0 0 0 / 0.6);
-}
-
+/* The trigger and dialog are styled in src/theme/SearchBar. */
 .navbar__items--right > [class*='navbarSearchContainer'] {
   order: -2;
   margin-right: 8px;
-}
-
-.navbar .navbar__search {
-  margin-left: 0;
-}
-
-.navbar__search-input {
-  width: 240px;
-  height: 34px;
-  padding: 0 64px 0 36px;
-  border: 1px solid var(--bs-line);
-  border-radius: 0;
-  background-color: var(--bs-bg);
-  color: var(--bs-heading);
-  font-family: inherit;
-  font-size: 15px;
-  transition:
-    border-color 150ms ease,
-    background-color 150ms ease;
-}
-
-.navbar__search-input::placeholder {
-  color: var(--bs-muted);
-  opacity: 1;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .navbar__search-input:hover {
-    border-color: var(--bs-line-strong);
-  }
-}
-
-.navbar__search .navbar__search-input:focus {
-  border-color: var(--bs-accent);
-  outline: none;
-  box-shadow: inset 0 0 0 1px var(--bs-accent);
-}
-
-.navbar__search svg[class*='searchIcon'] {
-  left: 12px;
-  width: 15px;
-  height: 15px;
-  color: var(--bs-muted);
-}
-
-.navbar__search kbd[class*='searchHint'] {
-  min-width: 20px;
-  height: 20px;
-  padding: 0 5px;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-  background-color: var(--bs-tint);
-  color: var(--bs-accent-ink);
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 20px;
-  text-align: center;
-}
-
-/* Results: a hairline panel with flat rows, the active row marked like the
-   active sidebar item. */
-.navbar .navbar__search [class*='dropdownMenu'] {
-  border-radius: 0;
-  margin-top: 13px;
-}
-
-.navbar .navbar__search [class*='dropdownMenu'] [class*='suggestion_'] {
-  border-radius: 0;
-  transition: background-color 100ms ease;
-}
-
-.navbar .navbar__search [class*='dropdownMenu'] [class*='suggestion_'][class*='cursor_'] {
-  background-color: var(--bs-tint);
-  box-shadow: inset 2px 0 0 var(--bs-accent);
-}
-
-.navbar .navbar__search [class*='dropdownMenu'] [class*='hitWrapper'] mark {
-  color: var(--bs-accent-ink);
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.navbar .navbar__search [class*='dropdownMenu'] [class*='cursor_'] mark {
-  color: var(--bs-accent-ink) !important;
-  text-decoration: none;
-}
-
-.navbar .navbar__search [class*='dropdownMenu'] [class*='hitTitle'] {
-  color: var(--bs-heading);
-  font-size: 15px;
-}
-
-.navbar .navbar__search [class*='dropdownMenu'] [class*='hitPath'] {
-  font-size: 13px;
-  font-weight: 400;
-}
-
-.navbar .navbar__search [class*='dropdownMenu'] [class*='hitFooter'] a {
-  color: var(--bs-accent-ink);
 }
 
 /* ---------- Sidebar ---------- */

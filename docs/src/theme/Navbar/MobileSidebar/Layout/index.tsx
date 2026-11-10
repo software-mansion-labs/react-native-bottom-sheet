@@ -6,13 +6,12 @@ import {
   useNavbarSecondaryMenu,
 } from '@docusaurus/theme-common/internal';
 import NavbarItem, { type Props as NavbarItemProps } from '@theme/NavbarItem';
-import SearchBar from '@theme/SearchBar';
 import type { Props } from '@theme/Navbar/MobileSidebar/Layout';
 
 import styles from './styles.module.css';
 
 // The phone menu after Reanimated's docs: the color-mode switch and close
-// button on top, then search, the docs tree, and the top-nav links at the
+// button on top, then the docs tree, and the top-nav links at the
 // bottom instead of behind a "Back to main menu" step.
 
 function inertProps(inert: boolean) {
@@ -69,9 +68,6 @@ export default function NavbarMobileSidebarLayout({
       )}
     >
       {header}
-      <div className={styles.search}>
-        <SearchBar />
-      </div>
       <div
         className={clsx('navbar-sidebar__items', {
           'navbar-sidebar__items--show-secondary': secondaryMenuShown,

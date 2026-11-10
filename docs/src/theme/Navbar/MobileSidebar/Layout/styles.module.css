@@ -1,25 +1,3 @@
-.search {
-  flex: none;
-  padding: 4px 16px 12px;
-}
-
-.search :global(.navbar__search),
-.search :global(.navbar__search) > span,
-.search :global(.navbar__search) :global(.navbar__search-input) {
-  width: 100%;
-}
-
-.search :global(.navbar__search) :global(.navbar__search-input) {
-  height: 40px;
-  padding-right: 36px;
-}
-
-.search :global(.navbar__search) [class*='dropdownMenu'] {
-  width: 100%;
-  max-width: none;
-  margin-top: 8px;
-}
-
 .links {
   flex: none;
   display: flex;
