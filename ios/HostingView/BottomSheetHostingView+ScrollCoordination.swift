@@ -27,6 +27,52 @@ final class ScrollIndicatorFit {
   }
 }
 
+/// A scrub of a scroll view's indicator, and the sheet movement it hands off
+/// to once it pushes past the content's start.
+final class IndicatorDragState {
+  struct Handoff {
+    /// The finger's position and the sheet's translation as the sheet took over.
+    let anchorY: CGFloat
+    let anchorTy: CGFloat
+    let startingIndex: Int
+    let range: (minTy: CGFloat, maxTy: CGFloat)
+    /// Holds the content at its start while the sheet moves.
+    let pin: ActiveScrollViewState
+    /// Whether the sheet reached its largest detent and left the scrub to the
+    /// content again, to stretch past its start.
+    var releasedAtLargestDetent = false
+
+    /// Where the finger brings the sheet to its largest detent.
+    var largestDetentY: CGFloat {
+      anchorY + range.minTy - anchorTy
+    }
+  }
+
+  weak var scrollView: UIScrollView?
+  private(set) var lastY: CGFloat
+  private var lastTime: CFTimeInterval
+  /// The finger's vertical velocity, in points per second.
+  private(set) var velocity: CGFloat = 0
+  var handoff: Handoff?
+
+  init(scrollView: UIScrollView, y: CGFloat) {
+    self.scrollView = scrollView
+    lastY = y
+    lastTime = CACurrentMediaTime()
+  }
+
+  func track(_ y: CGFloat) {
+    let now = CACurrentMediaTime()
+    let elapsed = now - lastTime
+    if elapsed > 0 {
+      // Smoothed over the last few updates, like a pan's release velocity.
+      velocity = 0.6 * (y - lastY) / elapsed + 0.4 * velocity
+    }
+    lastY = y
+    lastTime = now
+  }
+}
+
 final class ActiveScrollViewState {
   weak var scrollView: UIScrollView?
   var pinnedOffset: CGPoint
@@ -370,6 +416,127 @@ extension BottomSheetHostingView {
         scrollView.verticalScrollIndicatorInsets.bottom = fit.appliedInset
       }
     }
+  }
+
+  /// Listens to the touched scroll views' indicator drags. A scrub moves the
+  /// content as usual; once it pushes past the content's start, the rest of the
+  /// upward travel expands the sheet, as a drag anywhere else in the content
+  /// would. Indicator dragging is driven by a private recognizer, matched by
+  /// class name: if a release renames it, scrubbing works as before and never
+  /// moves the sheet.
+  func observeScrollIndicatorDrags(of states: [ActiveScrollViewState]) {
+    for state in states where !state.inverted {
+      for recognizer in state.scrollView?.gestureRecognizers ?? []
+        where NSStringFromClass(type(of: recognizer)).contains("KnobLongPress")
+        && !observedIndicatorDrags.contains(recognizer)
+      {
+        recognizer.addTarget(self, action: #selector(handleScrollIndicatorDrag(_:)))
+        observedIndicatorDrags.add(recognizer)
+      }
+    }
+  }
+
+  @objc func handleScrollIndicatorDrag(_ recognizer: UIGestureRecognizer) {
+    guard let scrollView = recognizer.view as? UIScrollView else { return }
+    let y = recognizer.location(in: self).y
+
+    switch recognizer.state {
+    case .began:
+      indicatorDrag = IndicatorDragState(scrollView: scrollView, y: y)
+      fitScrollIndicators(of: [
+        ActiveScrollViewState(scrollView: scrollView, inverted: false, wasAtStartWhenTouched: false),
+      ])
+
+    case .changed:
+      guard let drag = indicatorDrag, drag.scrollView === scrollView else { return }
+      let movedUp = y < drag.lastY
+      drag.track(y)
+
+      guard let handoff = drag.handoff else {
+        if movedUp, scrollViewIsAtStart(scrollView, inverted: false), canExpandFromIndicator() {
+          beginIndicatorHandoff(drag, scrollView: scrollView, y: y)
+        }
+        return
+      }
+
+      if y >= handoff.anchorY {
+        // Back below where the sheet took over: the scrub has the content again.
+        handoff.pin.stopPinning()
+        setSheetTranslation(handoff.anchorTy)
+        emitPosition()
+        drag.handoff = nil
+        isPanning = false
+        return
+      }
+      if y <= handoff.largestDetentY {
+        // The sheet is at its largest detent. As in a native sheet, the rest of
+        // the scrub goes to the content: it stretches past its start and the
+        // indicator squeezes against the top. Pinned instead, the indicator
+        // is laid out for the stretch UIKit asked for and then left there as
+        // the pin undoes it, drawn above the list.
+        if !handoff.releasedAtLargestDetent {
+          drag.handoff?.releasedAtLargestDetent = true
+          handoff.pin.stopPinning()
+          setSheetTranslation(handoff.range.minTy)
+          fitScrollIndicators(of: [handoff.pin])
+          emitPosition()
+        }
+        return
+      }
+      if handoff.releasedAtLargestDetent {
+        // Back below that point: the content is at its start again, and the
+        // sheet follows the finger down.
+        drag.handoff?.releasedAtLargestDetent = false
+        handoff.pin.startPinning(at: scrollStartOffset(for: scrollView, inverted: false))
+      }
+      handoff.pin.restorePinnedOffset()
+      let newTy = max(handoff.range.minTy, handoff.anchorTy + y - handoff.anchorY)
+      if abs(newTy - sheetContainer.transform.ty) > .ulpOfOne {
+        setSheetTranslation(newTy)
+        fitScrollIndicators(of: [handoff.pin])
+        emitPosition()
+      }
+
+    case .ended, .cancelled, .failed:
+      defer { indicatorDrag = nil }
+      guard let drag = indicatorDrag, let handoff = drag.handoff else { return }
+      handoff.pin.stopPinning()
+      isPanning = false
+      let currentHeight = sheetContainerHeight - sheetContainer.transform.ty
+      let index = bestSnapIndex(
+        for: currentHeight,
+        velocity: drag.velocity,
+        including: handoff.startingIndex
+      )
+      snapToIndex(index, velocity: drag.velocity)
+
+    default:
+      break
+    }
+  }
+
+  private func canExpandFromIndicator() -> Bool {
+    guard coordinationLevel(forVerticalVelocity: -1) != .none else { return false }
+    let range = draggableRange(including: targetIndex)
+    return sheetContainer.transform.ty > range.minTy + 0.5
+  }
+
+  private func beginIndicatorHandoff(_ drag: IndicatorDragState, scrollView: UIScrollView, y: CGFloat) {
+    if activeSpring != nil {
+      cancelActiveSpring()
+    }
+    isPanning = true
+    pendingIndex = nil
+    scrimPinnedFull = false
+    let pin = ActiveScrollViewState(scrollView: scrollView, inverted: false, wasAtStartWhenTouched: true)
+    pin.startPinning(at: scrollStartOffset(for: scrollView, inverted: false))
+    drag.handoff = IndicatorDragState.Handoff(
+      anchorY: y,
+      anchorTy: sheetContainer.transform.ty,
+      startingIndex: targetIndex,
+      range: draggableRange(including: targetIndex),
+      pin: pin
+    )
   }
 
   func coordinationLevel(forVerticalVelocity velocityY: CGFloat) -> ScrollCoordinationLevel {
