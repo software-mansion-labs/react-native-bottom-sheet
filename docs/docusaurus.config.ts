@@ -114,7 +114,7 @@ const config: Config = {
       ],
     },
     footer: {
-      copyright: `© ${new Date().getFullYear()} Software Mansion`,
+      copyright: `© ${new Date().getFullYear()} Software Mansion. Read about our <a href="https://swmansion.com/privacy/policy/" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.`,
     },
     prism: {
       theme: swmLight,
