@@ -14,6 +14,10 @@
   --example-log-component: var(--swm-blue-dark-120);
   --example-track: var(--swm-navy-light-20);
   --example-accent: var(--swm-navy-light-100);
+  /* Option switchers share the docs' accent: tinted active state, blue edge. */
+  --example-switch: var(--bs-accent, var(--swm-blue-light-100));
+  --example-switch-tint: var(--bs-tint, var(--swm-blue-light-20));
+  --example-switch-ink: var(--bs-heading, var(--swm-navy-light-100));
   --example-button: #2196f3;
   --example-tint-blue: var(--swm-blue-light-40);
   --example-tint-green: var(--swm-green-light-40);
@@ -70,15 +74,37 @@
   container-type: inline-size;
 }
 
+/* Spans the pane the controls sit in: the full width when they're under the
+   stage, the right column when they're beside it. The left padding lines the
+   reset icon up with the controls below. */
 .header {
   position: absolute;
   z-index: 2;
   top: 0;
   right: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px 16px 12px;
+  pointer-events: none;
+}
+
+.wide .header {
+  left: 59%;
+  padding-left: 20px;
+}
+
+.header > * {
+  pointer-events: auto;
+}
+
+.headerEnd {
   display: flex;
   align-items: center;
   gap: 32px;
-  padding: 16px 20px;
+  margin-left: auto;
 }
 
 .tabs {
@@ -106,8 +132,8 @@
   position: absolute;
   bottom: 0;
   left: 0;
-  height: 1px;
-  background-color: var(--example-text);
+  height: 2px;
+  background-color: var(--example-switch);
   transition:
     transform 200ms var(--ease-out),
     width 200ms var(--ease-out);
@@ -133,7 +159,7 @@
 .segment:has(input:focus-visible),
 .logClear:focus-visible,
 .toggle:has(input:focus-visible) .toggleTrack {
-  outline: 2px solid var(--ifm-color-primary);
+  outline: 2px solid var(--example-switch);
   outline-offset: 2px;
 }
 
@@ -207,12 +233,12 @@
 
 .controlsPane {
   width: 100cqw;
-  padding: 16px 16px 44px;
+  padding: 16px;
 }
 
 .wide .controlsPane {
   width: 41cqw;
-  padding: 64px 20px 44px 24px;
+  padding: 64px 20px 20px 24px;
 }
 
 .codePane {
@@ -228,12 +254,6 @@
 
 .codePane [class*='buttonGroup'] {
   display: none;
-}
-
-.reset {
-  position: absolute;
-  right: 16px;
-  bottom: 10px;
 }
 
 .showCode .controlsPane,
@@ -321,7 +341,7 @@
   position: absolute;
   inset: 0;
   border-radius: 3px;
-  background-color: var(--example-button);
+  background-color: var(--example-switch);
   transform: scaleX(0);
   transform-origin: left center;
 }
@@ -361,21 +381,21 @@
 }
 
 .slider::-webkit-slider-thumb {
-  width: 16px;
-  height: 16px;
-  margin-top: -7px;
-  border-radius: 50%;
-  background-color: var(--example-text);
+  width: 14px;
+  height: 14px;
+  margin-top: -6px;
+  border-radius: 0;
+  background-color: var(--example-switch);
   appearance: none;
   transition: transform 140ms var(--ease-out);
 }
 
 .slider::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border: 0;
-  border-radius: 50%;
-  background-color: var(--example-text);
+  border-radius: 0;
+  background-color: var(--example-switch);
 }
 
 /* A painted track is thicker, to show its colors. */
@@ -392,7 +412,8 @@
 }
 
 .sliderPainted::-webkit-slider-thumb {
-  margin-top: -5px;
+  margin-top: -4px;
+  box-shadow: 0 0 0 2px var(--example-background);
 }
 
 .slider:active::-webkit-slider-thumb {
@@ -456,8 +477,9 @@
 
 .segmentActive,
 .segmentActive:hover {
-  background-color: var(--example-text);
-  color: var(--example-background);
+  background-color: var(--example-switch-tint);
+  box-shadow: inset 0 -2px 0 var(--example-switch);
+  color: var(--example-switch-ink);
   font-weight: 500;
 }
 
@@ -490,29 +512,33 @@
   flex: none;
   width: 38px;
   height: 22px;
-  border-radius: 11px;
-  background-color: var(--example-track);
-  transition: background-color 160ms ease;
+  border: 1px solid var(--example-border);
+  background-color: var(--example-muted-surface);
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease;
 }
 
 .toggleTrack::after {
   position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background-color: #ffffff;
-  box-shadow: 0 1px 2px rgba(0, 16, 72, 0.3);
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  background-color: var(--example-muted);
   content: '';
-  transition: transform 180ms var(--ease-out);
+  transition:
+    transform 180ms var(--ease-out),
+    background-color 160ms ease;
 }
 
 .toggle input:checked + .toggleTrack {
-  background-color: var(--example-accent);
+  border-color: var(--example-switch);
+  background-color: var(--example-switch);
 }
 
 .toggle input:checked + .toggleTrack::after {
+  background-color: #ffffff;
   transform: translateX(16px);
 }
 
