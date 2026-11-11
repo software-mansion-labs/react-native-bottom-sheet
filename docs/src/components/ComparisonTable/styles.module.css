@@ -17,7 +17,7 @@
   --ct-column-width: 9.5rem;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 
-  margin: 0 0 calc(var(--ifm-leading) * 1.5);
+  margin: 0 0 var(--ifm-leading);
   color: var(--ct-text);
 }
 

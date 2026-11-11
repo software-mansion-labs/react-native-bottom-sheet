@@ -146,9 +146,7 @@
   --ifm-heading-font-family: 'Aeonik', system-ui, -apple-system, sans-serif;
   --ifm-font-family-monospace: var(--bs-font-mono);
   --ifm-font-size-base: 100%;
-  --ifm-line-height-base: 1.7;
   --ifm-heading-font-weight: 500;
-  --ifm-heading-line-height: 1.2;
 
   --ifm-background-color: var(--bs-bg);
   --ifm-background-surface-color: var(--bs-bg);
@@ -486,23 +484,18 @@ article mark {
 
 .markdown h1:first-child {
   --ifm-h1-font-size: clamp(2rem, 1.6rem + 1.4vw, 2.5rem);
-  margin-bottom: 20px;
   letter-spacing: -0.015em;
   text-wrap: balance;
 }
 
 .markdown h2 {
   --ifm-h2-font-size: 1.75rem;
-  margin-top: 48px;
-  padding-top: 32px;
-  border-top: 1px solid var(--bs-line-soft);
   letter-spacing: -0.01em;
   text-wrap: balance;
 }
 
 .markdown h3 {
   --ifm-h3-font-size: 1.25rem;
-  margin-top: 32px;
 }
 
 .markdown :where(p, li, dd, blockquote) {
@@ -538,10 +531,6 @@ article mark {
   position: relative;
   padding-left: 40px;
   counter-increment: step;
-}
-
-.markdown > ol > li + li {
-  margin-top: 16px;
 }
 
 .markdown > ol > li::before {
@@ -671,7 +660,6 @@ article mark {
 /* ---------- Page footer ---------- */
 
 .theme-doc-footer {
-  margin-top: 48px;
   font-size: 14px;
 }
 
@@ -680,7 +668,6 @@ article mark {
 }
 
 .pagination-nav {
-  margin-top: 24px;
   gap: 16px;
 }
 

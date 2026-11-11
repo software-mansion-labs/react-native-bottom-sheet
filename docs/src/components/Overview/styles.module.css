@@ -1,6 +1,6 @@
 .lead {
   max-width: 38rem;
-  margin-bottom: 28px;
+  margin-bottom: var(--ifm-leading);
   color: var(--bs-text);
   font-size: 1.1875rem;
   line-height: 1.6;
@@ -12,7 +12,7 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
-  margin: 32px 0 8px;
+  margin: 0 0 var(--ifm-leading);
 }
 
 @media (max-width: 640px) {
@@ -107,7 +107,7 @@
 
 /* Credits */
 .credit {
-  margin: 24px 0;
+  margin: 0 0 var(--ifm-leading);
   display: grid;
   align-content: start;
   justify-items: start;
