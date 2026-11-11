@@ -41,7 +41,7 @@
   border-radius: 0;
   box-shadow: none;
   background-color: var(--bs-tint);
-  color: var(--bs-accent-ink);
+  color: var(--bs-accent);
   font-family: inherit;
   font-size: 12px;
   font-weight: 500;
@@ -91,7 +91,7 @@
   border-radius: 4px;
   background-color: var(--bs-surface);
   color: var(--bs-text);
-  box-shadow: 0 24px 48px -16px rgb(0 26 114 / 0.28);
+  box-shadow: 0 24px 48px -16px rgb(20 17 34 / 0.28);
   overflow: hidden;
 }
 
@@ -101,7 +101,7 @@
 }
 
 .dialog::backdrop {
-  background-color: rgb(0 26 114 / 0.28);
+  background-color: rgb(20 17 34 / 0.28);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
 }
@@ -204,7 +204,7 @@
   padding: 8px 0;
   border: 0;
   background: none;
-  color: var(--bs-accent-ink);
+  color: var(--bs-accent);
   font: inherit;
   font-size: 16px;
   font-weight: 500;
@@ -312,7 +312,7 @@
 .page mark,
 .hit mark {
   background: none;
-  color: var(--bs-accent-ink);
+  color: var(--bs-accent);
   font-weight: 600;
 }
 

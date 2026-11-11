@@ -1,27 +1,17 @@
-.theme,
 .example,
 .placeholder {
-  --example-border: var(--swm-navy-light-20);
-  --example-background: var(--swm-off-white);
-  --example-stage: var(--swm-off-white);
-  --example-surface: var(--swm-white);
-  --example-sheet-line: var(--swm-navy-light-20);
-  --example-scrap: var(--swm-white);
-  --example-muted-surface: var(--swm-navy-light-10);
-  --example-text: var(--swm-navy-light-100);
-  --example-muted: var(--swm-navy-light-60);
-  --example-log-callback: var(--swm-purple-light-100);
-  --example-log-component: var(--swm-blue-dark-120);
-  --example-track: var(--swm-navy-light-20);
-  --example-accent: var(--swm-navy-light-100);
-  /* Option switchers share the docs' accent: tinted active state, blue edge. */
-  --example-switch: var(--bs-accent, var(--swm-blue-light-100));
-  --example-switch-tint: var(--bs-tint, var(--swm-blue-light-20));
-  --example-switch-ink: var(--bs-heading, var(--swm-navy-light-100));
-  --example-button: #2196f3;
-  --example-tint-blue: var(--swm-blue-light-40);
-  --example-tint-green: var(--swm-green-light-40);
-  --example-tint-purple: var(--swm-purple-light-40);
+  --example-border: var(--bs-line);
+  --example-background: var(--bs-subtle);
+  --example-surface: #fcfcff;
+  --example-muted-surface: var(--bs-neutral-fill);
+  --example-text: var(--bs-heading);
+  --example-muted: var(--bs-muted);
+  --example-log-component: var(--bs-accent);
+  --example-track: var(--bs-line);
+  --example-switch: var(--bs-accent);
+  --example-switch-tint: var(--bs-tint);
+  --example-switch-ink: var(--bs-accent);
+  --example-log-callback: #763e84;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 }
@@ -29,30 +19,54 @@
 .example,
 .placeholder {
   margin-bottom: var(--ifm-leading);
-  border: 1px solid var(--example-border);
+  border: 1px solid var(--bs-line-soft);
   background-color: var(--example-background);
   color: var(--example-text);
 }
 
-[data-theme='dark'] .theme,
 [data-theme='dark'] .example,
 [data-theme='dark'] .placeholder {
-  --example-border: var(--swm-light-off-navy);
-  --example-background: var(--swm-navy);
+  --example-surface: #2f3449;
+  --example-log-callback: #dda5e8;
+}
+
+/* The live sheet and the keyboard portal use the original example palette. */
+.stage,
+.theme {
+  --example-border: #c1c6e5;
+  --example-background: #f8f9ff;
+  color: var(--example-text);
+  --example-stage: #f8f9ff;
+  --example-sheet-line: #c1c6e5;
+  --example-surface: #fcfcff;
+  --example-scrap: var(--example-surface);
+  --example-muted-surface: #eef0ff;
+  --example-text: #001a72;
+  --example-muted: #6676aa;
+  --example-track: #c1c6e5;
+  --example-switch: #38acdd;
+  --example-button: #2196f3;
+  --example-tint-blue: #b5e1f1;
+  --example-tint-green: #dff2ec;
+  --example-tint-purple: #e8dafc;
+}
+
+[data-theme='dark'] .stage,
+[data-theme='dark'] .theme {
+  --example-border: #30354a;
+  --example-background: #232736;
+  --example-switch: #6fcef5;
   --example-stage: #161925;
   --example-surface: #2f3449;
   --example-sheet-line: #4c5473;
-  --example-scrap: var(--swm-navy-dark-40);
-  --example-muted-surface: var(--swm-light-off-navy);
-  --example-text: var(--swm-off-white);
-  --example-muted: var(--swm-navy-dark-40);
-  --example-log-callback: var(--swm-purple-dark-80);
-  --example-log-component: var(--swm-blue-dark-80);
-  --example-track: var(--swm-light-off-navy);
-  --example-accent: var(--swm-blue-dark-80);
-  --example-tint-blue: var(--swm-blue-dark-140);
-  --example-tint-green: var(--swm-green-dark-140);
-  --example-tint-purple: var(--swm-purple-dark-140);
+  --example-scrap: #abbcf5;
+  --example-muted-surface: #30354a;
+  --example-text: #f8f9ff;
+  --example-muted: #abbcf5;
+  --example-track: #30354a;
+  --example-tint-blue: #1b4865;
+  --example-tint-green: #2a4f4a;
+  --example-tint-purple: #473d68;
 }
 
 /* Reserves about the height of the example while it waits for the browser. */
@@ -538,7 +552,7 @@
 }
 
 .toggle input:checked + .toggleTrack::after {
-  background-color: #ffffff;
+  background-color: var(--bs-on-accent);
   transform: translateX(16px);
 }
 
@@ -565,7 +579,7 @@
   margin: 0;
   padding: 7px 10px;
   overflow-y: auto;
-  border: 1px solid var(--example-border);
+  border: 1px solid var(--bs-line-soft);
   color: var(--example-text);
   font-family: var(--ifm-font-family-monospace);
   font-size: 13px;

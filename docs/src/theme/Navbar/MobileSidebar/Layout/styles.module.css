@@ -24,7 +24,7 @@
   padding: 0;
   background: none;
   box-shadow: none;
-  color: var(--bs-accent-ink);
+  color: var(--bs-accent);
   font-size: 15px;
   font-weight: 500;
 }

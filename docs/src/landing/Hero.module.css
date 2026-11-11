@@ -10,26 +10,16 @@
 .hero {
   /* Matches the navbar's. */
   --gutter: var(--ifm-navbar-padding-horizontal);
-  /*
-   * The page's colors: the docs' own, navy for the logo and the button, and the
-   * docs' separator color, as on the sidebar's edge, for the guidelines. Infima
-   * leaves the light background transparent over a white canvas, but the
-   * markers need it opaque.
-   */
-  --page: #fff;
-  --ink: var(--ifm-font-color-base);
-  --accent: var(--swm-navy-light-100);
-  --on-accent: var(--swm-white);
-  --guide: var(--ifm-toc-border-color);
-  /* The sheet's, which the copy over it takes on. */
-  --sheet: var(--swm-navy-light-100);
-  --sheet-ink: var(--swm-white);
-  --sheet-accent: var(--swm-blue-dark-80);
-  --sheet-on-accent: var(--sheet);
-  --sheet-hint: var(--swm-blue-dark-80);
-  /* The page's guide-to-background contrast, 1.36:1, on the navy. */
-  --sheet-guide: rgb(252 252 255 / 0.12);
-  --blue: var(--swm-blue-light-100);
+  --page: var(--bs-bg);
+  --ink: var(--bs-text);
+  --accent: var(--bs-accent);
+  --on-accent: var(--bs-on-accent);
+  --guide: var(--bs-line-soft);
+  --sheet: var(--bs-ultramarine);
+  --sheet-ink: white;
+  --sheet-accent: white;
+  --sheet-on-accent: var(--bs-ultramarine);
+  --sheet-guide: rgb(255 255 255 / 0.22);
 
   position: relative;
   height: 100vh;
@@ -39,22 +29,6 @@
   background-color: var(--page);
   /* The font's own, rather than Infima's 1.65 and 1.25. */
   line-height: normal;
-}
-
-/* A dark page, with the light page's colors on the sheet rising over it. */
-[data-theme='dark'] .hero {
-  --page: var(--ifm-background-color);
-  --accent: var(--swm-blue-dark-80);
-  --on-accent: var(--swm-navy-dark-140);
-  /* Infima's light text and separator colors. */
-  --sheet: #fff;
-  --sheet-ink: #1c1e21;
-  --sheet-accent: var(--swm-navy-light-100);
-  --sheet-on-accent: var(--swm-white);
-  /* The docs' link color in light mode. */
-  --sheet-hint: var(--swm-blue-light-100);
-  --sheet-guide: #dadde1;
-  --blue: var(--swm-blue-dark-80);
 }
 
 :where(.hero) a,
@@ -79,7 +53,7 @@
 
 /* Also where the copy over the sheet shows the page's focus. */
 .hero :is(:focus-visible, [data-focused]) {
-  outline: 2px solid var(--blue);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -380,13 +354,11 @@
 /* Argument names are hints, not code. They're left out where they'd wrap. */
 .readout span {
   display: none;
-  color: var(--sheet-hint);
+  font-style: italic;
 }
 
 .readout b {
   font-weight: 400;
-  /* Without the hints, the values take their color. */
-  color: var(--sheet-hint);
 }
 
 @media (min-width: 375px) {
@@ -406,10 +378,6 @@
 
   .readout span {
     display: inline;
-  }
-
-  .readout b {
-    color: inherit;
   }
 }
 

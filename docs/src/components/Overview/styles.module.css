@@ -26,7 +26,6 @@
   gap: 4px;
   padding: 16px 18px;
   border: 1px solid var(--bs-line-soft);
-  background: var(--bs-surface);
   color: var(--bs-text);
   transition:
     border-color 150ms ease,
@@ -147,13 +146,13 @@
 }
 
 .swm {
-  border-color: var(--swm-navy-light-100);
-  background: var(--swm-navy-light-100);
-  color: var(--swm-navy-light-20);
+  border-color: var(--bs-off-black);
+  background: var(--bs-off-black);
+  color: var(--bs-pastel-violet);
 }
 
 .swm:hover {
-  color: var(--swm-navy-light-20);
+  color: var(--bs-pastel-violet);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -164,7 +163,7 @@
 
 [data-theme='dark'] .swm {
   border-color: var(--bs-line);
-  background: var(--swm-navy-dark-120);
+  background: var(--bs-surface);
 }
 
 .lead > p {

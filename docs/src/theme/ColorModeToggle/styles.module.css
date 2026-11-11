@@ -8,7 +8,7 @@
   width: 34px;
   height: 32px;
   place-items: center;
-  color: var(--bs-line);
+  color: var(--bs-muted);
   transition:
     background-color 150ms ease,
     color 150ms ease;
@@ -24,7 +24,8 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .segment:not(:disabled):hover {
+  .segment:not(:disabled, [aria-pressed='true']):hover {
+    background-color: var(--bs-neutral-fill);
     color: var(--bs-heading);
   }
 }
@@ -37,15 +38,6 @@
 /* The rendered theme picks the highlighted segment. */
 [data-theme='light'] .light,
 [data-theme='dark'] .dark {
-  background-color: var(--bs-line);
-  color: var(--bs-heading);
-}
-
-[data-theme='dark'] .segment {
-  color: var(--bs-line-strong);
-}
-
-[data-theme='dark'] .dark {
-  background-color: var(--bs-line-strong);
-  color: var(--bs-heading);
+  background-color: var(--bs-tint);
+  color: var(--bs-accent);
 }

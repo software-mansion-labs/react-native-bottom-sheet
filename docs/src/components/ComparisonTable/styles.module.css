@@ -1,22 +1,18 @@
 .root {
-  --ct-border: var(--swm-navy-light-20);
-  --ct-row-border: #e3e6f5;
-  /* Opaque, since the sticky column covers cells scrolling under it. */
-  --ct-background: #fff;
-  --ct-header: var(--swm-off-white);
-  --ct-group: var(--swm-off-white);
-  --ct-text: var(--swm-navy-light-100);
-  --ct-muted: var(--swm-navy-light-60);
-  --ct-featured: #f1f7fd;
-  --ct-featured-accent: var(--swm-blue-light-100);
-  /* Solid marks with light glyphs, deep enough to keep the glyph legible. */
-  --ct-yes: #fff;
-  --ct-yes-bg: #3b9f7c;
-  --ct-partial: #fff;
-  --ct-partial-bg: #e29a00;
-  --ct-no: #fff;
-  --ct-no-bg: #ec4d44;
-  --ct-shadow: rgba(0, 26, 114, 0.12);
+  --ct-border: var(--bs-line);
+  --ct-row-border: var(--bs-line-soft);
+  /* Sticky cells need opaque surfaces. */
+  --ct-background: var(--bs-bg);
+  --ct-header: var(--bs-subtle);
+  --ct-group: var(--bs-subtle);
+  --ct-text: var(--bs-heading);
+  --ct-muted: var(--bs-muted);
+  --ct-featured: var(--bs-tint);
+  --ct-featured-accent: var(--bs-accent);
+  --ct-yes-bg: #5a9e39;
+  --ct-partial-bg: #c87b16;
+  --ct-no-bg: #fb5173;
+  --ct-shadow: rgb(20 17 34 / 0.12);
   --ct-feature-width: 13.5rem;
   --ct-column-width: 9.5rem;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -26,21 +22,9 @@
 }
 
 [data-theme='dark'] .root {
-  --ct-border: var(--swm-light-off-navy);
-  --ct-background: var(--ifm-background-color);
-  --ct-row-border: #2c3144;
-  --ct-header: var(--swm-navy);
-  --ct-group: var(--swm-navy);
-  --ct-text: var(--swm-off-white);
-  --ct-muted: var(--swm-navy-dark-40);
-  --ct-featured: #1a2a3d;
-  --ct-featured-accent: var(--swm-blue-dark-80);
-  --ct-yes: #f2fff9;
-  --ct-yes-bg: #2f9a6c;
-  --ct-partial: #fffaf0;
-  --ct-partial-bg: #c98a00;
-  --ct-no: #fff5f5;
-  --ct-no-bg: #d9443c;
+  --ct-yes-bg: #85cc52;
+  --ct-partial-bg: #e39733;
+  --ct-no-bg: #ff8099;
   --ct-shadow: rgba(0, 0, 0, 0.45);
 }
 
@@ -341,6 +325,7 @@
 }
 
 .icon {
+  color: var(--bs-on-accent);
   display: inline-grid;
   flex-shrink: 0;
   place-items: center;
@@ -351,20 +336,18 @@
 
 .icon.yes {
   background: var(--ct-yes-bg);
-  color: var(--ct-yes);
 }
 
 .icon.partial {
   background: var(--ct-partial-bg);
-  color: var(--ct-partial);
 }
 
 .icon.no {
   background: var(--ct-no-bg);
-  color: var(--ct-no);
 }
 
 .legend .icon {
+  color: var(--bs-on-accent);
   width: 1.125rem;
   height: 1.125rem;
 }
