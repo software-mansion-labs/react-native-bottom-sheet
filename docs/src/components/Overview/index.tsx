@@ -1,7 +1,5 @@
 import type { ReactNode } from 'react';
 import Link from '@docusaurus/Link';
-import useBaseUrl from '@docusaurus/useBaseUrl';
-import ThemedImage from '@theme/ThemedImage';
 
 import styles from './styles.module.css';
 
@@ -63,46 +61,22 @@ export const Highlights = ({ children }: { children: ReactNode }) => (
   <div className={styles.highlights}>{children}</div>
 );
 
-export const Credits = () => {
-  const gobi = {
-    light: useBaseUrl('/img/gobi-light.svg'),
-    dark: useBaseUrl('/img/gobi-dark.svg'),
-  };
-  return (
-    <div className={styles.credits}>
-      <a
-        className={`${styles.credit} ${styles.swm} card-link`}
-        href="https://swmansion.com/contact/projects?utm_source=react-native-bottom-sheet&utm_medium=docs"
-      >
-        <span className={styles.creditLabel}>Built by</span>
-        <img
-          src="https://logo.swmansion.com/logo?color=white&variant=desktop&width=152&tag=react-native-bottom-sheet-docs"
-          alt="Software Mansion"
-          width="152"
-          height="38"
-          loading="lazy"
-        />
-        <span className={styles.creditBody}>
-          Core React Native contributors since 2012. Need help with your app?
-          Hire us.
-        </span>
-      </a>
-      <a
-        className={`${styles.credit} ${styles.gobi} card-link`}
-        href="https://www.gobimaps.com"
-      >
-        <span className={styles.creditLabel}>Sponsored by</span>
-        <ThemedImage
-          sources={gobi}
-          alt="Gobi Maps"
-          width="110"
-          height="38"
-          loading="lazy"
-        />
-        <span className={styles.creditBody}>
-          The best of your city, all in one map.
-        </span>
-      </a>
-    </div>
-  );
-};
+export const Credits = () => (
+  <a
+    className={`${styles.credit} ${styles.swm} card-link`}
+    href="https://swmansion.com/contact/projects?utm_source=react-native-bottom-sheet&utm_medium=docs"
+  >
+    <span className={styles.creditLabel}>Built by</span>
+    <img
+      src="https://logo.swmansion.com/logo?color=white&variant=desktop&width=152&tag=react-native-bottom-sheet-docs"
+      alt="Software Mansion"
+      width="152"
+      height="38"
+      loading="lazy"
+    />
+    <span className={styles.creditBody}>
+      Core React Native contributors since 2012. Need help with your app?
+      Hire us.
+    </span>
+  </a>
+);

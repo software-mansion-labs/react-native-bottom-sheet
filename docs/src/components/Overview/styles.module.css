@@ -107,20 +107,8 @@
 }
 
 /* Credits */
-.credits {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin: 24px 0;
-}
-
-@media (max-width: 640px) {
-  .credits {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 .credit {
+  margin: 24px 0;
   display: grid;
   align-content: start;
   justify-items: start;
@@ -168,21 +156,8 @@
   color: var(--swm-navy-light-20);
 }
 
-.gobi {
-  background: var(--bs-surface);
-  color: var(--bs-muted);
-}
-
-.gobi:hover {
-  color: var(--bs-muted);
-}
-
 @media (hover: hover) and (pointer: fine) {
   .swm:hover {
-    border-color: var(--bs-accent);
-  }
-
-  .gobi:hover {
     border-color: var(--bs-accent);
   }
 }
