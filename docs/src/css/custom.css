@@ -175,8 +175,8 @@
 
   --ifm-code-font-size: 88%;
   --ifm-code-background: var(--bs-code-bg);
-  --ifm-code-border-radius: 4px;
-  --ifm-code-padding-horizontal: 0.35em;
+  --ifm-code-border-radius: 0;
+  --ifm-code-padding-horizontal: 0.3em;
   --ifm-pre-background: var(--bs-subtle);
   --docusaurus-highlighted-code-line-bg: var(--bs-tint);
 
@@ -420,6 +420,10 @@ article mark {
 
 /* ---------- Table of contents ---------- */
 
+.theme-doc-toc-mobile {
+  border-radius: 0;
+}
+
 .theme-doc-toc-desktop {
   padding-top: 8px;
 }
@@ -548,7 +552,6 @@ article mark {
 /* Code blocks */
 .theme-code-block {
   border: 1px solid var(--bs-line-soft);
-  border-radius: 4px;
   box-shadow: none;
 }
 
@@ -658,7 +661,7 @@ article mark {
 
 .pagination-nav__link {
   border: 1px solid var(--bs-line-soft);
-  border-radius: 4px;
+  border-radius: 0;
   padding: 16px 20px;
   transition:
     border-color 150ms ease,

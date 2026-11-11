@@ -88,7 +88,6 @@
   margin: 64px auto auto;
   padding: 0;
   border: 1px solid var(--bs-line);
-  border-radius: 4px;
   background-color: var(--bs-surface);
   color: var(--bs-text);
   box-shadow: 0 24px 48px -16px rgb(20 17 34 / 0.28);
@@ -337,7 +336,6 @@
     max-height: none;
     margin: 0;
     border: 0;
-    border-radius: 0;
     box-shadow: none;
   }
 

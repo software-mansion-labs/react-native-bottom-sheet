@@ -114,7 +114,6 @@
 .frame {
   position: relative;
   border: 1px solid var(--ct-border);
-  border-radius: 12px;
   overflow: hidden;
   background: var(--ct-background);
 }
@@ -145,7 +144,6 @@
 .scroller:focus-visible {
   outline: 2px solid var(--ifm-color-primary);
   outline-offset: -2px;
-  border-radius: 12px;
 }
 
 /* Table. The selectors are doubled to win over Infima's markdown table rules. */
