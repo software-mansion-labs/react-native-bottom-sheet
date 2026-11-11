@@ -424,17 +424,6 @@ article mark {
   padding-top: 8px;
 }
 
-.theme-doc-toc-desktop::before {
-  content: 'On this page';
-  display: block;
-  margin: 0 0 8px;
-  color: var(--bs-muted);
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
 .table-of-contents {
   padding: 0;
   border-left: 1px solid var(--bs-line-soft);
@@ -452,13 +441,9 @@ article mark {
 
 .table-of-contents__link {
   display: block;
-  margin-left: -1px;
-  padding: 5px 0 5px 14px;
-  border-left: 2px solid transparent;
+  padding: 5px 0 5px 15px;
   color: var(--bs-muted);
-  transition:
-    color 150ms ease,
-    border-color 150ms ease;
+  transition: color 150ms ease;
 }
 
 .table-of-contents__link:hover,
@@ -467,7 +452,7 @@ article mark {
 }
 
 .table-of-contents__link--active {
-  border-left-color: var(--bs-accent);
+  font-weight: 500;
 }
 
 /* ---------- Page body ---------- */
