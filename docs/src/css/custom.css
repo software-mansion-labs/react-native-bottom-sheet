@@ -394,12 +394,8 @@ article mark {
   border-right: 1px solid var(--bs-line-soft) !important;
 }
 
-.theme-doc-sidebar-menu.menu__list {
-  padding-top: 8px;
-}
-
 .menu {
-  padding: 16px 12px 24px !important;
+  padding: 12px !important;
 }
 
 .menu__link {
@@ -477,6 +473,12 @@ article mark {
 }
 
 /* ---------- Page body ---------- */
+
+@layer docusaurus.infima {
+  .docs-doc-page main > .container.padding-top--md {
+    padding-top: 32px !important;
+  }
+}
 
 .markdown {
   font-size: 16px;
