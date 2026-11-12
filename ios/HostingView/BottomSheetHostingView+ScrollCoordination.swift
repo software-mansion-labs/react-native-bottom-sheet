@@ -16,16 +16,30 @@ private extension UIScrollView {
 }
 
 /// A scroll view's indicator inset, as its caller set it and as the sheet last
-/// applied it.
+/// applied it. The fit lives on the scroll view, so a list that moves to
+/// another sheet hands its fit, and the caller's inset with it, to that sheet
+/// instead of the new sheet taking the old sheet's adjustment for the caller's.
 final class ScrollIndicatorFit {
+  private static var key: UInt8 = 0
+
   var callerInset: CGFloat
   var appliedInset: CGFloat
   let inverted: Bool
+  /// The sheet fitting the indicator now. Only it restores the caller's inset.
+  weak var owner: AnyObject?
 
   init(inset: CGFloat, inverted: Bool) {
     callerInset = inset
     appliedInset = inset
     self.inverted = inverted
+  }
+
+  static func attached(to scrollView: UIScrollView) -> ScrollIndicatorFit? {
+    objc_getAssociatedObject(scrollView, &key) as? ScrollIndicatorFit
+  }
+
+  static func attach(_ fit: ScrollIndicatorFit?, to scrollView: UIScrollView) {
+    objc_setAssociatedObject(scrollView, &key, fit, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
   }
 }
 
@@ -450,10 +464,15 @@ extension BottomSheetHostingView {
   /// rather than keeping the size of the detent it was last shown at. During a
   /// settle the model transform already holds the target, so `translation`
   /// passes the sheet's visual position. A scroll view that has left the sheet
-  /// gets its caller's inset back and is no longer fitted.
+  /// gets its caller's inset back and is no longer fitted, unless another sheet
+  /// has taken its fit over.
   func refitScrollIndicators(atTranslation translation: CGFloat? = nil) {
     let shift = translation.map { $0 - sheetContainer.transform.ty } ?? 0
     for case let scrollView as UIScrollView in scrollIndicatorFits.keyEnumerator().allObjects {
+      guard ScrollIndicatorFit.attached(to: scrollView)?.owner === self else {
+        scrollIndicatorFits.removeObject(forKey: scrollView)
+        continue
+      }
       guard ownsScrollView(scrollView) else {
         releaseScrollIndicatorFit(of: scrollView)
         continue
@@ -469,11 +488,18 @@ extension BottomSheetHostingView {
     }
   }
 
-  /// Restores the caller's inset on the edge the sheet adjusted, unless
-  /// something else set that edge since, and stops fitting the scroll view.
+  /// Stops fitting the scroll view and, unless another sheet has taken its fit
+  /// over, restores the caller's inset.
   private func releaseScrollIndicatorFit(of scrollView: UIScrollView) {
-    guard let fit = scrollIndicatorFits.object(forKey: scrollView) else { return }
     scrollIndicatorFits.removeObject(forKey: scrollView)
+    guard let fit = ScrollIndicatorFit.attached(to: scrollView), fit.owner === self else { return }
+    restoreCallerInset(of: scrollView, fit: fit)
+  }
+
+  /// Restores the caller's inset on the edge the fit adjusted, unless
+  /// something else set that edge since, and detaches the fit.
+  private func restoreCallerInset(of scrollView: UIScrollView, fit: ScrollIndicatorFit) {
+    ScrollIndicatorFit.attach(nil, to: scrollView)
     let insets = scrollView.verticalScrollIndicatorInsets
     if fit.inverted, insets.top == fit.appliedInset {
       scrollView.verticalScrollIndicatorInsets.top = fit.callerInset
@@ -502,15 +528,19 @@ extension BottomSheetHostingView {
   }
 
   private func fitScrollIndicator(of scrollView: UIScrollView, inverted: Bool, shift: CGFloat) {
-    if let fit = scrollIndicatorFits.object(forKey: scrollView), fit.inverted != inverted {
+    if let fit = ScrollIndicatorFit.attached(to: scrollView), fit.inverted != inverted {
       // The list flipped: its indicator's bottom is the other edge now.
-      releaseScrollIndicatorFit(of: scrollView)
+      restoreCallerInset(of: scrollView, fit: fit)
     }
     let hidden = max(0, scrollView.convert(scrollView.bounds, to: self).maxY + shift - bounds.height)
     let insets = scrollView.verticalScrollIndicatorInsets
     let current = inverted ? insets.top : insets.bottom
-    let fit = scrollIndicatorFits.object(forKey: scrollView)
+    // A fit another sheet made carries the caller's inset over, so its
+    // adjustment isn't taken for the caller's.
+    let fit = ScrollIndicatorFit.attached(to: scrollView)
       ?? ScrollIndicatorFit(inset: current, inverted: inverted)
+    fit.owner = self
+    ScrollIndicatorFit.attach(fit, to: scrollView)
     scrollIndicatorFits.setObject(fit, forKey: scrollView)
     // Any other inset than the one applied last is the caller's.
     if current != fit.appliedInset {

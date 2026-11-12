@@ -1,10 +1,13 @@
 package com.swmansion.reactnativebottomsheet.host
 
+import android.graphics.Matrix
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.DrawableWrapper
 import android.os.Build
 import android.view.View
 import androidx.annotation.RequiresApi
+import java.lang.ref.WeakReference
+import java.util.Collections
 import java.util.WeakHashMap
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -19,30 +22,74 @@ import kotlin.math.roundToInt
  *
  * Android has no scroll bar insets. The thumb drawable is wrapped instead, which needs Android 10;
  * below it the bar keeps its full-height size.
+ *
+ * Only the sheet a scrollable is in fits its bar. A scrollable that leaves the sheet draws its full
+ * bar at once and gets its original thumb back on the next refit or when the sheet detaches;
+ * touching it in another sheet hands the wrapper to that sheet. The scrollables are held weakly, so
+ * a removed one can be collected.
  */
 internal class ScrollIndicators(private val state: SheetState) {
-  private val fits = WeakHashMap<View, FittedThumb>()
+  private val views: MutableSet<View> = Collections.newSetFromMap(WeakHashMap())
 
   fun register(view: View) {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q || fits.containsKey(view)) return
-    val thumb = view.verticalScrollbarThumbDrawable ?: return
-    val fitted = thumb as? FittedThumb ?: FittedThumb(thumb, view)
-    view.verticalScrollbarThumbDrawable = fitted
-    fits[view] = fitted
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+    val current = view.verticalScrollbarThumbDrawable ?: return
+    val fitted =
+      current as? FittedThumb
+        ?: FittedThumb(current, view).also { view.verticalScrollbarThumbDrawable = it }
+    fitted.owner = this
+    views.add(view)
     refit(view, fitted)
   }
 
   fun refit() {
-    if (fits.isEmpty()) return
-    for ((view, thumb) in fits.entries.toList()) {
-      refit(view, thumb)
+    if (views.isEmpty() || Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+    for (view in views.toList()) {
+      val fitted = view.verticalScrollbarThumbDrawable as? FittedThumb
+      when {
+        // Another sheet took it over, or the app replaced the thumb.
+        fitted == null || fitted.owner !== this -> views.remove(view)
+        !contains(view) -> release(view, fitted)
+        else -> refit(view, fitted)
+      }
     }
   }
 
+  /** Gives every scrollable this sheet fits its original thumb back. */
+  fun releaseAll() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+    for (view in views.toList()) {
+      val fitted = view.verticalScrollbarThumbDrawable as? FittedThumb
+      if (fitted != null && fitted.owner === this) release(view, fitted)
+    }
+    views.clear()
+  }
+
+  /** Whether the view is still inside this sheet's host. */
+  fun contains(view: View): Boolean {
+    var parent = view.parent
+    while (parent != null) {
+      if (parent === state.hostView) return true
+      parent = parent.parent
+    }
+    return false
+  }
+
+  @RequiresApi(Build.VERSION_CODES.Q)
+  private fun release(view: View, fitted: FittedThumb) {
+    views.remove(view)
+    fitted.owner = null
+    view.verticalScrollbarThumbDrawable = fitted.drawable
+    view.invalidate()
+  }
+
+  @RequiresApi(Build.VERSION_CODES.Q)
   private fun refit(view: View, thumb: FittedThumb) {
     val hidden = max(0, (bottomInHost(view) - state.hostView.height).roundToInt())
-    if (hidden == thumb.hidden) return
+    val inverted = isInverted(view)
+    if (hidden == thumb.hidden && inverted == thumb.inverted) return
     thumb.hidden = hidden
+    thumb.inverted = inverted
     // The bar is only drawn with the view; moving the sheet doesn't redraw it.
     view.invalidate()
   }
@@ -57,22 +104,49 @@ internal class ScrollIndicators(private val state: SheetState) {
     }
     return y
   }
+
+  /**
+   * Whether the view draws upside down, like an inverted list, so its local top is at the bottom.
+   */
+  private fun isInverted(view: View): Boolean {
+    val values = FloatArray(9)
+    var inverted = false
+    var current: View? = view
+    while (current != null && current !== state.hostView) {
+      if (!current.matrix.isIdentity) {
+        current.matrix.getValues(values)
+        if (values[Matrix.MSCALE_Y] < 0) inverted = !inverted
+      }
+      current = current.parent as? View
+    }
+    return inverted
+  }
 }
 
 /**
  * A scroll bar thumb drawn on the visible part of the track. UIKit-like: the track ends where the
  * view leaves the host, the thumb's length is the visible share of the content, and its position
- * keeps the scroll fraction Android computed for the full track.
+ * keeps the scroll fraction Android computed for the full track. In an inverted view the hidden
+ * part is at the local top, so the track starts below it.
  */
 @RequiresApi(Build.VERSION_CODES.Q)
-private class FittedThumb(thumb: Drawable, private val view: View) : DrawableWrapper(thumb) {
+private class FittedThumb(thumb: Drawable, view: View) : DrawableWrapper(thumb) {
+  private val view = WeakReference(view)
+  var owner: ScrollIndicators? = null
   var hidden = 0
+  var inverted = false
 
   override fun setBounds(left: Int, top: Int, right: Int, bottom: Int) {
+    val view = view.get()
+    // A view that has left its sheet draws the full bar until the thumb is given back.
+    if (view == null || hidden <= 0 || owner?.contains(view) != true) {
+      super.setBounds(left, top, right, bottom)
+      return
+    }
     val trackTop = view.scrollY + view.paddingTop
     val trackLength = view.height - view.paddingTop - view.paddingBottom
     val visibleLength = trackLength - hidden
-    if (hidden <= 0 || visibleLength <= 0 || trackLength <= 0) {
+    if (visibleLength <= 0 || trackLength <= 0) {
       super.setBounds(left, top, right, bottom)
       return
     }
@@ -85,7 +159,8 @@ private class FittedThumb(thumb: Drawable, private val view: View) : DrawableWra
     val minLength = 2 * (right - left)
     val fittedLength =
       max(minLength, (visibleLength * share).roundToInt()).coerceAtMost(visibleLength)
-    val fittedTop = trackTop + ((visibleLength - fittedLength) * fraction).roundToInt()
+    val visibleTop = if (inverted) trackTop + hidden else trackTop
+    val fittedTop = visibleTop + ((visibleLength - fittedLength) * fraction).roundToInt()
     super.setBounds(left, fittedTop, right, fittedTop + fittedLength)
   }
 }
