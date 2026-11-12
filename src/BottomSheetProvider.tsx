@@ -9,6 +9,8 @@ import {
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
+import { BottomSheetPortalHostView } from './BottomSheetHostViews';
+
 type PortalSnapshot = Array<[string, ReactNode]>;
 
 interface PortalEntry {
@@ -33,22 +35,35 @@ const PortalHost = () => {
     context.getSnapshot
   );
 
-  return portals.map(([key, element]) => (
-    <View
-      key={key}
+  if (portals.length === 0) {
+    return null;
+  }
+
+  return (
+    // While a sheet in it is open, the native host hides its siblings - the
+    // screen behind the sheets - from screen readers. See issue #75.
+    <BottomSheetPortalHostView
       style={StyleSheet.absoluteFill}
       pointerEvents="box-none"
-      // Keep this wrapper a real native view (Android). As a layout-only view
-      // Fabric flattens it, and portal-entry churn (a sheet remounted while
-      // the previous instance tears down) makes the differ unflatten it
-      // mid-flight - a reparenting batch that can arrive without the
-      // wrapper's Create mutation, killing the surface with "Unable to find
-      // viewState for tag". See issue #78.
-      collapsable={false}
     >
-      {element}
-    </View>
-  ));
+      {portals.map(([key, element]) => (
+        <View
+          key={key}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="box-none"
+          // Keep this wrapper a real native view (Android). As a layout-only
+          // view Fabric flattens it, and portal-entry churn (a sheet remounted
+          // while the previous instance tears down) makes the differ unflatten
+          // it mid-flight - a reparenting batch that can arrive without the
+          // wrapper's Create mutation, killing the surface with "Unable to
+          // find viewState for tag". See issue #78.
+          collapsable={false}
+        >
+          {element}
+        </View>
+      ))}
+    </BottomSheetPortalHostView>
+  );
 };
 
 /** Provides the portal host required for modal bottom sheets. */

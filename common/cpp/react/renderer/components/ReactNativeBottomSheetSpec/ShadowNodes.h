@@ -200,6 +200,13 @@ using BottomSheetContentWrapperViewShadowNode = BottomSheetCardContentShadowNode
     BottomSheetContentWrapperViewEventEmitter,
     BottomSheetCardContent::Kind::ContentWrapper>;
 
+JSI_EXPORT extern const char BottomSheetPortalHostViewComponentName[];
+
+using BottomSheetPortalHostViewShadowNode = ConcreteViewShadowNode<
+    BottomSheetPortalHostViewComponentName,
+    BottomSheetPortalHostViewProps,
+    BottomSheetPortalHostViewEventEmitter>;
+
 // The card content of a child of the sheet, or null for any other child.
 inline const BottomSheetCardContent* bottomSheetCardContentOf(
     const ShadowNode& node) {

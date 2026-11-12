@@ -165,6 +165,11 @@
   return _impl.isModalAccessibilityActive;
 }
 
+- (BOOL)isPresented
+{
+  return _impl.isPresented;
+}
+
 - (void)mountChildComponentView:(UIView *)childView atIndex:(NSInteger)index
 {
   [_impl mountChildComponentView:childView atIndex:index];
@@ -215,6 +220,11 @@
 - (void)bottomSheetHostingViewDidLayout:(BottomSheetHostingView *)view
 {
   [self.delegate bottomSheetViewDidLayout:self];
+}
+
+- (void)bottomSheetHostingViewDidUpdateScrim:(BottomSheetHostingView *)view
+{
+  [self.delegate bottomSheetViewDidUpdateScrim:self];
 }
 
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event

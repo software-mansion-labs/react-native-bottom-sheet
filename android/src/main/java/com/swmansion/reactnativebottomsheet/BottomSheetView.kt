@@ -59,6 +59,10 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
   // Cached only while a dialog is present, so per-frame interaction callbacks
   // don't thrash the window flags.
   private var overlayInteractive: Boolean? = null
+  // The portal host this sheet is presented in, outside native-overlay mode, and whether the sheet
+  // currently blocks the screen behind it.
+  private var portalHost: BottomSheetPortalHostView? = null
+  private var isPresented = false
 
   private var hasCloseRequestHandler = false
   private var isViewAttached = false
@@ -81,7 +85,10 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
 
   init {
     pointerEvents = PointerEvents.BOX_NONE
-    host.interactionListener = { interactive -> updateOverlayTouchability(interactive) }
+    host.interactionListener = { interactive ->
+      updateOverlayTouchability(interactive)
+      updatePresented(interactive)
+    }
     host.closeRequestStateChangedListener = ::refreshCloseRequestControllers
     attachHostInline()
     // The overlay dialog's window is bound to the host activity, so we follow the
@@ -206,6 +213,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
       dismissOverlay()
     }
     refreshCloseRequestControllers()
+    updatePortalHost()
   }
 
   fun setOpenOrder(value: Int) {
@@ -229,6 +237,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     }
     refreshCloseRequestControllers()
     portalCloseRequestController.scheduleRoutingContextSync()
+    updatePortalHost()
   }
 
   override fun onDetachedFromWindow() {
@@ -236,6 +245,7 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     portalCloseRequestController.clear()
     overlayCloseRequestController.unbind()
     refreshCloseRequestControllers()
+    updatePortalHost()
     super.onDetachedFromWindow()
   }
 
@@ -451,6 +461,36 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     attributes = attributes.apply { alpha = if (interactive) 1f else 0f }
   }
 
+  // MARK: - Accessibility modality
+
+  /**
+   * Keeps accessibility services out of the screen behind a presented modal sheet. The overlay
+   * dialog's window already does that in native-overlay mode; otherwise the portal host does it for
+   * the screen around it.
+   */
+  private fun updatePresented(presented: Boolean) {
+    if (presented == isPresented) return
+    isPresented = presented
+    portalHost?.setSheetModal(this, presented)
+  }
+
+  /** Finds the portal host this sheet is mounted in, leaving the previous one first. */
+  private fun updatePortalHost() {
+    val newHost =
+      if (isViewAttached && !nativeOverlay) {
+        generateSequence(parent) { it.parent }
+          .filterIsInstance<BottomSheetPortalHostView>()
+          .firstOrNull()
+      } else {
+        null
+      }
+    if (newHost !== portalHost) {
+      portalHost?.setSheetModal(this, false)
+      portalHost = newHost
+    }
+    portalHost?.setSheetModal(this, isPresented)
+  }
+
   // MARK: - Close request
 
   /** Shared native-to-JS path for Back/Escape requests from portal and `nativeOverlay` modes. */
@@ -522,6 +562,9 @@ class BottomSheetView(context: Context) : ReactViewGroup(context), LifecycleEven
     themedReactContext?.removeLifecycleEventListener(this)
     host.interactionListener = null
     host.closeRequestStateChangedListener = null
+    portalHost?.setSheetModal(this, false)
+    portalHost = null
+    isPresented = false
     presentedOverlays.remove(this)
     overlayDialog?.let { if (it.isShowing) it.dismiss() }
     overlayDialog = null

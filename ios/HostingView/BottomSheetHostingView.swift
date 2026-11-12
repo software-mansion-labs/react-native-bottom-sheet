@@ -11,6 +11,11 @@ import UIKit
   /// layer can push the content wrapper's target size (and, in overlay mode,
   /// the sheet frame) into the shadow tree.
   func bottomSheetHostingViewDidLayout(_ view: BottomSheetHostingView)
+  /// Fired after the scrim and sheet visibility are re-evaluated without the
+  /// sheet moving (e.g., a `scrimOpacity` or `modal` change), so the component
+  /// layer can follow `isPresented` and `isModalAccessibilityActive`. Movement
+  /// reports through `didChangePosition` instead.
+  func bottomSheetHostingViewDidUpdateScrim(_ view: BottomSheetHostingView)
 }
 
 /// The scrim control, exposed to VoiceOver as a dismiss button while a
