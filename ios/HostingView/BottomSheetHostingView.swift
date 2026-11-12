@@ -610,6 +610,8 @@ public final class BottomSheetHostingView: UIView {
     activeDragDetentSpecs = nil
     initialScrollViewStates = []
     initialScrollableChainAtStart = true
+    detachIndicatorDrags()
+    releaseScrollIndicatorFits()
     finishScrollViewCoordination()
     setContentInteractionEnabled(true)
     stopObservingContentHeightMarker()
