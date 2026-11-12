@@ -117,6 +117,7 @@ internal class Snapping(
     )
     card.updateCardGeometry()
     contentRegion.updateShadowState(ty)
+    state.scrollIndicators.refit()
   }
 
   // Fractional detent index in 0..(detentSpecs.size - 1): 0 at the shortest

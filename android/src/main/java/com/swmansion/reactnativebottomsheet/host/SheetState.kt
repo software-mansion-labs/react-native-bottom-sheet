@@ -21,6 +21,7 @@ internal interface SheetHost {
 /** The state several parts of the sheet read, and the geometry derived directly from it. */
 internal class SheetState(val hostView: ViewGroup, val sheetContainer: BottomSheetCardContainer) {
   val density = hostView.context.resources.displayMetrics.density
+  val scrollIndicators = ScrollIndicators(this)
   val width: Int
     get() = hostView.width
 
