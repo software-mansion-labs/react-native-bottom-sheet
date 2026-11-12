@@ -68,10 +68,17 @@ shape SheetConfig
   // close that starts right after an open. At rest it raises no events. No
   // effect when no detent is closed.
   lazy: option<bool>
+  // The component's own option, as `nativeOverlay` on `ModalBottomSheet`: a
+  // modal sheet is lifted into Exact's top layer, above everything, native
+  // modal routes included, and sized to the window wherever it is mounted
+  // (a popover, which iOS lifts above route sheets and the web puts in the
+  // browser's top layer). The sheet opened last is in front. No effect on an
+  // inline sheet.
+  nativeOverlay: option<bool>
 
 // Every option unset: the tag's defaults. Change fields with copy-with:
 // `SheetConfig(sheetConfig(), modal=some(true))`.
-fn sheetConfig(): SheetConfig = SheetConfig(topInset=none, modal=none, animateIn=none, animateContentHeight=none, settleDuration=none, scrollExpand=none, scrollCollapse=none, scrimColor=none, scrimLabel=none, surfaceColor=none, surfaceCornerRadii=none, surfaceCornerCurve=none, surfaceShadows=none, handlesCloseRequest=none, lazy=none)
+fn sheetConfig(): SheetConfig = SheetConfig(topInset=none, modal=none, animateIn=none, animateContentHeight=none, settleDuration=none, scrollExpand=none, scrollCollapse=none, scrimColor=none, scrimLabel=none, surfaceColor=none, surfaceCornerRadii=none, surfaceCornerCurve=none, surfaceShadows=none, handlesCloseRequest=none, lazy=none, nativeOverlay=none)
 
 // One number of the `change` event's "<width>,<height>,<resting closed>", 0
 // when unreadable.
@@ -88,6 +95,8 @@ fn sheetIsLazy(config: SheetConfig): bool = match config.lazy { case some(b) => 
 // Whether a sheet's content is mounted: always, unless `lazy`, then while
 // `index` is open or the sheet hasn't yet come to rest closed.
 fn sheetMounted(config: SheetConfig, detents: SheetDetent[], index: number, restingClosed: bool): bool = !sheetIsLazy(config) || !sheetIndexClosed(detents, index) || !restingClosed
+
+fn sheetUsesOverlay(config: SheetConfig): bool = (match config.modal { case some(b) => b, case none => false }) && (match config.nativeOverlay { case some(b) => b, case none => false })
 
 // A modal sheet takes no touches once `index` is closed, so the page behind
 // it is usable while it closes, as `BottomSheet.tsx`'s wrapper
@@ -114,12 +123,21 @@ component BottomSheet
   // Whether the tag last reported resting at a closed detent; true before its
   // first report, so a lazy sheet created closed has no content.
   state restingClosed = true
+  // Whether an overlay sheet's layer was put in the top layer.
+  state lifted = false
   action sized(v: string)
     regionWidth = sheetRegionPart(v, 0) > 0 ? sheetRegionPart(v, 0) : regionWidth
     regionHeight = sheetRegionPart(v, 1) > 0 ? sheetRegionPart(v, 1) : regionHeight
+    // An overlay sheet is lifted on the tag's first report, and again each
+    // time it opens from rest, which brings it in front of the others (as
+    // `BottomSheetComponentView.mm`'s `bringOverlayToFront`).
+    if sheetUsesOverlay(config) && (!lifted || (restingClosed && sheetRegionPart(v, 2) == 0))
+      hidePopover(`${id}-layer`)
+      showPopover(`${id}-layer`)
+      lifted = true
     restingClosed = sheetRegionPart(v, 2) == 1
   view
-    column position="absolute" inset=0 pointer-events="none"
+    column id=`${id}-layer` popover=(sheetUsesOverlay(config) ? some("manual") : none) position="absolute" top=0 left=0 width="100%" height="100%" margin=0 padding=0 border-width=0 background-color="transparent" overflow="visible" pointer-events="none"
       if sheetMounted(config, detents, index, restingClosed)
         column testId=`${id}-content` position="absolute" top=0 left=0 width=(regionWidth == 0 ? "100%" : `${regionWidth}px`) height=(regionHeight == 0 ? "auto" : `${regionHeight}px`) display="flex" flex-direction="column" pointer-events="auto" opacity=(regionWidth == 0 ? 0 : 1)
           children
@@ -145,12 +163,21 @@ component TrackedBottomSheet
   // Whether the tag last reported resting at a closed detent; true before its
   // first report, so a lazy sheet created closed has no content.
   state restingClosed = true
+  // Whether an overlay sheet's layer was put in the top layer.
+  state lifted = false
   action sized(v: string)
     regionWidth = sheetRegionPart(v, 0) > 0 ? sheetRegionPart(v, 0) : regionWidth
     regionHeight = sheetRegionPart(v, 1) > 0 ? sheetRegionPart(v, 1) : regionHeight
+    // An overlay sheet is lifted on the tag's first report, and again each
+    // time it opens from rest, which brings it in front of the others (as
+    // `BottomSheetComponentView.mm`'s `bringOverlayToFront`).
+    if sheetUsesOverlay(config) && (!lifted || (restingClosed && sheetRegionPart(v, 2) == 0))
+      hidePopover(`${id}-layer`)
+      showPopover(`${id}-layer`)
+      lifted = true
     restingClosed = sheetRegionPart(v, 2) == 1
   view
-    column position="absolute" inset=0 pointer-events="none"
+    column id=`${id}-layer` popover=(sheetUsesOverlay(config) ? some("manual") : none) position="absolute" top=0 left=0 width="100%" height="100%" margin=0 padding=0 border-width=0 background-color="transparent" overflow="visible" pointer-events="none"
       if sheetMounted(config, detents, index, restingClosed)
         column testId=`${id}-content` position="absolute" top=0 left=0 width=(regionWidth == 0 ? "100%" : `${regionWidth}px`) height=(regionHeight == 0 ? "auto" : `${regionHeight}px`) display="flex" flex-direction="column" pointer-events="auto" opacity=(regionWidth == 0 ? 0 : 1)
           children

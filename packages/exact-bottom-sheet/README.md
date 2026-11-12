@@ -128,6 +128,10 @@ Props:
   to report a close that starts right after an open. At rest it raises no events
   and holds no content. The adapters adopt the new content before applying the
   open `index`, so the sheet opens to its height.
+- `config.nativeOverlay`: the component's own option, as `nativeOverlay` on
+  `ModalBottomSheet`: a modal sheet is lifted above everything, native modal
+  routes included, and sized to the window wherever it is mounted (see the
+  limitations below). No effect on an inline sheet.
 - Events: `indexchange`, `settle` and `closerequest` (below). Their handlers
   must be actions of the root component (Exact's rule for a package view's
   events). Contract has no optional action props, so all three are required:
@@ -335,15 +339,37 @@ itself:
   a Contract-drawn surface (an image, a gradient) is not adopted. With the raw
   tag, the content follows the region only when the author binds it (see the
   rules above); the component does it itself.
-- **Not mapped**: `nativeOverlay`/`openOrder` (the sheet covers the tag's box,
-  not the window), `wrapNativeView`, `surfaceElevation` and `surfaceShadowColor`
-  (Android only).
-- **The scrim covers the tag's box**, not the window: give a modal sheet's tag
-  the whole screen (the demo's screens hide the navigation bar and draw their
-  own header, as the React Native example's do).
+- **Not mapped**: `wrapNativeView` (no worklets in Exact), `surfaceElevation`
+  and `surfaceShadowColor` (Android only). `nativeOverlay` is the component's
+  `config.nativeOverlay` (Exact's top layer, below); the raw tag has none.
+- **Without `nativeOverlay`, the scrim covers the tag's box**, not the window:
+  give a modal sheet's tag the whole screen (the demo's screens hide the
+  navigation bar and draw their own header, as the React Native example's do).
+- **`nativeOverlay` is Exact's top layer**: the component makes the node that
+  holds the content and the tag a `popover="manual"` the size of the viewport
+  and shows it with `showPopover` on the tag's first `change`, and again on each
+  open from rest, so the sheet opened last is in front (React Native's
+  `openOrder`). iOS lifts it above route modal sheets; the web puts it in the
+  browser's top layer. No reparenting into a `UIWindow` and no touch handler of
+  its own, as React Native's glue needs. While the sheet is closed the layer
+  takes no touches. Exact's agent paints popovers itself and can't press through
+  them under `--touch platform`, so overlay screens are checked by hand
+  (argent), not by `app.test.contract`.
 - **`positionchange` runs an action every frame** while the sheet moves (as
   `onPositionChange` fires every frame); bind it only when needed
-  (`TrackedBottomSheet`).
+  (`TrackedBottomSheet`). Whether the action's render lands in the same frame as
+  the sheet (React Native's UI-thread worklets do) is unmeasured: the
+  simulator's recorder captures too few frames to tell.
+- **Close requests**: `closerequest` is web only, as `onCloseRequest` is on
+  React Native (Android and web); on iOS both handle VoiceOver's escape gesture
+  in the shared hosting view.
+- **A slow drag on a list at its top can end at a different detent** than in the
+  React Native example, near a snap midpoint. Measured with the same injected
+  drag (2026-11-12): both sheets see identical per-update travel and release
+  velocity, but in the React Native app the sheet's pan is recognized one touch
+  move later, so it travels that much less (23 pt for an injected drag, a few
+  points for a slow finger). The library code is the same; the extra wait comes
+  from the React Native app's gesture setup, not the sheet.
 - **Exact's agent clock is virtual**, but the sheet's spring runs on
   `CADisplayLink` and Core Animation (iOS) and `requestAnimationFrame` (web),
   not on Exact's session clock (`context.frames`). Drive it with real time:
