@@ -13,9 +13,10 @@ import com.facebook.react.views.view.ReactViewGroup
  * sheet covers, as a dialog's separate window would: those siblings, and the portals below the top
  * sheet's. TalkBack then neither swipes past the sheet into them nor finds them by touch.
  *
- * Android has no counterpart to iOS's `accessibilityViewIsModal`, so the covered views are marked
- * `IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS` and get their own value back once uncovered. A
- * view Fabric mounts or reorders meanwhile is handled on the next layout pass.
+ * The sheets stay in the app's window, so the covered views are marked
+ * `IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS` and get their own value back once uncovered, as
+ * the iOS host does with `accessibilityElementsHidden`. A view Fabric mounts or reorders meanwhile
+ * is handled on the next layout pass.
  */
 class BottomSheetPortalHostView(context: Context) : ReactViewGroup(context) {
   private val modalSheets = mutableSetOf<View>()
