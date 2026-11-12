@@ -1,0 +1,158 @@
+// The bottom sheet as a Contract component: `use BottomSheet, SheetConfig,
+// sheetConfig from "@swmansion/exact-bottom-sheet/sheet"`. It is the
+// counterpart of `src/BottomSheet.tsx`'s content wrapper: the caller's
+// children go inside a content node the component lays out at the sheet's
+// content region (the widest card's width, the region's height, from the
+// tag's built-in `change` event), followed by a zero-height content-height
+// marker (`${id}-end`), whose top the adapters read as the `content` detent's
+// height. So `flex: 1` children fill the region and a scrolling child scrolls
+// within it, with no binding in the app. See README.md ("Using the view").
+//
+// The interface's shapes (exact.json), declared again: a package's Contract
+// file is resolved where it really is, where no `node_modules` holds this
+// package, and `use` takes only `.contract` files, so this file can't `use`
+// them. Shapes are nominal in Contract, so an app that uses the component
+// takes these (`use SheetDetent, … from "@swmansion/exact-bottom-sheet/sheet"`);
+// the tag checks them field by field against its declared props, so the raw
+// tag takes them too.
+shape SheetInsets
+  left: number
+  right: number
+  bottom: number
+
+shape SheetDetent
+  value: string
+  programmatic: option<bool>
+  insets: option<SheetInsets>
+  scrimOpacity: option<number>
+
+shape SheetShadow
+  offsetX: number
+  offsetY: number
+  blurRadius: number
+  spreadDistance: number
+  color: string
+  opacity: number
+
+shape SheetPosition
+  position: number
+  index: number
+
+shape SheetRegion
+  width: number
+  height: number
+
+// The tag's optional props, each as the tag takes it (`none` is unset).
+shape SheetConfig
+  topInset: option<number>
+  modal: option<bool>
+  animateIn: option<bool>
+  animateContentHeight: option<bool>
+  settleDuration: option<number>
+  scrollExpand: option<string>
+  scrollCollapse: option<string>
+  scrimColor: option<string>
+  scrimLabel: option<string>
+  surfaceColor: option<string>
+  surfaceCornerRadii: option<number[]>
+  surfaceCornerCurve: option<string>
+  surfaceShadows: option<SheetShadow[]>
+  handlesCloseRequest: option<bool>
+  // The component's own option, as `lazy` on `BottomSheet.tsx`: the content is
+  // in the tree only while the sheet is open or still closing. It mounts in the
+  // same update that `index` selects an open detent, and unmounts once the
+  // sheet settles at a closed detent, so it stays visible throughout the
+  // closing animation. The tag itself stays mounted (React Native unmounts its
+  // native view too): it is what reports the sheet coming to rest, and on the
+  // web a new tag attaches only after the next paint, too late to report a
+  // close that starts right after an open. At rest it raises no events. No
+  // effect when no detent is closed.
+  lazy: option<bool>
+
+// Every option unset: the tag's defaults. Change fields with copy-with:
+// `SheetConfig(sheetConfig(), modal=some(true))`.
+fn sheetConfig(): SheetConfig = SheetConfig(topInset=none, modal=none, animateIn=none, animateContentHeight=none, settleDuration=none, scrollExpand=none, scrollCollapse=none, scrimColor=none, scrimLabel=none, surfaceColor=none, surfaceCornerRadii=none, surfaceCornerCurve=none, surfaceShadows=none, handlesCloseRequest=none, lazy=none)
+
+// One number of the `change` event's "<width>,<height>,<resting closed>", 0
+// when unreadable.
+fn sheetRegionPart(v: string, i: number): number = match v.split(",").at(i) { case some(x) => match parseNumber(x) { case some(n) => n, case none => 0 }, case none => 0 }
+
+// Whether a detent is closed (`isNormalizedDetentClosed`): a point or
+// percentage value of 0. The adapters refuse any other malformed value.
+fn sheetDetentClosed(d: SheetDetent): bool = d.value != "content" && match d.value.split("%").at(0) { case some(x) => match parseNumber(x) { case some(n) => n == 0, case none => false }, case none => false }
+
+fn sheetIndexClosed(detents: SheetDetent[], index: number): bool = match detents.at(index) { case some(d) => sheetDetentClosed(d), case none => false }
+
+fn sheetIsLazy(config: SheetConfig): bool = match config.lazy { case some(b) => b, case none => false }
+
+// Whether a sheet's content is mounted: always, unless `lazy`, then while
+// `index` is open or the sheet hasn't yet come to rest closed.
+fn sheetMounted(config: SheetConfig, detents: SheetDetent[], index: number, restingClosed: bool): bool = !sheetIsLazy(config) || !sheetIndexClosed(detents, index) || !restingClosed
+
+// A modal sheet takes no touches once `index` is closed, so the page behind
+// it is usable while it closes, as `BottomSheet.tsx`'s wrapper
+// (`pointerEvents` 'none' when closed).
+fn sheetPointerEvents(config: SheetConfig, detents: SheetDetent[], index: number): string = (match config.modal { case some(b) => b, case none => false }) && sheetIndexClosed(detents, index) ? "none" : "auto"
+
+// A controlled sheet: `indexchange` is the sheet's own index changes (a drag,
+// the scrim), `settle` the index it came to rest at, `closerequest` the web's
+// Escape on a modal sheet with `handlesCloseRequest`. Bind an action that does
+// nothing to an event you don't need. The handlers must be actions of the root
+// component (Exact's rule for a package view's events).
+component BottomSheet
+  props
+    id: string
+    index: number
+    detents: SheetDetent[]
+    config: SheetConfig
+    indexchange: action
+    settle: action
+    closerequest: action
+  slot
+  state regionWidth = 0
+  state regionHeight = 0
+  // Whether the tag last reported resting at a closed detent; true before its
+  // first report, so a lazy sheet created closed has no content.
+  state restingClosed = true
+  action sized(v: string)
+    regionWidth = sheetRegionPart(v, 0) > 0 ? sheetRegionPart(v, 0) : regionWidth
+    regionHeight = sheetRegionPart(v, 1) > 0 ? sheetRegionPart(v, 1) : regionHeight
+    restingClosed = sheetRegionPart(v, 2) == 1
+  view
+    column position="absolute" inset=0 pointer-events="none"
+      if sheetMounted(config, detents, index, restingClosed)
+        column testId=`${id}-content` position="absolute" top=0 left=0 width=(regionWidth == 0 ? "100%" : `${regionWidth}px`) height=(regionHeight == 0 ? "auto" : `${regionHeight}px`) display="flex" flex-direction="column" pointer-events="auto" opacity=(regionWidth == 0 ? 0 : 1)
+          children
+          view testId=`${id}-end` height=0 flex-shrink=0
+      swm-bottom-sheet testId=`${id}-sheet` contentId=`${id}-content` position="absolute" inset=0 pointer-events=sheetPointerEvents(config, detents, index) index=index detents=detents topInset=config.topInset modal=config.modal animateIn=config.animateIn animateContentHeight=config.animateContentHeight settleDuration=config.settleDuration scrollExpand=config.scrollExpand scrollCollapse=config.scrollCollapse scrimColor=config.scrimColor scrimLabel=config.scrimLabel surfaceColor=config.surfaceColor surfaceCornerRadii=config.surfaceCornerRadii surfaceCornerCurve=config.surfaceCornerCurve surfaceShadows=config.surfaceShadows handlesCloseRequest=config.handlesCloseRequest change=sized indexchange=indexchange settle=settle closerequest=closerequest
+
+// `BottomSheet` that also reports `positionchange` (every frame while the
+// sheet moves, as `onPositionChange` fires), so it is bound only by those who
+// ask for it.
+component TrackedBottomSheet
+  props
+    id: string
+    index: number
+    detents: SheetDetent[]
+    config: SheetConfig
+    indexchange: action
+    settle: action
+    closerequest: action
+    positionchange: action
+  slot
+  state regionWidth = 0
+  state regionHeight = 0
+  // Whether the tag last reported resting at a closed detent; true before its
+  // first report, so a lazy sheet created closed has no content.
+  state restingClosed = true
+  action sized(v: string)
+    regionWidth = sheetRegionPart(v, 0) > 0 ? sheetRegionPart(v, 0) : regionWidth
+    regionHeight = sheetRegionPart(v, 1) > 0 ? sheetRegionPart(v, 1) : regionHeight
+    restingClosed = sheetRegionPart(v, 2) == 1
+  view
+    column position="absolute" inset=0 pointer-events="none"
+      if sheetMounted(config, detents, index, restingClosed)
+        column testId=`${id}-content` position="absolute" top=0 left=0 width=(regionWidth == 0 ? "100%" : `${regionWidth}px`) height=(regionHeight == 0 ? "auto" : `${regionHeight}px`) display="flex" flex-direction="column" pointer-events="auto" opacity=(regionWidth == 0 ? 0 : 1)
+          children
+          view testId=`${id}-end` height=0 flex-shrink=0
+      swm-bottom-sheet testId=`${id}-sheet` contentId=`${id}-content` position="absolute" inset=0 pointer-events=sheetPointerEvents(config, detents, index) index=index detents=detents topInset=config.topInset modal=config.modal animateIn=config.animateIn animateContentHeight=config.animateContentHeight settleDuration=config.settleDuration scrollExpand=config.scrollExpand scrollCollapse=config.scrollCollapse scrimColor=config.scrimColor scrimLabel=config.scrimLabel surfaceColor=config.surfaceColor surfaceCornerRadii=config.surfaceCornerRadii surfaceCornerCurve=config.surfaceCornerCurve surfaceShadows=config.surfaceShadows handlesCloseRequest=config.handlesCloseRequest change=sized indexchange=indexchange settle=settle closerequest=closerequest positionchange=positionchange

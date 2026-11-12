@@ -6,6 +6,7 @@
   "license": "MIT",
   "exports": {
     ".": "./exact.json",
+    "./sheet": "./sheet.contract",
     "./apple": "./apple/exact.json",
     "./web": "./web/exact.json"
   },

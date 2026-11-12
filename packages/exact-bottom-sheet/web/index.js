@@ -87,6 +87,12 @@ class BottomSheetView {
     this.contentHome = null;
     this.contentNext = null;
     this.contentPlace = -1;
+    // A hidden element left where the adopted node was. The runtime removes
+    // a region's nodes by walking siblings between its anchors, so it can't
+    // find a node moved into the sheet: when the region goes (a lazy
+    // sheet's content unmounting), it removes the stand-in instead, and the
+    // adapter drops the node with it.
+    this.standIn = null;
     this.controller = new BottomSheetWebController();
     const doc = element.ownerDocument;
     const make = (style, parent) => {
@@ -146,8 +152,8 @@ class BottomSheetView {
       this.content
     );
     // The content-height marker: an absolute child at the adopted node's
-    // bottom, so `offsetTop` reads the content's height whatever the node's
-    // own positioning.
+    // bottom (or at its end marker, see `endMarkerId`), so `offsetTop` reads
+    // the content's height whatever the node's own positioning.
     this.marker = make(
       {
         position: 'absolute',
@@ -160,6 +166,22 @@ class BottomSheetView {
       this.wrapper
     );
     this.marker.id = CONTENT_HEIGHT_MARKER_NATIVE_ID;
+    // As tall as the content: the controller re-reads the marker when one of
+    // the wrapper's children resizes, which the marker moving alone (an end
+    // marker moving inside a node of fixed height) is not; this one resizes
+    // whenever the marker moves.
+    this.sizer = make(
+      {
+        position: 'absolute',
+        left: '0',
+        top: '0',
+        width: '0',
+        height: '0',
+        visibility: 'hidden',
+        pointerEvents: 'none',
+      },
+      this.wrapper
+    );
 
     this.controller.attach({
       host: this.host,
@@ -173,7 +195,11 @@ class BottomSheetView {
     });
     this.controller.setCallbacks({
       onIndexChange: (index) => events.emit('indexchange', index),
-      onSettle: (index) => events.emit('settle', index),
+      onSettle: (index) => {
+        events.emit('settle', index);
+        const detent = this.detents?.[index];
+        if (detent) this.setRestingClosed(isNormalizedDetentClosed(detent));
+      },
       onPositionChange: (position, index) =>
         events.emit('positionchange', { position, index }),
       onCloseRequest: () => events.emit('closerequest'),
@@ -182,12 +208,21 @@ class BottomSheetView {
     });
 
     this.nodeObserver = new ResizeObserver(() => this.layoutMarker());
+    // The node's children: the end marker moves when one of them is patched
+    // in, out or resized.
+    this.childObserver = new MutationObserver(() => this.observeNode());
     this.regionObserver = new ResizeObserver(() => this.reportRegion());
     this.regionObserver.observe(this.content);
     this.homeObserver = new MutationObserver(() =>
       queueMicrotask(() => this.reconcile())
     );
     this.lastRegion = '';
+    this.region = { width: 0, height: 0 };
+    // Whether the sheet rests at a closed detent: the `BottomSheet`
+    // component's `lazy` keeps the content mounted until it does, as
+    // `BottomSheet.tsx`'s `isSheetActive` (an open index clears it at once, a
+    // settle at a closed detent sets it).
+    this.restingClosed = null;
     this.openOrder = 0;
     this.wasClosed = null;
     try {
@@ -229,6 +264,8 @@ class BottomSheetView {
       this.openOrder = ++lastOpenOrder;
     }
     this.wasClosed = closed;
+    this.detents = detents;
+    if (this.restingClosed === null || !closed) this.setRestingClosed(closed);
     const widest = detents.find((d) => d.widestCard);
     this.wrapper.style.marginLeft = `${widest?.insetLeft ?? 0}px`;
     this.wrapper.style.marginRight = `${widest?.insetRight ?? 0}px`;
@@ -285,6 +322,19 @@ class BottomSheetView {
   reconcile() {
     if (this.destroyed) return;
     if (
+      this.contentNode?.parentElement === this.wrapper &&
+      this.standIn &&
+      !this.standIn.isConnected &&
+      this.contentHome?.isConnected
+    ) {
+      // The runtime removed the node's region: the node goes with it, and the
+      // home stays watched for the next one (a lazy sheet reopening).
+      const home = this.contentHome;
+      this.contentNode.remove();
+      this.release();
+      this.homeObserver.observe(home, { childList: true });
+    }
+    if (
       this.contentNode &&
       (!this.contentNode.isConnected ||
         this.contentNode.getAttribute('data-testid') !== this.contentId)
@@ -295,7 +345,7 @@ class BottomSheetView {
       const node = this.find();
       if (node) {
         this.contentNode = node;
-        this.nodeObserver.observe(node);
+        this.observeNode();
       }
     }
     const node = this.contentNode;
@@ -306,12 +356,36 @@ class BottomSheetView {
     }
   }
 
+  /** Observes the node and its children's sizes, which move its end marker. */
+  observeNode() {
+    const node = this.contentNode;
+    this.nodeObserver.disconnect();
+    this.childObserver.disconnect();
+    if (!node) return;
+    this.nodeObserver.observe(node);
+    for (const child of node.children) this.nodeObserver.observe(child);
+    this.childObserver.observe(node, { childList: true });
+    this.layoutMarker();
+  }
+
+  /** The testId of the adopted node's end marker: `contentId` without a
+   * trailing `-content`, then `-end` (the `BottomSheet` component's
+   * `${id}-content` holds `${id}-end`, after its children). */
+  get endMarkerId() {
+    return `${this.contentId.replace(/-content$/, '')}-end`;
+  }
+
   /** Where the node sits before it is adopted, to give it back there. */
   remember(node) {
     const home = node.parentElement;
     this.contentHome = home;
     this.contentNext = node.nextSibling;
     this.contentPlace = Array.prototype.indexOf.call(home.childNodes, node);
+    this.standIn?.remove();
+    this.standIn = node.ownerDocument.createElement('div');
+    this.standIn.hidden = true;
+    this.standIn.setAttribute('aria-hidden', 'true');
+    home.insertBefore(this.standIn, node);
     this.homeObserver.disconnect();
     this.homeObserver.observe(home, { childList: true });
   }
@@ -322,11 +396,21 @@ class BottomSheetView {
     const node = this.contentNode;
     const home = this.contentHome;
     this.nodeObserver.disconnect();
+    this.childObserver.disconnect();
     this.homeObserver.disconnect();
     this.contentNode = null;
     this.contentHome = null;
-    if (!node || node.parentElement !== this.wrapper || !home?.isConnected)
+    const standIn = this.standIn;
+    this.standIn = null;
+    if (!node || node.parentElement !== this.wrapper || !home?.isConnected) {
+      standIn?.remove();
       return;
+    }
+    if (standIn?.parentNode === home) {
+      standIn.replaceWith(node);
+      return;
+    }
+    standIn?.remove();
     const next =
       this.contentNext?.parentNode === home
         ? this.contentNext
@@ -350,11 +434,24 @@ class BottomSheetView {
 
   layoutMarker() {
     const node = this.contentNode;
-    const bottom =
-      node && node.parentElement === this.wrapper
-        ? node.offsetTop + node.offsetHeight
-        : 0;
+    let bottom = 0;
+    if (node && node.parentElement === this.wrapper) {
+      bottom = node.offsetTop + node.offsetHeight;
+      // The end marker's top in the node (layout offsets, which the card's
+      // scale leaves alone), as the content-height marker after `children`.
+      const end = node.querySelector(
+        `[data-testid="${CSS.escape(this.endMarkerId)}"]`
+      );
+      let y = 0;
+      let at = end;
+      while (at && at !== node) {
+        y += at.offsetTop;
+        at = at.offsetParent;
+      }
+      if (end && at === node) bottom = node.offsetTop + y;
+    }
     this.marker.style.top = `${bottom}px`;
+    this.sizer.style.height = `${bottom}px`;
   }
 
   reportRegion() {
@@ -363,12 +460,32 @@ class BottomSheetView {
     const key = `${width}x${height}`;
     if (key === this.lastRegion || width <= 0 || height <= 0) return;
     this.lastRegion = key;
+    this.region = { width, height };
     this.events.emit('regionchange', { width, height });
+    this.emitChange();
+  }
+
+  // The built-in `change` event, "<width>,<height>,<resting closed: 0|1>",
+  // which a child component can handle with its own action (a typed event
+  // must name a root action): the `BottomSheet` component lays its content
+  // node out with the region and unmounts a `lazy` sheet once it rests closed.
+  emitChange() {
+    if (this.destroyed) return;
+    const { width, height } = this.region;
+    this.events.change(`${width},${height},${this.restingClosed ? 1 : 0}`);
+  }
+
+  setRestingClosed(closed) {
+    if (this.restingClosed === closed) return;
+    this.restingClosed = closed;
+    this.emitChange();
   }
 
   destroy() {
     this.destroyed = true;
     this.regionObserver.disconnect();
+    this.nodeObserver.disconnect();
+    this.childObserver.disconnect();
     this.controller.detach();
     this.release();
     this.host.remove();

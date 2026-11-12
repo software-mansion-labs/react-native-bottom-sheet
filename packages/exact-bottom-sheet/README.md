@@ -71,8 +71,89 @@ missing.
 
 ## Using the view
 
+### The `BottomSheet` component
+
+The package ships a Contract component, `BottomSheet`, at the `/sheet` subpath.
+Its children are the sheet's content:
+
 ```contract
-use SheetDetent, SheetPosition, SheetRegion from "@swmansion/exact-bottom-sheet"
+use BottomSheet, SheetConfig, SheetDetent, sheetConfig from "@swmansion/exact-bottom-sheet/sheet"
+
+fn d(v: string): SheetDetent = SheetDetent(value=v, programmatic=none, insets=none, scrimOpacity=none)
+
+component App
+  state index = 0
+  action set(i: number)
+    index = i
+  action ignore
+    let unused = 0
+  view
+    column position="relative" flex=1
+      button press=set(1)
+        text "Open"
+      BottomSheet(id="sheet", index=index, detents=[d("0"), d("content")], config=SheetConfig(sheetConfig(), modal=some(true), scrimColor=some("rgba(0, 0, 0, 0.5)"), surfaceColor=some("#ffffff")), indexchange=set, settle=set, closerequest=ignore)
+        text "Content authored in Contract"
+```
+
+As `BottomSheet.tsx` does with its content wrapper, the component lays the
+content out at the sheet's content region: the widest card's width (so the
+content follows a detached card and is scaled at a narrower detent) and the
+region's height (so a `flex=1` child fills the sheet, and a
+`scroll flex=1 min-height=0` child scrolls inside it). A zero-height marker
+after the children gives a `content` detent its height, as React Native's
+content-height marker does. The app binds nothing.
+
+Place it last among its parent's children: it fills its parent's box
+(`position: absolute; inset: 0`), takes no touches outside the card and the
+scrim (they reach what is under it), and keeps the content invisible until the
+sheet has reported its region.
+
+Props:
+
+- `id: string`: names its nodes, `${id}-content` (the content node), `${id}-end`
+  (the marker) and `${id}-sheet` (the tag), for tests.
+- `index: number`, `detents: SheetDetent[]`: as on the tag (below).
+- `config: SheetConfig`: every other prop of the tag, one field each, with the
+  tag's types (`option<…>`, `none` for unset). `sheetConfig()` is every field
+  unset; change some with copy-with:
+  `SheetConfig(sheetConfig(), modal=some(true))`.
+- `config.lazy`: the component's own option, as `lazy` on React Native. The
+  content is in the tree only while the sheet is open or still closing: it
+  mounts in the same update that `index` selects an open detent, and unmounts
+  once the sheet settles at a closed detent, so it stays visible while the sheet
+  closes, and reopening mid-close keeps it. Its own component state starts over
+  on each open. No effect when no detent is closed. Unlike React Native, the tag
+  stays mounted: it is what reports the sheet coming to rest (through `change`,
+  below), and on the web a new tag attaches only after the next paint, too late
+  to report a close that starts right after an open. At rest it raises no events
+  and holds no content. The adapters adopt the new content before applying the
+  open `index`, so the sheet opens to its height.
+- Events: `indexchange`, `settle` and `closerequest` (below). Their handlers
+  must be actions of the root component (Exact's rule for a package view's
+  events). Contract has no optional action props, so all three are required:
+  bind an action that does nothing to one you don't need. `TrackedBottomSheet`
+  takes the same props plus `positionchange`, which runs its action every frame
+  while the sheet moves, so it is a separate component rather than a fourth
+  required event.
+
+The component's file declares the interface's shapes (`SheetDetent`,
+`SheetInsets`, `SheetShadow`, `SheetPosition`, `SheetRegion`) again: a package's
+Contract file is resolved where it really is, where no `node_modules` holds the
+package, and `use` takes only `.contract` files, so it can't `use` `exact.json`.
+Shapes are nominal in Contract, so an app that uses the component takes them
+from `/sheet` too; the tag checks them field by field against its declared
+props, so the raw tag takes them as well.
+
+### The `swm-bottom-sheet` tag
+
+The tag is the package view itself, for when the component doesn't fit (the
+demo's Invalid props screen uses it to send props the sheet refuses, with
+`pointer-events="none"` on the tag). Its content is an ordinary node beside it,
+named by `contentId`, which the app lays out itself (see "How content is
+adopted"):
+
+```contract
+use SheetDetent from "@swmansion/exact-bottom-sheet"
 
 component App
   state index = 0
@@ -114,6 +195,7 @@ Events, each a typed event whose handler must be an action of the root component
 | `positionchange(SheetPosition)` | `onPositionChange` (`position`, `index`)                                                        |
 | `closerequest()`                | `onCloseRequest` (web: Escape on a modal sheet with `handlesCloseRequest`; never raised on iOS) |
 | `regionchange(SheetRegion)`     | none: the content region's size (see below)                                                     |
+| `change(string)` (built-in)     | none: `"<width>,<height>,<resting closed>"`, which a child component's own action can handle    |
 
 Colours accept `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, `rgb()`, `rgba()` and a
 few names on iOS; any CSS colour on the web.
@@ -157,7 +239,7 @@ What the Fabric glue feeds the hosting view, and where it comes from here:
 | detent dictionaries from `normalizeDetents` (JS)                                    | the same dictionaries, built from `detents`/`topInset`/`modal` (including the widest-card flag)                                                              |
 | the content wrapper laid out by Yoga against the pushed `contentRegionInset`        | the adapter's wrapper view, sized to the content region (sheet height less `contentRegionInset`, between the widest card's side insets) on every layout      |
 | `contentRegionStateDidCommit` + `contentRegionLayoutDidApply` (state commit, mount) | both called when the region changes (the wrapper's layout is synchronous), and `contentRegionLayoutDidApply` again whenever the adopted node's frame changes |
-| the content-height marker (a `View` with `nativeID`)                                | an `ExactContentHeightMarker` view with the same `nativeId`, kept at the adopted node's bottom                                                               |
+| the content-height marker (a `View` with `nativeID`)                                | an `ExactContentHeightMarker` view with the same `nativeId`, kept at the node's end marker (below), else at the node's bottom                                |
 | the surface view                                                                    | a plain view with `surfaceColor`, mounted with `mountSurfaceComponentView` and sized to the sheet plus `surfaceOverflow`                                     |
 | events through the Fabric event emitter                                             | the hosting view's delegate calls, emitted as the typed events                                                                                               |
 
@@ -165,48 +247,61 @@ The web adapter mirrors `BottomSheetWebView.tsx` the same way (React Native for
 Web's view defaults, `box-none` pointer handling, the marker element) and calls
 `attach`, `setCallbacks` and `update` on the controller.
 
-Rules for authors, which follow from how Exact patches its views:
+**The end marker.** When the adopted node holds a descendant whose `testId` is
+`contentId` without a trailing `-content`, then `-end` (the component's
+`${id}-content` holds `${id}-end`), the adapters read the content's height from
+that descendant's top in the node's own, unscaled coordinates, as the hosting
+view reads React Native's marker after `children`. So a content laid out at the
+region's height (taller than its children) still gives a `content` detent its
+children's height. iOS observes the end marker's frame (KVO, as it does the
+node's); the web adapter observes the node's children's sizes and keeps a hidden
+sizer as tall as the content in the wrapper, since the controller re-reads the
+marker only when a wrapper child resizes. Without an end marker, the node's
+bottom is the content's height, as before.
+
+**The region.** Whenever the content region changes, the adapters raise the
+typed `regionchange` and the built-in `change` event with
+`"<width>,<height>,<resting closed>"`; the last part is `1` while the sheet
+rests at a closed detent and `0` otherwise, and the adapters raise `change`
+again when it flips (an open `index` clears it at once, a settle at a closed
+detent sets it). A typed event's handler must be an action of the root
+component, but a child component may handle `change` with its own action: that
+is how `BottomSheet` sizes its content node with no binding in the app, and how
+`lazy` knows when to unmount. Contract has no hook for a prop change, so this is
+the tag's job rather than the component's.
+
+Rules for the content, which follow from how Exact patches its views. The
+`BottomSheet` component follows them; an app using the raw tag follows them
+itself:
 
 - **Keep the content node's parent's child list static.** Exact puts a child
   back into its parent's view when that parent's children change. Choose inside
   the content with `if`, never around the content node or its siblings. The
   adapter re-adopts the node after layouts, props changes and frame changes, but
-  a static list avoids the round trip.
+  a static list avoids the round trip. (The component's wrapper holds the
+  content node and the tag, always both.)
 - **Author the content at its parent's origin**
-  (`position="absolute" top=0 left=0`), and place it before the page so the page
-  covers it until the sheet adopts it (on iOS a package view attaches after the
-  first frame). Exact sets the node's frame in its parent's coordinates and
-  resets its transform; the sheet transforms its own wrapper, never the node.
-- **Size scrolling content to the region.** In React Native the content wrapper
-  is laid out against the sheet's content region; Exact lays the node out
-  itself, so the sheet reports the region (`regionchange`) and a scrolling
-  content binds `height` to it (the demo's scroll screen). A content detent is
-  measured from the node's own height.
-- **Bind the width too when detents have side insets.** React Native lays the
-  content out at the widest card's width; on iOS Exact keeps the node at its
-  parent's width, so it overflows a detached card. Bind `width` to the region's
-  width, which is the widest card's:
-
-  ```contract
-  state contentWidth = 0
-  action sized(r: SheetRegion)
-    contentWidth = r.width
-  // on the content node:
-  //   width=(contentWidth == 0 ? "100%" : `${contentWidth}px`)
-  // on the tag:
-  //   regionchange=sized
-  ```
-
-  With it, the content's frames at each detent match React Native's (measured
-  with insets 24/24/24 at 180 and 64/64/0 at 100%: 354 wide in a 354 card, then
-  scaled to 274 in a 274 card). The web adapter lays the content out at that
-  width itself.
-
+  (`position="absolute" top=0 left=0`), and keep it out of sight until the sheet
+  adopts it (on iOS a package view attaches after the first frame): the raw
+  tag's demo puts it before the page, so the page covers it; the component keeps
+  it at `opacity: 0` until the region is reported. Exact sets the node's frame
+  in its parent's coordinates and resets its transform; the sheet transforms its
+  own wrapper, never the node.
+- **Size the content to the region.** In React Native the content wrapper is
+  laid out against the sheet's content region at the widest card's width; Exact
+  lays the node out itself (on iOS at its parent's width, so it overflows a
+  detached card), so the sheet reports the region and the content binds its
+  `width` and `height` to it. The component does this from `change`; with the
+  raw tag, bind them to `regionchange`. With it the content's frames match React
+  Native's (measured on iOS with insets 24/24/24 at 180 and 64/64/0 at 100%: 354
+  wide in a 354 card, then scaled to 274 in a 274 card). The web adapter lays
+  the content out at the widest card's width itself.
 - **Give the tag the sheet's box**, usually `position="absolute" inset=0` over
   the area the sheet and its scrim may cover. Touches outside the card and the
   scrim reach what is under the tag (iOS: the hosting view's hit test returns
   nil and Exact passes the touch through, since the tag has no `press=`; web:
-  the tag and host take no pointer events).
+  the tag and host take no pointer events). The component's wrapper is
+  `pointer-events: none`, its content node and tag `auto`.
 
 ### Generated files
 
@@ -232,17 +327,23 @@ Rules for authors, which follow from how Exact patches its views:
   a Canvas rather than as Android views, and a hosted view is a leaf that only
   gets synthesized clicks, so the Kotlin sheet could neither host Contract
   content nor receive drags.
+- **The web adapter leaves a hidden stand-in** where the adopted node was. The
+  runtime removes a region's nodes by walking siblings between its anchors, so
+  it can't find a node moved into the sheet; when the region goes it removes the
+  stand-in, and the adapter drops the node with it.
 - **One content node, no surface node.** `surface` is limited to `surfaceColor`;
-  a Contract-drawn surface (an image, a gradient) is not adopted. On iOS the
-  content follows the widest card's width only when the author binds it (see the
-  authoring rules above).
-- **Not mapped**: `lazy`, `nativeOverlay`/`openOrder` (the sheet covers the
-  tag's box, not the window), `wrapNativeView`, `surfaceElevation` and
-  `surfaceShadowColor` (Android only).
-- **The scrim covers the tag's box.** A modal sheet in the demo covers the demo
-  area below its tab row, not the whole window.
+  a Contract-drawn surface (an image, a gradient) is not adopted. With the raw
+  tag, the content follows the region only when the author binds it (see the
+  rules above); the component does it itself.
+- **Not mapped**: `nativeOverlay`/`openOrder` (the sheet covers the tag's box,
+  not the window), `wrapNativeView`, `surfaceElevation` and `surfaceShadowColor`
+  (Android only).
+- **The scrim covers the tag's box**, not the window: give a modal sheet's tag
+  the whole screen (the demo's screens hide the navigation bar and draw their
+  own header, as the React Native example's do).
 - **`positionchange` runs an action every frame** while the sheet moves (as
-  `onPositionChange` fires every frame); bind it only when needed.
+  `onPositionChange` fires every frame); bind it only when needed
+  (`TrackedBottomSheet`).
 - **Exact's agent clock is virtual**, but the sheet's spring runs on
   `CADisplayLink` and Core Animation (iOS) and `requestAnimationFrame` (web),
   not on Exact's session clock (`context.frames`). Drive it with real time:
@@ -250,9 +351,10 @@ Rules for authors, which follow from how Exact patches its views:
 - On the web, the demo's dev server must not watch a directory whose path is a
   prefix of the package's (Exact's watcher matched `packages/exact` against
   `packages/exact-example` and rebuilt forever), hence the directory names.
-- The Exact demo is a single screen with three demos chosen by state, so Exact
-  warns about screens chosen by state; the colours are the React Native demo's
-  literals, so Exact warns that they ignore dark mode.
+- The Exact demo ports the React Native example screen by screen (each demo a
+  route; the ones it can't reproduce and the differences are listed at the top
+  of its `app.contract`); the colours are the React Native demo's literals, so
+  Exact warns that they ignore dark mode.
 
 ## Pinned Exact
 

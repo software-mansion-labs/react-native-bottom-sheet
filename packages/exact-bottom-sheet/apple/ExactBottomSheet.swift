@@ -13,7 +13,7 @@
 // the `testId` the tag's `contentId` names); this view finds that node's
 // UIView and adopts it into the sheet, where it moves with the card. Exact
 // keeps laying the node out and drawing it; only its parent view changes.
-// See packages/exact/README.md ("How content is adopted") for the rules an
+// See packages/exact-bottom-sheet/README.md ("How content is adopted") for the rules an
 // author follows so Exact never takes it back.
 import ExactPackage
 import Foundation
@@ -50,7 +50,8 @@ public final class ExactBottomSheetModule: ExactPackage {
 /// The marker the hosting view reads the content's height from: a zero-height
 /// view directly in the content wrapper whose `nativeId` is the one the React
 /// Native side gives its marker (`CONTENT_HEIGHT_MARKER_NATIVE_ID`). Its top
-/// sits at the adopted node's bottom.
+/// sits at the adopted node's own end marker (see `endMarkerId`) when the node
+/// has one, else at the node's bottom.
 final class ExactContentHeightMarker: UIView {
   @objc var nativeId: NSString? = BottomSheetHostingView.contentHeightMarkerNativeID as NSString
 
@@ -131,11 +132,23 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
   private weak var contentNext: UIView?
   private var contentPlace = 0
   private var nodeObservations: [NSKeyValueObservation] = []
+  /// The adopted node's end marker, a descendant whose testId is
+  /// `endMarkerId`: the `BottomSheet` component's zero-height view after its
+  /// children, as the content-height marker after `children` in
+  /// `BottomSheet.tsx`. Its top is the content's height.
+  private weak var endMarker: UIView?
+  private var endMarkerObservations: [NSKeyValueObservation] = []
 
   private var lastIndex: Int?
   private var widestLeft: CGFloat = 0
   private var widestRight: CGFloat = 0
   private var lastRegion: CGSize = .zero
+  /// Which detents are closed, and whether the sheet rests at one: the
+  /// `BottomSheet` component's `lazy` keeps the content mounted until it does,
+  /// as `BottomSheet.tsx`'s `isSheetActive` (an open index clears it at once,
+  /// a settle at a closed detent sets it).
+  private var closedDetents: [Bool] = []
+  private var restingClosed: Bool?
   private var lastInset: CGFloat = .nan
   private var lastSurfaceOverflow: CGFloat = 0
   private var props: [String: String] = [:]
@@ -192,9 +205,28 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
     // Always pushed, as the Fabric glue pushes detents on every props update.
     host.setDetents(detents.dictionaries)
 
+    closedDetents = detents.dictionaries.map {
+      ($0["kind"] as? String) != "content" && (($0["value"] as? NSNumber)?.doubleValue ?? 0) == 0
+    }
     if index != lastIndex {
       lastIndex = index
-      host.setDetentIndex(index)
+      if !first, !closedDetents[index], contentNode?.superview == nil, !contentId.isEmpty {
+        // A lazy sheet's content (the `BottomSheet` component's `lazy`) is
+        // created in the same Exact batch as the open index, after these
+        // props. Adopt it once the batch is applied, then open, so the sheet
+        // opens to the content's height as `BottomSheet.tsx`'s does (its
+        // content mounts in the same commit as the index).
+        DispatchQueue.main.async { [weak self] in
+          guard let self, !self.destroyed, self.lastIndex == index else { return }
+          self.reconcile()
+          self.host.setDetentIndex(index)
+        }
+      } else {
+        host.setDetentIndex(index)
+      }
+    }
+    if restingClosed == nil || !closedDetents[index] {
+      setRestingClosed(closedDetents[index])
     }
     let animateIn = Self.bool(next["animateIn"]) ?? true
     if host.animateIn != animateIn {
@@ -474,7 +506,23 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
       host.contentRegionStateDidCommit(inset)
       host.contentRegionLayoutDidApply()
       events.emit("regionchange", [["width": Double(region.width), "height": Double(region.height)]])
+      emitChange()
     }
+  }
+
+  /// The built-in `change` event, "<width>,<height>,<resting closed: 0|1>",
+  /// which a child component can handle with its own action (a typed event
+  /// must name a root action): the `BottomSheet` component lays its content
+  /// node out with the region and unmounts a `lazy` sheet once it rests
+  /// closed.
+  private func emitChange() {
+    events.change("\(Double(lastRegion.width)),\(Double(lastRegion.height)),\(restingClosed == true ? 1 : 0)")
+  }
+
+  private func setRestingClosed(_ closed: Bool) {
+    guard restingClosed != closed else { return }
+    restingClosed = closed
+    emitChange()
   }
 
   /// Sets a view's layout through bounds and center, which the card's layer
@@ -491,7 +539,15 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
   }
 
   private func layoutMarker() {
-    let bottom = contentNode.map { $0.superview === contentWrapper ? $0.frame.maxY : 0 } ?? 0
+    var bottom: CGFloat = 0
+    if let node = contentNode, node.superview === contentWrapper {
+      bottom = node.frame.maxY
+      if let end = endMarker, end.isDescendant(of: node) {
+        // In the node's own coordinates, which the card's scale (applied
+        // above the wrapper) leaves unscaled.
+        bottom = node.frame.minY + node.convert(end.bounds.origin, from: end).y
+      }
+    }
     let frame = CGRect(x: 0, y: bottom, width: contentWrapper.bounds.width, height: 0)
     if marker.frame != frame {
       marker.frame = frame
@@ -517,13 +573,59 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
       log("swm-bottom-sheet \(id): adopted content \(contentId)")
     }
     guard let node = contentNode else { return }
+    let marked = refreshEndMarker(in: node)
     if node.superview !== contentWrapper {
       if let home = node.superview {
         remember(node, in: home)
       }
       contentWrapper.insertSubview(node, at: 0)
       nodeDidMove()
+    } else if marked {
+      nodeDidMove()
     }
+  }
+
+  /// The testId of the adopted node's end marker: `contentId` without a
+  /// trailing `-content`, then `-end` (the component's `${id}-content` holds
+  /// `${id}-end`).
+  private var endMarkerId: String {
+    let base = contentId.hasSuffix("-content") ? String(contentId.dropLast("-content".count)) : contentId
+    return "\(base)-end"
+  }
+
+  /// Finds the node's end marker when it has none or lost it, and observes
+  /// its frame, so a `content` detent follows the children growing and
+  /// shrinking. True when the marker changed.
+  private func refreshEndMarker(in node: UIView) -> Bool {
+    if let end = endMarker, end.isDescendant(of: node), end.accessibilityIdentifier == endMarkerId {
+      return false
+    }
+    let found = Self.descendant(of: node, id: endMarkerId, depth: 3)
+    if found === endMarker, found == nil {
+      return false
+    }
+    endMarker = found
+    endMarkerObservations = found.map { end in
+      [
+        end.layer.observe(\.bounds) { [weak self] _, _ in self?.nodeDidMove() },
+        end.layer.observe(\.position) { [weak self] _, _ in self?.nodeDidMove() },
+      ]
+    } ?? []
+    return true
+  }
+
+  /// The first view whose accessibility identifier is `id`, breadth first,
+  /// at most `depth` levels under `view` (Exact may hold a node's children
+  /// in a container view).
+  private static func descendant(of view: UIView, id: String, depth: Int) -> UIView? {
+    var level = view.subviews
+    for _ in 0 ..< depth {
+      if let found = level.first(where: { $0.accessibilityIdentifier == id }) {
+        return found
+      }
+      level = level.flatMap(\.subviews)
+    }
+    return nil
   }
 
   private func nodeDidMove() {
@@ -534,6 +636,8 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
       DispatchQueue.main.async { [weak self] in self?.reconcile() }
       return
     }
+    // The end marker may be patched in after the node was adopted.
+    _ = refreshEndMarker(in: node)
     layoutMarker()
     // As after a Fabric mounting transaction: the content moved, so the card
     // transform (pinned to the content's center) and any held `content`
@@ -553,6 +657,8 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
   /// in the sheet (a `contentId` change, destroy).
   private func release(_ node: UIView) {
     nodeObservations = []
+    endMarkerObservations = []
+    endMarker = nil
     contentNode = nil
     if node.superview === contentWrapper, let home = contentHome {
       let place: Int
@@ -624,6 +730,7 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
       release(node)
     }
     nodeObservations = []
+    endMarkerObservations = []
     host.resetSheetState()
   }
 
@@ -638,6 +745,9 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
   func bottomSheetHostingView(_: BottomSheetHostingView, didSettle index: Int) {
     guard !destroyed else { return }
     events.emit("settle", [index])
+    if index < closedDetents.count {
+      setRestingClosed(closedDetents[index])
+    }
   }
 
   func bottomSheetHostingView(
