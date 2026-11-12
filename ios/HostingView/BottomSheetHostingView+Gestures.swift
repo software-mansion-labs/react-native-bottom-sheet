@@ -109,7 +109,7 @@ extension BottomSheetHostingView {
         cancelContentTouchesForPanIfNeeded()
         didMoveSheetDuringPan = true
         setSheetTranslation(newTy)
-        fitScrollIndicators(of: activeScrollViewStates)
+        refitScrollIndicators()
         emitPosition()
       }
       pinActiveScrollViews()
@@ -286,6 +286,7 @@ extension BottomSheetHostingView: UIGestureRecognizerDelegate {
       }
       initialScrollableChainAtStart = initialScrollViewStates.allSatisfy(\.wasAtStartWhenTouched)
       fitScrollIndicators(of: initialScrollViewStates)
+      observeScrollIndicatorDrags(of: initialScrollViewStates)
       let canHold = !holdDeferralScrollViews(at: location).isEmpty
       let canBeginUp = canHold && canBeginPan(inDirection: -1)
       let canBeginDown = canHold && canBeginPan(inDirection: 1)

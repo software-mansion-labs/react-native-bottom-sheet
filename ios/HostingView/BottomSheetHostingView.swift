@@ -140,6 +140,9 @@ public final class BottomSheetHostingView: UIView {
   var panStartingIndex: Int?
   var initialScrollViewStates: [ActiveScrollViewState] = []
   let scrollIndicatorFits = NSMapTable<UIScrollView, ScrollIndicatorFit>.weakToStrongObjects()
+  /// The scroll views' indicator-drag recognizers the sheet listens to.
+  let observedIndicatorDrags = NSHashTable<UIGestureRecognizer>.weakObjects()
+  var indicatorDrag: IndicatorDragState?
   /// Whether every scrollable under the touch was at its visual start as the
   /// touch landed: the `initial` owner selection at the largest detent.
   var initialScrollableChainAtStart = true
@@ -612,6 +615,8 @@ public final class BottomSheetHostingView: UIView {
     activeDragDetentSpecs = nil
     initialScrollViewStates = []
     initialScrollableChainAtStart = true
+    detachIndicatorDrags()
+    releaseScrollIndicatorFits()
     finishScrollViewCoordination()
     setContentInteractionEnabled(true)
     stopObservingContentHeightMarker()
@@ -680,6 +685,9 @@ public final class BottomSheetHostingView: UIView {
   }
 
   deinit {
+    for recognizer in observedIndicatorDrags.allObjects {
+      recognizer.removeTarget(self, action: nil)
+    }
     stopObservingContentHeightMarker()
     displayLink?.invalidate()
     removeSettleAnimations()

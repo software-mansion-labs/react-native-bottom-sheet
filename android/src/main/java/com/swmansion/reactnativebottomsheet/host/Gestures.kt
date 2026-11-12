@@ -50,6 +50,7 @@ internal class Gestures(
         state.initialTouchY = event.y
         lastTouchY = event.y
         activePointerId = event.getPointerId(0)
+        scrollCoordination.findScrollableHitAtTouch()?.view?.let(state.scrollIndicators::register)
         scrollCoordination.nestedTouchTarget =
           if (scrollCoordination.hasAnyHandoffCoordination)
             scrollCoordination.prepareNestedScrollableAtTouch()

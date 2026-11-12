@@ -310,6 +310,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     // Release the listener from the soon-to-be-replaced observer and clear our
     // references so a later re-attach registers on the new live observer.
     detents.removePendingInitialContentDetentObserver()
+    state.scrollIndicators.releaseAll()
     super.onDetachedFromWindow()
   }
 
