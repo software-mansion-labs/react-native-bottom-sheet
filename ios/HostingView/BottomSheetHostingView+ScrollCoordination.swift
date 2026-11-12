@@ -51,16 +51,31 @@ final class IndicatorDragState {
   }
 
   weak var scrollView: UIScrollView?
+  /// Whether the content was at its start as the scrub began: with `initial`
+  /// coordination, only such a scrub may hand off to the sheet.
+  let startedAtStart: Bool
   private(set) var lastY: CGFloat
   private var lastTime: CFTimeInterval
   /// The finger's vertical velocity, in points per second.
-  private(set) var velocity: CGFloat = 0
+  private var velocity: CGFloat = 0
   var handoff: Handoff?
+  /// Whether the settle a hand-off stopped emits `onSettle`, while that settle
+  /// still has to be resumed: a hand-off that reverts leaves the sheet where
+  /// the settle stopped.
+  var interruptedSettleEmitsSettle: Bool?
 
-  init(scrollView: UIScrollView, y: CGFloat) {
+  init(scrollView: UIScrollView, y: CGFloat, startedAtStart: Bool) {
     self.scrollView = scrollView
+    self.startedAtStart = startedAtStart
     lastY = y
     lastTime = CACurrentMediaTime()
+  }
+
+  /// The velocity to release with. A finger that rests before lifting reports
+  /// no further updates, so the last smoothed velocity would otherwise read as
+  /// a flick.
+  var releaseVelocity: CGFloat {
+    CACurrentMediaTime() - lastTime > 0.1 ? 0 : velocity
   }
 
   func track(_ y: CGFloat) {
@@ -462,7 +477,11 @@ extension BottomSheetHostingView {
 
     switch recognizer.state {
     case .began:
-      indicatorDrag = IndicatorDragState(scrollView: scrollView, y: y)
+      indicatorDrag = IndicatorDragState(
+        scrollView: scrollView,
+        y: y,
+        startedAtStart: scrollViewIsAtStart(scrollView, inverted: false)
+      )
       fitScrollIndicators(of: [
         ActiveScrollViewState(scrollView: scrollView, inverted: false, wasAtStartWhenTouched: false),
       ])
@@ -473,7 +492,7 @@ extension BottomSheetHostingView {
       drag.track(y)
 
       guard let handoff = drag.handoff else {
-        if movedUp, scrollViewIsAtStart(scrollView, inverted: false), canExpandFromIndicator() {
+        if movedUp, scrollViewIsAtStart(scrollView, inverted: false), canExpandFromIndicator(drag) {
           beginIndicatorHandoff(drag, scrollView: scrollView, y: y)
         }
         return
@@ -519,30 +538,52 @@ extension BottomSheetHostingView {
 
     case .ended, .cancelled, .failed:
       defer { indicatorDrag = nil }
-      guard let drag = indicatorDrag, let handoff = drag.handoff else { return }
+      guard let drag = indicatorDrag else { return }
+      guard let handoff = drag.handoff else {
+        // The sheet gave the scrub back where it took over. If taking over
+        // stopped a settle, finish it, as a pan that never moved the sheet does.
+        if let emitSettle = drag.interruptedSettleEmitsSettle {
+          snapToIndex(targetIndex, velocity: 0, emitIndexChange: false, emitSettle: emitSettle)
+        }
+        return
+      }
       handoff.pin.stopPinning()
       isPanning = false
+      let velocity = drag.releaseVelocity
       let currentHeight = sheetContainerHeight - sheetContainer.transform.ty
       let index = bestSnapIndex(
         for: currentHeight,
-        velocity: drag.velocity,
+        velocity: velocity,
         including: handoff.startingIndex
       )
-      snapToIndex(index, velocity: drag.velocity)
+      snapToIndex(index, velocity: velocity)
 
     default:
       break
     }
   }
 
-  private func canExpandFromIndicator() -> Bool {
-    guard coordinationLevel(forVerticalVelocity: -1) != .none else { return false }
+  /// Whether a scrub at the content's start may expand the sheet. `handoff`
+  /// lets any scrub take the sheet; `initial` only one that began at the
+  /// start, as a drag elsewhere in the content picks its owner at touch-down.
+  private func canExpandFromIndicator(_ drag: IndicatorDragState) -> Bool {
+    switch coordinationLevel(forVerticalVelocity: -1) {
+    case .none:
+      return false
+    case .initial:
+      guard drag.startedAtStart else { return false }
+    case .handoff:
+      break
+    }
     let range = draggableRange(including: targetIndex)
     return sheetContainer.transform.ty > range.minTy + 0.5
   }
 
   private func beginIndicatorHandoff(_ drag: IndicatorDragState, scrollView: UIScrollView, y: CGFloat) {
     if activeSpring != nil {
+      if drag.interruptedSettleEmitsSettle == nil {
+        drag.interruptedSettleEmitsSettle = activeSpringEmitsSettle
+      }
       cancelActiveSpring()
     }
     isPanning = true
