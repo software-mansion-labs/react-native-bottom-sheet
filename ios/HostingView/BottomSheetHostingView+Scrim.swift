@@ -5,6 +5,13 @@ extension BottomSheetHostingView {
     isScrimVisible
   }
 
+  /// Whether the sheet is on screen: placed by its first layout and not hidden
+  /// at its closed position (see `updateSheetVisibility`). Independent of the
+  /// scrim, so a sheet at a transparent detent is still presented.
+  public var isPresented: Bool {
+    hasLaidOut && sheetContainer.alpha > 0
+  }
+
   var isScrimVisible: Bool {
     modal && !scrimView.isHidden
   }
@@ -68,6 +75,7 @@ extension BottomSheetHostingView {
     updateScrim(forPosition: currentSheetHeight)
     updateSheetVisibility(forPosition: currentSheetHeight)
     updateInteractionState()
+    eventDelegate?.bottomSheetHostingViewDidUpdateScrim(self)
   }
 
   func updateSheetVisibility(forPosition position: CGFloat) {

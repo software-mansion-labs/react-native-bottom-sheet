@@ -7,6 +7,7 @@ module.exports = {
           'BottomSheetViewComponentDescriptor',
           'BottomSheetSurfaceViewComponentDescriptor',
           'BottomSheetContentWrapperViewComponentDescriptor',
+          'BottomSheetPortalHostViewComponentDescriptor',
         ],
         cmakeListsPath: 'src/main/jni/CMakeLists.txt',
       },

@@ -15,6 +15,9 @@ NS_ASSUME_NONNULL_BEGIN
 // layer can push the content wrapper's target size (and, in overlay mode, the
 // sheet frame) into the shadow tree.
 - (void)bottomSheetViewDidLayout:(BottomSheetContentView *)view;
+// Fired when the scrim or the sheet's visibility is re-evaluated without the
+// sheet moving, e.g., after a `scrimOpacity` or `modal` change.
+- (void)bottomSheetViewDidUpdateScrim:(BottomSheetContentView *)view;
 @end
 
 @interface BottomSheetContentView : UIView
@@ -28,6 +31,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) NSTimeInterval settleDuration;
 @property (nonatomic, readonly) UIView *sheetContainer;
 @property (nonatomic, readonly) BOOL isModalAccessibilityActive;
+// Whether the sheet is on screen, regardless of its scrim.
+@property (nonatomic, readonly) BOOL isPresented;
 
 - (void)setDetents:(NSArray<NSDictionary *> *)raw;
 // Records the content-region inset of a state Fabric committed.

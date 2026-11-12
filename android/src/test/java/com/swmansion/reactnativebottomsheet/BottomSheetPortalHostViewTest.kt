@@ -6,9 +6,11 @@ import android.view.View
 import android.view.View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
 import android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO
 import android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+import android.view.View.IMPORTANT_FOR_ACCESSIBILITY_YES
 import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.facebook.react.bridge.UIManager
 import com.facebook.react.internal.featureflags.ReactNativeFeatureFlagsForTests
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -17,6 +19,7 @@ import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.util.ReflectionHelpers
 
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
@@ -60,6 +63,24 @@ class BottomSheetPortalHostViewTest {
 
       host.setSheetModal(sheet, false)
       assertEquals(IMPORTANT_FOR_ACCESSIBILITY_NO, screen.importantForAccessibility)
+    }
+  }
+
+  @Test
+  fun `keeps an updated sibling hidden and restores its latest value on close`() {
+    withPortal { _, screen, host ->
+      val sheet = View(host.context)
+      host.setSheetModal(sheet, true)
+      screen.importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES
+      // A Fabric prop-only commit can finish without a layout pass.
+      host.didMountItems(ReflectionHelpers.createNullProxy(UIManager::class.java))
+
+      assertEquals(
+        IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
+        screen.importantForAccessibility,
+      )
+      host.setSheetModal(sheet, false)
+      assertEquals(IMPORTANT_FOR_ACCESSIBILITY_YES, screen.importantForAccessibility)
     }
   }
 

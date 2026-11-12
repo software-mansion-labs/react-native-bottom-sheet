@@ -351,7 +351,8 @@ using namespace facebook::react;
 {
   BOOL isModal = _sheetView.isModalAccessibilityActive;
   _overlayContainer.accessibilityViewIsModal = _nativeOverlay && isModal;
-  [_portalHost setSheet:self isModal:!_nativeOverlay && isModal];
+  // A presented portal sheet still covers the screen at a transparent detent.
+  [_portalHost setSheet:self isModal:!_nativeOverlay && _sheetView.modal && _sheetView.isPresented];
 }
 
 /// Finds the portal host this sheet is mounted in. Fabric can move the view
@@ -539,6 +540,11 @@ using namespace facebook::react;
 - (void)bottomSheetViewDidLayout:(BottomSheetContentView *)view
 {
   [self pushNativeGeometry];
+}
+
+- (void)bottomSheetViewDidUpdateScrim:(BottomSheetContentView *)view
+{
+  [self updateAccessibilityModality];
 }
 
 - (void)prepareForRecycle
