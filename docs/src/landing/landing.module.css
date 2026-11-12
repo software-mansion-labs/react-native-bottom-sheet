@@ -3,24 +3,19 @@
  * real sheet, so moving to it is the library's job.
  */
 .landing {
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ifm-link-hover-decoration: none;
-  --sheet: var(--swm-white);
+  /* The hero's page, so the two read as one surface. */
+  --sheet: var(--bs-bg);
   --sheet-shadow:
-    0 -18px 56px -6px rgb(0 26 114 / 0.42), 0 -3px 12px rgb(0 26 114 / 0.26);
-  --dim: var(--swm-navy-light-100);
-  --navy: var(--swm-navy-light-100);
-  --navy-60: var(--swm-navy-light-60);
-  --navy-20: var(--swm-navy-light-20);
-  --blue: var(--swm-blue-light-100);
-  --white: var(--swm-white);
+    0 -18px 56px -6px rgb(20 17 34 / 0.32), 0 -3px 12px rgb(20 17 34 / 0.2);
+  --dim: var(--bs-off-black);
 
   position: fixed;
   inset: var(--ifm-navbar-height) 0 0;
   overflow: hidden;
   /* What shows around the hero as it recedes: the color it dims toward. */
   background: var(--dim);
-  color: var(--navy);
+  color: var(--bs-text);
   font-family: var(--ifm-font-family-base);
   font-size: 17px;
   line-height: 1.5;
@@ -28,18 +23,10 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* The hero's roles swap: a dark page with a light sheet rising over it. */
 [data-theme='dark'] .landing {
-  /* The hero's page color, as in the light theme. */
-  --sheet: var(--ifm-background-color);
   --sheet-shadow:
     0 -18px 56px -4px rgb(0 0 0 / 0.75), 0 -3px 12px rgb(0 0 0 / 0.5);
   --dim: black;
-  --navy: var(--swm-navy-light-10);
-  --navy-60: var(--swm-navy-light-40);
-  --navy-20: var(--swm-navy-light-80);
-  --white: var(--swm-navy-dark-140);
-  --blue: var(--swm-blue-dark-80);
 }
 
 /* The docs' own element styles don't apply here. */
@@ -76,7 +63,7 @@
 }
 
 .landing :focus-visible {
-  outline: 2px solid var(--blue);
+  outline: 2px solid var(--bs-accent);
   outline-offset: 2px;
 }
 
@@ -84,7 +71,7 @@
 .reveal {
   transition:
     opacity 600ms ease,
-    transform 700ms var(--ease-out);
+    transform 700ms var(--bs-ease-out);
 }
 
 .reveal[data-in='false'] {

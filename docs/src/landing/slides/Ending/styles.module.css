@@ -1,15 +1,9 @@
 /* The same section as at the bottom of the Enriched docs. */
 .ending {
-  --contact-hover: var(--swm-navy-light-80);
-
   flex: 1;
   display: flex;
   flex-direction: column;
   width: 100%;
-}
-
-[data-theme='dark'] .ending {
-  --contact-hover: var(--swm-navy-light-20);
 }
 
 /*
@@ -48,7 +42,7 @@
 
 .title {
   max-width: 768px;
-  color: var(--navy);
+  color: var(--bs-heading);
   font-size: 48px;
   font-weight: 500;
   line-height: 56px;
@@ -72,28 +66,28 @@
   z-index: 2;
 }
 
-.contact,
-.contact:hover {
-  color: var(--white);
-}
-
 .contact {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: 48px;
   padding: 12px 24px;
-  background: var(--navy);
+  border: 1px solid var(--bs-accent);
+  background: var(--bs-accent);
+  color: var(--bs-on-accent);
   font-size: 16px;
   font-weight: 500;
   line-height: normal;
   transition:
+    color 150ms ease,
     background-color 150ms ease,
-    transform 160ms var(--ease-out);
+    transform 160ms var(--bs-ease-out);
 }
 
+/* As the hero's Get started. */
 .contact:hover {
-  background: var(--contact-hover);
+  background: transparent;
+  color: var(--bs-accent);
 }
 
 .contact:active {
@@ -254,7 +248,7 @@
   max-width: 1280px;
   margin: 0 auto;
   padding: 32px 0;
-  border-top: 1px solid var(--navy-20);
+  border-top: 1px solid var(--bs-line-soft);
 }
 
 .legalStart {
@@ -269,7 +263,7 @@
 .privacy:hover,
 .social,
 .social:hover {
-  color: var(--navy);
+  color: var(--bs-heading);
 }
 
 .swm svg {
