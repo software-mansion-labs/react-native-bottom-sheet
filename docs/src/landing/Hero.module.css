@@ -22,6 +22,8 @@
   --sheet-guide: rgb(255 255 255 / 0.22);
 
   position: relative;
+  /* Keep the sheet and both copies of the hero beneath the dimming overlay. */
+  isolation: isolate;
   height: 100%;
   overflow: hidden;
   color: var(--ink);
@@ -180,8 +182,7 @@
   background: var(--sheet);
 }
 
-/* The library's content layer sits above the surface, so it needs the cursor too. */
-.grabber {
+.sheetBody {
   position: absolute;
   inset: 0;
 }
@@ -209,52 +210,21 @@
   color: var(--accent);
 }
 
-/* Text sizes and breakpoints from the Fishjam and ExecuTorch landing pages. */
 .headline {
-  margin-top: 16px;
-  font-size: 40px;
-  font-weight: 500;
-  /* Fishjam's, for comparison. */
-  line-height: 1.08;
-  text-wrap: balance;
+  composes: headline from './shared/copy.module.css';
+  margin-top: var(--copy-gap);
 }
 
 .lede {
-  margin-top: 16px;
+  composes: lede from './shared/copy.module.css';
   max-width: 640px;
-  font-size: 18px;
-  /* Fishjam's, for comparison. */
-  line-height: 26px;
-  text-wrap: balance;
+  margin-top: var(--copy-gap);
 }
 
-/*
- * As the "Book now" button on swmansion.com: it empties on hover and focus. It
- * fades as the docs' links do.
- */
 .cta {
-  margin-top: 32px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 48px;
-  padding: 0 20px 0 28px;
-  border: 1px solid var(--accent);
-  border-radius: 9999px;
-  background: var(--accent);
-  color: var(--on-accent);
-  font-size: 16px;
-  font-weight: 500;
-  white-space: nowrap;
-  transition:
-    color var(--ifm-transition-fast) var(--ifm-transition-timing-default),
-    background-color var(--ifm-transition-fast)
-      var(--ifm-transition-timing-default);
-}
-
-.cta:is(:hover, :focus-visible, [data-focused]) {
-  background: transparent;
-  color: var(--accent);
+  composes: cta from './shared/copy.module.css';
+  margin-top: var(--cta-gap);
+  --cta-end-padding: 20px;
 }
 
 .rule {
@@ -343,12 +313,6 @@
   font-weight: 400;
 }
 
-@media (min-width: 375px) {
-  .headline {
-    font-size: 48px;
-  }
-}
-
 /*
  * The sheet's own breakpoint: the readout with hints and a four-digit position,
  * plus the gutters. The lowest stop rises with it, leaving more room.
@@ -360,31 +324,5 @@
 
   .readout span {
     display: inline;
-  }
-}
-
-@media (min-width: 768px) {
-  .headline {
-    font-size: 60px;
-  }
-
-  .headline,
-  .lede {
-    margin-top: 20px;
-  }
-
-  .cta {
-    margin-top: 40px;
-  }
-}
-
-@media (min-width: 1024px) {
-  .headline {
-    font-size: 72px;
-  }
-
-  .lede {
-    font-size: 20px;
-    line-height: 28px;
   }
 }

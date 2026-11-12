@@ -13,7 +13,7 @@ import Link from '@docusaurus/Link';
 import { BottomSheet } from '@swmansion/react-native-bottom-sheet';
 import clsx from 'clsx';
 
-import { grab, useGrabbingCursor } from './shared/grab';
+import { grab, useGrabbingCursor, useMouseDragsHandleOnly } from './shared/grab';
 import { SwmLogo } from './SwmLogo';
 import styles from './Hero.module.css';
 
@@ -45,7 +45,7 @@ const markersAt = (stop: number): Marker[] => [
   { label: '100%', letter: 'B', style: { top: 0 }, below: true },
 ];
 
-const SURFACE = <div className={clsx(grab, styles.surface)} />;
+const SURFACE = <div className={styles.surface} />;
 
 /**
  * The hero's copy. It renders twice: in the page's colors, and in the sheet's
@@ -170,6 +170,7 @@ export const Hero = () => {
   const shownPosition = useRef<HTMLElement>(null);
   const shownIndex = useRef<HTMLElement>(null);
   const last = useRef({ position: 0, index: 0 });
+  const body = useMouseDragsHandleOnly();
   useGrabbingCursor();
 
   // Everything a frame touches is a direct style write on the one element that
@@ -232,6 +233,7 @@ export const Hero = () => {
             apply(position, fractional);
           }}
         >
+          <div ref={body} className={styles.sheetBody} />
           <div className={clsx(grab, styles.grabber)} />
         </BottomSheet>
       </div>

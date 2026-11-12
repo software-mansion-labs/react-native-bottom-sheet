@@ -34,9 +34,7 @@
   position: absolute;
   inset: 0;
   background: var(--sheet);
-  box-shadow:
-    inset 0 1px 0 var(--bs-line-soft),
-    var(--sheet-shadow);
+  box-shadow: var(--sheet-shadow);
 }
 
 .sheet {
@@ -60,12 +58,7 @@
 
 /* The strip along the sheet's top edge that drags it between its stops. */
 .handle {
-  position: absolute;
   z-index: 1;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 56px;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
@@ -73,12 +66,12 @@
 
 .grabber {
   position: absolute;
-  top: 12px;
-  left: 50%;
-  width: 44px;
-  height: 5px;
-  margin-left: -22px;
-  border-radius: 3px;
+  top: 8px;
+  inset-inline: 0;
+  width: 36px;
+  height: 4px;
+  margin-inline: auto;
+  border-radius: 2px;
   background: var(--bs-line);
   transition: background-color 160ms ease;
 }

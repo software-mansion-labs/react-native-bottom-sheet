@@ -9,7 +9,7 @@ import {
 import { BottomSheet } from '@swmansion/react-native-bottom-sheet';
 import clsx from 'clsx';
 
-import { grab } from '../shared/grab';
+import { grab, useMouseDragsHandleOnly } from '../shared/grab';
 import { clamp, SlideActiveContext } from '../shared/pieces';
 import styles from './styles.module.css';
 
@@ -203,23 +203,6 @@ const useKeySteps = (step: (way: number) => void) => {
 };
 
 /**
- * With a mouse only the top strip drags the sheet, so the text on it can be
- * selected. A finger can start anywhere, the way it would scroll a page.
- */
-const useMouseDragsHandleOnly = () => {
-  const body = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const element = body.current!;
-    const onDown = (event: PointerEvent) => {
-      if (event.pointerType === 'mouse') event.stopPropagation();
-    };
-    element.addEventListener('pointerdown', onDown);
-    return () => element.removeEventListener('pointerdown', onDown);
-  }, []);
-  return body;
-};
-
-/**
  * The hero, with a real sheet resting below the screen until it's scrolled,
  * swiped, or stepped open over it. As the sheet rises, the hero recedes.
  */
@@ -284,7 +267,11 @@ export const SlideStack = ({
   }, [applyPosition]);
 
   return (
-    <div className={styles.stack} ref={root}>
+    <div
+      className={styles.stack}
+      ref={root}
+      data-landing-sheet-open={(isOpen && isSettled) || undefined}
+    >
       <div className={styles.receder} inert={isOpen} ref={receder}>
         {hero}
         <div className={styles.dim} ref={dim} />

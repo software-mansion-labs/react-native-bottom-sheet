@@ -1,4 +1,7 @@
 .grab {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 48px;
   cursor: grab;
 }
 

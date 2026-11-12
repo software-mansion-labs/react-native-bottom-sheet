@@ -1,0 +1,65 @@
+/* Text sizes and breakpoints from the Fishjam and ExecuTorch landing pages. */
+.headline {
+  font-size: 40px;
+  font-weight: 500;
+  line-height: 1.08;
+  text-wrap: balance;
+}
+
+.lede {
+  font-size: 18px;
+  line-height: 26px;
+  text-wrap: balance;
+}
+
+/*
+ * As the "Book now" button on swmansion.com: it empties on hover and focus. It
+ * fades as the docs' links do.
+ */
+.cta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0 var(--cta-end-padding, 28px) 0 28px;
+  border: 1px solid var(--accent, var(--bs-accent));
+  border-radius: 9999px;
+  background: var(--accent, var(--bs-accent));
+  color: var(--on-accent, var(--bs-on-accent));
+  font-size: 16px;
+  font-weight: 500;
+  line-height: normal;
+  white-space: nowrap;
+  transition:
+    color var(--ifm-transition-fast) var(--ifm-transition-timing-default),
+    background-color var(--ifm-transition-fast)
+      var(--ifm-transition-timing-default);
+}
+
+.cta:is(:hover, :focus-visible, [data-focused]) {
+  background: transparent;
+  color: var(--accent, var(--bs-accent));
+}
+
+@media (min-width: 375px) {
+  .headline {
+    font-size: 48px;
+  }
+}
+
+@media (min-width: 768px) {
+  .headline {
+    font-size: 60px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .headline {
+    font-size: 72px;
+  }
+
+  .lede {
+    font-size: 20px;
+    line-height: 28px;
+  }
+}

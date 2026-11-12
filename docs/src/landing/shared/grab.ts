@@ -1,9 +1,26 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 import styles from './grab.module.css';
 
 /** Marks what drags a sheet, for the grab cursor. */
 export const grab = styles.grab!;
+
+/**
+ * With a mouse only the top strip drags the sheet, so the text on it can be
+ * selected. A finger can start anywhere, the way it would scroll a page.
+ */
+export const useMouseDragsHandleOnly = () => {
+  const body = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = body.current!;
+    const onDown = (event: PointerEvent) => {
+      if (event.pointerType === 'mouse') event.stopPropagation();
+    };
+    element.addEventListener('pointerdown', onDown);
+    return () => element.removeEventListener('pointerdown', onDown);
+  }, []);
+  return body;
+};
 
 /**
  * Holds the grabbing cursor for a whole press on anything marked `grab`. The

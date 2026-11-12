@@ -354,6 +354,10 @@ html.landing-page .navbar {
   inset: 0 0 auto;
 }
 
+html.landing-page:not(:has([data-landing-sheet-open])) .navbar {
+  border-bottom-color: transparent;
+}
+
 /* ---------- Search ---------- */
 
 /* The trigger and dialog are styled in src/theme/SearchBar. */
@@ -680,13 +684,6 @@ article mark {
     border-color: var(--bs-accent);
     background: var(--bs-tint);
   }
-}
-
-.footer {
-  --ifm-footer-background-color: var(--ifm-background-color);
-  --ifm-footer-color: var(--bs-muted);
-  border-top: 1px solid var(--bs-line-soft);
-  font-size: 14px;
 }
 
 /* ---------- Focus ---------- */

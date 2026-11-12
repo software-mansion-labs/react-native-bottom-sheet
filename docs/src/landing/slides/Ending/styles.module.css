@@ -31,7 +31,6 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 40px;
   width: 100%;
   max-width: 1536px;
   margin: 0 auto;
@@ -41,19 +40,14 @@
 }
 
 .title {
-  max-width: 768px;
+  composes: headline from '../../shared/copy.module.css';
   color: var(--bs-heading);
-  font-size: 48px;
-  font-weight: 500;
-  line-height: 56px;
-  letter-spacing: 0.6px;
 }
 
 .description {
-  max-width: 800px;
-  font-size: 20px;
-  line-height: 1.4;
-  text-wrap: pretty;
+  composes: lede from '../../shared/copy.module.css';
+  max-width: 760px;
+  margin-top: var(--copy-gap);
 }
 
 .description p + p {
@@ -61,40 +55,14 @@
 }
 
 /* Above the wheel, which reaches up behind it. */
-.action {
+.contact {
+  composes: cta from '../../shared/copy.module.css';
+  margin-top: var(--cta-gap);
   position: relative;
   z-index: 2;
 }
 
-.contact {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 48px;
-  padding: 12px 24px;
-  border: 1px solid var(--bs-accent);
-  background: var(--bs-accent);
-  color: var(--bs-on-accent);
-  font-size: 16px;
-  font-weight: 500;
-  line-height: normal;
-  transition:
-    color 150ms ease,
-    background-color 150ms ease,
-    transform 160ms var(--bs-ease-out);
-}
-
-/* As the hero's Get started. */
-.contact:hover {
-  background: transparent;
-  color: var(--bs-accent);
-}
-
-.contact:active {
-  transform: scale(0.97);
-}
-
-.wheelReveal {
+.logos {
   position: relative;
   z-index: 1;
 }
@@ -239,66 +207,6 @@
   }
 }
 
-.legal {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  width: calc(100% - 48px);
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 32px 0;
-  border-top: 1px solid var(--bs-line-soft);
-}
-
-.legalStart {
-  display: flex;
-  align-items: center;
-  gap: 32px;
-}
-
-.swm,
-.swm:hover,
-.privacy,
-.privacy:hover,
-.social,
-.social:hover {
-  color: var(--bs-heading);
-}
-
-.swm svg {
-  display: block;
-}
-
-.privacy {
-  font-size: 14px;
-}
-
-.privacy:hover {
-  text-decoration: underline;
-}
-
-.socials {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 4px;
-}
-
-.social {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  transition: opacity 150ms ease;
-}
-
-@media (hover: hover) {
-  .social:hover {
-    opacity: 0.7;
-  }
-}
-
 /*
  * At these widths the copy's top padding and the room under the lowest logos
  * differ by 32px. Spare room makes up the difference, so the two read as
@@ -323,16 +231,6 @@
   .content {
     padding: 80px 64px;
   }
-
-  .title {
-    font-size: 60px;
-    line-height: 66px;
-    letter-spacing: 1.2px;
-  }
-
-  .legal {
-    width: calc(100% - 128px);
-  }
 }
 
 @media (min-width: 1280px) {
@@ -348,14 +246,5 @@
 
   .strip {
     display: block;
-  }
-
-  .legal {
-    flex-direction: column;
-  }
-
-  .legalStart {
-    flex-direction: column;
-    gap: 24px;
   }
 }

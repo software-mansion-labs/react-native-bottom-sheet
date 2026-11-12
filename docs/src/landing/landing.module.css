@@ -3,6 +3,8 @@
  * real sheet, so moving to it is the library's job.
  */
 .landing {
+  --copy-gap: 16px;
+  --cta-gap: 32px;
   --ifm-link-hover-decoration: none;
   /* The hero's page, so the two read as one surface. */
   --sheet: var(--bs-bg);
@@ -21,6 +23,13 @@
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+@media (min-width: 768px) {
+  .landing {
+    --copy-gap: 20px;
+    --cta-gap: 40px;
+  }
 }
 
 [data-theme='dark'] .landing {
@@ -65,22 +74,4 @@
 .landing :focus-visible {
   outline: 2px solid var(--bs-accent);
   outline-offset: 2px;
-}
-
-/* Sections rise once. Decoration only: nothing waits for it. */
-.reveal {
-  transition:
-    opacity 600ms ease,
-    transform 700ms var(--bs-ease-out);
-}
-
-.reveal[data-in='false'] {
-  opacity: 0;
-  transform: translateY(14px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .reveal[data-in='false'] {
-    transform: none;
-  }
 }
