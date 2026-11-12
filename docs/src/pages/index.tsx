@@ -2,7 +2,9 @@ import BrowserOnly from '@docusaurus/BrowserOnly';
 import { HtmlClassNameProvider } from '@docusaurus/theme-common';
 import Layout from '@theme/Layout';
 
-import { Hero, HeroPoster } from '../landing/Hero';
+import { Landing } from '../landing';
+import { HeroPoster } from '../landing/Hero';
+import landing from '../landing/landing.module.css';
 
 const DESCRIPTION =
   'Gestures, snapping, and scroll coordination run in native code on iOS and Android, and in JavaScript on the web. Everything you see is plain React Native.';
@@ -15,8 +17,8 @@ const Home = () => (
       description={DESCRIPTION}
       noFooter
     >
-      <main>
-        <BrowserOnly fallback={<HeroPoster />}>{() => <Hero />}</BrowserOnly>
+      <main className={landing.landing}>
+        <BrowserOnly fallback={<HeroPoster />}>{() => <Landing />}</BrowserOnly>
       </main>
     </Layout>
   </HtmlClassNameProvider>

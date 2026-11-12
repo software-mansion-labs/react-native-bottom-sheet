@@ -1,0 +1,18 @@
+.grab {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 48px;
+  cursor: grab;
+}
+
+.grab:active {
+  cursor: grabbing;
+}
+
+/* A drag can leave the sheet or cross a button, so it holds for the whole press. */
+:global(html[data-sheet-grabbing]),
+:global(html[data-sheet-grabbing]) * {
+  cursor: grabbing !important;
+  user-select: none;
+  -webkit-user-select: none;
+}

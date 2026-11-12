@@ -1,0 +1,83 @@
+.stack {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+/* What the sheet does to the hero beneath it, written as the sheet rises. */
+.receder {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  transform-origin: 50% 0;
+  will-change: transform;
+}
+
+.dim {
+  position: absolute;
+  inset: 0;
+  background: var(--dim);
+  opacity: 0;
+  pointer-events: none;
+  will-change: opacity;
+}
+
+/* The library's host is full-size: only the sheet itself should catch the pointer. */
+.area {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  pointer-events: none;
+}
+
+.surface {
+  position: absolute;
+  inset: 0;
+  background: var(--sheet);
+  box-shadow: var(--sheet-shadow);
+}
+
+.sheet {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* The strip along the sheet's top edge that drags it between its stops. */
+.handle {
+  z-index: 1;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.grabber {
+  position: absolute;
+  top: 8px;
+  inset-inline: 0;
+  width: 36px;
+  height: 4px;
+  margin-inline: auto;
+  border-radius: 2px;
+  background: var(--bs-line);
+  transition: background-color 160ms ease;
+}
+
+@media (hover: hover) {
+  .handle:hover .grabber {
+    background: var(--bs-line-strong);
+  }
+}

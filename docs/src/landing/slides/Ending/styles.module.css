@@ -1,0 +1,250 @@
+/* The same section as at the bottom of the Enriched docs. */
+.ending {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/*
+ * The copy and the wheel under it, centered in the room above the footer. When
+ * the sheet has none to spare, the wheel rests on the footer as on the Enriched
+ * docs. The spacers start at nothing, so they never make the section taller.
+ */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.main::before,
+.main::after {
+  content: '';
+  flex: 1 1 0;
+}
+
+.balance {
+  display: none;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 1536px;
+  margin: 0 auto;
+  /* The wheel reaches up into the bottom of this, as on the Enriched docs. */
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.title {
+  composes: headline from '../../shared/copy.module.css';
+  color: var(--bs-heading);
+}
+
+.description {
+  composes: lede from '../../shared/copy.module.css';
+  max-width: 760px;
+  margin-top: var(--copy-gap);
+}
+
+.description p + p {
+  margin-top: 20px;
+}
+
+/* Above the wheel, which reaches up behind it. */
+.contact {
+  composes: cta from '../../shared/copy.module.css';
+  margin-top: var(--cta-gap);
+  position: relative;
+  z-index: 2;
+}
+
+.logos {
+  position: relative;
+  z-index: 1;
+}
+
+/* Shows the bottom of the wheel's rim, fading out toward the copy above. */
+.wheelFrame {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  height: 352px;
+  margin-top: -200px;
+  mask-image: linear-gradient(to bottom, transparent 0%, black 35%);
+  pointer-events: none;
+}
+
+.wheel {
+  position: absolute;
+  left: 50%;
+  bottom: 112px;
+  width: 3200px;
+  height: 3200px;
+  margin-left: -1600px;
+  border-radius: 50%;
+  transform: translate3d(0, 0, 0) rotateZ(var(--wheel-rot, 0deg));
+  will-change: transform;
+}
+
+.spoke {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  height: max-content;
+}
+
+/*
+ * Turned back as the wheel turns, so every logo stays upright. Each is its own
+ * layer, so turning repaints nothing: otherwise the whole wheel would repaint on
+ * every frame.
+ */
+.logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate3d(0, 0, 0) rotateZ(calc(-1 * var(--wheel-rot, 0deg)));
+  will-change: transform;
+  backface-visibility: hidden;
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.logo:active {
+  cursor: grabbing;
+}
+
+.item {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 160px;
+  height: 70px;
+}
+
+.item a {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.item img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transform: scale(1.02);
+  -webkit-user-drag: none;
+}
+
+/* Each theme shows the logos made for it. */
+.item .forDark,
+[data-theme='dark'] .item .forLight {
+  display: none;
+}
+
+[data-theme='dark'] .item .forDark {
+  display: block;
+}
+
+/* On phones the logos scroll past in a line instead. */
+.strip {
+  display: none;
+  overflow: hidden;
+  width: 100%;
+  padding: 24px 0 48px;
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 8%,
+    black 92%,
+    transparent
+  );
+}
+
+.stripTrack {
+  display: flex;
+  width: max-content;
+  animation: marquee 120s linear infinite;
+}
+
+.stripTrack[data-active='false'] {
+  animation-play-state: paused;
+}
+
+.stripCopy {
+  display: flex;
+  gap: 32px;
+  padding-right: 32px;
+}
+
+@media (hover: hover) {
+  .stripTrack:hover {
+    animation-play-state: paused;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stripTrack {
+    animation-play-state: paused;
+  }
+}
+
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/*
+ * At these widths the copy's top padding and the room under the lowest logos
+ * differ by 32px. Spare room makes up the difference, so the two read as
+ * centered.
+ */
+@media (min-width: 768px) and (max-width: 1023px), (min-width: 1280px) {
+  .balance {
+    display: block;
+    flex: 1 1 0;
+    max-height: 32px;
+  }
+}
+
+/* Here the padding is the smaller one, so the spare room goes above the copy. */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .balance {
+    order: -1;
+  }
+}
+
+@media (min-width: 1024px) {
+  .content {
+    padding: 80px 64px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .content {
+    padding-block: 112px;
+  }
+}
+
+@media (max-width: 767px) {
+  .wheelFrame {
+    display: none;
+  }
+
+  .strip {
+    display: block;
+  }
+}

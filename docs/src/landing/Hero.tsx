@@ -13,6 +13,7 @@ import Link from '@docusaurus/Link';
 import { BottomSheet } from '@swmansion/react-native-bottom-sheet';
 import clsx from 'clsx';
 
+import { grab, useGrabbingCursor, useMouseDragsHandleOnly } from './shared/grab';
 import { SwmLogo } from './SwmLogo';
 import styles from './Hero.module.css';
 
@@ -44,43 +45,7 @@ const markersAt = (stop: number): Marker[] => [
   { label: '100%', letter: 'B', style: { top: 0 }, below: true },
 ];
 
-const SURFACE = <div className={clsx(styles.grab, styles.surface)} />;
-
-/**
- * Holds the grabbing cursor for a whole press on the sheet. The library follows
- * a drag on the window, so the pointer can leave the sheet or cross a button.
- */
-const useGrabbingCursor = () => {
-  useEffect(() => {
-    const root = document.documentElement;
-    const grab = `.${CSS.escape(styles.grab!)}`;
-    const onDown = (event: PointerEvent) => {
-      if (event.button !== 0 || !(event.target instanceof Element)) return;
-      if (event.target.closest(grab) === null) return;
-      root.dataset.sheetGrabbing = '';
-    };
-    const onUp = () => delete root.dataset.sheetGrabbing;
-    // A release outside the window may never arrive, but the next move shows it.
-    const onMove = (event: PointerEvent) => {
-      if (event.buttons === 0 && root.dataset.sheetGrabbing !== undefined) {
-        onUp();
-      }
-    };
-    window.addEventListener('pointerdown', onDown, true);
-    window.addEventListener('pointermove', onMove, true);
-    window.addEventListener('pointerup', onUp, true);
-    window.addEventListener('pointercancel', onUp, true);
-    window.addEventListener('blur', onUp);
-    return () => {
-      onUp();
-      window.removeEventListener('pointerdown', onDown, true);
-      window.removeEventListener('pointermove', onMove, true);
-      window.removeEventListener('pointerup', onUp, true);
-      window.removeEventListener('pointercancel', onUp, true);
-      window.removeEventListener('blur', onUp);
-    };
-  }, []);
-};
+const SURFACE = <div className={styles.surface} />;
 
 /**
  * The hero's copy. It renders twice: in the page's colors, and in the sheet's
@@ -205,6 +170,7 @@ export const Hero = () => {
   const shownPosition = useRef<HTMLElement>(null);
   const shownIndex = useRef<HTMLElement>(null);
   const last = useRef({ position: 0, index: 0 });
+  const body = useMouseDragsHandleOnly();
   useGrabbingCursor();
 
   // Everything a frame touches is a direct style write on the one element that
@@ -267,7 +233,8 @@ export const Hero = () => {
             apply(position, fractional);
           }}
         >
-          <div className={clsx(styles.grab, styles.grabber)} />
+          <div ref={body} className={styles.sheetBody} />
+          <div className={clsx(grab, styles.grabber)} />
         </BottomSheet>
       </div>
       <HeroCopy
