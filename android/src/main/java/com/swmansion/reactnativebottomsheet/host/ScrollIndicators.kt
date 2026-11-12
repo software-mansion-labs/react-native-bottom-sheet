@@ -36,7 +36,12 @@ internal class ScrollIndicators(private val state: SheetState) {
     val current = view.verticalScrollbarThumbDrawable ?: return
     val fitted =
       current as? FittedThumb
-        ?: FittedThumb(current, view).also { view.verticalScrollbarThumbDrawable = it }
+        ?: FittedThumb(current, view).also {
+          view.verticalScrollbarThumbDrawable = it
+          // Installing the wrapper clears the outgoing thumb's callback, and the outgoing thumb is
+          // the one now inside it: reconnect it, or an animated thumb can't redraw.
+          current.callback = it
+        }
     fitted.owner = this
     views.add(view)
     refit(view, fitted)

@@ -27,6 +27,10 @@ final class ScrollIndicatorFit {
   let inverted: Bool
   /// The sheet fitting the indicator now. Only it restores the caller's inset.
   weak var owner: AnyObject?
+  /// Tells the owner when the scroll view leaves the window, so a list whose
+  /// subtree unmounts gets the caller's inset back at once, before Fabric
+  /// recycles it into a screen no sheet fits.
+  let departure = ScrollIndicatorFitDeparture()
 
   init(inset: CGFloat, inverted: Bool) {
     callerInset = inset
@@ -39,7 +43,40 @@ final class ScrollIndicatorFit {
   }
 
   static func attach(_ fit: ScrollIndicatorFit?, to scrollView: UIScrollView) {
+    if let old = attached(to: scrollView), old !== fit {
+      // Removing it is a departure too; it must not report one.
+      old.departure.onLeaveWindow = nil
+      old.departure.removeFromSuperview()
+    }
     objc_setAssociatedObject(scrollView, &key, fit, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+    if let fit, fit.departure.superview !== scrollView {
+      scrollView.addSubview(fit.departure)
+    }
+  }
+}
+
+/// A hidden, empty subview of a fitted scroll view. Removing any ancestor of
+/// the scroll view takes it out of the window, which no public scroll view
+/// callback reports to the sheet.
+final class ScrollIndicatorFitDeparture: UIView {
+  var onLeaveWindow: (() -> Void)?
+
+  init() {
+    super.init(frame: .zero)
+    isHidden = true
+    isUserInteractionEnabled = false
+  }
+
+  @available(*, unavailable)
+  required init?(coder _: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
+  }
+
+  override func didMoveToWindow() {
+    super.didMoveToWindow()
+    if window == nil {
+      onLeaveWindow?()
+    }
   }
 }
 
@@ -540,6 +577,11 @@ extension BottomSheetHostingView {
     let fit = ScrollIndicatorFit.attached(to: scrollView)
       ?? ScrollIndicatorFit(inset: current, inverted: inverted)
     fit.owner = self
+    fit.departure.onLeaveWindow = { [weak self, weak scrollView] in
+      // The whole sheet leaving the window keeps its fits.
+      guard let self, let scrollView, !ownsScrollView(scrollView) else { return }
+      releaseScrollIndicatorFit(of: scrollView)
+    }
     ScrollIndicatorFit.attach(fit, to: scrollView)
     scrollIndicatorFits.setObject(fit, forKey: scrollView)
     // Any other inset than the one applied last is the caller's.
