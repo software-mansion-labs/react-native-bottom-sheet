@@ -1,5 +1,6 @@
 #import "BottomSheetComponentView.h"
 #import "BottomSheetContentView.h"
+#import "BottomSheetPortalHostComponentView.h"
 #import "BottomSheetSurfaceComponentView.h"
 #import "../common/cpp/react/renderer/components/ReactNativeBottomSheetSpec/BottomSheetStateHelper.h"
 #import "../common/cpp/react/renderer/components/ReactNativeBottomSheetSpec/ComponentDescriptors.h"
@@ -63,6 +64,8 @@ using namespace facebook::react;
   NSInteger _openOrder;
   BottomSheetOverlayContainerView *_overlayContainer;
   RCTSurfaceTouchHandler *_overlayTouchHandler;
+  // The portal host this sheet is presented in, outside native-overlay mode.
+  __weak BottomSheetPortalHostComponentView *_portalHost;
   CGSize _lastGeometryFrameSize;
   CGFloat _lastGeometryInset;
   CGFloat _lastGeometrySurfaceOverflow;
@@ -145,6 +148,7 @@ using namespace facebook::react;
   if (newViewProps.nativeOverlay != _nativeOverlay) {
     _nativeOverlay = newViewProps.nativeOverlay;
     [self updateOverlayPresentation];
+    [self updatePortalHost];
   }
 
   // Diffed against the ivar for the same reason. A native-overlay sheet that
@@ -236,6 +240,7 @@ using namespace facebook::react;
 - (void)didMoveToWindow
 {
   [super didMoveToWindow];
+  [self updatePortalHost];
   // Attach once a window is available, detach when leaving it. The window is the
   // anchor for the overlay container, so its lifecycle gates presentation.
   if (_nativeOverlay || _overlayContainer != nil) {
@@ -305,7 +310,7 @@ using namespace facebook::react;
       [self attachOverlayTouchHandler];
     }
     [self pushNativeGeometry];
-    [self updateOverlayAccessibilityState];
+    [self updateAccessibilityModality];
   } else {
     if (_overlayContainer != nil) {
       [self restoreInlinePresentation];
@@ -338,9 +343,36 @@ using namespace facebook::react;
   }
 }
 
-- (void)updateOverlayAccessibilityState
+/// Keeps screen readers out of the screen behind an open modal sheet. In
+/// native-overlay mode the overlay container is a window subview, so marking it
+/// modal hides the rest of the window; otherwise the portal host does the same
+/// for the screen around it.
+- (void)updateAccessibilityModality
 {
-  _overlayContainer.accessibilityViewIsModal = _nativeOverlay && _sheetView.isModalAccessibilityActive;
+  BOOL isModal = _sheetView.isModalAccessibilityActive;
+  _overlayContainer.accessibilityViewIsModal = _nativeOverlay && isModal;
+  [_portalHost setSheet:self isModal:!_nativeOverlay && isModal];
+}
+
+/// Finds the portal host this sheet is mounted in. Fabric can move the view
+/// between parents, so this follows every window change and leaves the previous
+/// host first.
+- (void)updatePortalHost
+{
+  BottomSheetPortalHostComponentView *host = nil;
+  if (!_nativeOverlay && self.window != nil) {
+    for (UIView *view = self.superview; view != nil; view = view.superview) {
+      if ([view isKindOfClass:BottomSheetPortalHostComponentView.class]) {
+        host = (BottomSheetPortalHostComponentView *)view;
+        break;
+      }
+    }
+  }
+  if (host != _portalHost) {
+    [_portalHost setSheet:self isModal:NO];
+    _portalHost = host;
+  }
+  [self updateAccessibilityModality];
 }
 
 /// Pushes the current natively measured geometry into the shadow tree: the
@@ -456,6 +488,7 @@ using namespace facebook::react;
 
 - (void)bottomSheetView:(BottomSheetContentView *)view didSettle:(NSInteger)index
 {
+  [self updateAccessibilityModality];
   if (_eventEmitter) {
     auto emitter = std::static_pointer_cast<const BottomSheetViewEventEmitter>(_eventEmitter);
     emitter->onSettle({.index = static_cast<int>(index)});
@@ -473,7 +506,7 @@ using namespace facebook::react;
   }
 
   [self pushContentGeometry];
-  [self updateOverlayAccessibilityState];
+  [self updateAccessibilityModality];
 }
 
 /// The shadow node applies these as a content-origin offset and scale so descendant
@@ -516,6 +549,8 @@ using namespace facebook::react;
   _nativeOverlay = NO;
   _openOrder = 0;
   [self restoreInlinePresentation];
+  [_portalHost setSheet:self isModal:NO];
+  _portalHost = nil;
   _needsIndexSyncAfterRecycle = YES;
   [_sheetView resetSheetState];
   _sheetState.reset();

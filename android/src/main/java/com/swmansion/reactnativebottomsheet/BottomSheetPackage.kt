@@ -14,5 +14,6 @@ class BottomSheetPackage : ReactPackage {
       BottomSheetViewManager(),
       BottomSheetSurfaceViewManager(),
       BottomSheetContentWrapperViewManager(),
+      BottomSheetPortalHostViewManager(),
     )
 }

@@ -119,7 +119,8 @@
       "componentProvider": {
         "BottomSheetView": "BottomSheetComponentView",
         "BottomSheetSurfaceView": "BottomSheetSurfaceComponentView",
-        "BottomSheetContentWrapperView": "BottomSheetContentWrapperComponentView"
+        "BottomSheetContentWrapperView": "BottomSheetContentWrapperComponentView",
+        "BottomSheetPortalHostView": "BottomSheetPortalHostComponentView"
       }
     },
     "android": {

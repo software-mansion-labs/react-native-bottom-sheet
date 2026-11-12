@@ -77,12 +77,15 @@ class BottomSheetViewComponentDescriptor final
   }
 };
 
-// The surface and the content wrapper need no custom initial state, so these
-// mirror the codegen aliases.
+// The surface, the content wrapper, and the portal host need no custom initial
+// state, so these mirror the codegen aliases.
 using BottomSheetSurfaceViewComponentDescriptor =
     ConcreteComponentDescriptor<BottomSheetSurfaceViewShadowNode>;
 
 using BottomSheetContentWrapperViewComponentDescriptor =
     ConcreteComponentDescriptor<BottomSheetContentWrapperViewShadowNode>;
+
+using BottomSheetPortalHostViewComponentDescriptor =
+    ConcreteComponentDescriptor<BottomSheetPortalHostViewShadowNode>;
 
 } // namespace facebook::react
