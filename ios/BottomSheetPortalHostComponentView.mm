@@ -8,17 +8,18 @@
 using namespace facebook::react;
 
 // VoiceOver honors `accessibilityViewIsModal` only on a window-level view, not
-// on one nested in the React Native hierarchy like this host, so the siblings
-// are hidden instead: marked `accessibilityElementsHidden` while a sheet is
-// modal, then given back their own value. Re-checking after every mount covers
-// siblings Fabric mounts or removes meanwhile.
+// on one nested in the React Native hierarchy like this host, so what the top
+// sheet covers is hidden instead: the host's siblings and the portals below the
+// top sheet's, marked `accessibilityElementsHidden` while a sheet is modal, then
+// given back their own value. Re-checking after every mount covers views Fabric
+// mounts, removes, or reorders meanwhile.
 @interface BottomSheetPortalHostComponentView () <RCTMountingTransactionObserving>
 @end
 
 @implementation BottomSheetPortalHostComponentView {
   NSHashTable<UIView *> *_modalSheets;
-  // The siblings this host hid. Each one was visible before.
-  NSHashTable<UIView *> *_hiddenSiblings;
+  // The views this host hid. Each one was visible before.
+  NSHashTable<UIView *> *_hiddenViews;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame
@@ -27,7 +28,7 @@ using namespace facebook::react;
     const auto &defaultProps = BottomSheetPortalHostViewShadowNode::defaultSharedProps();
     _props = defaultProps;
     _modalSheets = [NSHashTable weakObjectsHashTable];
-    _hiddenSiblings = [NSHashTable weakObjectsHashTable];
+    _hiddenViews = [NSHashTable weakObjectsHashTable];
   }
   return self;
 }
@@ -47,49 +48,81 @@ using namespace facebook::react;
   } else {
     [_modalSheets removeObject:sheet];
   }
-  [self updateSiblings];
+  [self updateHiddenViews];
 }
 
 - (void)didMoveToWindow
 {
   [super didMoveToWindow];
-  [self updateSiblings];
+  [self updateHiddenViews];
 }
 
 - (void)mountingTransactionDidMount:(const MountingTransaction &)transaction
                withSurfaceTelemetry:(const SurfaceTelemetry &)surfaceTelemetry
 {
-  [self updateSiblings];
+  [self updateHiddenViews];
 }
 
-- (void)updateSiblings
+- (void)updateHiddenViews
 {
-  UIView *container = _modalSheets.count > 0 && self.window != nil ? self.superview : nil;
-  // Restore what is no longer a sibling, or everything once nothing is modal.
-  for (UIView *sibling in _hiddenSiblings.allObjects) {
-    if (container == nil || sibling.superview != container) {
-      [self restoreSibling:sibling];
+  NSMutableSet<UIView *> *covered = [NSMutableSet new];
+  if (_modalSheets.count > 0 && self.window != nil) {
+    // The screen behind the sheets.
+    for (UIView *sibling in self.superview.subviews) {
+      if (sibling != self) {
+        [covered addObject:sibling];
+      }
+    }
+    // The portals below the top modal sheet's. Portals are ordered by when their
+    // sheet opened, so the last one holding a modal sheet is on top.
+    UIView *topPortal = [self topModalPortal];
+    for (UIView *portal in self.subviews) {
+      if (portal != topPortal) {
+        [covered addObject:portal];
+      }
     }
   }
-  for (UIView *sibling in container.subviews) {
-    if (sibling != self && !sibling.accessibilityElementsHidden) {
-      sibling.accessibilityElementsHidden = YES;
-      [_hiddenSiblings addObject:sibling];
+  for (UIView *view in _hiddenViews.allObjects) {
+    if (![covered containsObject:view]) {
+      [_hiddenViews removeObject:view];
+      view.accessibilityElementsHidden = NO;
+    }
+  }
+  for (UIView *view in covered) {
+    if (!view.accessibilityElementsHidden) {
+      view.accessibilityElementsHidden = YES;
+      [_hiddenViews addObject:view];
     }
   }
 }
 
-- (void)restoreSibling:(UIView *)sibling
+/// The portal, a direct subview of this host, holding the topmost modal sheet.
+- (nullable UIView *)topModalPortal
 {
-  [_hiddenSiblings removeObject:sibling];
-  sibling.accessibilityElementsHidden = NO;
+  UIView *topPortal = nil;
+  NSUInteger topIndex = 0;
+  for (UIView *sheet in _modalSheets) {
+    UIView *portal = sheet;
+    while (portal != nil && portal.superview != self) {
+      portal = portal.superview;
+    }
+    if (portal == nil) {
+      continue;
+    }
+    NSUInteger index = [self.subviews indexOfObject:portal];
+    if (topPortal == nil || index > topIndex) {
+      topPortal = portal;
+      topIndex = index;
+    }
+  }
+  return topPortal;
 }
 
 - (void)prepareForRecycle
 {
   [super prepareForRecycle];
   [_modalSheets removeAllObjects];
-  [self updateSiblings];
+  [self updateHiddenViews];
 }
 
 @end

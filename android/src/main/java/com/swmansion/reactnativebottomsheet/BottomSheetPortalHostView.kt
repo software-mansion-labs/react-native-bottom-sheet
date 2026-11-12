@@ -9,20 +9,20 @@ import com.facebook.react.views.view.ReactViewGroup
 
 /**
  * The container `BottomSheetProvider` renders its portals into. Its siblings are the screen behind
- * the sheets, so while a sheet in it is modal it hides them from accessibility services, as a
- * dialog's separate window would: TalkBack neither swipes past the sheet into that screen nor finds
- * it by touch.
+ * the sheets, so while a sheet in it is modal it hides from accessibility services what the top
+ * sheet covers, as a dialog's separate window would: those siblings, and the portals below the top
+ * sheet's. TalkBack then neither swipes past the sheet into them nor finds them by touch.
  *
- * Android has no counterpart to iOS's `accessibilityViewIsModal`, so the siblings are marked
- * `IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS` and get their own value back once no sheet is
- * modal. A sibling Fabric mounts meanwhile is hidden on the next layout pass.
+ * Android has no counterpart to iOS's `accessibilityViewIsModal`, so the covered views are marked
+ * `IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS` and get their own value back once uncovered. A
+ * view Fabric mounts or reorders meanwhile is handled on the next layout pass.
  */
 class BottomSheetPortalHostView(context: Context) : ReactViewGroup(context) {
   private val modalSheets = mutableSetOf<View>()
-  // Each hidden sibling with the value it had before.
-  private val hiddenSiblings = mutableMapOf<View, Int>()
+  // Each hidden view with the value it had before.
+  private val hiddenViews = mutableMapOf<View, Int>()
   private var isObservingLayout = false
-  private val layoutListener = ViewTreeObserver.OnGlobalLayoutListener { updateSiblings() }
+  private val layoutListener = ViewTreeObserver.OnGlobalLayoutListener { updateHiddenViews() }
 
   init {
     // It spans the screen above the app, so only its sheets may take touches. Set here because a
@@ -32,49 +32,66 @@ class BottomSheetPortalHostView(context: Context) : ReactViewGroup(context) {
 
   /**
    * Registers whether [sheet], a portal sheet inside this host, currently blocks the screen behind
-   * it. The host hides its siblings while any registered sheet does.
+   * it. The host hides what the top registered sheet covers.
    */
   fun setSheetModal(sheet: View, isModal: Boolean) {
     val changed = if (isModal) modalSheets.add(sheet) else modalSheets.remove(sheet)
-    if (changed) updateSiblings()
+    if (changed) updateHiddenViews()
   }
 
   override fun onAttachedToWindow() {
     super.onAttachedToWindow()
-    updateSiblings()
+    updateHiddenViews()
   }
 
   override fun onDetachedFromWindow() {
-    updateSiblings(isAttached = false)
+    updateHiddenViews(isAttached = false)
     super.onDetachedFromWindow()
   }
 
-  private fun updateSiblings(isAttached: Boolean = isAttachedToWindow) {
-    val siblings = if (isAttached && modalSheets.isNotEmpty()) parent as? ViewGroup else null
-    // Restore what is no longer a sibling, or everything once nothing is modal.
-    hiddenSiblings.keys.filter { siblings == null || it.parent !== siblings }.forEach(::restore)
-    siblings?.let {
-      for (index in 0 until it.childCount) {
-        val sibling = it.getChildAt(index)
-        if (sibling !== this) hide(sibling)
+  private fun updateHiddenViews(isAttached: Boolean = isAttachedToWindow) {
+    val isolating = isAttached && modalSheets.isNotEmpty()
+    val covered = mutableSetOf<View>()
+    if (isolating) {
+      // The screen behind the sheets.
+      (parent as? ViewGroup)?.let { siblings ->
+        for (index in 0 until siblings.childCount) {
+          siblings.getChildAt(index).takeIf { it !== this }?.let(covered::add)
+        }
+      }
+      // The portals below the top modal sheet's. Portals are ordered by when their sheet opened, so
+      // the last one holding a modal sheet is on top.
+      val topPortal = topModalPortal()
+      for (index in 0 until childCount) {
+        getChildAt(index).takeIf { it !== topPortal }?.let(covered::add)
       }
     }
-    observeLayout(siblings != null)
+    hiddenViews.keys.filter { it !in covered }.forEach(::restore)
+    covered.forEach(::hide)
+    observeLayout(isolating)
   }
 
-  private fun hide(sibling: View) {
-    if (sibling in hiddenSiblings) return
-    val previous = sibling.importantForAccessibility
+  /** The portal, a direct child of this host, holding the topmost modal sheet. */
+  private fun topModalPortal(): View? =
+    modalSheets
+      .mapNotNull { sheet ->
+        generateSequence(sheet) { it.parent as? View }.firstOrNull { it.parent === this }
+      }
+      .maxByOrNull(::indexOfChild)
+
+  private fun hide(view: View) {
+    if (view in hiddenViews) return
+    val previous = view.importantForAccessibility
     if (previous == IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS) return
-    hiddenSiblings[sibling] = previous
-    sibling.importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+    hiddenViews[view] = previous
+    view.importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
   }
 
-  private fun restore(sibling: View) {
-    val previous = hiddenSiblings.remove(sibling) ?: return
+  private fun restore(view: View) {
+    val previous = hiddenViews.remove(view) ?: return
     // Leave a value set from JS meanwhile in place.
-    if (sibling.importantForAccessibility == IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS) {
-      sibling.importantForAccessibility = previous
+    if (view.importantForAccessibility == IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS) {
+      view.importantForAccessibility = previous
     }
   }
 

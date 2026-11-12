@@ -83,6 +83,49 @@ class BottomSheetPortalHostViewTest {
   }
 
   @Test
+  fun `hides the portals below the top modal sheet until it closes`() {
+    withPortal { _, screen, host ->
+      val lowerPortal = FrameLayout(host.context)
+      val upperPortal = FrameLayout(host.context)
+      val lowerSheet = View(host.context)
+      val upperSheet = View(host.context)
+      lowerPortal.addView(lowerSheet)
+      upperPortal.addView(upperSheet)
+      host.addView(lowerPortal)
+      host.addView(upperPortal)
+
+      host.setSheetModal(lowerSheet, true)
+      assertEquals(IMPORTANT_FOR_ACCESSIBILITY_AUTO, lowerPortal.importantForAccessibility)
+      assertEquals(
+        IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
+        upperPortal.importantForAccessibility,
+      )
+
+      host.setSheetModal(upperSheet, true)
+      assertEquals(
+        IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
+        lowerPortal.importantForAccessibility,
+      )
+      assertEquals(IMPORTANT_FOR_ACCESSIBILITY_AUTO, upperPortal.importantForAccessibility)
+      assertEquals(
+        IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
+        screen.importantForAccessibility,
+      )
+
+      host.setSheetModal(upperSheet, false)
+      assertEquals(IMPORTANT_FOR_ACCESSIBILITY_AUTO, lowerPortal.importantForAccessibility)
+      assertEquals(
+        IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
+        screen.importantForAccessibility,
+      )
+
+      host.setSheetModal(lowerSheet, false)
+      assertEquals(IMPORTANT_FOR_ACCESSIBILITY_AUTO, upperPortal.importantForAccessibility)
+      assertEquals(IMPORTANT_FOR_ACCESSIBILITY_AUTO, screen.importantForAccessibility)
+    }
+  }
+
+  @Test
   fun `hides a sibling mounted while isolated and restores one removed meanwhile`() {
     withPortal { _, screen, host ->
       val root = host.parent as FrameLayout
