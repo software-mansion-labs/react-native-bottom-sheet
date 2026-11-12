@@ -152,6 +152,16 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
   private var lastInset: CGFloat = .nan
   private var lastSurfaceOverflow: CGFloat = 0
   private var props: [String: String] = [:]
+  /// Whether `positionchange` is sent: Exact can't tell a view which events
+  /// are bound, and the event runs every frame the sheet moves, so it goes
+  /// out only when the app asks (`trackPosition`, which `TrackedBottomSheet`
+  /// sets).
+  private var tracksPosition = false
+  /// Whether the sheet is in Exact's top layer (the `BottomSheet` component's
+  /// `nativeOverlay`), and the ancestors marked `accessibilityViewIsModal`
+  /// while its scrim is shown, each with the value it had.
+  private var nativeOverlay = false
+  private var modalAncestors: [(view: UIView, wasModal: Bool)] = []
   /// Set by `destroy`: nothing is emitted, adopted or laid out after it.
   private var destroyed = false
 
@@ -165,7 +175,10 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
     contentWrapper.addSubview(marker)
     surface.isUserInteractionEnabled = true
     host.mountChildComponentView(contentWrapper, atIndex: 0)
-    root.onLayout = { [weak self] in self?.reconcile() }
+    root.onLayout = { [weak self] in
+      self?.reconcile()
+      self?.updateOverlayAccessibility()
+    }
   }
 
   var view: ExactPackagePlatformView {
@@ -199,6 +212,8 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
     let changed = { (key: String) in first || previous[key] != next[key] }
     props = next
     contentId = next["contentId"] ?? ""
+    tracksPosition = Self.bool(next["trackPosition"]) ?? false
+    nativeOverlay = Self.bool(next["nativeOverlay"]) ?? false
 
     widestLeft = detents.widestLeft
     widestRight = detents.widestRight
@@ -285,6 +300,38 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
 
     syncGeometry()
     reconcile()
+    updateOverlayAccessibility()
+  }
+
+  /// `BottomSheetComponentView.mm`'s `updateOverlayAccessibilityState`: while
+  /// an overlay sheet's scrim is shown, VoiceOver keeps to the sheet. React
+  /// Native's overlay is a direct child of the window, so marking it modal
+  /// hides the rest of the app (UIKit hides a modal view's siblings). Here
+  /// the sheet sits in Exact's popover layer, whose node the component marks
+  /// `aria-modal` (Exact moves VoiceOver into it), but that hides only the
+  /// layer's siblings, other popovers; so every ancestor up to the window is
+  /// marked too, which leaves out everything off the sheet's own branch, as
+  /// React Native's does. Each keeps its own value to go back to.
+  private func updateOverlayAccessibility() {
+    let active = !destroyed && nativeOverlay && host.isModalAccessibilityActive && root.window != nil
+    var chain: [UIView] = []
+    if active {
+      var at = root.superview
+      while let view = at, !(view is UIWindow) {
+        chain.append(view)
+        at = view.superview
+      }
+    }
+    if chain.count == modalAncestors.count, zip(chain, modalAncestors).allSatisfy({ $0 === $1.view }) {
+      return
+    }
+    for (view, wasModal) in modalAncestors.reversed() where view.accessibilityViewIsModal != wasModal {
+      view.accessibilityViewIsModal = wasModal
+    }
+    modalAncestors = chain.map { ($0, $0.accessibilityViewIsModal) }
+    for view in chain where !view.accessibilityViewIsModal {
+      view.accessibilityViewIsModal = true
+    }
   }
 
   struct NormalizedDetents {
@@ -731,6 +778,7 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
     }
     nodeObservations = []
     endMarkerObservations = []
+    updateOverlayAccessibility()
     host.resetSheetState()
   }
 
@@ -748,12 +796,16 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
     if index < closedDetents.count {
       setRestingClosed(closedDetents[index])
     }
+    updateOverlayAccessibility()
   }
 
   func bottomSheetHostingView(
     _: BottomSheetHostingView, didChangePosition position: CGFloat, index: CGFloat
   ) {
     guard !destroyed else { return }
+    // As the Fabric glue, on every move: the scrim shows and hides with it.
+    updateOverlayAccessibility()
+    guard tracksPosition else { return }
     events.emit("positionchange", [["position": Double(position), "index": Double(index)]])
   }
 

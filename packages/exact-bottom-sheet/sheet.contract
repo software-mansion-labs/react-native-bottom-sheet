@@ -49,13 +49,13 @@ shape SheetConfig
   animateIn: option<bool>
   animateContentHeight: option<bool>
   settleDuration: option<number>
-  scrollExpand: option<string>
-  scrollCollapse: option<string>
+  scrollExpand: option<enum<"none", "initial", "handoff">>
+  scrollCollapse: option<enum<"none", "initial", "handoff">>
   scrimColor: option<string>
   scrimLabel: option<string>
   surfaceColor: option<string>
   surfaceCornerRadii: option<number[]>
-  surfaceCornerCurve: option<string>
+  surfaceCornerCurve: option<enum<"circular", "continuous">>
   surfaceShadows: option<SheetShadow[]>
   handlesCloseRequest: option<bool>
   // The component's own option, as `lazy` on `BottomSheet.tsx`: the content is
@@ -98,6 +98,12 @@ fn sheetMounted(config: SheetConfig, detents: SheetDetent[], index: number, rest
 
 fn sheetUsesOverlay(config: SheetConfig): bool = (match config.modal { case some(b) => b, case none => false }) && (match config.nativeOverlay { case some(b) => b, case none => false })
 
+// Whether an overlay sheet keeps VoiceOver to itself: while it is open or
+// still closing (its scrim shown), as `BottomSheetComponentView.mm` sets
+// `accessibilityViewIsModal` on its overlay from `isModalAccessibilityActive`.
+// Exact maps `aria-modal` to that on iOS and to the attribute on the web.
+fn sheetOverlayModal(config: SheetConfig, detents: SheetDetent[], index: number, restingClosed: bool): bool = sheetUsesOverlay(config) && (!sheetIndexClosed(detents, index) || !restingClosed)
+
 // A modal sheet takes no touches once `index` is closed, so the page behind
 // it is usable while it closes, as `BottomSheet.tsx`'s wrapper
 // (`pointerEvents` 'none' when closed).
@@ -137,16 +143,17 @@ component BottomSheet
       lifted = true
     restingClosed = sheetRegionPart(v, 2) == 1
   view
-    column id=`${id}-layer` popover=(sheetUsesOverlay(config) ? some("manual") : none) position="absolute" top=0 left=0 width="100%" height="100%" margin=0 padding=0 border-width=0 background-color="transparent" overflow="visible" pointer-events="none"
+    column id=`${id}-layer` popover=(sheetUsesOverlay(config) ? some("manual") : none) aria-modal=sheetOverlayModal(config, detents, index, restingClosed) position="absolute" top=0 left=0 width="100%" height="100%" margin=0 padding=0 border-width=0 background-color="transparent" overflow="visible" pointer-events="none"
       if sheetMounted(config, detents, index, restingClosed)
         column testId=`${id}-content` position="absolute" top=0 left=0 width=(regionWidth == 0 ? "100%" : `${regionWidth}px`) height=(regionHeight == 0 ? "auto" : `${regionHeight}px`) display="flex" flex-direction="column" pointer-events="auto" opacity=(regionWidth == 0 ? 0 : 1)
           children
           view testId=`${id}-end` height=0 flex-shrink=0
-      swm-bottom-sheet testId=`${id}-sheet` contentId=`${id}-content` position="absolute" inset=0 pointer-events=sheetPointerEvents(config, detents, index) index=index detents=detents topInset=config.topInset modal=config.modal animateIn=config.animateIn animateContentHeight=config.animateContentHeight settleDuration=config.settleDuration scrollExpand=config.scrollExpand scrollCollapse=config.scrollCollapse scrimColor=config.scrimColor scrimLabel=config.scrimLabel surfaceColor=config.surfaceColor surfaceCornerRadii=config.surfaceCornerRadii surfaceCornerCurve=config.surfaceCornerCurve surfaceShadows=config.surfaceShadows handlesCloseRequest=config.handlesCloseRequest change=sized indexchange=indexchange settle=settle closerequest=closerequest
+      swm-bottom-sheet testId=`${id}-sheet` contentId=`${id}-content` position="absolute" inset=0 pointer-events=sheetPointerEvents(config, detents, index) index=index detents=detents topInset=config.topInset modal=config.modal animateIn=config.animateIn animateContentHeight=config.animateContentHeight settleDuration=config.settleDuration scrollExpand=config.scrollExpand scrollCollapse=config.scrollCollapse scrimColor=config.scrimColor scrimLabel=config.scrimLabel surfaceColor=config.surfaceColor surfaceCornerRadii=config.surfaceCornerRadii surfaceCornerCurve=config.surfaceCornerCurve surfaceShadows=config.surfaceShadows handlesCloseRequest=config.handlesCloseRequest nativeOverlay=some(sheetUsesOverlay(config)) change=sized indexchange=indexchange settle=settle closerequest=closerequest
 
 // `BottomSheet` that also reports `positionchange` (every frame while the
 // sheet moves, as `onPositionChange` fires), so it is bound only by those who
-// ask for it.
+// ask for it. It sets the tag's `trackPosition`: without it the tag sends no
+// position at all, since Exact can't tell a view which events are bound.
 component TrackedBottomSheet
   props
     id: string
@@ -177,9 +184,9 @@ component TrackedBottomSheet
       lifted = true
     restingClosed = sheetRegionPart(v, 2) == 1
   view
-    column id=`${id}-layer` popover=(sheetUsesOverlay(config) ? some("manual") : none) position="absolute" top=0 left=0 width="100%" height="100%" margin=0 padding=0 border-width=0 background-color="transparent" overflow="visible" pointer-events="none"
+    column id=`${id}-layer` popover=(sheetUsesOverlay(config) ? some("manual") : none) aria-modal=sheetOverlayModal(config, detents, index, restingClosed) position="absolute" top=0 left=0 width="100%" height="100%" margin=0 padding=0 border-width=0 background-color="transparent" overflow="visible" pointer-events="none"
       if sheetMounted(config, detents, index, restingClosed)
         column testId=`${id}-content` position="absolute" top=0 left=0 width=(regionWidth == 0 ? "100%" : `${regionWidth}px`) height=(regionHeight == 0 ? "auto" : `${regionHeight}px`) display="flex" flex-direction="column" pointer-events="auto" opacity=(regionWidth == 0 ? 0 : 1)
           children
           view testId=`${id}-end` height=0 flex-shrink=0
-      swm-bottom-sheet testId=`${id}-sheet` contentId=`${id}-content` position="absolute" inset=0 pointer-events=sheetPointerEvents(config, detents, index) index=index detents=detents topInset=config.topInset modal=config.modal animateIn=config.animateIn animateContentHeight=config.animateContentHeight settleDuration=config.settleDuration scrollExpand=config.scrollExpand scrollCollapse=config.scrollCollapse scrimColor=config.scrimColor scrimLabel=config.scrimLabel surfaceColor=config.surfaceColor surfaceCornerRadii=config.surfaceCornerRadii surfaceCornerCurve=config.surfaceCornerCurve surfaceShadows=config.surfaceShadows handlesCloseRequest=config.handlesCloseRequest change=sized indexchange=indexchange settle=settle closerequest=closerequest positionchange=positionchange
+      swm-bottom-sheet testId=`${id}-sheet` contentId=`${id}-content` position="absolute" inset=0 pointer-events=sheetPointerEvents(config, detents, index) index=index detents=detents topInset=config.topInset modal=config.modal animateIn=config.animateIn animateContentHeight=config.animateContentHeight settleDuration=config.settleDuration scrollExpand=config.scrollExpand scrollCollapse=config.scrollCollapse scrimColor=config.scrimColor scrimLabel=config.scrimLabel surfaceColor=config.surfaceColor surfaceCornerRadii=config.surfaceCornerRadii surfaceCornerCurve=config.surfaceCornerCurve surfaceShadows=config.surfaceShadows handlesCloseRequest=config.handlesCloseRequest trackPosition=some(true) nativeOverlay=some(sheetUsesOverlay(config)) change=sized indexchange=indexchange settle=settle closerequest=closerequest positionchange=positionchange

@@ -163,7 +163,7 @@ fn detentLabel(x: SheetDetent): string = (x.value == "content" or x.value.endsWi
 shape SurfaceShape
   label: string
   radii: number[]
-  curve: string
+  curve: enum<"circular", "continuous">
   shadows: SheetShadow[]
 
 fn surfaceShapes(): SurfaceShape[] = [
@@ -184,7 +184,7 @@ shape Scenario
   detents: SheetDetent[]
   topInset: option<number>
   radii: number[]
-  curve: string
+  curve: enum<"circular", "continuous">
   scrollable: bool
   hugeGaps: bool
 
@@ -597,14 +597,14 @@ component App
 
   // Scroll coordination modes.
   state scIndex = 0
-  state scExpand = "handoff"
-  state scCollapse = "initial"
+  state scExpand: enum<"none", "initial", "handoff"> = "handoff"
+  state scCollapse: enum<"none", "initial", "handoff"> = "initial"
   state scScrollEnabled = true
   action scSet(i: number)
     scIndex = i
-  action scSetExpand(mode: string)
+  action scSetExpand(mode: enum<"none", "initial", "handoff">)
     scExpand = mode
-  action scSetCollapse(mode: string)
+  action scSetCollapse(mode: enum<"none", "initial", "handoff">)
     scCollapse = mode
   action scSetScrollEnabled(v: bool)
     scScrollEnabled = v

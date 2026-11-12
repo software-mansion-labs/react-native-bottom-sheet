@@ -200,8 +200,13 @@ class BottomSheetView {
         const detent = this.detents?.[index];
         if (detent) this.setRestingClosed(isNormalizedDetentClosed(detent));
       },
-      onPositionChange: (position, index) =>
-        events.emit('positionchange', { position, index }),
+      // Sent only when the app asks (`trackPosition`, which
+      // `TrackedBottomSheet` sets): Exact can't tell a view which events are
+      // bound, and this one runs every frame the sheet moves.
+      onPositionChange: (position, index) => {
+        if (this.props.trackPosition === true)
+          events.emit('positionchange', { position, index });
+      },
       onCloseRequest: () => events.emit('closerequest'),
       onError: (message) =>
         console.error(`swm-bottom-sheet ${view}: ${message}`),

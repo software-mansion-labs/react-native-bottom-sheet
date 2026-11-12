@@ -183,9 +183,11 @@ Props (all strings to the native side; non-strings as JSON):
 | `detents: SheetDetent[]`                                                      | `detents`. `value` is a string: points (`"256"`), a percentage (`"50%"`) or `"content"`; `programmatic`, `insets` (`left`, `right`, `bottom`) and `scrimOpacity` (modal only) as in React Native |
 | `index: number`                                                               | `index`                                                                                                                                                                                          |
 | `topInset`, `modal`, `animateIn`, `animateContentHeight`, `settleDuration`    | the same names (`modal: true` is `ModalBottomSheet`)                                                                                                                                             |
-| `scrollExpand`, `scrollCollapse`                                              | `scrollCoordination.expand` / `.collapse`: `"none"`, `"initial"`, `"handoff"` (default `handoff` / `initial`)                                                                                    |
+| `scrollExpand`, `scrollCollapse`                                              | `scrollCoordination.expand` / `.collapse`: `enum<none                                                                                                                                            | initial | handoff>`(default`handoff`/`initial`); the compiler refuses any other value |
 | `scrimColor`, `scrimLabel`                                                    | `scrimColor`, `scrimAccessibilityLabel`                                                                                                                                                          |
 | `handlesCloseRequest: bool`                                                   | passing `onCloseRequest`. Exact can't tell a view which events are bound, so set it to `true` when you bind `closerequest`. Web only; ignored on iOS                                             |
+| `trackPosition: bool`                                                         | none: sends `positionchange` only when `true`. Exact can't tell a view which events are bound, and the event runs every frame the sheet moves; `TrackedBottomSheet` sets it                      |
+| `nativeOverlay: bool`                                                         | `nativeOverlay`: set by the component with `config.nativeOverlay`; while the scrim shows, the iOS adapter keeps VoiceOver to the sheet (below)                                                   |
 | `surfaceColor`                                                                | `surface`, limited to a fill colour (see Limitations)                                                                                                                                            |
 | `surfaceCornerRadii` (TL, TR, BR, BL), `surfaceCornerCurve`, `surfaceShadows` | `surfaceStyle` corner radii, `borderCurve`, `boxShadow`                                                                                                                                          |
 
@@ -345,6 +347,16 @@ itself:
 - **Without `nativeOverlay`, the scrim covers the tag's box**, not the window:
   give a modal sheet's tag the whole screen (the demo's screens hide the
   navigation bar and draw their own header, as the React Native example's do).
+- **VoiceOver and `nativeOverlay`**: while an overlay sheet's scrim shows, the
+  component marks its layer `aria-modal` (Exact moves VoiceOver into it; the web
+  gets the attribute) and the iOS adapter marks each ancestor up to the window
+  `accessibilityViewIsModal`, restoring them after, so the rest of the app is
+  hidden, as React Native's window-level overlay does. Checked with UIKit's
+  accessibility tree (argent `describe` with app accessibility on); Exact's own
+  `tree --ax` can't model modal ancestors and still flags the page.
+- **Content is found by `testId`**, which Exact keeps in production builds
+  (checked with `EXACT_UPDATE_TRUST=production`). The component names it
+  `${id}-content`, so pick an `id` the app's own test ids don't use.
 - **`nativeOverlay` is Exact's top layer**: the component makes the node that
   holds the content and the tag a `popover="manual"` the size of the viewport
   and shows it with `showPopover` on the tag's first `change`, and again on each
@@ -357,9 +369,10 @@ itself:
   (argent), not by `app.test.contract`.
 - **`positionchange` runs an action every frame** while the sheet moves (as
   `onPositionChange` fires every frame); bind it only when needed
-  (`TrackedBottomSheet`). Whether the action's render lands in the same frame as
-  the sheet (React Native's UI-thread worklets do) is unmeasured: the
-  simulator's recorder captures too few frames to tell.
+  (`TrackedBottomSheet`, which sets `trackPosition`; a plain sheet sends none).
+  Whether the action's render lands in the same frame as the sheet (React
+  Native's UI-thread worklets do) is unmeasured: the simulator's recorder
+  captures too few frames to tell.
 - **Close requests**: `closerequest` is web only, as `onCloseRequest` is on
   React Native (Android and web); on iOS both handle VoiceOver's escape gesture
   in the shared hosting view.
