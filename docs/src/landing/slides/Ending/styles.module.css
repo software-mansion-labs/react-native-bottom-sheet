@@ -139,12 +139,18 @@
   height: max-content;
 }
 
-/* Turned back as the wheel turns, so every logo stays upright. */
+/*
+ * Turned back as the wheel turns, so every logo stays upright. Each is its own
+ * layer, so turning repaints nothing: otherwise the whole wheel would repaint on
+ * every frame.
+ */
 .logo {
   display: flex;
   align-items: center;
   justify-content: center;
   transform: translate3d(0, 0, 0) rotateZ(calc(-1 * var(--wheel-rot, 0deg)));
+  will-change: transform;
+  backface-visibility: hidden;
   pointer-events: auto;
   cursor: grab;
   touch-action: none;

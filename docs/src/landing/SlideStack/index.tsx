@@ -234,6 +234,10 @@ export const SlideStack = ({
   label: string;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  // Whether the sheet has arrived at the top, so its content can start moving
+  // without competing with the sheet's own animation.
+  const [isSettled, setIsSettled] = useState(false);
+  const settled = useRef(false);
   const root = useRef<HTMLDivElement>(null);
   // Where the sheet moves, kept apart from the hero.
   const area = useRef<HTMLDivElement>(null);
@@ -255,6 +259,11 @@ export const SlideStack = ({
     (next: number) => {
       position.current = next;
       const progress = clamp(next / height.current);
+      const atTop = next >= height.current - 0.5;
+      if (atTop !== settled.current) {
+        settled.current = atTop;
+        setIsSettled(atTop);
+      }
       receder.current!.style.transform =
         progress > 0 && !still.matches
           ? `scale(${1 - 0.06 * progress}) translateY(${-1.5 * progress}%)`
@@ -307,7 +316,7 @@ export const SlideStack = ({
               <span className={styles.grabber} />
             </button>
             <div ref={body} className={styles.body} inert={!isOpen}>
-              <SlideActiveContext.Provider value={isOpen}>
+              <SlideActiveContext.Provider value={isOpen && isSettled}>
                 {sheet}
               </SlideActiveContext.Provider>
             </div>
