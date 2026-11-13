@@ -21,9 +21,21 @@ import UIKit
 
 public final class ExactBottomSheetModule: ExactPackage {
   private let context: ExactPackageContext
+  /// What each sheet discloses to Exact's agent, by the sheet's id (see
+  /// `ExactBottomSheetView.stateKey`): `state.extensions`, under the agent
+  /// only, so a test can read a sheet without the app keeping its own copy.
+  private var sheets: [String: [String: Any]] = [:]
 
   public init(context: ExactPackageContext) {
     self.context = context
+  }
+
+  /// Replaces one sheet's entry (nil removes it) and publishes them all, as
+  /// `context.state` replaces a field whole.
+  func publish(_ key: String, _ entry: [String: Any]?) {
+    guard context.agent else { return }
+    sheets[key] = entry
+    context.state(["sheets": sheets])
   }
 
   public func later(
@@ -36,7 +48,10 @@ public final class ExactBottomSheetModule: ExactPackage {
     _ tag: String, id: String, props: [String: String], events: ExactPackageEvents
   ) throws -> ExactPackageView {
     guard tag == "swm-bottom-sheet" else { throw ExactPackageRefusal("no view \(tag)") }
-    let sheet = ExactBottomSheetView(id: id, events: events, log: { [context] in context.log($0) })
+    let sheet = ExactBottomSheetView(
+      id: id, events: events, log: { [context] in context.log($0) },
+      publish: { [weak self] key, entry in self?.publish(key, entry) }
+    )
     do {
       try sheet.setProps(props)
     } catch {
@@ -105,6 +120,87 @@ final class ExactSheetRootView: UIView {
   }
 }
 
+/// A view that holds adopted nodes and says when one leaves it: Exact removes
+/// a node it unmounts (a lazy sheet's content and surface) without changing
+/// its frame, so no frame observation sees it go.
+final class AdoptionContainer: UIView {
+  var subviewRemoved: () -> Void = {}
+
+  override func willRemoveSubview(_ subview: UIView) {
+    super.willRemoveSubview(subview)
+    subviewRemoved()
+  }
+}
+
+/// A Contract node, found by its `testId`, moved into a view of the sheet and
+/// given back where it was. Exact puts a node back into its parent when that
+/// parent's children change, so `moved` is told whenever the node's frame or
+/// parent changes, for the owner to adopt it again on the next turn.
+final class NodeAdoption {
+  var id = ""
+  private(set) weak var node: UIView?
+  private weak var home: UIView?
+  private weak var next: UIView?
+  private var place = 0
+  private var observations: [NSKeyValueObservation] = []
+  private let moved: () -> Void
+
+  init(moved: @escaping () -> Void) {
+    self.moved = moved
+  }
+
+  /// Keeps the node with `id` in `container` (found with `find`), letting go
+  /// of one that left the tree or no longer carries the id. True when the
+  /// node changed or was put back.
+  @discardableResult
+  func reconcile(into container: UIView, at index: Int = 0, find: (String) -> UIView?) -> Bool {
+    var changed = false
+    if let node, node.superview == nil || node.accessibilityIdentifier != id {
+      release()
+      changed = true
+    }
+    if node == nil, !id.isEmpty, let found = find(id) {
+      node = found
+      observations = [
+        found.layer.observe(\.bounds) { [weak self] _, _ in self?.moved() },
+        found.layer.observe(\.position) { [weak self] _, _ in self?.moved() },
+      ]
+      changed = true
+    }
+    guard let node, node.superview !== container else { return changed }
+    if let parent = node.superview {
+      home = parent
+      place = parent.subviews.firstIndex(of: node) ?? parent.subviews.count
+      next = place + 1 < parent.subviews.count ? parent.subviews[place + 1] : nil
+    }
+    container.insertSubview(node, at: min(index, container.subviews.count))
+    return true
+  }
+
+  /// Whether the node is in `container`.
+  func isAdopted(in container: UIView) -> Bool {
+    node?.superview === container
+  }
+
+  /// Gives the node back to its parent, at its place, if it is still adopted.
+  func release(from container: UIView? = nil) {
+    observations = []
+    guard let node else { return }
+    self.node = nil
+    if container == nil || node.superview === container, node.superview != nil, let home {
+      let at: Int
+      if let next, next.superview === home, let i = home.subviews.firstIndex(of: next) {
+        at = i
+      } else {
+        at = min(place, home.subviews.count)
+      }
+      home.insertSubview(node, at: at)
+    }
+    home = nil
+    next = nil
+  }
+}
+
 final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHostingViewDelegate {
   private let root = ExactSheetRootView(frame: .zero)
   private var host: BottomSheetHostingView {
@@ -114,14 +210,30 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
   private let id: String
   private let events: ExactPackageEvents
   private let log: (String) -> Void
+  private let publish: (String, [String: Any]?) -> Void
+  /// The entry last published, and the sheet's state it holds.
+  private var publishedKey: String?
+  private var publishedAdoption: [Bool] = []
+  /// Whether the content and the surface nodes are adopted.
+  private var adoption: [Bool] {
+    [contentNode?.superview === contentWrapper, surfaceNode.isAdopted(in: surface)]
+  }
+  private var settledIndex: Int?
+  private var lastPosition: Double = 0
 
   /// Plays the content wrapper's part (`BottomSheetContentWrapperView`): sized
   /// to the content region, it holds the adopted node and the marker.
-  private let contentWrapper = UIView()
+  private let contentWrapper = AdoptionContainer()
   private let marker = ExactContentHeightMarker(frame: .zero)
-  /// Plays the surface's part when `surfaceColor` is set.
-  private let surface = UIView()
+  /// Plays the surface's part (`BottomSheetSurfaceView`): it holds the
+  /// adopted surface node (`surfaceId`, the `BottomSheet` component's
+  /// `${id}-surface`, drawn by Contract), or, with the raw tag, is filled with
+  /// `surfaceColor`.
+  private let surface = AdoptionContainer()
   private var surfaceMounted = false
+  private var surfaceColor: UIColor?
+  private lazy var surfaceNode = NodeAdoption { [weak self] in self?.surfaceNodeDidMove() }
+  private var lastSurfaceHeight: CGFloat = 0
 
   private var contentId = ""
   private weak var contentNode: UIView?
@@ -165,10 +277,14 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
   /// Set by `destroy`: nothing is emitted, adopted or laid out after it.
   private var destroyed = false
 
-  init(id: String, events: ExactPackageEvents, log: @escaping (String) -> Void) {
+  init(
+    id: String, events: ExactPackageEvents, log: @escaping (String) -> Void,
+    publish: @escaping (String, [String: Any]?) -> Void
+  ) {
     self.id = id
     self.events = events
     self.log = log
+    self.publish = publish
     super.init()
     host.eventDelegate = self
     contentWrapper.backgroundColor = .clear
@@ -179,6 +295,13 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
       self?.reconcile()
       self?.updateOverlayAccessibility()
     }
+    // A node leaving (Exact unmounting or taking it back) is reconciled on
+    // the next turn, outside the batch, which republishes the agent's state.
+    let removed = { [weak self] in
+      DispatchQueue.main.async { self?.reconcile() }
+    }
+    contentWrapper.subviewRemoved = removed
+    surface.subviewRemoved = removed
   }
 
   var view: ExactPackagePlatformView {
@@ -295,12 +418,44 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
     host.setSurfaceShadows(shadows)
 
     if changed("surfaceColor") {
-      updateSurface(Self.color(next["surfaceColor"]))
+      surfaceColor = Self.color(next["surfaceColor"])
     }
+    surfaceNode.id = Self.string(next["surfaceId"]) ?? ""
+    updateSurface()
 
     syncGeometry()
     reconcile()
     updateOverlayAccessibility()
+    publishState()
+  }
+
+  /// The sheet's key in the agent's state: its id in the `BottomSheet`
+  /// component (`contentId` without `-content`), else the view's.
+  private var stateKey: String {
+    contentId.hasSuffix("-content") ? String(contentId.dropLast("-content".count)) : (contentId.isEmpty ? id : contentId)
+  }
+
+  /// Discloses the sheet to Exact's agent (`state.extensions`): its target
+  /// and settled index, whether it rests closed, its position when it last
+  /// settled, and whether its content and surface nodes are adopted. Not per
+  /// frame: the position is the one at rest.
+  private func publishState() {
+    guard !destroyed else { return }
+    let key = stateKey
+    if let old = publishedKey, old != key {
+      publish(old, nil)
+    }
+    publishedKey = key
+    publishedAdoption = adoption
+    publish(key, [
+      "index": lastIndex.map { $0 as Any } ?? NSNull(),
+      "settled": settledIndex.map { $0 as Any } ?? NSNull(),
+      "restingClosed": restingClosed ?? true,
+      "position": lastPosition,
+      "content": contentNode?.superview === contentWrapper,
+      "surface": surfaceNode.isAdopted(in: surface),
+      "modal": !modalAncestors.isEmpty,
+    ])
   }
 
   /// `BottomSheetComponentView.mm`'s `updateOverlayAccessibilityState`: while
@@ -515,16 +670,33 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
     )
   }
 
-  private func updateSurface(_ color: UIColor?) {
-    surface.backgroundColor = color
-    if color != nil, !surfaceMounted {
+  /// Mounts the surface while it has something to show: the adopted node, or
+  /// the raw tag's `surfaceColor` (unused while a node is adopted).
+  private func updateSurface() {
+    if !destroyed {
+      surfaceNode.reconcile(into: surface, find: findNode)
+    }
+    let adopted = surfaceNode.isAdopted(in: surface)
+    surface.backgroundColor = adopted ? nil : surfaceColor
+    let shows = adopted || surfaceColor != nil
+    if shows, !surfaceMounted {
       surfaceMounted = true
       host.mountSurfaceComponentView(surface, atIndex: 0)
-    } else if color == nil, surfaceMounted {
+    } else if !shows, surfaceMounted {
       surfaceMounted = false
       host.unmountSurfaceComponentView(surface)
     }
-    syncGeometry()
+  }
+
+  private func surfaceNodeDidMove() {
+    guard !destroyed, !surfaceNode.isAdopted(in: surface) else { return }
+    // Taken back by Exact (or gone); adopt it again outside the batch.
+    DispatchQueue.main.async { [weak self] in
+      guard let self, !self.destroyed else { return }
+      self.updateSurface()
+      self.syncGeometry()
+      self.publishState()
+    }
   }
 
   // MARK: Geometry (pushNativeGeometry + the content wrapper's Yoga layout)
@@ -547,9 +719,11 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
       place(surface, x: widestLeft, size: CGSize(width: width, height: size.height + lastSurfaceOverflow))
     }
     layoutMarker()
-    if inset != lastInset || region != lastRegion {
+    let surfaceHeight = size.height + lastSurfaceOverflow
+    if inset != lastInset || region != lastRegion || surfaceHeight != lastSurfaceHeight {
       lastInset = inset
       lastRegion = region
+      lastSurfaceHeight = surfaceHeight
       host.contentRegionStateDidCommit(inset)
       host.contentRegionLayoutDidApply()
       events.emit("regionchange", [["width": Double(region.width), "height": Double(region.height)]])
@@ -557,19 +731,23 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
     }
   }
 
-  /// The built-in `change` event, "<width>,<height>,<resting closed: 0|1>",
-  /// which a child component can handle with its own action (a typed event
-  /// must name a root action): the `BottomSheet` component lays its content
-  /// node out with the region and unmounts a `lazy` sheet once it rests
-  /// closed.
+  /// The built-in `change` event, "<width>,<height>,<resting closed: 0|1>,
+  /// <surface height>", which a child component can handle with its own
+  /// action (a typed event must name a root action): the `BottomSheet`
+  /// component lays its content node out with the region, its surface node
+  /// with the region's width and the surface height (the sheet plus
+  /// `surfaceOverflow`), and unmounts a `lazy` sheet once it rests closed.
   private func emitChange() {
-    events.change("\(Double(lastRegion.width)),\(Double(lastRegion.height)),\(restingClosed == true ? 1 : 0)")
+    events.change(
+      "\(Double(lastRegion.width)),\(Double(lastRegion.height)),\(restingClosed == true ? 1 : 0),\(Double(lastSurfaceHeight))"
+    )
   }
 
   private func setRestingClosed(_ closed: Bool) {
     guard restingClosed != closed else { return }
     restingClosed = closed
     emitChange()
+    publishState()
   }
 
   /// Sets a view's layout through bounds and center, which the card's layer
@@ -608,10 +786,18 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
   /// every props change, layout, window change and node frame change.
   private func reconcile() {
     guard !destroyed else { return }
+    updateSurface()
+    // Republished when what is adopted differs from what was published:
+    // a node can be gone before this runs, so "before" isn't this call's.
+    defer {
+      if publishedAdoption != adoption {
+        publishState()
+      }
+    }
     if let node = contentNode, node.superview == nil || node.accessibilityIdentifier != contentId {
       release(node)
     }
-    if contentNode == nil, !contentId.isEmpty, let node = findContentNode() {
+    if contentNode == nil, !contentId.isEmpty, let node = findNode(contentId) {
       contentNode = node
       nodeObservations = [
         node.layer.observe(\.bounds) { [weak self] _, _ in self?.nodeDidMove() },
@@ -721,13 +907,13 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
     log("swm-bottom-sheet \(id): released content \(node.accessibilityIdentifier ?? "")")
   }
 
-  /// The view whose accessibility identifier (Exact's `testId`) is
-  /// `contentId`, searched among the siblings of the tag's node and then of
-  /// each ancestor, never inside this sheet.
-  private func findContentNode() -> UIView? {
+  /// The view whose accessibility identifier (Exact's `testId`) is `id`
+  /// (the content's or the surface's), searched among the siblings of the
+  /// tag's node and then of each ancestor, never inside this sheet.
+  private func findNode(_ id: String) -> UIView? {
     var level: UIView? = root.superview
     while let current = level, let parent = current.superview {
-      if let found = search(parent, skipping: current) {
+      if let found = search(parent, skipping: current, id: id) {
         return found
       }
       level = parent
@@ -735,30 +921,30 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
     return nil
   }
 
-  private func search(_ view: UIView, skipping: UIView) -> UIView? {
+  private func search(_ view: UIView, skipping: UIView, id: String) -> UIView? {
     for child in view.subviews where child !== skipping {
-      if child.accessibilityIdentifier == contentId {
+      if child.accessibilityIdentifier == id {
         return child
       }
     }
     for child in view.subviews where child !== skipping && !(child is ExactSheetRootView) {
-      if let found = searchDeep(child, depth: 2) {
+      if let found = searchDeep(child, depth: 2, id: id) {
         return found
       }
     }
     return nil
   }
 
-  private func searchDeep(_ view: UIView, depth: Int) -> UIView? {
+  private func searchDeep(_ view: UIView, depth: Int, id: String) -> UIView? {
     guard depth > 0 else { return nil }
     for child in view.subviews {
-      if child.accessibilityIdentifier == contentId {
+      if child.accessibilityIdentifier == id {
         return child
       }
       if child is ExactSheetRootView {
         continue
       }
-      if let found = searchDeep(child, depth: depth - 1) {
+      if let found = searchDeep(child, depth: depth - 1, id: id) {
         return found
       }
     }
@@ -776,9 +962,13 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
     if let node = contentNode {
       release(node)
     }
+    surfaceNode.release(from: surface)
     nodeObservations = []
     endMarkerObservations = []
     updateOverlayAccessibility()
+    if let key = publishedKey {
+      publish(key, nil)
+    }
     host.resetSheetState()
   }
 
@@ -788,21 +978,25 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
     guard !destroyed else { return }
     lastIndex = index
     events.emit("indexchange", [index])
+    publishState()
   }
 
   func bottomSheetHostingView(_: BottomSheetHostingView, didSettle index: Int) {
     guard !destroyed else { return }
     events.emit("settle", [index])
+    settledIndex = index
     if index < closedDetents.count {
       setRestingClosed(closedDetents[index])
     }
     updateOverlayAccessibility()
+    publishState()
   }
 
   func bottomSheetHostingView(
     _: BottomSheetHostingView, didChangePosition position: CGFloat, index: CGFloat
   ) {
     guard !destroyed else { return }
+    lastPosition = Double(position)
     // As the Fabric glue, on every move: the scrim shows and hides with it.
     updateOverlayAccessibility()
     guard tracksPosition else { return }
@@ -855,10 +1049,32 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
     }
   }
 
-  /// `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, `rgb()`, `rgba()` and a few names.
+  /// `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, `rgb()`, `rgba()`, a few names,
+  /// and CSS `light-dark(light, dark)` (Exact's way to write a colour for both
+  /// schemes): a dynamic colour, which the hosting view re-resolves when the
+  /// appearance changes, as React Native's `DynamicColorIOS`.
   static func color(_ raw: String?) -> UIColor? {
     guard let text = string(raw)?.trimmingCharacters(in: .whitespaces).lowercased(), !text.isEmpty else {
       return nil
+    }
+    if text.hasPrefix("light-dark("), text.hasSuffix(")") {
+      let inner = text.dropFirst("light-dark(".count).dropLast()
+      // The comma between the two colours, outside any `rgb(…)`.
+      var depth = 0
+      var split: String.Index?
+      for i in inner.indices {
+        switch inner[i] {
+        case "(": depth += 1
+        case ")": depth -= 1
+        case "," where depth == 0: split = i
+        default: break
+        }
+        if split != nil { break }
+      }
+      guard let split, let light = color(String(inner[..<split])),
+            let dark = color(String(inner[inner.index(after: split)...]))
+      else { return nil }
+      return UIColor { $0.userInterfaceStyle == .dark ? dark : light }
     }
     let named: [String: UIColor] = [
       "transparent": .clear, "white": .white, "black": .black, "red": .red, "green": .green,

@@ -17,6 +17,10 @@
 // `swm-bottom-sheet` tag: it sends props the sheet refuses, and its tag takes
 // no pointer events. See packages/exact-bottom-sheet/README.md.
 //
+// Exact only (no React Native counterpart): Surface backgrounds, the surface
+// as a Contract node (a literal colour, light-dark(), a colour role, a
+// gradient) and the raw tag's native surfaceColor string.
+//
 // Not ported (the package can't reproduce them):
 // - Keyboard content detent, Keyboard-aware list: the port has no keyboard
 //   tracking for content to pad itself with.
@@ -27,8 +31,6 @@
 // - Scrim press isolation: one background button (RN has an RNGH and an RN
 //   Pressable; Contract has one kind of press).
 // - Accessible dismissal: no Native overlay switch.
-// - Surface style: "Continuous, platform color" uses its light colour
-//   (DynamicColorIOS has no Contract counterpart).
 // - Corner touches: one kind of press target behind the corners (no RN
 //   Pressable / Button / RNGH picker), and no green flash on a press.
 // - Detached sheet: no Native overlay or RTL switch, no Patterned surface
@@ -73,6 +75,7 @@ routes nav
     native-overlay-nested "/native-overlay-nested"
     native-overlay-full-height-list "/native-overlay-full-height-list"
     native-overlay-keyboard-input "/native-overlay-keyboard-input"
+    surface-backgrounds "/surface-backgrounds"
     close-request "/close-request"
     modal-scroll-view "/modal-scroll-view"
     draggable-grabber "/draggable-grabber"
@@ -117,6 +120,7 @@ fn demoCases(): DemoCase[] = [
   DemoCase(key="native-overlay-nested", href=path("native-overlay-nested"), title="Native overlay nested mount", throws=false),
   DemoCase(key="native-overlay-full-height-list", href=path("native-overlay-full-height-list"), title="Native overlay full-height list", throws=false),
   DemoCase(key="native-overlay-keyboard-input", href=path("native-overlay-keyboard-input"), title="Native overlay keyboard input", throws=false),
+  DemoCase(key="surface-backgrounds", href=path("surface-backgrounds"), title="Surface backgrounds (Exact only)", throws=false),
   DemoCase(key="close-request", href=path("close-request"), title="Close requests", throws=false),
   DemoCase(key="modal-scroll-view", href=path("modal-scroll-view"), title="Modal with ScrollView", throws=false),
   DemoCase(key="draggable-grabber", href=path("draggable-grabber"), title="Draggable grabber", throws=false),
@@ -156,6 +160,11 @@ fn sheetShadow(): SheetShadow[] = [shadow(0, 4, 11.24, 0, "#000000", 0.19)]
 // demoShared's sheet surface: white, 16-point top corners and SHEET_SHADOW;
 // a modal one adds the scrim.
 fn inlineSheet(): SheetConfig = SheetConfig(sheetConfig(), surfaceColor=some("#ffffff"), surfaceCornerRadii=some([16, 16, 0, 0]), surfaceShadows=some(sheetShadow()))
+// The Surface backgrounds screen's surfaces, by kind.
+fn sbLabel(k: number): string = k == 0 ? "Literal colour" : k == 1 ? "light-dark()" : k == 2 ? "Colour role" : "Gradient"
+
+fn sbConfig(k: number): SheetConfig = k == 0 ? SheetConfig(modalSheet(), surfaceColor=some("#fff3d6")) : k == 1 ? SheetConfig(modalSheet(), surfaceColor=some("light-dark(#ffffff, #2c2c2e)")) : k == 2 ? SheetConfig(modalSheet(), surfaceColor=some("-exact-secondary-grouped-background")) : SheetConfig(modalSheet(), surfaceColor=some("#ffffff"), surfaceBackgroundImage=some("linear-gradient(180deg, #7c3aed 0%, #ec4899 50%, #f59e0b 100%)"))
+
 fn modalSheet(): SheetConfig = SheetConfig(inlineSheet(), modal=some(true), scrimColor=some("rgba(0, 0, 0, 0.5)"))
 fn detentLabel(x: SheetDetent): string = (x.value == "content" or x.value.endsWith("%")) ? `'${x.value}'` : x.value
 
@@ -170,7 +179,7 @@ fn surfaceShapes(): SurfaceShape[] = [
   SurfaceShape(label="Top corners, red shadow", radii=[32, 32, 0, 0], curve="continuous", shadows=[shadow(0, -6, 24, 0, "rgba(255, 0, 0, 0.6)", 1)]),
   SurfaceShape(label="All corners, no shadow", radii=[32, 32, 32, 32], curve="circular", shadows=[]),
   SurfaceShape(label="Mixed radii, two shadows", radii=[48, 12, 0, 24], curve="circular", shadows=[shadow(0, -2, 4, 0, "rgba(0, 0, 0, 0.3)", 1), shadow(0, -12, 32, 4, "rgba(0, 120, 255, 0.5)", 1)]),
-  SurfaceShape(label="Continuous, platform color", radii=[48, 20, 0, 0], curve="continuous", shadows=[shadow(0, -8, 32, 0, "rgba(0, 0, 0, 0.5)", 1)]),
+  SurfaceShape(label="Continuous, platform color", radii=[48, 20, 0, 0], curve="continuous", shadows=[shadow(0, -8, 32, 0, "light-dark(rgba(0, 0, 0, 0.5), rgba(255, 200, 0, 0.7))", 1)]),
   SurfaceShape(label="Elevation and shadow props", radii=[32, 32, 0, 0], curve="circular", shadows=[shadow(0, -6, 24, 0, "rgb(255, 0, 0)", 0.6)]),
   SurfaceShape(label="Mixed radii, elevation", radii=[48, 12, 0, 0], curve="circular", shadows=[shadow(0, -6, 24, 0, "rgb(0, 120, 255)", 0.6)]),
   SurfaceShape(label="No surfaceStyle", radii=[], curve="circular", shadows=[])
@@ -280,6 +289,9 @@ component App
     nfPresses = 0
     nfLast = "none yet"
     nkIndex = 0
+    sbIndex = 0
+    sbKind = 0
+    sbRawIndex = 0
     nkValue = "Focus this input and type while the nativeOverlay sheet is mounted but closed."
     adIndex = 0
     adClosedProgrammatic = false
@@ -427,6 +439,17 @@ component App
     nkIndex = i
   action nkEdit(v: string)
     nkValue = v
+
+  // Surface backgrounds (Exact only): the surface drawn as a Contract node.
+  state sbIndex = 0
+  state sbKind = 0
+  state sbRawIndex = 0
+  action sbSet(i: number)
+    sbIndex = i
+  action sbSetKind(k: number)
+    sbKind = k
+  action sbSetRaw(i: number)
+    sbRawIndex = i
 
   // Accessible dismissal.
   state adIndex = 0
@@ -854,6 +877,26 @@ component App
               SheetHeader(title="Mounted native overlay", close=nkSet(0), closeId="nk-close")
               column padding-top=20 padding-left=20 padding-right=20 padding-bottom="calc(20px + env(safe-area-inset-bottom))"
                 text "This nativeOverlay sheet remains mounted while the input lives on the base screen behind it." color="#555555" line-height="22px" font-size=14
+
+        if e.name == "surface-backgrounds"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Surface backgrounds", back=back, name="sb")
+              text "Exact only: the component draws the surface as a Contract node, so it takes any CSS colour, Exact's colour roles, light-dark() (try dark mode) and a background-image. The last case is the raw tag's surfaceColor string." color="#555555" line-height="22px" font-size=14
+              Button(label="Literal colour", press=sbSetKind(0), id="sb-kind-0")
+              Button(label="light-dark()", press=sbSetKind(1), id="sb-kind-1")
+              Button(label="Colour role", press=sbSetKind(2), id="sb-kind-2")
+              Button(label="Gradient", press=sbSetKind(3), id="sb-kind-3")
+              Body(value=`surface: ${sbLabel(sbKind)}`, id="sb-kind")
+              Button(label="Open sheet", press=sbSet(1), id="sb-open")
+              Button(label="Open raw tag sheet", press=sbSetRaw(1), id="sb-raw-open")
+            BottomSheet(id="sb", index=sbIndex, detents=[d("0"), d("content")], config=sbConfig(sbKind), indexchange=sbSet, settle=ignoreIndex, closerequest=ignore)
+              SheetHeader(title=sbLabel(sbKind), close=sbSet(0), closeId="sb-close")
+              column height="calc(176px + env(safe-area-inset-bottom))" box-sizing="border-box" padding-bottom="env(safe-area-inset-bottom)" align-items="center" justify-content="center"
+                Body(value="The surface is behind this content.", id="sb-body")
+            column testId="sb-raw-content" position="absolute" top=0 left=0 width="100%" height=200 padding=24 pointer-events="auto"
+              text "Raw tag: surfaceColor as a native string." font-size=14 color="#000000"
+              Button(label="Close", press=sbSetRaw(0), id="sb-raw-close")
+            swm-bottom-sheet testId="sb-raw-sheet" contentId="sb-raw-content" position="absolute" inset=0 pointer-events=(sbRawIndex == 0 ? "none" : "auto") index=sbRawIndex detents=[d("0"), d("200")] modal=true scrimColor="rgba(0, 0, 0, 0.5)" surfaceColor="#dcfce7" surfaceCornerRadii=[16, 16, 0, 0] indexchange=sbSetRaw
 
         if e.name == "lazy-mounted-modal"
           column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"

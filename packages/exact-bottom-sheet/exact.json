@@ -51,6 +51,7 @@
         "scrimColor": "option<string>",
         "scrimLabel": "option<string>",
         "surfaceColor": "option<string>",
+        "surfaceId": "option<string>",
         "surfaceCornerRadii": "option<number[]>",
         "surfaceCornerCurve": "option<enum<circular|continuous>>",
         "surfaceShadows": "option<SheetShadow[]>"

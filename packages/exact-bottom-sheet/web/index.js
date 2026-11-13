@@ -73,26 +73,155 @@ const toDetent = (entry) => {
   };
 };
 
+/** A shadow's CSS colour at `opacity` (0–1, default 1). */
+const shadowColor = (color, opacity) => {
+  const alpha = Number(opacity);
+  if (!Number.isFinite(alpha) || alpha >= 1) return color;
+  return `color-mix(in srgb, ${color} ${Math.max(0, alpha) * 100}%, transparent)`;
+};
+
 // When each sheet last opened, relative to the others, as `BottomSheet.tsx`
 // counts it: the controller routes Escape to the most recently opened modal.
 let lastOpenOrder = 0;
 
+/**
+ * A Contract node, found by its `testId` next to the sheet's element, moved
+ * into one of the sheet's elements and given back where it was. The runtime
+ * puts a node back when its parent's children are patched (its home is
+ * watched for that), and removes a region's nodes by walking siblings
+ * between its anchors, so it can't find a node moved into the sheet: a hidden
+ * stand-in is left in the node's place, and when the runtime removes it (a
+ * lazy sheet's content unmounting), the node is dropped with it.
+ */
+class Adoption {
+  constructor(
+    element,
+    container,
+    { before = () => null, adopted, released, changed }
+  ) {
+    this.element = element;
+    this.container = container;
+    this.before = before;
+    this.adopted = adopted ?? (() => {});
+    this.released = released ?? (() => {});
+    this.id = '';
+    this.node = null;
+    this.home = null;
+    this.next = null;
+    this.place = -1;
+    this.standIn = null;
+    this.homeObserver = new MutationObserver(() => queueMicrotask(changed));
+  }
+
+  get isAdopted() {
+    return this.node?.parentElement === this.container;
+  }
+
+  reconcile() {
+    if (
+      this.isAdopted &&
+      this.standIn &&
+      !this.standIn.isConnected &&
+      this.home?.isConnected
+    ) {
+      // The runtime removed the node's region: the node goes with it, and the
+      // home stays watched for the next one (a lazy sheet reopening).
+      const home = this.home;
+      this.node.remove();
+      this.release();
+      this.homeObserver.observe(home, { childList: true });
+    }
+    if (
+      this.node &&
+      (!this.node.isConnected ||
+        this.node.getAttribute('data-testid') !== this.id)
+    ) {
+      this.release();
+    }
+    if (!this.node && this.id) {
+      const node = this.find();
+      if (node) {
+        this.node = node;
+        this.adopted(node);
+      }
+    }
+    const node = this.node;
+    if (node && node.parentElement !== this.container) {
+      if (node.parentElement) this.remember(node);
+      this.container.insertBefore(node, this.before());
+      return true;
+    }
+    return false;
+  }
+
+  /** Where the node sits before it is adopted, to give it back there. */
+  remember(node) {
+    const home = node.parentElement;
+    this.home = home;
+    this.next = node.nextSibling;
+    this.place = Array.prototype.indexOf.call(home.childNodes, node);
+    this.standIn?.remove();
+    this.standIn = node.ownerDocument.createElement('div');
+    this.standIn.hidden = true;
+    this.standIn.setAttribute('aria-hidden', 'true');
+    home.insertBefore(this.standIn, node);
+    this.homeObserver.disconnect();
+    this.homeObserver.observe(home, { childList: true });
+  }
+
+  /** Lets the node go, back in its parent at its place if it is still in the
+   * sheet (an id change, destroy). */
+  release() {
+    const node = this.node;
+    const home = this.home;
+    this.homeObserver.disconnect();
+    this.node = null;
+    this.home = null;
+    const standIn = this.standIn;
+    this.standIn = null;
+    if (node) this.released(node);
+    if (!node || node.parentElement !== this.container || !home?.isConnected) {
+      standIn?.remove();
+      return;
+    }
+    if (standIn?.parentNode === home) {
+      standIn.replaceWith(node);
+      return;
+    }
+    standIn?.remove();
+    const next =
+      this.next?.parentNode === home
+        ? this.next
+        : (home.childNodes[this.place] ?? null);
+    home.insertBefore(node, next);
+  }
+
+  find() {
+    const selector = `[data-testid="${CSS.escape(this.id)}"]`;
+    for (
+      let level = this.element;
+      level?.parentElement;
+      level = level.parentElement
+    ) {
+      for (const candidate of level.parentElement.querySelectorAll(selector)) {
+        if (!this.element.contains(candidate)) return candidate;
+      }
+    }
+    return null;
+  }
+}
+
 class BottomSheetView {
-  constructor({ element, props, events, view }) {
+  constructor({ implementation, element, props, events, view }) {
     this.element = element;
     this.events = events;
     this.view = view;
     this.props = {};
-    this.contentNode = null;
-    this.contentHome = null;
-    this.contentNext = null;
-    this.contentPlace = -1;
-    // A hidden element left where the adopted node was. The runtime removes
-    // a region's nodes by walking siblings between its anchors, so it can't
-    // find a node moved into the sheet: when the region goes (a lazy
-    // sheet's content unmounting), it removes the stand-in instead, and the
-    // adapter drops the node with it.
-    this.standIn = null;
+    // What the sheet discloses to Exact's agent, through the implementation's
+    // `state()` (see `stateEntry`).
+    this.sheets = implementation?.sheets ?? null;
+    this.settledIndex = null;
+    this.lastPosition = 0;
     this.controller = new BottomSheetWebController();
     const doc = element.ownerDocument;
     const make = (style, parent) => {
@@ -145,6 +274,12 @@ class BottomSheetView {
       { position: 'absolute', top: '0', bottom: '0', pointerEvents: 'auto' },
       null
     );
+    // Holds the adopted surface node (`surfaceId`, the `BottomSheet`
+    // component's `${id}-surface`), between the widest card's insets.
+    this.surfaceSlot = make(
+      { position: 'absolute', top: '0', bottom: '0', pointerEvents: 'auto' },
+      null
+    );
     this.content = make({}, this.card);
     // `BottomSheetContentWrapperView`: `flex: 1`, between the widest card's insets.
     this.wrapper = make(
@@ -194,9 +329,15 @@ class BottomSheetView {
       content: this.content,
     });
     this.controller.setCallbacks({
-      onIndexChange: (index) => events.emit('indexchange', index),
+      onIndexChange: (index) => {
+        events.emit('indexchange', index);
+        this.index = index;
+        this.publishState();
+      },
       onSettle: (index) => {
         events.emit('settle', index);
+        this.settledIndex = index;
+        this.publishState();
         const detent = this.detents?.[index];
         if (detent) this.setRestingClosed(isNormalizedDetentClosed(detent));
       },
@@ -204,6 +345,7 @@ class BottomSheetView {
       // `TrackedBottomSheet` sets): Exact can't tell a view which events are
       // bound, and this one runs every frame the sheet moves.
       onPositionChange: (position, index) => {
+        this.lastPosition = position;
         if (this.props.trackPosition === true)
           events.emit('positionchange', { position, index });
       },
@@ -218,11 +360,20 @@ class BottomSheetView {
     this.childObserver = new MutationObserver(() => this.observeNode());
     this.regionObserver = new ResizeObserver(() => this.reportRegion());
     this.regionObserver.observe(this.content);
-    this.homeObserver = new MutationObserver(() =>
-      queueMicrotask(() => this.reconcile())
-    );
+    const changed = () => this.reconcile();
+    this.contentAdoption = new Adoption(element, this.wrapper, {
+      before: () => this.marker,
+      adopted: () => queueMicrotask(() => this.observeNode()),
+      released: () => {
+        this.nodeObserver.disconnect();
+        this.childObserver.disconnect();
+      },
+      changed,
+    });
+    this.surfaceAdoption = new Adoption(element, this.surfaceSlot, { changed });
+    this.regionObserver.observe(this.card);
     this.lastRegion = '';
-    this.region = { width: 0, height: 0 };
+    this.region = { width: 0, height: 0, surface: 0 };
     // Whether the sheet rests at a closed detent: the `BottomSheet`
     // component's `lazy` keeps the content mounted until it does, as
     // `BottomSheet.tsx`'s `isSheetActive` (an open index clears it at once, a
@@ -277,7 +428,25 @@ class BottomSheetView {
     this.scrim.style.backgroundColor =
       typeof next.scrimColor === 'string' ? next.scrimColor : '';
     this.scrimDismiss.setAttribute('aria-label', next.scrimLabel || 'Dismiss');
-    if (typeof next.surfaceColor === 'string' && next.surfaceColor !== '') {
+    // The adopted surface node, drawn by Contract (`surfaceId`), or the raw
+    // tag's `surfaceColor`, unused while a node is set.
+    this.surfaceAdoption.id =
+      typeof next.surfaceId === 'string' ? next.surfaceId : '';
+    Object.assign(this.surfaceSlot.style, {
+      left: `${widest?.insetLeft ?? 0}px`,
+      right: `${widest?.insetRight ?? 0}px`,
+    });
+    if (this.surfaceAdoption.id) {
+      if (this.surfaceSlot.parentElement !== this.surface)
+        this.surface.append(this.surfaceSlot);
+    } else {
+      this.surfaceSlot.remove();
+    }
+    if (
+      !this.surfaceAdoption.id &&
+      typeof next.surfaceColor === 'string' &&
+      next.surfaceColor !== ''
+    ) {
       Object.assign(this.surfaceFill.style, {
         left: `${widest?.insetLeft ?? 0}px`,
         right: `${widest?.insetRight ?? 0}px`,
@@ -295,12 +464,19 @@ class BottomSheetView {
       offsetY: Number(s.offsetY) || 0,
       blurRadius: Math.max(0, Number(s.blurRadius) || 0),
       spreadDistance: Number(s.spreadDistance) || 0,
-      color: typeof s.color === 'string' ? s.color : 'black',
+      // `opacity` scales the colour, as `shadowOpacity` does on iOS; mixed in
+      // CSS, so any CSS colour (`light-dark()` included) still works.
+      color: shadowColor(
+        typeof s.color === 'string' ? s.color : 'black',
+        s.opacity
+      ),
     }));
     const radii = Array.isArray(next.surfaceCornerRadii)
       ? next.surfaceCornerRadii.map((r) => Math.max(0, Number(r) || 0))
       : [];
     this.contentId = typeof next.contentId === 'string' ? next.contentId : '';
+    this.contentAdoption.id = this.contentId;
+    this.index = index;
     this.reconcile();
     this.controller.update({
       detents,
@@ -320,45 +496,25 @@ class BottomSheetView {
       cornerRadii: [0, 1, 2, 3].map((i) => radii[i] ?? 0),
       shadows,
     });
+    this.publishState();
   }
 
-  /** Finds the content node and keeps it in the wrapper; the runtime puts a
-   * node back when its parent's children are patched. */
+  /** Keeps the content and surface nodes in the sheet. */
   reconcile() {
     if (this.destroyed) return;
-    if (
-      this.contentNode?.parentElement === this.wrapper &&
-      this.standIn &&
-      !this.standIn.isConnected &&
-      this.contentHome?.isConnected
-    ) {
-      // The runtime removed the node's region: the node goes with it, and the
-      // home stays watched for the next one (a lazy sheet reopening).
-      const home = this.contentHome;
-      this.contentNode.remove();
-      this.release();
-      this.homeObserver.observe(home, { childList: true });
-    }
-    if (
-      this.contentNode &&
-      (!this.contentNode.isConnected ||
-        this.contentNode.getAttribute('data-testid') !== this.contentId)
-    ) {
-      this.release();
-    }
-    if (!this.contentNode && this.contentId) {
-      const node = this.find();
-      if (node) {
-        this.contentNode = node;
-        this.observeNode();
-      }
-    }
-    const node = this.contentNode;
-    if (node && node.parentElement !== this.wrapper) {
-      if (node.parentElement) this.remember(node);
-      this.wrapper.insertBefore(node, this.marker);
-      this.layoutMarker();
-    }
+    if (this.contentAdoption.reconcile()) this.layoutMarker();
+    this.surfaceAdoption.reconcile();
+    // Republished when what is adopted differs from what was published.
+    if (this.publishedAdoption !== this.adoption) this.publishState();
+  }
+
+  /** Whether the content and the surface nodes are adopted. */
+  get adoption() {
+    return `${this.contentAdoption.isAdopted},${this.surfaceAdoption.isAdopted}`;
+  }
+
+  get contentNode() {
+    return this.contentAdoption.node;
   }
 
   /** Observes the node and its children's sizes, which move its end marker. */
@@ -378,63 +534,6 @@ class BottomSheetView {
    * `${id}-content` holds `${id}-end`, after its children). */
   get endMarkerId() {
     return `${this.contentId.replace(/-content$/, '')}-end`;
-  }
-
-  /** Where the node sits before it is adopted, to give it back there. */
-  remember(node) {
-    const home = node.parentElement;
-    this.contentHome = home;
-    this.contentNext = node.nextSibling;
-    this.contentPlace = Array.prototype.indexOf.call(home.childNodes, node);
-    this.standIn?.remove();
-    this.standIn = node.ownerDocument.createElement('div');
-    this.standIn.hidden = true;
-    this.standIn.setAttribute('aria-hidden', 'true');
-    home.insertBefore(this.standIn, node);
-    this.homeObserver.disconnect();
-    this.homeObserver.observe(home, { childList: true });
-  }
-
-  /** Lets the adopted node go, back in its parent at its place if it is
-   * still in the sheet (a `contentId` change, destroy). */
-  release() {
-    const node = this.contentNode;
-    const home = this.contentHome;
-    this.nodeObserver.disconnect();
-    this.childObserver.disconnect();
-    this.homeObserver.disconnect();
-    this.contentNode = null;
-    this.contentHome = null;
-    const standIn = this.standIn;
-    this.standIn = null;
-    if (!node || node.parentElement !== this.wrapper || !home?.isConnected) {
-      standIn?.remove();
-      return;
-    }
-    if (standIn?.parentNode === home) {
-      standIn.replaceWith(node);
-      return;
-    }
-    standIn?.remove();
-    const next =
-      this.contentNext?.parentNode === home
-        ? this.contentNext
-        : (home.childNodes[this.contentPlace] ?? null);
-    home.insertBefore(node, next);
-  }
-
-  find() {
-    const selector = `[data-testid="${CSS.escape(this.contentId)}"]`;
-    for (
-      let level = this.element;
-      level?.parentElement;
-      level = level.parentElement
-    ) {
-      for (const candidate of level.parentElement.querySelectorAll(selector)) {
-        if (!this.element.contains(candidate)) return candidate;
-      }
-    }
-    return null;
   }
 
   layoutMarker() {
@@ -462,28 +561,66 @@ class BottomSheetView {
   reportRegion() {
     const width = this.wrapper.clientWidth;
     const height = this.content.clientHeight;
-    const key = `${width}x${height}`;
+    // The surface's height: the card's, which the surface fills.
+    const surface = this.card.clientHeight;
+    const key = `${width}x${height}x${surface}`;
     if (key === this.lastRegion || width <= 0 || height <= 0) return;
+    const regionChanged =
+      width !== this.region.width || height !== this.region.height;
     this.lastRegion = key;
-    this.region = { width, height };
-    this.events.emit('regionchange', { width, height });
+    this.region = { width, height, surface };
+    if (regionChanged) this.events.emit('regionchange', { width, height });
     this.emitChange();
   }
 
-  // The built-in `change` event, "<width>,<height>,<resting closed: 0|1>",
-  // which a child component can handle with its own action (a typed event
-  // must name a root action): the `BottomSheet` component lays its content
-  // node out with the region and unmounts a `lazy` sheet once it rests closed.
+  // The built-in `change` event, "<width>,<height>,<resting closed: 0|1>,
+  // <surface height>", which a child component can handle with its own action
+  // (a typed event must name a root action): the `BottomSheet` component lays
+  // its content node out with the region, its surface node with the region's
+  // width and the surface height, and unmounts a `lazy` sheet once it rests
+  // closed.
   emitChange() {
     if (this.destroyed) return;
-    const { width, height } = this.region;
-    this.events.change(`${width},${height},${this.restingClosed ? 1 : 0}`);
+    const { width, height, surface } = this.region;
+    this.events.change(
+      `${width},${height},${this.restingClosed ? 1 : 0},${surface}`
+    );
   }
 
   setRestingClosed(closed) {
     if (this.restingClosed === closed) return;
     this.restingClosed = closed;
     this.emitChange();
+    this.publishState();
+  }
+
+  /** The sheet's key in the agent's state: its id in the `BottomSheet`
+   * component (`contentId` without `-content`), else the view's. */
+  get stateKey() {
+    return this.contentId?.endsWith('-content')
+      ? this.contentId.slice(0, -'-content'.length)
+      : this.contentId || String(this.view);
+  }
+
+  /** Discloses the sheet to Exact's agent, as the iOS adapter does: its target
+   * and settled index, whether it rests closed, its position when it last
+   * settled, and whether its content and surface nodes are adopted. */
+  publishState() {
+    if (!this.sheets || this.destroyed) return;
+    const key = this.stateKey;
+    if (this.publishedKey && this.publishedKey !== key)
+      this.sheets.delete(this.publishedKey);
+    this.publishedKey = key;
+    this.publishedAdoption = this.adoption;
+    this.sheets.set(key, {
+      index: this.index ?? null,
+      settled: this.settledIndex,
+      restingClosed: this.restingClosed ?? true,
+      position: this.lastPosition,
+      content: this.contentAdoption.isAdopted,
+      surface: this.surfaceAdoption.isAdopted,
+      modal: false,
+    });
   }
 
   destroy() {
@@ -492,13 +629,23 @@ class BottomSheetView {
     this.nodeObserver.disconnect();
     this.childObserver.disconnect();
     this.controller.detach();
-    this.release();
+    this.contentAdoption.release();
+    this.surfaceAdoption.release();
+    if (this.publishedKey) this.sheets?.delete(this.publishedKey);
     this.host.remove();
   }
 }
 
 export const roster = { 'swm-bottom-sheet': { view: BottomSheetView } };
 
+/** The session's instance: each sheet's entry for the agent (`state()`,
+ * `state.extensions`), by the sheet's id. */
 export function implementation() {
-  return {};
+  const sheets = new Map();
+  return {
+    sheets,
+    state() {
+      return { sheets: Object.fromEntries(sheets) };
+    },
+  };
 }

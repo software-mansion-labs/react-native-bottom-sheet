@@ -128,6 +128,13 @@ Props:
   to report a close that starts right after an open. At rest it raises no events
   and holds no content. The adapters adopt the new content before applying the
   open `index`, so the sheet opens to its height.
+- `config.surfaceColor` and `config.surfaceBackgroundImage`: the surface, as
+  React Native's `surface` element. The component draws it as a Contract node
+  (`${id}-surface`), which the tag adopts into the card's surface slot as it
+  adopts the content, so it takes any CSS colour, Exact's colour roles
+  (`-exact-secondary-grouped-background`) and `light-dark()`, follows dark mode
+  as the rest of the app does, and takes a `background-image` (a gradient,
+  `url(…)`). The tag's own `surfaceColor` string is for the raw tag.
 - `config.nativeOverlay`: the component's own option, as `nativeOverlay` on
   `ModalBottomSheet`: a modal sheet is lifted above everything, native modal
   routes included, and sized to the window wherever it is mounted (see the
@@ -183,25 +190,26 @@ Props (all strings to the native side; non-strings as JSON):
 | `detents: SheetDetent[]`                                                      | `detents`. `value` is a string: points (`"256"`), a percentage (`"50%"`) or `"content"`; `programmatic`, `insets` (`left`, `right`, `bottom`) and `scrimOpacity` (modal only) as in React Native |
 | `index: number`                                                               | `index`                                                                                                                                                                                          |
 | `topInset`, `modal`, `animateIn`, `animateContentHeight`, `settleDuration`    | the same names (`modal: true` is `ModalBottomSheet`)                                                                                                                                             |
-| `scrollExpand`, `scrollCollapse`                                              | `scrollCoordination.expand` / `.collapse`: `enum<none                                                                                                                                            | initial | handoff>`(default`handoff`/`initial`); the compiler refuses any other value |
+| `scrollExpand`, `scrollCollapse`                                              | `scrollCoordination.expand` / `.collapse`: `"none"`, `"initial"` or `"handoff"`, an enum type (default `handoff` / `initial`); the compiler refuses any other value                              |
 | `scrimColor`, `scrimLabel`                                                    | `scrimColor`, `scrimAccessibilityLabel`                                                                                                                                                          |
 | `handlesCloseRequest: bool`                                                   | passing `onCloseRequest`. Exact can't tell a view which events are bound, so set it to `true` when you bind `closerequest`. Web only; ignored on iOS                                             |
 | `trackPosition: bool`                                                         | none: sends `positionchange` only when `true`. Exact can't tell a view which events are bound, and the event runs every frame the sheet moves; `TrackedBottomSheet` sets it                      |
 | `nativeOverlay: bool`                                                         | `nativeOverlay`: set by the component with `config.nativeOverlay`; while the scrim shows, the iOS adapter keeps VoiceOver to the sheet (below)                                                   |
-| `surfaceColor`                                                                | `surface`, limited to a fill colour (see Limitations)                                                                                                                                            |
+| `surfaceId: string`                                                           | `surface`: the `testId` of the Contract node to adopt as the surface (the component's `${id}-surface`)                                                                                           |
+| `surfaceColor`                                                                | `surface` for the raw tag: a fill colour, used while no `surfaceId` node is adopted                                                                                                              |
 | `surfaceCornerRadii` (TL, TR, BR, BL), `surfaceCornerCurve`, `surfaceShadows` | `surfaceStyle` corner radii, `borderCurve`, `boxShadow`                                                                                                                                          |
 
 Events, each a typed event whose handler must be an action of the root component
 (Exact's rule for package views):
 
-| Event                           | React Native counterpart                                                                        |
-| ------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `indexchange(number)`           | `onIndexChange`                                                                                 |
-| `settle(number)`                | `onSettle`                                                                                      |
-| `positionchange(SheetPosition)` | `onPositionChange` (`position`, `index`)                                                        |
-| `closerequest()`                | `onCloseRequest` (web: Escape on a modal sheet with `handlesCloseRequest`; never raised on iOS) |
-| `regionchange(SheetRegion)`     | none: the content region's size (see below)                                                     |
-| `change(string)` (built-in)     | none: `"<width>,<height>,<resting closed>"`, which a child component's own action can handle    |
+| Event                           | React Native counterpart                                                                                      |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `indexchange(number)`           | `onIndexChange`                                                                                               |
+| `settle(number)`                | `onSettle`                                                                                                    |
+| `positionchange(SheetPosition)` | `onPositionChange` (`position`, `index`)                                                                      |
+| `closerequest()`                | `onCloseRequest` (web: Escape on a modal sheet with `handlesCloseRequest`; never raised on iOS)               |
+| `regionchange(SheetRegion)`     | none: the content region's size (see below)                                                                   |
+| `change(string)` (built-in)     | none: `"<width>,<height>,<resting closed>,<surface height>"`, which a child component's own action can handle |
 
 Colours accept `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, `rgb()`, `rgba()` and a
 few names on iOS; any CSS colour on the web.
@@ -240,14 +248,14 @@ platform view into the sheet:
 
 What the Fabric glue feeds the hosting view, and where it comes from here:
 
-| Fabric glue (`ios/BottomSheetComponentView.mm`, `BottomSheetContentView.mm`)        | Exact adapter                                                                                                                                                |
-| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| detent dictionaries from `normalizeDetents` (JS)                                    | the same dictionaries, built from `detents`/`topInset`/`modal` (including the widest-card flag)                                                              |
-| the content wrapper laid out by Yoga against the pushed `contentRegionInset`        | the adapter's wrapper view, sized to the content region (sheet height less `contentRegionInset`, between the widest card's side insets) on every layout      |
-| `contentRegionStateDidCommit` + `contentRegionLayoutDidApply` (state commit, mount) | both called when the region changes (the wrapper's layout is synchronous), and `contentRegionLayoutDidApply` again whenever the adopted node's frame changes |
-| the content-height marker (a `View` with `nativeID`)                                | an `ExactContentHeightMarker` view with the same `nativeId`, kept at the node's end marker (below), else at the node's bottom                                |
-| the surface view                                                                    | a plain view with `surfaceColor`, mounted with `mountSurfaceComponentView` and sized to the sheet plus `surfaceOverflow`                                     |
-| events through the Fabric event emitter                                             | the hosting view's delegate calls, emitted as the typed events                                                                                               |
+| Fabric glue (`ios/BottomSheetComponentView.mm`, `BottomSheetContentView.mm`)        | Exact adapter                                                                                                                                                             |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| detent dictionaries from `normalizeDetents` (JS)                                    | the same dictionaries, built from `detents`/`topInset`/`modal` (including the widest-card flag)                                                                           |
+| the content wrapper laid out by Yoga against the pushed `contentRegionInset`        | the adapter's wrapper view, sized to the content region (sheet height less `contentRegionInset`, between the widest card's side insets) on every layout                   |
+| `contentRegionStateDidCommit` + `contentRegionLayoutDidApply` (state commit, mount) | both called when the region changes (the wrapper's layout is synchronous), and `contentRegionLayoutDidApply` again whenever the adopted node's frame changes              |
+| the content-height marker (a `View` with `nativeID`)                                | an `ExactContentHeightMarker` view with the same `nativeId`, kept at the node's end marker (below), else at the node's bottom                                             |
+| the surface view                                                                    | a plain view mounted with `mountSurfaceComponentView` and sized to the sheet plus `surfaceOverflow`, holding the adopted `surfaceId` node (or filled with `surfaceColor`) |
+| events through the Fabric event emitter                                             | the hosting view's delegate calls, emitted as the typed events                                                                                                            |
 
 The web adapter mirrors `BottomSheetWebView.tsx` the same way (React Native for
 Web's view defaults, `box-none` pointer handling, the marker element) and calls
@@ -267,14 +275,16 @@ bottom is the content's height, as before.
 
 **The region.** Whenever the content region changes, the adapters raise the
 typed `regionchange` and the built-in `change` event with
-`"<width>,<height>,<resting closed>"`; the last part is `1` while the sheet
-rests at a closed detent and `0` otherwise, and the adapters raise `change`
-again when it flips (an open `index` clears it at once, a settle at a closed
-detent sets it). A typed event's handler must be an action of the root
-component, but a child component may handle `change` with its own action: that
-is how `BottomSheet` sizes its content node with no binding in the app, and how
-`lazy` knows when to unmount. Contract has no hook for a prop change, so this is
-the tag's job rather than the component's.
+`"<width>,<height>,<resting closed>,<surface height>"`; the third part is `1`
+while the sheet rests at a closed detent and `0` otherwise, and the adapters
+raise `change` again when it flips (an open `index` clears it at once, a settle
+at a closed detent sets it). The fourth is the surface node's height: the sheet
+plus the hosting view's `surfaceOverflow`, which keeps a scaled card covered. A
+typed event's handler must be an action of the root component, but a child
+component may handle `change` with its own action: that is how `BottomSheet`
+sizes its content node with no binding in the app, and how `lazy` knows when to
+unmount. Contract has no hook for a prop change, so this is the tag's job rather
+than the component's.
 
 Rules for the content, which follow from how Exact patches its views. The
 `BottomSheet` component follows them; an app using the raw tag follows them
@@ -337,10 +347,22 @@ itself:
   runtime removes a region's nodes by walking siblings between its anchors, so
   it can't find a node moved into the sheet; when the region goes it removes the
   stand-in, and the adapter drops the node with it.
-- **One content node, no surface node.** `surface` is limited to `surfaceColor`;
-  a Contract-drawn surface (an image, a gradient) is not adopted. With the raw
-  tag, the content follows the region only when the author binds it (see the
-  rules above); the component does it itself.
+- **With the raw tag**, the content follows the region only when the author
+  binds it (see the rules above); the component does it itself, for the content
+  and the surface.
+- **Colours the native code draws** (`scrimColor`, `surfaceShadows` colours, the
+  raw tag's `surfaceColor`) are strings: hex, `rgb()`/`rgba()`, a few names and
+  `light-dark(light, dark)`, which iOS turns into a dynamic colour the hosting
+  view re-resolves on an appearance change (React Native's `DynamicColorIOS`)
+  and the web passes to CSS. Exact's colour roles reach only Contract-drawn
+  nodes, the surface among them.
+- **Agent state**: each sheet discloses itself to Exact's agent
+  (`state extensions`, under `exact-bottom-sheet`'s `implementation.sheets`, by
+  the component's `id`): `index`, `settled`, `restingClosed`, `position` at
+  rest, whether its `content` and `surface` nodes are adopted, and `modal` (iOS:
+  VoiceOver kept to an overlay sheet). Updated on changes, not per frame. A
+  drive reads it; a `.test.contract` can't yet (`expect state` reads the app's
+  state only), so the demo's tests keep their own copies.
 - **Not mapped**: `wrapNativeView` (no worklets in Exact), `surfaceElevation`
   and `surfaceShadowColor` (Android only). `nativeOverlay` is the component's
   `config.nativeOverlay` (Exact's top layer, below); the raw tag has none.
