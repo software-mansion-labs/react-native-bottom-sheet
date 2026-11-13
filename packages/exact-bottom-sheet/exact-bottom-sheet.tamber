@@ -1,0 +1,9 @@
+// The design of @swmansion/exact-bottom-sheet: the token its BottomSheet's
+// `surface` param defaults to. The card is the platform's background, as an
+// iOS sheet's is, so it follows light and dark mode. An app sets it by full
+// name (`exact-bottom-sheet.surface`) or sets the param (`BottomSheet.surface`)
+// in its own design.
+tamber exact-bottom-sheet
+
+theme
+  exact-bottom-sheet.surface = -exact-background

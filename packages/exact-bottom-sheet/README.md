@@ -73,13 +73,13 @@ missing.
 
 ### The `BottomSheet` component
 
-The package ships a Contract component, `BottomSheet`, at the `/sheet` subpath.
-Its children are the sheet's content:
+The package ships a library component, `BottomSheet`, at the `/sheet` subpath,
+written as Exact's own library components are (`@exact/lists`,
+`@exact/actions`): plain props, every action required, its look a design `param`
+whose default is the package's token. Its children are the sheet's content:
 
 ```contract
-use BottomSheet, SheetConfig, SheetDetent, sheetConfig from "@swmansion/exact-bottom-sheet/sheet"
-
-fn d(v: string): SheetDetent = SheetDetent(value=v, programmatic=none, insets=none, scrimOpacity=none)
+use BottomSheet, SheetOptions, SheetPosition, detent, sheetOptions from "@swmansion/exact-bottom-sheet/sheet"
 
 component App
   state index = 0
@@ -87,73 +87,96 @@ component App
     index = i
   action ignore
     let unused = 0
+  action ignorePosition(p: SheetPosition)
+    let unused = p
   view
     column position="relative" flex=1
       button press=set(1)
         text "Open"
-      BottomSheet(id="sheet", index=index, detents=[d("0"), d("content")], config=SheetConfig(sheetConfig(), modal=some(true), scrimColor=some("rgba(0, 0, 0, 0.5)"), surfaceColor=some("#ffffff")), indexchange=set, settle=set, closerequest=ignore)
+      BottomSheet(id="sheet", index=index, detents=[detent("0"), detent("content")], modal=true, options=SheetOptions(sheetOptions(), cornerRadii=[16, 16, 0, 0]), indexchange=set, settle=set, positionchange=ignorePosition, closerequest=ignore)
         text "Content authored in Contract"
 ```
 
-As `BottomSheet.tsx` does with its content wrapper, the component lays the
-content out at the sheet's content region: the widest card's width (so the
-content follows a detached card and is scaled at a narrower detent) and the
-region's height (so a `flex=1` child fills the sheet, and a
-`scroll flex=1 min-height=0` child scrolls inside it). A zero-height marker
-after the children gives a `content` detent its height, as React Native's
-content-height marker does. The app binds nothing.
-
-Place it last among its parent's children: it fills its parent's box
-(`position: absolute; inset: 0`), takes no touches outside the card and the
-scrim (they reach what is under it), and keeps the content invisible until the
-sheet has reported its region.
+| React Native                                   | Exact                                                                                            |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `<ModalBottomSheet>` / `<BottomSheet>`         | `BottomSheet(modal=true)` / `BottomSheet(modal=false)`                                           |
+| `index`, `onIndexChange`                       | `index`, `indexchange`                                                                           |
+| `detents={[0, 'content', '50%']}`              | `detents=[detent("0"), detent("content"), detent("50%")]`                                        |
+| `{ value, programmatic }`, `{ value, insets }` | `programmaticDetent("0")`, `insetDetent("320", 16, 16, 32)`                                      |
+| the other props                                | `options`: `SheetOptions(sheetOptions(), lazy=true, …)`, plain values                            |
+| `surface={…}`                                  | the `BottomSheet.surface` param (themed in the app's design), or `surfaceColor` / `surfaceImage` |
+| `surfaceStyle` corners and shadows             | `cornerRadii`, `cornerCurve`, `shadows` (`surfaceShadow(…)`)                                     |
+| `onSettle`, `onCloseRequest`                   | `settle`, `closerequest` (with `handlesCloseRequest`)                                            |
+| `onPositionChange`                             | `positionchange` (with `trackPosition`)                                                          |
 
 Props:
 
-- `id: string`: names its nodes, `${id}-content` (the content node), `${id}-end`
-  (the marker) and `${id}-sheet` (the tag), for tests.
-- `index: number`, `detents: SheetDetent[]`: as on the tag (below).
-- `config: SheetConfig`: every other prop of the tag, one field each, with the
-  tag's types (`option<…>`, `none` for unset). `sheetConfig()` is every field
-  unset; change some with copy-with:
-  `SheetConfig(sheetConfig(), modal=some(true))`.
-- `config.lazy`: the component's own option, as `lazy` on React Native. The
-  content is in the tree only while the sheet is open or still closing: it
-  mounts in the same update that `index` selects an open detent, and unmounts
-  once the sheet settles at a closed detent, so it stays visible while the sheet
-  closes, and reopening mid-close keeps it. Its own component state starts over
-  on each open. No effect when no detent is closed. Unlike React Native, the tag
-  stays mounted: it is what reports the sheet coming to rest (through `change`,
-  below), and on the web a new tag attaches only after the next paint, too late
-  to report a close that starts right after an open. At rest it raises no events
-  and holds no content. The adapters adopt the new content before applying the
-  open `index`, so the sheet opens to its height.
-- `config.surfaceColor` and `config.surfaceBackgroundImage`: the surface, as
-  React Native's `surface` element. The component draws it as a Contract node
-  (`${id}-surface`), which the tag adopts into the card's surface slot as it
-  adopts the content, so it takes any CSS colour, Exact's colour roles
-  (`-exact-secondary-grouped-background`) and `light-dark()`, follows dark mode
-  as the rest of the app does, and takes a `background-image` (a gradient,
-  `url(…)`). The tag's own `surfaceColor` string is for the raw tag.
-- `config.nativeOverlay`: the component's own option, as `nativeOverlay` on
-  `ModalBottomSheet`: a modal sheet is lifted above everything, native modal
-  routes included, and sized to the window wherever it is mounted (see the
-  limitations below). No effect on an inline sheet.
-- Events: `indexchange`, `settle` and `closerequest` (below). Their handlers
-  must be actions of the root component (Exact's rule for a package view's
-  events). Contract has no optional action props, so all three are required:
-  bind an action that does nothing to one you don't need. `TrackedBottomSheet`
-  takes the same props plus `positionchange`, which runs its action every frame
-  while the sheet moves, so it is a separate component rather than a fourth
-  required event.
+- `id: string`: names its nodes for tests: `${id}-content`, `${id}-surface`,
+  `${id}-sheet` (the tag), `${id}-end` (the marker), `${id}-layer`.
+- `index: number`, `detents: SheetDetent[]`: the controlled detent and the
+  detents. Make detents with `detent`, `programmaticDetent` and `insetDetent`.
+- `modal: bool`: a scrim behind the sheet, as `ModalBottomSheet`.
+- `options: SheetOptions`: everything else, as plain values with Exact's
+  conventions (`""`, `0`, `-1` or `[]` for the default, enums with a default
+  member). `sheetOptions()` is React Native's defaults; change fields with
+  copy-with, `SheetOptions(sheetOptions(), lazy=true)`. Each field says what it
+  is in `sheet.contract`.
+- `indexchange`, `settle`, `positionchange`, `closerequest`: the events. Each is
+  required, as a library component's actions are; bind an action that does
+  nothing to one you don't need. Exact can't tell a view which events are bound,
+  so `positionchange` (every frame the sheet moves) is sent only with
+  `trackPosition`, and `closerequest` only with `handlesCloseRequest`. The
+  handlers must be actions of the root component (Exact's rule for a package
+  view's events).
+
+**Its look.** The surface is the component's `surface` param, whose default is
+the package's token `exact-bottom-sheet.surface` (`exact-bottom-sheet.tamber`:
+the platform's background, so it follows light and dark mode, as an iOS sheet
+does). An app themes every sheet in its own design, never per sheet:
+
+```tamber
+params
+  BottomSheet.surface = light-dark(#e0f2fe, #1e293b)
+```
+
+Exact's design tool lists the param, and the component's `surface` and `content`
+parts. `surfaceColor` (any CSS colour, a role, `light-dark()`) and
+`surfaceImage` (a `background-image`: a gradient, `url(…)`) override it for one
+sheet. The card's corners and shadows and the scrim are drawn by the native
+code, which a param can't reach (a param is only a value of Contract's own
+styles), so they are options.
+
+**Layout.** As `BottomSheet.tsx` does with its content wrapper, the component
+lays the content out at the sheet's content region: the widest card's width (so
+the content follows a detached card and is scaled at a narrower detent) and the
+region's height (so a `flex=1` child fills the sheet, and a
+`scroll flex=1 min-height=0` child scrolls inside it). A zero-height marker
+after the children gives a `content` detent its height. The app binds nothing.
+Place it last among its parent's children: it fills its parent's box, takes no
+touches outside the card and the scrim, and keeps the content invisible until
+the sheet has reported its region.
+
+**`lazy`.** The content (and the surface) is in the tree only while the sheet is
+open or still closing: it mounts in the same update that `index` selects an open
+detent, and unmounts once the sheet settles at a closed detent, so it stays
+visible while the sheet closes, and reopening mid-close keeps it. Its own
+component state starts over on each open. Unlike React Native, the tag stays
+mounted: it is what reports the sheet coming to rest (through `change`, below),
+and on the web a new tag attaches only after the next paint. The adapters adopt
+the new content before applying the open `index`, so the sheet opens to its
+height.
+
+**`nativeOverlay`.** A modal sheet is lifted above everything, native modal
+routes included, and sized to the window wherever it is mounted (see the
+limitations below).
 
 The component's file declares the interface's shapes (`SheetDetent`,
 `SheetInsets`, `SheetShadow`, `SheetPosition`, `SheetRegion`) again: a package's
 Contract file is resolved where it really is, where no `node_modules` holds the
 package, and `use` takes only `.contract` files, so it can't `use` `exact.json`.
-Shapes are nominal in Contract, so an app that uses the component takes them
-from `/sheet` too; the tag checks them field by field against its declared
-props, so the raw tag takes them as well.
+Shapes are nominal in Contract, so an app takes them from `/sheet` too; the tag
+checks them field by field against its declared props, so the raw tag takes them
+as well.
 
 ### The `swm-bottom-sheet` tag
 
@@ -184,20 +207,20 @@ component App
 
 Props (all strings to the native side; non-strings as JSON):
 
-| Prop                                                                          | React Native counterpart                                                                                                                                                                         |
-| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `contentId: string`                                                           | `children`: the `testId` of the Contract node to adopt as content                                                                                                                                |
-| `detents: SheetDetent[]`                                                      | `detents`. `value` is a string: points (`"256"`), a percentage (`"50%"`) or `"content"`; `programmatic`, `insets` (`left`, `right`, `bottom`) and `scrimOpacity` (modal only) as in React Native |
-| `index: number`                                                               | `index`                                                                                                                                                                                          |
-| `topInset`, `modal`, `animateIn`, `animateContentHeight`, `settleDuration`    | the same names (`modal: true` is `ModalBottomSheet`)                                                                                                                                             |
-| `scrollExpand`, `scrollCollapse`                                              | `scrollCoordination.expand` / `.collapse`: `"none"`, `"initial"` or `"handoff"`, an enum type (default `handoff` / `initial`); the compiler refuses any other value                              |
-| `scrimColor`, `scrimLabel`                                                    | `scrimColor`, `scrimAccessibilityLabel`                                                                                                                                                          |
-| `handlesCloseRequest: bool`                                                   | passing `onCloseRequest`. Exact can't tell a view which events are bound, so set it to `true` when you bind `closerequest`. Web only; ignored on iOS                                             |
-| `trackPosition: bool`                                                         | none: sends `positionchange` only when `true`. Exact can't tell a view which events are bound, and the event runs every frame the sheet moves; `TrackedBottomSheet` sets it                      |
-| `nativeOverlay: bool`                                                         | `nativeOverlay`: set by the component with `config.nativeOverlay`; while the scrim shows, the iOS adapter keeps VoiceOver to the sheet (below)                                                   |
-| `surfaceId: string`                                                           | `surface`: the `testId` of the Contract node to adopt as the surface (the component's `${id}-surface`)                                                                                           |
-| `surfaceColor`                                                                | `surface` for the raw tag: a fill colour, used while no `surfaceId` node is adopted                                                                                                              |
-| `surfaceCornerRadii` (TL, TR, BR, BL), `surfaceCornerCurve`, `surfaceShadows` | `surfaceStyle` corner radii, `borderCurve`, `boxShadow`                                                                                                                                          |
+| Prop                                                                          | React Native counterpart                                                                                                                                                                          |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `contentId: string`                                                           | `children`: the `testId` of the Contract node to adopt as content                                                                                                                                 |
+| `detents: SheetDetent[]`                                                      | `detents`. `value` is a string: points (`"256"`), a percentage (`"50%"`) or `"content"`; `programmatic`, `insets` (`left`, `right`, `bottom`) and `scrimOpacity` (modal only) as in React Native  |
+| `index: number`                                                               | `index`                                                                                                                                                                                           |
+| `topInset`, `modal`, `animateIn`, `animateContentHeight`, `settleDuration`    | the same names (`modal: true` is `ModalBottomSheet`)                                                                                                                                              |
+| `scrollExpand`, `scrollCollapse`                                              | `scrollCoordination.expand` / `.collapse`: `"none"`, `"initial"` or `"handoff"`, an enum type (default `handoff` / `initial`); the compiler refuses any other value                               |
+| `scrimColor`, `scrimLabel`                                                    | `scrimColor`, `scrimAccessibilityLabel`                                                                                                                                                           |
+| `handlesCloseRequest: bool`                                                   | passing `onCloseRequest`. Exact can't tell a view which events are bound, so set it to `true` when you bind `closerequest`. Web only; ignored on iOS                                              |
+| `trackPosition: bool`                                                         | none: sends `positionchange` only when `true`. Exact can't tell a view which events are bound, and the event runs every frame the sheet moves; the component sets it from `options.trackPosition` |
+| `nativeOverlay: bool`                                                         | `nativeOverlay`: set by the component from `options.nativeOverlay`; while the scrim shows, the iOS adapter keeps VoiceOver to the sheet (below)                                                   |
+| `surfaceId: string`                                                           | `surface`: the `testId` of the Contract node to adopt as the surface (the component's `${id}-surface`)                                                                                            |
+| `surfaceColor`                                                                | `surface` for the raw tag: a fill colour, used while no `surfaceId` node is adopted                                                                                                               |
+| `surfaceCornerRadii` (TL, TR, BR, BL), `surfaceCornerCurve`, `surfaceShadows` | `surfaceStyle` corner radii, `borderCurve`, `boxShadow`                                                                                                                                           |
 
 Events, each a typed event whose handler must be an action of the root component
 (Exact's rule for package views):
@@ -365,7 +388,7 @@ itself:
   state only), so the demo's tests keep their own copies.
 - **Not mapped**: `wrapNativeView` (no worklets in Exact), `surfaceElevation`
   and `surfaceShadowColor` (Android only). `nativeOverlay` is the component's
-  `config.nativeOverlay` (Exact's top layer, below); the raw tag has none.
+  `options.nativeOverlay` (Exact's top layer, below); the raw tag has none.
 - **Without `nativeOverlay`, the scrim covers the tag's box**, not the window:
   give a modal sheet's tag the whole screen (the demo's screens hide the
   navigation bar and draw their own header, as the React Native example's do).
@@ -391,10 +414,9 @@ itself:
   (argent), not by `app.test.contract`.
 - **`positionchange` runs an action every frame** while the sheet moves (as
   `onPositionChange` fires every frame); bind it only when needed
-  (`TrackedBottomSheet`, which sets `trackPosition`; a plain sheet sends none).
-  Whether the action's render lands in the same frame as the sheet (React
-  Native's UI-thread worklets do) is unmeasured: the simulator's recorder
-  captures too few frames to tell.
+  (`options.trackPosition`; without it the tag sends none). Whether the action's
+  render lands in the same frame as the sheet (React Native's UI-thread worklets
+  do) is unmeasured: the simulator's recorder captures too few frames to tell.
 - **Close requests**: `closerequest` is web only, as `onCloseRequest` is on
   React Native (Android and web); on iOS both handle VoiceOver's escape gesture
   in the shared hosting view.
