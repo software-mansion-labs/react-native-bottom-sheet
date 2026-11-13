@@ -58,7 +58,7 @@ internal class ContentRegion(
   private var committedContentRegionInsetDp = Float.NaN
 
   // The frame size (dp) of the state Fabric last committed, recorded mid-batch.
-  // In native-overlay mode the sheet node is sized from this state, so a commit
+  // In window-overlay mode the sheet node is sized from this state, so a commit
   // that carries a new frame is one that re-measured the content against it.
   // NaN before the first commit.
   private var committedFrameWidthDp = Float.NaN
@@ -183,7 +183,7 @@ internal class ContentRegion(
   /**
    * Records the state Fabric committed: the sheet's frame size and the content-region inset. The
    * content wrapper is re-measured in the same mount batch whenever either changed (the inset is
-   * its Yoga padding; in native-overlay mode the sheet node is sized from the frame), so once the
+   * its Yoga padding; in window-overlay mode the sheet node is sized from the frame), so once the
    * batch completes its measured size and the content marker reflect the new state: the posted pass
    * then marks the inset applied, places the children at their new sizes, and re-resolves the
    * detents.

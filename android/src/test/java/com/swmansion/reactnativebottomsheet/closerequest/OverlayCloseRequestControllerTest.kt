@@ -37,7 +37,7 @@ class OverlayCloseRequestControllerTest {
 
       assertTrue(dialog.dispatchKeyEvent(escapeDown(10L)))
       controller.update(
-        inputState(hasCloseRequestHandler = false),
+        inputState(handlesCloseRequests = false),
         usesOverlayDialog = true,
         isSheetInteractive = false,
       )
@@ -106,7 +106,7 @@ class OverlayCloseRequestControllerTest {
       dispatchEscape(dialog)
 
       controller.update(
-        inputState(hasCloseRequestHandler = false),
+        inputState(handlesCloseRequests = false),
         usesOverlayDialog = true,
         isSheetInteractive = false,
       )
@@ -147,7 +147,7 @@ class OverlayCloseRequestControllerTest {
     try {
       controller.bind(firstDialog)
       controller.update(
-        inputState(hasCloseRequestHandler = false),
+        inputState(handlesCloseRequests = false),
         usesOverlayDialog = true,
         isSheetInteractive = false,
       )
@@ -155,7 +155,7 @@ class OverlayCloseRequestControllerTest {
 
       controller.bind(secondDialog)
       controller.update(
-        inputState(hasCloseRequestHandler = false),
+        inputState(handlesCloseRequests = false),
         usesOverlayDialog = true,
         isSheetInteractive = false,
       )
@@ -185,7 +185,7 @@ class OverlayCloseRequestControllerTest {
       val dialog = shownDialog(activity)
       controller.bind(dialog)
       controller.update(
-        inputState(hasCloseRequestHandler = false),
+        inputState(handlesCloseRequests = false),
         usesOverlayDialog = true,
         isSheetInteractive = false,
       )
@@ -216,7 +216,7 @@ class OverlayCloseRequestControllerTest {
       val dialog = shownDialog(activity)
       controller.bind(dialog)
       controller.update(
-        inputState(hasCloseRequestHandler = false),
+        inputState(handlesCloseRequests = false),
         usesOverlayDialog = true,
         isSheetInteractive = false,
       )
@@ -241,7 +241,7 @@ class OverlayCloseRequestControllerTest {
     }
 
   private fun inputState(
-    hasCloseRequestHandler: Boolean = true,
+    handlesCloseRequests: Boolean = true,
     isPresentationActive: Boolean = true,
     isTargetResolvedAndOpen: Boolean = true,
   ) =
@@ -249,7 +249,7 @@ class OverlayCloseRequestControllerTest {
       isAttached = true,
       isLifecycleActive = true,
       isModal = true,
-      hasCloseRequestHandler = hasCloseRequestHandler,
+      handlesCloseRequests = handlesCloseRequests,
       isPresentationActive = isPresentationActive,
       isTargetResolvedAndOpen = isTargetResolvedAndOpen,
     )

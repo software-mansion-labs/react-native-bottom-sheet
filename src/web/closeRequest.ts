@@ -1,12 +1,17 @@
 /// <reference lib="dom" />
 
 export type CloseRequestTarget = {
+  /**
+   * Whether a close request has anything to act on: an `onCloseRequest`
+   * handler or a closed detent to snap to.
+   */
+  readonly handlesCloseRequests: boolean;
   handleCloseRequest(): void;
 };
 
-// Modal sheets with a close-request handler that are open or animating closed,
-// in the order they opened. Escape is routed to the most recent one, matching
-// Android's topmost-presentation routing.
+// Modal sheets that are open or animating closed, in the order they opened.
+// Escape is routed to the most recent one, matching Android's
+// topmost-presentation routing.
 const closeRequestStack: CloseRequestTarget[] = [];
 let areEscapeListenersInstalled = false;
 // Whether an Escape press that may become a close request is in progress: it
@@ -16,8 +21,13 @@ let isEscapePressPending = false;
 const hasModifiers = (event: KeyboardEvent) =>
   event.altKey || event.ctrlKey || event.metaKey || event.shiftKey;
 
-const topCloseRequestController = () =>
-  closeRequestStack[closeRequestStack.length - 1];
+// The top sheet, if it acts on close requests. One that doesn't still blocks
+// the sheets it covers, as on Android: Escape is then left to normal key
+// handling.
+const topCloseRequestController = () => {
+  const top = closeRequestStack[closeRequestStack.length - 1];
+  return top?.handlesCloseRequests ? top : undefined;
+};
 
 // Like on Android, a close request is emitted once per completed, unmodified
 // Escape press: on keyup. Auto-repeat, modifiers, other keys, and focus loss

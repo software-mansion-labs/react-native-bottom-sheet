@@ -21,14 +21,14 @@ class BottomSheetViewComponentDescriptor final
   }
 
   // Runs on every create/clone, so the node's root-ness tracks the current
-  // `nativeOverlay` prop. A native-overlay sheet presents its content in a
+  // `windowOverlay` prop. A window-overlay sheet presents its content in a
   // window-level full-screen overlay, so — like <Modal> — it must act as a layout
   // root for descendant measure/touch coordinates to resolve correctly.
   void adopt(ShadowNode& shadowNode) const override {
     auto& node = static_cast<BottomSheetViewShadowNode&>(shadowNode);
     const auto& props =
         static_cast<const BottomSheetViewProps&>(*node.getProps());
-    node.setIsOverlayRoot(props.nativeOverlay);
+    node.setIsOverlayRoot(props.windowOverlay);
 
     const auto& stateData =
         static_cast<const BottomSheetViewShadowNode::ConcreteState&>(
@@ -52,7 +52,7 @@ class BottomSheetViewComponentDescriptor final
     layoutableShadowNode.setPadding(
         {0, 0, 0, std::max<Float>(stateData.contentRegionInset, 0)});
 
-    // In native-overlay mode the sheet's real container is the full-screen
+    // In window-overlay mode the sheet's real container is the full-screen
     // overlay window, not the in-tree slot. Both platforms report the sheet's
     // measured size through the state; force the node's size from it — exactly
     // as <Modal> does — so Yoga lays the subtree out against the overlay's
@@ -61,7 +61,7 @@ class BottomSheetViewComponentDescriptor final
     // until the first native report, leaving the JS-provided first-frame
     // estimate in effect; inline sheets are Fabric-owned (this branch is
     // gated on the prop).
-    if (props.nativeOverlay &&
+    if (props.windowOverlay &&
         stateData.frameSize.width != 0 && stateData.frameSize.height != 0) {
       layoutableShadowNode.setSize(stateData.frameSize);
       layoutableShadowNode.setPositionType(YGPositionTypeAbsolute);

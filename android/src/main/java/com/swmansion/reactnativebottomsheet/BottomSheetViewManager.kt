@@ -154,8 +154,8 @@ class BottomSheetViewManager :
     view.modal = modal
   }
 
-  override fun setNativeOverlay(view: BottomSheetView, value: Boolean) {
-    view.setNativeOverlay(value)
+  override fun setWindowOverlay(view: BottomSheetView, value: Boolean) {
+    view.setWindowOverlay(value)
   }
 
   override fun setOpenOrder(view: BottomSheetView, value: Int) {

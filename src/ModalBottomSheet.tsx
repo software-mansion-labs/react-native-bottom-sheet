@@ -1,4 +1,5 @@
 import { createElement } from 'react';
+import type { ColorValue } from 'react-native';
 
 import {
   BottomSheet,
@@ -23,22 +24,29 @@ export interface ModalBottomSheetProps extends Omit<
    */
   detents?: ModalDetent[];
   /**
-   * Android and web. Called when Android system Back, a committed predictive
-   * Back gesture, or a complete, unmodified physical Escape press requests that
-   * an open sheet close. This is a controlled request: the sheet does not change
-   * its `index` or choose a transition. The consumer decides whether and how to
-   * close it. While a visible sheet is animating to a closed target, further
-   * Back/Escape input is consumed without another callback until settle.
+   * Called when the user asks an open sheet to close without dragging it: a
+   * scrim tap, a screen reader's dismiss action, Android system Back or a
+   * committed predictive Back gesture, or a complete, unmodified physical
+   * Escape press on Android and the web. This is a controlled request: the
+   * sheet does not change its `index` or choose a transition. The consumer
+   * decides whether and how to close it. While a visible sheet is animating to
+   * a closed target, further requests are consumed without another callback
+   * until settle.
+   *
+   * Without a handler, a close request snaps the sheet to its closed detent
+   * and reports it through `onIndexChange`, provided the scrim is visible and
+   * that detent is not `programmatic`. Dragging the sheet closed always reports
+   * through `onIndexChange`.
    */
   onCloseRequest?: () => void;
   /**
-   * Present the sheet in a native overlay above everything—including native
+   * Present the sheet in a window overlay above everything—including native
    * modal screens (e.g. a React Navigation native-stack `presentation: "modal"`)
    * —instead of the `BottomSheetProvider` portal.
    *
    * The portal renders into the provider's React tree, so a sheet opened from
    * within a native modal screen is trapped inside that screen and cannot cover
-   * the full window. With `nativeOverlay`, the sheet is reparented natively into
+   * the full window. With `windowOverlay`, the sheet is reparented natively into
    * a window-level overlay (a `UIWindow`-attached container on iOS, a
    * full-screen transparent dialog on Android, a fixed-position layer in
    * `document.body` on the web) that floats above the modal.
@@ -49,12 +57,16 @@ export interface ModalBottomSheetProps extends Omit<
    *
    * @default false
    */
-  nativeOverlay?: boolean;
-  /** Scrim color shown behind the modal sheet. */
-  scrimColor?: string;
+  windowOverlay?: boolean;
+  /**
+   * Scrim color shown behind the modal sheet.
+   *
+   * @default 'transparent'
+   */
+  scrimColor?: ColorValue;
   /**
    * The label screen readers announce for the scrim while tapping it would
-   * dismiss the sheet, when the scrim is exposed as a dismiss button. Pass a
+   * ask the sheet to close, when the scrim is exposed as a dismiss button. Pass a
    * translated string to localize it.
    *
    * @default 'Dismiss'

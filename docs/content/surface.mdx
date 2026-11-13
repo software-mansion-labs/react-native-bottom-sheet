@@ -6,6 +6,9 @@ import { CardShapeExample, SurfaceExample } from '@site/src/examples/surface';
 
 # Surface
 
+The surface is the sheet’s visible body. `surface` provides its fill, and
+[`surfaceStyle`](#shape-and-shadows) its shape and shadow.
+
 Provide the sheet’s background through the `surface` prop. The library renders
 it behind your content and sizes it natively to cover the whole sheet,
 independently of the content height.
@@ -40,12 +43,13 @@ collapse and not show.
 
 <SurfaceExample />
 
-## Card shape and shadows
+## Shape and shadows
 
-Use `surfaceStyle` to round the sheet and give it a shadow. The sheet clips both
-`surface` and your content to this shape, so state corners here rather than on
-the `surface` element, which only paints the background. A shadow on the
-`surface` element would be clipped too.
+Use `surfaceStyle` to round the surface and give it a shadow. The sheet clips
+both the fill from `surface` and your content to this shape. `surfaceStyle` is
+not applied to the element you pass as `surface`, which only fills the surface:
+a radius there would not round your content, and a shadow there would be
+clipped.
 
 ```tsx
 <BottomSheet // Or `ModalBottomSheet`.

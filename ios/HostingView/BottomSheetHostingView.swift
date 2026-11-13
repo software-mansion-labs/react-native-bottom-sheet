@@ -16,6 +16,9 @@ import UIKit
   /// layer can follow `isPresented` and `isModalAccessibilityActive`. Movement
   /// reports through `didChangePosition` instead.
   func bottomSheetHostingViewDidUpdateScrim(_ view: BottomSheetHostingView)
+  /// Fired when a scrim tap, the scrim's dismiss button, or VoiceOver's escape
+  /// gesture asks a sheet with an `onCloseRequest` handler to close.
+  func bottomSheetHostingViewDidRequestClose(_ view: BottomSheetHostingView)
 }
 
 /// The scrim control, exposed to VoiceOver as a dismiss button while a
@@ -96,6 +99,15 @@ public final class BottomSheetHostingView: UIView {
   /// Duration of the spring that carries the sheet to the detent a release
   /// resolved to. `0` (the default) uses `defaultSettleDuration`.
   public var settleDuration: CFTimeInterval = 0
+
+  /// Whether JS supplied `onCloseRequest`. A close request then goes to the
+  /// handler instead of snapping the sheet to its closed detent.
+  public var hasCloseRequestHandler = false {
+    didSet {
+      guard hasCloseRequestHandler != oldValue else { return }
+      updateInteractionState()
+    }
+  }
 
   var rawDetentSpecs: [RawDetentSpec] = []
   /// Whether any detent keeps a gap at the card's sides or bottom, so the card
@@ -219,7 +231,7 @@ public final class BottomSheetHostingView: UIView {
     scrimView.accessibilityTraits = .button
     scrimView.accessibilityLabel = "Dismiss"
     scrimView.accessibilityRegion = { [weak self] in self?.scrimDismissRegion ?? .zero }
-    scrimView.onAccessibilityActivate = { [weak self] in self?.attemptScrimDismissal() ?? false }
+    scrimView.onAccessibilityActivate = { [weak self] in self?.requestClose() ?? false }
     addSubview(scrimView)
 
     sheetContainer.backgroundColor = .clear

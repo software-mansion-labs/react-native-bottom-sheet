@@ -10,6 +10,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.facebook.react.internal.featureflags.ReactNativeFeatureFlagsForTests
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -39,6 +40,17 @@ class BottomSheetViewScrimDismissTest {
   }
 
   @Test
+  fun `scrim tap with a close request handler only reports the request`() {
+    withOpenModalSheet { sheet, listener ->
+      sheet.setHasCloseRequestHandler(true)
+      tapScrim(sheet)
+
+      assertEquals(1, listener.closeRequestCount)
+      assertEquals(emptyList<Int>(), listener.indexChanges)
+    }
+  }
+
+  @Test
   fun `further scrim taps during the close snap emit no extra index change`() {
     withOpenModalSheet { sheet, listener ->
       tapScrim(sheet)
@@ -56,6 +68,29 @@ class BottomSheetViewScrimDismissTest {
       tapScrim(sheet)
 
       assertEquals(listOf(0), listener.indexChanges)
+    }
+  }
+
+  @Test
+  fun `a close request handler does not carry over to a reused sheet`() {
+    withOpenModalSheet { sheet, listener ->
+      sheet.setHasCloseRequestHandler(true)
+
+      sheet.destroy()
+      sheet.listener = listener
+      sheet.setDetents(
+        listOf(
+          mapOf("value" to 0.0, "scrimOpacity" to 0.0),
+          mapOf("value" to 300.0, "scrimOpacity" to 1.0),
+        ),
+      )
+      sheet.setIndex(1)
+      sheet.forceLayout()
+      layoutView(sheet)
+      tapScrim(sheet)
+
+      assertEquals(0, listener.closeRequestCount)
+      assertTrue(listener.indexChanges.toString(), 0 in listener.indexChanges)
     }
   }
 
@@ -180,5 +215,9 @@ private class RecordingBottomSheetListener : BottomSheetViewListener {
 
   override fun onPositionChange(position: Double, index: Double) = Unit
 
-  override fun onCloseRequest() = Unit
+  var closeRequestCount = 0
+
+  override fun onCloseRequest() {
+    closeRequestCount++
+  }
 }

@@ -19,7 +19,7 @@ export const AccessibleDismissalScreen = () => {
   const [isClosedProgrammatic, setIsClosedProgrammatic] = useState(false);
   const [fillsScreen, setFillsScreen] = useState(false);
   const [usesCustomLabel, setUsesCustomLabel] = useState(false);
-  const [usesNativeOverlay, setUsesNativeOverlay] = useState(false);
+  const [usesWindowOverlay, setUsesWindowOverlay] = useState(false);
   const [indexChanges, setIndexChanges] = useState(0);
   const sheetBottomPadding = useSheetBottomPadding(0);
 
@@ -40,7 +40,7 @@ export const AccessibleDismissalScreen = () => {
           }}
           detents={detents}
           topInset={fillsScreen ? 0 : undefined}
-          nativeOverlay={usesNativeOverlay}
+          windowOverlay={usesWindowOverlay}
           scrimColor={MODAL_SCRIM_COLOR}
           scrimAccessibilityLabel={usesCustomLabel ? 'Cerrar' : undefined}
           surface={<SheetBackground style={StyleSheet.absoluteFill} />}
@@ -85,9 +85,9 @@ export const AccessibleDismissalScreen = () => {
         onValueChange={setUsesCustomLabel}
       />
       <Toggle
-        label="Native overlay"
-        value={usesNativeOverlay}
-        onValueChange={setUsesNativeOverlay}
+        label="Window overlay"
+        value={usesWindowOverlay}
+        onValueChange={setUsesWindowOverlay}
       />
       <Button title="Open sheet" onPress={() => setIndex(1)} />
       <Text style={styles.readout}>

@@ -260,7 +260,7 @@ class BottomSheetHostViewContentRegionTest {
     }
   }
 
-  // In native-overlay mode the dialog window resizes on rotation before Fabric's batch arrives: the
+  // In window-overlay mode the dialog window resizes on rotation before Fabric's batch arrives: the
   // host is laid out at the new size while the content still holds its old measure, and the batch
   // that then re-measures the content is the one that commits the new frame size. A content detent
   // keeps the content-region inset at zero in both orientations, so only the committed frame size

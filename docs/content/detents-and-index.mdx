@@ -82,11 +82,14 @@ scrollable resolves `'content'` to that height.
 ## Insets
 
 A detent’s `insets` keep space around the sheet at that detent, so it can float
-as a card. They take optional `left`, `right`, and `bottom` values, all 0 by
-default, and the gaps blend as the sheet moves between detents. Each side must
-be a finite, non-negative number; the library throws an `Error` otherwise. A
-closed detent ignores its insets, so the card leaves through the gap with its
-shape intact.
+as a card. They take optional `left`, `right`, `start`, `end`, and `bottom`
+values, all 0 by default, and the gaps blend as the sheet moves between detents.
+`left` and `right` are physical sides; `start` and `end` follow the layout
+direction, so `start` is the left in a left-to-right layout and the right in a
+right-to-left one, and they take precedence over the side they resolve to. On
+the web, the layout direction is the document’s. Each side must be a finite,
+non-negative number; the library throws an `Error` otherwise. A closed detent
+ignores its insets, so the card leaves through the gap with its shape intact.
 
 ```tsx
 <ModalBottomSheet
@@ -147,10 +150,11 @@ The `index` prop must be a finite, zero-based integer in the range
 responsibilities:
 
 - `onIndexChange` fires when a user-triggered snap is _initiated_: the moment a
-  drag commits to a detent, or when a scrim tap or an accessibility dismiss
-  action closes a modal sheet, before the animation settles. It does not fire
-  for programmatic `index` changes; you already know when you make those. Treat
-  it as the signal to update your controlled `index` state.
+  drag commits to a detent, or when a
+  [close request](modal-sheets#close-requests) closes a modal sheet that has no
+  `onCloseRequest`, before the animation settles. It does not fire for
+  programmatic `index` changes; you already know when you make those. Treat it
+  as the signal to update your controlled `index` state.
 - `onSettle` fires when the sheet finishes snapping to a detent, regardless of
   whether that snap was user-triggered or programmatic. It is the signal for the
   _end_ of any movement. Use it for observability or side effects (analytics,
@@ -202,7 +206,8 @@ it is let go resolves on where it stopped.
 If you want a detent to be reachable only via code (not by dragging), set
 `programmatic: true` on it. Programmatic detents are excluded from drag snapping
 but can still be targeted via `index` updates. If the closed detent is
-programmatic-only, tapping the scrim does not dismiss the sheet.
+programmatic-only, a [close request](modal-sheets#close-requests) such as a
+scrim tap does not dismiss the sheet unless you handle `onCloseRequest`.
 
 ```tsx
 <BottomSheet

@@ -55,7 +55,7 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
     animateIn,
     animateContentHeight,
     modal,
-    nativeOverlay = false,
+    windowOverlay = false,
     openOrder = 0,
     hasCloseRequestHandler,
     scrollExpandCoordination,
@@ -93,7 +93,7 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
   // Rethrow them during render so error boundaries see them, as the native
   // hosts raise them as fatal errors.
   const [error, setError] = useState<Error | null>(null);
-  // In native-overlay mode the sheet is portaled into the document body, which
+  // In window-overlay mode the sheet is portaled into the document body, which
   // only exists on the client.
   const [canPortal, setCanPortal] = useState(false);
 
@@ -113,7 +113,7 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
     setCanPortal(true);
   }, []);
 
-  const isMounted = !nativeOverlay || canPortal;
+  const isMounted = !windowOverlay || canPortal;
 
   useLayoutEffect(() => {
     const host = asElement(hostRef.current);
@@ -199,7 +199,7 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
     <View
       {...viewProps}
       ref={setHostRef}
-      style={[styles.host, style, nativeOverlay && StyleSheet.absoluteFill]}
+      style={[styles.host, style, windowOverlay && StyleSheet.absoluteFill]}
     >
       <View
         ref={scrimRef}
@@ -240,7 +240,7 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
     </View>
   );
 
-  if (nativeOverlay) {
+  if (windowOverlay) {
     return createPortal(
       <View
         style={[styles.overlay, { zIndex: openOrder }]}
@@ -257,8 +257,8 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
 let overlayLayer: HTMLDivElement | null = null;
 
 /**
- * The layer that holds every native-overlay sheet. It sits above React Native
- * for Web's `Modal` layer (z-index 9999), matching the native overlay's place
+ * The layer that holds every window-overlay sheet. It sits above React Native
+ * for Web's `Modal` layer (z-index 9999), matching the window overlay's place
  * above modal screens. As its own stacking context, it keeps the sheets'
  * open-order z-indexes from competing with the app's.
  */

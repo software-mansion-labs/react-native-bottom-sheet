@@ -18,7 +18,6 @@
     "android",
     "ios",
     "common",
-    "cpp",
     "*.podspec",
     "react-native.config.js",
     "!ios/build",
@@ -87,7 +86,17 @@
   },
   "peerDependencies": {
     "react": ">=19.1.1",
-    "react-native": ">=0.82.0"
+    "react-dom": ">=19.1.1",
+    "react-native": ">=0.82.0",
+    "react-native-web": ">=0.21.0"
+  },
+  "peerDependenciesMeta": {
+    "react-dom": {
+      "optional": true
+    },
+    "react-native-web": {
+      "optional": true
+    }
   },
   "workspaces": [
     "example"

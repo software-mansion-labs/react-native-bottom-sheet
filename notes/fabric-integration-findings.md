@@ -178,11 +178,11 @@ One state channel on the sheet node (`BottomSheetViewState`), fields all in dp:
 | Field                | Producer                                                      | Consumer                                                                                                                                                             |
 | -------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `contentOffsetY`     | host, on every sheet movement (`containerTop + translationY`) | `getContentOriginOffset()` — shadow-tree coordinates for `measure()`/`measureInWindow`                                                                               |
-| `frameSize`          | host, once measured in its window                             | `adopt()`: `setSize` + `YGPositionTypeAbsolute`, **gated on `nativeOverlay`** (inline stays Fabric-owned)                                                            |
+| `frameSize`          | host, once measured in its window                             | `adopt()`: `setSize` + `YGPositionTypeAbsolute`, **gated on `windowOverlay`** (inline stays Fabric-owned)                                                            |
 | `contentRegionInset` | host: `height − region`                                       | `adopt()`: **Yoga bottom padding, every mode** — the in-flow `flex: 1` wrapper resolves to exactly the detent cap; the absolutely-positioned surface ignores padding |
 
 `contentOffsetX` and `contentScale` (the card's horizontal shift and scale) ride
-the same snapshot, but the sheet node doesn't apply them. A native-overlay sheet
+the same snapshot, but the sheet node doesn't apply them. A window-overlay sheet
 is a `RootNodeKind` node, and `computeRelativeLayoutMetrics` skips a root's
 transform for `measure` (it applies it only for `measureInWindow`'s viewport
 offset), so a transform on the sheet left `measure` unscaled there — enough to
@@ -444,7 +444,7 @@ invalidates a UIKit/Android lifecycle assumption.
 - `Dimensions`/`useWindowDimensions` reliability varies by device/OS under
   edge-to-edge; the emulator ≠ physical device for anything inset-related.
   **Nothing in the Android bug class reproduces on emulators** — the repro demo
-  ("Native overlay full-height list", the #48 shape) exists precisely for
+  ("Window overlay full-height list", the #48 shape) exists precisely for
   physical-device validation.
 - Native-side logging that reaches the platform log stream: Android —
   `android.util.Log` in Kotlin, `__android_log_print` in C++ (e.g. inside
@@ -473,7 +473,7 @@ on `main`:
 
 Final verification matrix: iOS (iPhone 17 simulator) — modal open at content
 height with scrim and scrim-tap dismiss; full-height FlatList reaching the cap
-with the last item + bottom inset visible; all native-overlay demos including
+with the last item + bottom inset visible; all window-overlay demos including
 nested-mount `measureInWindow` and bottom-edge taps; inline detents; both
 under-status-bar variants; per-frame-verified smooth overlay open/close
 animations. Android (physical Pixel 10) — nested-mount `measureInWindow` y=451;

@@ -6,10 +6,10 @@ export type CaseKey =
   | 'corner-touches'
   | 'detached-sheet'
   | 'lazy-mounted-modal'
-  | 'native-overlay-modal'
-  | 'native-overlay-nested'
-  | 'native-overlay-full-height-list'
-  | 'native-overlay-keyboard-input'
+  | 'window-overlay-modal'
+  | 'window-overlay-nested'
+  | 'window-overlay-full-height-list'
+  | 'window-overlay-keyboard-input'
   | 'close-request'
   | 'modal-scroll-view'
   | 'draggable-grabber'
@@ -81,24 +81,24 @@ export const DEMO_CASES: DemoCase[] = [
     href: '/lazy-mounted-modal',
   },
   {
-    key: 'native-overlay-modal',
-    title: 'Native overlay modal',
-    href: '/native-overlay-modal',
+    key: 'window-overlay-modal',
+    title: 'Window overlay modal',
+    href: '/window-overlay-modal',
   },
   {
-    key: 'native-overlay-nested',
-    title: 'Native overlay nested mount',
-    href: '/native-overlay-nested',
+    key: 'window-overlay-nested',
+    title: 'Window overlay nested mount',
+    href: '/window-overlay-nested',
   },
   {
-    key: 'native-overlay-full-height-list',
-    title: 'Native overlay full-height list',
-    href: '/native-overlay-full-height-list',
+    key: 'window-overlay-full-height-list',
+    title: 'Window overlay full-height list',
+    href: '/window-overlay-full-height-list',
   },
   {
-    key: 'native-overlay-keyboard-input',
-    title: 'Native overlay keyboard input',
-    href: '/native-overlay-keyboard-input',
+    key: 'window-overlay-keyboard-input',
+    title: 'Window overlay keyboard input',
+    href: '/window-overlay-keyboard-input',
   },
   {
     key: 'close-request',

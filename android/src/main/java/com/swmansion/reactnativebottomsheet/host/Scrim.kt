@@ -12,6 +12,14 @@ internal class Scrim(private val state: SheetState) {
   // `rawDetentSpecs`, so a scrim change only repaints the scrim.
   var scrimOpacities = emptyList<Float>()
   private var scrimProgress = 0f
+    set(value) {
+      val wasVisible = field > VISIBLE_THRESHOLD
+      field = value
+      if (wasVisible != (value > VISIBLE_THRESHOLD)) onVisibilityChanged?.invoke()
+    }
+
+  /** Called when the scrim appears or disappears, which changes what a close request can do. */
+  var onVisibilityChanged: (() -> Unit)? = null
 
   fun setScrimColor(color: Int?) {
     scrimColor = color ?: Color.TRANSPARENT
@@ -80,10 +88,10 @@ internal class Scrim(private val state: SheetState) {
     state.sheetContainer.alpha = if (position <= 0.5f) 0f else 1f
   }
 
-  fun isScrimVisible(): Boolean = state.modal && scrimProgress > 0.001f
+  fun isScrimVisible(): Boolean = state.modal && scrimProgress > VISIBLE_THRESHOLD
 
   fun drawScrim(canvas: Canvas) {
-    if (!state.modal || scrimProgress <= 0.001f) {
+    if (!state.modal || scrimProgress <= VISIBLE_THRESHOLD) {
       return
     }
 
@@ -91,5 +99,9 @@ internal class Scrim(private val state: SheetState) {
     scrimPaint.color =
       Color.argb(alpha, Color.red(scrimColor), Color.green(scrimColor), Color.blue(scrimColor))
     canvas.drawRect(0f, 0f, state.width.toFloat(), state.height.toFloat(), scrimPaint)
+  }
+
+  private companion object {
+    const val VISIBLE_THRESHOLD = 0.001f
   }
 }

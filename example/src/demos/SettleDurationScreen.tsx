@@ -11,11 +11,11 @@ import {
   useSheetBottomPadding,
 } from '../demoShared';
 
-const DURATIONS = [undefined, 0.25, 1, 2, 4] as const;
+const DURATIONS = [undefined, 250, 1000, 2000, 4000] as const;
 type Duration = (typeof DURATIONS)[number];
 
 const label = (duration: Duration) =>
-  duration === undefined ? 'Default (0.45s)' : `${duration}s`;
+  duration === undefined ? 'Default (450 ms)' : `${duration} ms`;
 
 /**
  * Picks `settleDuration` and shows how long each settle took, from the moment a

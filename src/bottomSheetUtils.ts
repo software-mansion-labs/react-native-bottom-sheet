@@ -18,9 +18,9 @@ export const CONTENT_HEIGHT_MARKER_NATIVE_ID =
   'swm-bottom-sheet-content-height-marker';
 
 /**
- * The card shape of a sheet, stated in standard style vocabulary. The native
- * host clips the surface and content to this shape, so a radius set here also
- * rounds the sheet's content.
+ * The shape and shadow of a sheet's surface, stated in standard style
+ * vocabulary. The native host clips the surface's fill and the content to this
+ * shape, so a radius set here also rounds the sheet's content.
  */
 export type SurfaceStyle = Readonly<{
   borderRadius?: number;
@@ -310,8 +310,22 @@ export type DetentValue = number | `${number}%` | 'content';
  * to 0. The space above the card is set for the whole sheet, by `topInset`.
  */
 export type DetentInsets = Readonly<{
+  /** The space at the physical left, whatever the layout direction. */
   left?: number;
+  /** The space at the physical right, whatever the layout direction. */
   right?: number;
+  /**
+   * The space at the side where a line starts: the left in a left-to-right
+   * layout, the right in a right-to-left one. Takes precedence over `left` or
+   * `right`, whichever it resolves to.
+   */
+  start?: number;
+  /**
+   * The space at the side where a line ends: the right in a left-to-right
+   * layout, the left in a right-to-left one. Takes precedence over `left` or
+   * `right`, whichever it resolves to.
+   */
+  end?: number;
   /** The space between the card's bottom and the host's bottom. */
   bottom?: number;
 }>;
@@ -412,14 +426,19 @@ const resolveTopInset = (topInset: number | undefined) => {
   };
 };
 
-/** Reads and validates a detent’s insets, leaving unset sides at 0. */
+/**
+ * Reads and validates a detent’s insets into physical sides, leaving unset
+ * sides at 0. `start` and `end` take precedence over the side they resolve to.
+ */
 const resolveDetentInsets = (
   insets: DetentInsets | undefined,
-  index: number
+  index: number,
+  isRTL: boolean
 ) => {
   const resolveSide = (side: keyof DetentInsets) => {
-    const value = insets?.[side] ?? 0;
-    if (!isFiniteNonNegative(value)) {
+    // `null` from plain JS means unset too, like `undefined`.
+    const value = insets?.[side] ?? undefined;
+    if (value !== undefined && !isFiniteNonNegative(value)) {
       throw invalidDetentOptionError(
         `insets.${side}`,
         value,
@@ -429,10 +448,14 @@ const resolveDetentInsets = (
     }
     return value;
   };
+  const left = resolveSide('left');
+  const right = resolveSide('right');
+  const start = resolveSide('start');
+  const end = resolveSide('end');
   return {
-    insetLeft: resolveSide('left'),
-    insetRight: resolveSide('right'),
-    insetBottom: resolveSide('bottom'),
+    insetLeft: (isRTL ? end : start) ?? left ?? 0,
+    insetRight: (isRTL ? start : end) ?? right ?? 0,
+    insetBottom: resolveSide('bottom') ?? 0,
   };
 };
 
@@ -472,13 +495,14 @@ const normalizeDetent = (
   detent: ModalDetent,
   index: number,
   topInset: ReturnType<typeof resolveTopInset>,
-  modal: boolean
+  modal: boolean,
+  isRTL: boolean
 ): NormalizedDetent => {
   const config: ModalDetentConfig =
     typeof detent === 'object' && detent !== null ? detent : { value: detent };
   const { kind, value } = parseDetentValue(config.value, index);
   const isClosed = isNormalizedDetentClosed({ kind, value });
-  const insets = resolveDetentInsets(config.insets, index);
+  const insets = resolveDetentInsets(config.insets, index, isRTL);
   // Only a modal sheet has a scrim, so an inline sheet ignores the option
   // rather than validating it.
   const scrimOpacity =
@@ -509,11 +533,12 @@ const normalizeDetent = (
 export const normalizeDetents = (
   detents: ReadonlyArray<ModalDetent>,
   topInset: number | undefined,
-  modal: boolean
+  modal: boolean,
+  isRTL: boolean
 ): NormalizedDetent[] => {
   const resolvedTopInset = resolveTopInset(topInset);
   const normalized = detents.map((detent, index) =>
-    normalizeDetent(detent, index, resolvedTopInset, modal)
+    normalizeDetent(detent, index, resolvedTopInset, modal, isRTL)
   );
   const widest = findWidestDetent(normalized);
   return normalized.map((detent) =>
@@ -566,15 +591,30 @@ export const validateIndex = (index: number, detentCount: number) => {
   }
 };
 
+const SECONDS_LIKE_SETTLE_DURATION = 10;
+let hasWarnedAboutSettleDurationUnit = false;
+
 /**
- * Validates `settleDuration`. It is a duration in seconds, so a negative value
+ * Validates `settleDuration`. It is a duration in milliseconds, so a negative value
  * has no meaning: it would produce a spring with no solution.
  */
 export const validateSettleDuration = (settleDuration: number | undefined) => {
   if (settleDuration === undefined) return;
   if (!Number.isFinite(settleDuration) || settleDuration <= 0) {
     throw new Error(
-      `Invalid bottom sheet settleDuration: received ${String(settleDuration)}. Expected a finite number of seconds greater than 0.`
+      `Invalid bottom sheet settleDuration: received ${String(settleDuration)}. Expected a finite number of milliseconds greater than 0.`
+    );
+  }
+  // The prop took seconds before 1.0, and a value that small in milliseconds
+  // is an instant snap rather than an animation.
+  if (
+    __DEV__ &&
+    settleDuration < SECONDS_LIKE_SETTLE_DURATION &&
+    !hasWarnedAboutSettleDurationUnit
+  ) {
+    hasWarnedAboutSettleDurationUnit = true;
+    console.warn(
+      `Bottom sheet settleDuration is ${String(settleDuration)} milliseconds, which looks like a value in seconds. settleDuration takes milliseconds: pass ${String(settleDuration * 1000)} for ${String(settleDuration)} seconds.`
     );
   }
 };

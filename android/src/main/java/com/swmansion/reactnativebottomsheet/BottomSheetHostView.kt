@@ -47,7 +47,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
 
   /**
    * Notified whenever the sheet's interactivity changes (true while it is animating, being dragged,
-   * or presented at an open detent). In native-overlay mode the coordinator uses this to toggle the
+   * or presented at an open detent). In window-overlay mode the coordinator uses this to toggle the
    * host dialog window's touchability so taps fall through to the screen behind while the sheet is
    * closed.
    */
@@ -112,6 +112,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
       override fun notifyCloseRequestStateChanged() =
         this@BottomSheetHostView.notifyCloseRequestStateChanged()
 
+      override fun performCloseRequest() = this@BottomSheetHostView.performCloseRequest()
+
       override fun updateInteractionState() = this@BottomSheetHostView.updateInteractionState()
 
       override fun layoutSheetContainer(viewWidth: Int, viewHeight: Int) =
@@ -148,6 +150,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     )
 
   init {
+    scrim.onVisibilityChanged = ::notifyCloseRequestStateChanged
     clipChildren = false
     clipToPadding = false
     // Set directly rather than via the JSX prop because Fabric doesn't forward
@@ -187,7 +190,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     ViewCompat.setAccessibilityDelegate(
       sheetContainer,
       SheetDismissAccessibilityDelegate(
-        isDismissAvailable = { snapping.isScrimDismissalAvailable },
+        isDismissAvailable = { snapping.isCloseRequestAvailable },
         performDismiss = ::attemptAccessibleDismissal,
       ),
     )
@@ -437,6 +440,42 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
         isCloseRequestLayoutReady = isCloseRequestLayoutReady,
       )
 
+  /** Whether JS supplied `onCloseRequest`. */
+  var hasCloseRequestHandler: Boolean
+    get() = state.hasCloseRequestHandler
+    set(value) {
+      if (state.hasCloseRequestHandler == value) return
+      state.hasCloseRequestHandler = value
+      updateScrimDismissView()
+      notifyCloseRequestStateChanged()
+    }
+
+  /**
+   * Whether Back and Escape belong to the sheet: it has an `onCloseRequest` handler or a closed
+   * detent to snap to, while its scrim shows or it is still visibly closing, so a close keeps Back
+   * and Escape until it settles either way.
+   */
+  val handlesCloseRequests: Boolean
+    get() {
+      if (state.hasCloseRequestHandler || snapping.handlesCloseRequests) return true
+      val isVisiblyClosing = isCloseRequestPresentationActive && !isTargetDetentOpen
+      return state.scrimDismissIndex != null && isVisiblyClosing
+    }
+
+  /**
+   * The one path every close request takes: a scrim tap, an accessibility dismiss action, Back and
+   * Escape. With an `onCloseRequest` handler the request is only reported; without one the sheet
+   * snaps to its closed detent, which reports through `onIndexChange`.
+   */
+  fun performCloseRequest(): Boolean {
+    if (state.hasCloseRequestHandler) {
+      val currentListener = listener ?: return false
+      currentListener.onCloseRequest()
+      return true
+    }
+    return snapping.snapToScrimDismissIndex()
+  }
+
   private fun notifyCloseRequestStateChanged() {
     closeRequestStateChangedListener?.invoke()
   }
@@ -586,6 +625,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     scrim.scrimOpacities = emptyList()
     state.detentSpecs = emptyList()
     state.targetIndex = 0
+    state.hasCloseRequestHandler = false
     hasPerformedHostLayoutSinceAttach = false
     closeRequestPresentationTracker.onHostDestroyed()
     notifyCloseRequestStateChanged()
@@ -627,15 +667,16 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   }
 
   /**
-   * Dismisses through the scrim-tap path, and withdraws the Dismiss button at once rather than on
-   * the close's first frame, so accessibility focus doesn't linger on a button that no longer acts.
+   * Requests a close through the scrim-tap path, and withdraws the Dismiss button at once rather
+   * than on the close's first frame, so accessibility focus doesn't linger on a button that no
+   * longer acts.
    */
   private fun attemptAccessibleDismissal(): Boolean =
-    snapping.attemptScrimDismissal().also { if (it) updateScrimDismissView() }
+    snapping.requestClose().also { if (it) updateScrimDismissView() }
 
   private fun updateScrimDismissView() {
     scrimDismissView.update(
-      isDismissAvailable = snapping.isScrimDismissalAvailable,
+      isDismissAvailable = snapping.isCloseRequestAvailable,
       sheetTop = sheetContainer.top + sheetContainer.translationY,
       hostHeight = height,
     )

@@ -19,7 +19,7 @@ import {
 } from '../demoShared';
 
 /**
- * The repro shape from issue #48: a full-height nativeOverlay sheet whose
+ * The repro shape from issue #48: a full-height windowOverlay sheet whose
  * content is a FlatList of pressable rows. Exercises both fixes at once:
  *
  * - Touch: every row must respond (the press readout updates) and the list
@@ -32,7 +32,7 @@ import {
  *   measured geometry, not JS-estimated dimensions, which used to leave the
  *   sheet short by the system-bar insets under edge-to-edge.
  */
-export const NativeOverlayFullHeightListScreen = () => {
+export const WindowOverlayFullHeightListScreen = () => {
   const [index, setIndex] = useState(0);
   const [presses, setPresses] = useState(0);
   const [lastPressed, setLastPressed] = useState('none yet');
@@ -40,10 +40,10 @@ export const NativeOverlayFullHeightListScreen = () => {
 
   return (
     <DemoScreen
-      title="Native overlay full-height list"
+      title="Window overlay full-height list"
       sheet={
         <ModalBottomSheet
-          nativeOverlay
+          windowOverlay
           index={index}
           onIndexChange={setIndex}
           scrimColor={MODAL_SCRIM_COLOR}
@@ -85,7 +85,7 @@ export const NativeOverlayFullHeightListScreen = () => {
     >
       <Text style={{ color: '#555', lineHeight: 22 }}>
         The issue #48 repro shape: a full-height{' '}
-        <Text style={{ fontWeight: 'bold' }}>nativeOverlay</Text> sheet with a
+        <Text style={{ fontWeight: 'bold' }}>windowOverlay</Text> sheet with a
         FlatList of pressable rows. Every row should respond and update the
         readout, the list should scroll, and the sheet top should sit exactly at
         the bottom of the status bar.

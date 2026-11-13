@@ -46,31 +46,31 @@ export default function RootLayout() {
               options={{ title: 'Lazy mounted modal', headerShown: false }}
             />
             <Stack.Screen
-              name="native-overlay-modal"
+              name="window-overlay-modal"
               options={{
-                title: 'Native overlay modal',
+                title: 'Window overlay modal',
                 presentation: 'modal',
                 headerShown: true,
               }}
             />
             <Stack.Screen
-              name="native-overlay-nested"
+              name="window-overlay-nested"
               options={{
-                title: 'Native overlay nested mount',
+                title: 'Window overlay nested mount',
                 headerShown: false,
               }}
             />
             <Stack.Screen
-              name="native-overlay-full-height-list"
+              name="window-overlay-full-height-list"
               options={{
-                title: 'Native overlay full-height list',
+                title: 'Window overlay full-height list',
                 headerShown: false,
               }}
             />
             <Stack.Screen
-              name="native-overlay-keyboard-input"
+              name="window-overlay-keyboard-input"
               options={{
-                title: 'Native overlay keyboard input',
+                title: 'Window overlay keyboard input',
                 headerShown: false,
               }}
             />

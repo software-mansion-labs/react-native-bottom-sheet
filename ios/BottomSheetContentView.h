@@ -18,6 +18,9 @@ NS_ASSUME_NONNULL_BEGIN
 // Fired when the scrim or the sheet's visibility is re-evaluated without the
 // sheet moving, e.g., after a `scrimOpacity` or `modal` change.
 - (void)bottomSheetViewDidUpdateScrim:(BottomSheetContentView *)view;
+// Fired when a scrim tap, the scrim's dismiss button, or VoiceOver's escape
+// gesture asks a sheet with an `onCloseRequest` handler to close.
+- (void)bottomSheetViewDidRequestClose:(BottomSheetContentView *)view;
 @end
 
 @interface BottomSheetContentView : UIView
@@ -29,6 +32,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) NSInteger scrollExpandCoordination;
 @property (nonatomic) NSInteger scrollCollapseCoordination;
 @property (nonatomic) NSTimeInterval settleDuration;
+@property (nonatomic) BOOL hasCloseRequestHandler;
 @property (nonatomic, readonly) UIView *sheetContainer;
 @property (nonatomic, readonly) BOOL isModalAccessibilityActive;
 // Whether the sheet is on screen, regardless of its scrim.

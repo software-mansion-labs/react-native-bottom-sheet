@@ -61,7 +61,7 @@ std::shared_ptr<const ShadowNode> BottomSheetViewShadowNode::withCardGeometry(
 }
 
 void BottomSheetViewShadowNode::setIsOverlayRoot(bool isOverlayRoot) {
-  // In native-overlay mode the sheet content is physically re-rooted to a
+  // In window-overlay mode the sheet content is physically re-rooted to a
   // window-level full-screen overlay, decoupled from where this view sits in the
   // React tree. Marking the node as a layout root — exactly as <Modal> does —
   // makes `getRelativeLayoutMetrics` stop its ancestor walk here, so measure and

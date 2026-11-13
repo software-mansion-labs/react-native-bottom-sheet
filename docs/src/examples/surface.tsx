@@ -255,7 +255,7 @@ export const CardShapeExample = interactiveExample(
               index={index}
               onIndexChange={setIndex}
             >
-              <SheetBody title="Card shape">
+              <SheetBody title="Surface shape">
                 <SheetText>
                   Drag me up. The sheet clips its surface and content to this
                   shape at every height.

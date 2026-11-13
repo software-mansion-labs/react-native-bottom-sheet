@@ -166,7 +166,7 @@ class EscapeRoutingInstrumentedTest {
   }
 
   @Test
-  fun nativeOverlayWithoutHandlerRoutesTheFullEscapeSequenceToFocusedDescendant() {
+  fun windowOverlayWithoutHandlerRoutesTheFullEscapeSequenceToFocusedDescendant() {
     val requestCount = AtomicInteger()
     val childEventCount = AtomicInteger()
     lateinit var reactContext: BridgeReactContext
@@ -188,10 +188,11 @@ class EscapeRoutingInstrumentedTest {
             setScrimColor(Color.BLACK)
             setDetents(
               listOf(
+                // A dismissible closed detent would take Escape to close the sheet.
                 mapOf(
                   "value" to 0.0,
                   "kind" to "points",
-                  "programmatic" to false,
+                  "programmatic" to true,
                   "scrimOpacity" to 0.0,
                 ),
                 mapOf(
@@ -214,7 +215,7 @@ class EscapeRoutingInstrumentedTest {
         )
         sheet.addSheetChild(child, 0)
         activity.setContentView(sheet)
-        sheet.setNativeOverlay(true)
+        sheet.setWindowOverlay(true)
       }
 
       val instrumentation = InstrumentationRegistry.getInstrumentation()

@@ -25,11 +25,11 @@ class CloseRequestInputTest {
     )
 
     listOf(
-        inputState(hasCloseRequestHandler = false),
+        inputState(handlesCloseRequests = false),
         inputState(isPresentationActive = false, isTargetResolvedAndOpen = false),
         inputState(isLifecycleActive = false),
         inputState(isAttached = false),
-        inputState(isModal = false, hasCloseRequestHandler = true),
+        inputState(isModal = false, handlesCloseRequests = true),
       )
       .forEach { state ->
         assertEquals(
@@ -423,7 +423,7 @@ class CloseRequestInputTest {
     isAttached: Boolean = true,
     isLifecycleActive: Boolean = true,
     isModal: Boolean = true,
-    hasCloseRequestHandler: Boolean = true,
+    handlesCloseRequests: Boolean = true,
     isPresentationActive: Boolean = true,
     isTargetResolvedAndOpen: Boolean = true,
   ) =
@@ -431,7 +431,7 @@ class CloseRequestInputTest {
       isAttached = isAttached,
       isLifecycleActive = isLifecycleActive,
       isModal = isModal,
-      hasCloseRequestHandler = hasCloseRequestHandler,
+      handlesCloseRequests = handlesCloseRequests,
       isPresentationActive = isPresentationActive,
       isTargetResolvedAndOpen = isTargetResolvedAndOpen,
     )

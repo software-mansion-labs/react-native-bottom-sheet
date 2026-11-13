@@ -203,7 +203,7 @@ internal class PortalCloseRequestController(
     }
     if (
       isEscapeListenerInstalled ||
-        !inputState.hasCloseRequestHandler ||
+        !inputState.handlesCloseRequests ||
         !inputState.isPresentationActive
     ) {
       return
@@ -254,7 +254,7 @@ internal class PortalCloseRequestController(
         }
       }
 
-      if (dispatcher != null && presentationActive && inputState.hasCloseRequestHandler) {
+      if (dispatcher != null && presentationActive && inputState.handlesCloseRequests) {
         val newCallback =
           CloseRequestBackCallback(
             resolveAction = { assignedCloseRequestAction },

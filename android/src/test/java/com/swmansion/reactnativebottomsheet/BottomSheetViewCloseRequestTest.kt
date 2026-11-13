@@ -114,16 +114,83 @@ class BottomSheetViewCloseRequestTest {
   }
 
   @Test
-  fun `modal without a handler passes Back and Escape through`() {
+  fun `modal without a handler snaps to its closed detent on Back`() {
+    withActivity<ComponentActivity> { activity ->
+      var navigationCount = 0
+      activity.onBackPressedDispatcher.addCallback(navigationCallback { navigationCount++ })
+      val listener = CountingBottomSheetListener()
+      val sheet = openPortalSheet(activity, listener, hasCloseRequestHandler = false)
+      val indexChanges = listener.indexChanges.toList()
+      activity.onBackPressedDispatcher.onBackPressed()
+      assertEquals(0, navigationCount)
+      assertEquals(0, listener.closeRequestCount)
+      assertEquals(indexChanges + 0, listener.indexChanges)
+      sheet.destroy()
+    }
+  }
+
+  @Test
+  fun `modal without a handler snaps to its closed detent on Escape`() {
+    withActivity<ComponentActivity> { activity ->
+      val listener = CountingBottomSheetListener()
+      val sheet = openPortalSheet(activity, listener, hasCloseRequestHandler = false)
+      val indexChanges = listener.indexChanges.toList()
+      assertEscape(activity::dispatchKeyEvent, expectedHandled = true)
+      assertEquals(0, listener.closeRequestCount)
+      assertEquals(indexChanges + 0, listener.indexChanges)
+      sheet.destroy()
+    }
+  }
+
+  @Test
+  fun `modal without a handler or a dismissible closed detent passes Back and Escape through`() {
+    withActivity<ComponentActivity> { activity ->
+      var navigationCount = 0
+      activity.onBackPressedDispatcher.addCallback(navigationCallback { navigationCount++ })
+      val listener = CountingBottomSheetListener()
+      val sheet = openPortalSheet(activity, listener, hasCloseRequestHandler = false)
+      sheet.setDetents(scrimDetents(open = 1.0, isClosedProgrammatic = true))
+      val indexChanges = listener.indexChanges.toList()
+      activity.onBackPressedDispatcher.onBackPressed()
+      assertEscape(activity::dispatchKeyEvent, expectedHandled = false)
+      assertEquals(1, navigationCount)
+      assertEquals(0, listener.closeRequestCount)
+      assertEquals(indexChanges, listener.indexChanges)
+      sheet.destroy()
+    }
+  }
+
+  @Test
+  fun `modal without a handler and with an invisible scrim passes Back and Escape through`() {
+    withActivity<ComponentActivity> { activity ->
+      var navigationCount = 0
+      activity.onBackPressedDispatcher.addCallback(navigationCallback { navigationCount++ })
+      val listener = CountingBottomSheetListener()
+      val sheet = openPortalSheet(activity, listener, hasCloseRequestHandler = false)
+      sheet.setDetents(scrimDetents(open = 0.0))
+      val indexChanges = listener.indexChanges.toList()
+      activity.onBackPressedDispatcher.onBackPressed()
+      assertEscape(activity::dispatchKeyEvent, expectedHandled = false)
+      assertEquals(1, navigationCount)
+      assertEquals(0, listener.closeRequestCount)
+      assertEquals(indexChanges, listener.indexChanges)
+      sheet.destroy()
+    }
+  }
+
+  @Test
+  fun `modal without a handler consumes Back while it closes`() {
     withActivity<ComponentActivity> { activity ->
       var navigationCount = 0
       activity.onBackPressedDispatcher.addCallback(navigationCallback { navigationCount++ })
       val listener = CountingBottomSheetListener()
       val sheet = openPortalSheet(activity, listener, hasCloseRequestHandler = false)
       activity.onBackPressedDispatcher.onBackPressed()
-      assertEscape(activity::dispatchKeyEvent, expectedHandled = false)
-      assertEquals(1, navigationCount)
+      val indexChanges = listener.indexChanges.toList()
+      activity.onBackPressedDispatcher.onBackPressed()
+      assertEquals(0, navigationCount)
       assertEquals(0, listener.closeRequestCount)
+      assertEquals(indexChanges, listener.indexChanges)
       sheet.destroy()
     }
   }
@@ -346,11 +413,11 @@ class BottomSheetViewCloseRequestTest {
   }
 
   @Test
-  fun `native overlay routes Back and Escape without automatic closing`() {
+  fun `window overlay routes Back and Escape without automatic closing`() {
     withActivity<ComponentActivity> { activity ->
       val listener = CountingBottomSheetListener()
       val focusedView = EscapeConsumingView(activity).apply { isFocusableInTouchMode = true }
-      val fixture = openNativeOverlaySheet(activity, listener) { it.addSheetChild(focusedView, 0) }
+      val fixture = openWindowOverlaySheet(activity, listener) { it.addSheetChild(focusedView, 0) }
       val indexChanges = listener.indexChanges.toList()
       val settles = listener.settles.toList()
       fixture.dialog.onBackPressedDispatcher.onBackPressed()
@@ -365,12 +432,60 @@ class BottomSheetViewCloseRequestTest {
   }
 
   @Test
-  fun `open native overlay without a handler is interactive and passes close input through`() {
+  fun `window overlay without a handler snaps to its closed detent on Back`() {
     withActivity<ComponentActivity> { activity ->
       var navigationCount = 0
       activity.onBackPressedDispatcher.addCallback(navigationCallback { navigationCount++ })
       val listener = CountingBottomSheetListener()
-      val fixture = openNativeOverlaySheet(activity, listener, hasCloseRequestHandler = false)
+      val fixture = openWindowOverlaySheet(activity, listener, hasCloseRequestHandler = false)
+      val indexChanges = listener.indexChanges.toList()
+      fixture.dialog.onBackPressedDispatcher.onBackPressed()
+      assertEquals(0, navigationCount)
+      assertEquals(0, listener.closeRequestCount)
+      assertEquals(indexChanges + 0, listener.indexChanges)
+      fixture.destroy()
+    }
+  }
+
+  @Test
+  fun `window overlay without a handler snaps to its closed detent on Escape`() {
+    withActivity<ComponentActivity> { activity ->
+      val listener = CountingBottomSheetListener()
+      val fixture = openWindowOverlaySheet(activity, listener, hasCloseRequestHandler = false)
+      val indexChanges = listener.indexChanges.toList()
+      assertEscape(fixture.dialog::dispatchKeyEvent, expectedHandled = true)
+      assertEquals(0, listener.closeRequestCount)
+      assertEquals(indexChanges + 0, listener.indexChanges)
+      fixture.destroy()
+    }
+  }
+
+  @Test
+  fun `window overlay predictive Back snaps closed when its handler is removed mid-gesture`() {
+    withActivity<ComponentActivity> { activity ->
+      val listener = CountingBottomSheetListener()
+      val fixture = openWindowOverlaySheet(activity, listener)
+      val indexChanges = listener.indexChanges.toList()
+      fixture.dialog.onBackPressedDispatcher.dispatchOnBackStarted(backEvent())
+      fixture.sheet.setHasCloseRequestHandler(false)
+      fixture.dialog.onBackPressedDispatcher.onBackPressed()
+      // The commit acts on the sheet as it is now: without a handler, it closes by default.
+      assertEquals(0, listener.closeRequestCount)
+      assertEquals(indexChanges + 0, listener.indexChanges)
+      fixture.destroy()
+    }
+  }
+
+  @Test
+  fun `open window overlay without a handler or a dismissible closed detent is interactive and passes close input through`() {
+    withActivity<ComponentActivity> { activity ->
+      var navigationCount = 0
+      activity.onBackPressedDispatcher.addCallback(navigationCallback { navigationCount++ })
+      val listener = CountingBottomSheetListener()
+      val fixture =
+        openWindowOverlaySheet(activity, listener, hasCloseRequestHandler = false) {
+          it.setDetents(scrimDetents(open = 1.0, isClosedProgrammatic = true))
+        }
       val windowAttributes = requireNotNull(fixture.dialog.window).attributes
       assertEquals(
         0,
@@ -391,11 +506,11 @@ class BottomSheetViewCloseRequestTest {
   }
 
   @Test
-  fun `open native overlay stays interactive with a fully transparent scrim`() {
+  fun `open window overlay stays interactive with a fully transparent scrim`() {
     withActivity<ComponentActivity> { activity ->
       val listener = CountingBottomSheetListener()
       val fixture =
-        openNativeOverlaySheet(activity, listener, hasCloseRequestHandler = false) {
+        openWindowOverlaySheet(activity, listener, hasCloseRequestHandler = false) {
           it.setDetents(scrimDetents(open = 0.0))
         }
       val windowAttributes = requireNotNull(fixture.dialog.window).attributes
@@ -409,10 +524,14 @@ class BottomSheetViewCloseRequestTest {
   }
 
   @Test
-  fun `native overlay predictive Back stays ineligible after handler restoration`() {
+  fun `window overlay predictive Back stays ineligible after handler restoration`() {
     withActivity<ComponentActivity> { activity ->
       val listener = CountingBottomSheetListener()
-      val fixture = openNativeOverlaySheet(activity, listener)
+      // Without a dismissible closed detent, removing the handler leaves nothing to act on.
+      val fixture =
+        openWindowOverlaySheet(activity, listener) {
+          it.setDetents(scrimDetents(open = 1.0, isClosedProgrammatic = true))
+        }
       fixture.dialog.onBackPressedDispatcher.dispatchOnBackStarted(backEvent())
       fixture.sheet.setHasCloseRequestHandler(false)
       fixture.sheet.setHasCloseRequestHandler(true)
@@ -425,7 +544,7 @@ class BottomSheetViewCloseRequestTest {
   }
 
   @Test
-  fun `switching between portal and native overlay changes the active request path`() {
+  fun `switching between portal and window overlay changes the active request path`() {
     withActivity<ComponentActivity> { activity ->
       val reactContext = BridgeReactContext(activity.applicationContext)
       reactContext.onHostResume(activity)
@@ -438,7 +557,7 @@ class BottomSheetViewCloseRequestTest {
       activity.setContentView(sheet)
       layoutPortal(sheet)
       sheet.onHostResume()
-      sheet.setNativeOverlay(true)
+      sheet.setWindowOverlay(true)
       shadowOf(Looper.getMainLooper()).idle()
       val dialog = requireNotNull(ShadowDialog.getLatestDialog()) as ComponentDialog
       layoutView(requireNotNull(dialog.window).decorView)
@@ -446,7 +565,7 @@ class BottomSheetViewCloseRequestTest {
       dialog.onBackPressedDispatcher.onBackPressed()
       assertEquals(1, navigationCount)
       assertEquals(1, listener.closeRequestCount)
-      sheet.setNativeOverlay(false)
+      sheet.setWindowOverlay(false)
       layoutPortal(sheet)
       activity.onBackPressedDispatcher.onBackPressed()
       assertEscape(activity::dispatchKeyEvent, expectedHandled = true)
@@ -469,7 +588,7 @@ class BottomSheetViewCloseRequestTest {
       sheet.eventDispatcher = NoOpEventDispatcher
       activity.setContentView(sheet)
       layoutPortal(sheet)
-      sheet.setNativeOverlay(true)
+      sheet.setWindowOverlay(true)
       layoutPortal(sheet)
       assertEscape(activity::dispatchKeyEvent, expectedHandled = true)
       assertEquals(1, listener.closeRequestCount)
@@ -514,9 +633,17 @@ class BottomSheetViewCloseRequestTest {
     }
 
   // The open sheet’s detents, with the scrim transparent when closed and at `open` when open.
-  private fun scrimDetents(open: Double): List<Map<String, Any>> =
+  private fun scrimDetents(
+    open: Double,
+    isClosedProgrammatic: Boolean = false,
+  ): List<Map<String, Any>> =
     listOf(
-      mapOf("value" to 0.0, "kind" to "points", "programmatic" to false, "scrimOpacity" to 0.0),
+      mapOf(
+        "value" to 0.0,
+        "kind" to "points",
+        "programmatic" to isClosedProgrammatic,
+        "scrimOpacity" to 0.0,
+      ),
       mapOf("value" to 300.0, "kind" to "points", "programmatic" to false, "scrimOpacity" to open),
     )
 
@@ -536,12 +663,12 @@ class BottomSheetViewCloseRequestTest {
       layoutPortal(it)
     }
 
-  private fun openNativeOverlaySheet(
+  private fun openWindowOverlaySheet(
     activity: ComponentActivity,
     listener: CountingBottomSheetListener,
     hasCloseRequestHandler: Boolean = true,
     configure: (BottomSheetView) -> Unit = {},
-  ): NativeOverlayTestFixture {
+  ): WindowOverlayTestFixture {
     val reactContext = BridgeReactContext(activity.applicationContext)
     reactContext.onHostResume(activity)
     val sheet =
@@ -556,13 +683,13 @@ class BottomSheetViewCloseRequestTest {
     sheet.eventDispatcher = NoOpEventDispatcher
     activity.setContentView(sheet)
     layoutPortal(sheet)
-    sheet.setNativeOverlay(true)
+    sheet.setWindowOverlay(true)
     shadowOf(Looper.getMainLooper()).idle()
     val dialog = requireNotNull(ShadowDialog.getLatestDialog()) as ComponentDialog
     layoutView(requireNotNull(dialog.window).decorView)
     // The test context resumed before BottomSheetView registered its lifecycle listener.
     sheet.onHostResume()
-    return NativeOverlayTestFixture(sheet, dialog, reactContext)
+    return WindowOverlayTestFixture(sheet, dialog, reactContext)
   }
 
   private fun layoutPortal(sheet: BottomSheetView) {
@@ -617,7 +744,7 @@ internal class ThrowingDialogShadow {
   @Implementation protected fun show(): Nothing = throw RuntimeException("dialog show failed")
 }
 
-private data class NativeOverlayTestFixture(
+private data class WindowOverlayTestFixture(
   val sheet: BottomSheetView,
   val dialog: ComponentDialog,
   val reactContext: BridgeReactContext,

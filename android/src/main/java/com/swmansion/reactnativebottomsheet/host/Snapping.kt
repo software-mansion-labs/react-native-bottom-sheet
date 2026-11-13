@@ -30,25 +30,34 @@ internal class Snapping(
   private val host: SheetHost,
 ) {
 
-  // Requiring an open target also ignores dismissals once a close is running, including one to
+  /**
+   * Whether a close request has anything to act on while the scrim shows: an `onCloseRequest`
+   * handler or, without one, a closed detent the sheet may snap to.
+   */
+  val handlesCloseRequests: Boolean
+    get() =
+      scrim.isScrimVisible() && (state.hasCloseRequestHandler || state.scrimDismissIndex != null)
+
+  // Requiring an open target also ignores requests once a close is running, including one to
   // another zero-height detent: restarting it would emit a second index change and drop the
   // running spring's velocity.
-  private val scrimDismissTargetIndex: Int?
+  val isCloseRequestAvailable: Boolean
     get() =
-      state.scrimDismissIndex?.takeIf {
-        scrim.isScrimVisible() &&
-          (state.detentSpecs.getOrNull(state.targetIndex)?.position ?: 0f) > 0f
-      }
-
-  val isScrimDismissalAvailable: Boolean
-    get() = scrimDismissTargetIndex != null
+      handlesCloseRequests && (state.detentSpecs.getOrNull(state.targetIndex)?.position ?: 0f) > 0f
 
   /**
-   * Dismisses a modal sheet to its closed detent through the exact path a scrim tap takes,
-   * returning whether a dismissal was actually performed.
+   * Asks a modal sheet to close, as a scrim tap does, returning whether the request was acted on. A
+   * sheet with an `onCloseRequest` handler only reports the request; one without snaps to its
+   * closed detent.
    */
-  fun attemptScrimDismissal(): Boolean {
-    val closeIndex = scrimDismissTargetIndex ?: return false
+  fun requestClose(): Boolean {
+    if (!isCloseRequestAvailable) return false
+    return host.performCloseRequest()
+  }
+
+  /** Snaps to the closed detent a scrim tap dismisses to, if there is one. */
+  fun snapToScrimDismissIndex(): Boolean {
+    val closeIndex = state.scrimDismissIndex ?: return false
     snapToIndex(closeIndex, 0f)
     return true
   }

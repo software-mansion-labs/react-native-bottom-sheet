@@ -10,7 +10,7 @@ import {
   useSheetBottomPadding,
 } from '../demoShared';
 
-export const NativeOverlayModalScreen = () => {
+export const WindowOverlayModalScreen = () => {
   const [index, setIndex] = useState(0);
   const sheetBottomPadding = useSheetBottomPadding(0);
 
@@ -27,21 +27,21 @@ export const NativeOverlayModalScreen = () => {
       >
         <Text style={{ textAlign: 'center', color: '#555', lineHeight: 22 }}>
           This screen is presented as a native-stack modal. With{' '}
-          <Text style={{ fontWeight: 'bold' }}>nativeOverlay</Text>, the sheet
-          is shown in a native overlay above everything, so it covers the whole
+          <Text style={{ fontWeight: 'bold' }}>windowOverlay</Text>, the sheet
+          is shown in a window overlay above everything, so it covers the whole
           screen—including the native modal header—instead of being trapped
           inside the modal's body.
         </Text>
         <View style={{ width: 180, alignItems: 'center' }}>
           <Button title="Open sheet" onPress={() => setIndex(1)} />
           <ModalBottomSheet
-            nativeOverlay
+            windowOverlay
             index={index}
             onIndexChange={setIndex}
             scrimColor={MODAL_SCRIM_COLOR}
             surface={<SheetBackground style={StyleSheet.absoluteFill} />}
           >
-            <SheetHeader title="Native overlay" onClose={() => setIndex(0)} />
+            <SheetHeader title="Window overlay" onClose={() => setIndex(0)} />
             <View
               style={{
                 height: SECTION_HEIGHT + sheetBottomPadding,

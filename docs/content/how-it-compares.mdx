@@ -58,7 +58,7 @@ Sheet gives you three placement modes instead:
   in your React tree, so global UI such as toasts, menus, floating controls, or
   debug overlays can be arranged above or below the sheet by where you place
   them relative to the provider.
-- `ModalBottomSheet` with `nativeOverlay` bypasses the provider portal and
-  presents in a native overlay. Use this when the sheet must appear above other
+- `ModalBottomSheet` with `windowOverlay` bypasses the provider portal and
+  presents in a window overlay. Use this when the sheet must appear above other
   native overlays, such as a React Navigation native-stack screen presented with
   `presentation: 'modal'`.

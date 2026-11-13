@@ -11,31 +11,31 @@ import {
 } from '../demoShared';
 
 const INITIAL_VALUE =
-  'Focus this input and type while the nativeOverlay sheet is mounted but closed.';
+  'Focus this input and type while the windowOverlay sheet is mounted but closed.';
 
-export const NativeOverlayKeyboardInputScreen = () => {
+export const WindowOverlayKeyboardInputScreen = () => {
   const [index, setIndex] = useState(0);
   const [value, setValue] = useState(INITIAL_VALUE);
   const bottomPadding = useSheetBottomPadding();
 
   return (
     <DemoScreen
-      title="Native overlay keyboard input"
+      title="Window overlay keyboard input"
       sheet={
         <ModalBottomSheet
-          nativeOverlay
+          windowOverlay
           index={index}
           onIndexChange={setIndex}
           scrimColor={MODAL_SCRIM_COLOR}
           surface={<SheetBackground style={StyleSheet.absoluteFill} />}
         >
           <SheetHeader
-            title="Mounted native overlay"
+            title="Mounted window overlay"
             onClose={() => setIndex(0)}
           />
           <View style={[styles.sheetBody, { paddingBottom: bottomPadding }]}>
             <Text style={styles.sheetText}>
-              This nativeOverlay sheet remains mounted while the input lives on
+              This windowOverlay sheet remains mounted while the input lives on
               the base screen behind it.
             </Text>
           </View>
@@ -43,7 +43,7 @@ export const NativeOverlayKeyboardInputScreen = () => {
       }
     >
       <Text style={styles.description}>
-        This mounts a closed nativeOverlay sheet and keeps the keyboard target
+        This mounts a closed windowOverlay sheet and keeps the keyboard target
         directly on the screen. Focus the input and confirm typing works while
         the sheet remains closed.
       </Text>
@@ -61,7 +61,7 @@ export const NativeOverlayKeyboardInputScreen = () => {
 
       <View style={styles.statePanel}>
         <Text style={styles.stateTitle}>Mounted overlay state</Text>
-        <Text>nativeOverlay: true</Text>
+        <Text>windowOverlay: true</Text>
         <Text>index: {index}</Text>
         <Text>Keyboard target: base screen TextInput</Text>
       </View>

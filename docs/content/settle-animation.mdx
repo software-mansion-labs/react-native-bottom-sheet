@@ -7,16 +7,16 @@ title: Settle animation
 When a drag ends or the index changes, a spring carries the sheet to its detent.
 The same spring runs when the sheet animates in, when a scrim tap closes it, and
 when a `'content'` detent changes height. `settleDuration` is how long, in
-seconds, that spring takes. Left unset, it takes 0.45 seconds on every platform.
-It must be a finite number greater than 0; the library throws an `Error` for
-values such as `0`, `-1` or `NaN`.
+milliseconds, that spring takes. Left unset, it takes 450 milliseconds on every
+platform. It must be a finite number greater than 0; the library throws an
+`Error` for values such as `0`, `-1` or `NaN`.
 
 ```tsx
 <BottomSheet
   detents={[0, 'content']}
   index={index}
   onIndexChange={setIndex}
-  settleDuration={0.55}
+  settleDuration={550}
   surface={/* ... */}
 >
   {/* ... */}

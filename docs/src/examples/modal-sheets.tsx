@@ -317,7 +317,7 @@ export const CloseRequestExample = interactiveExample(
               onSettle={(settled) => log(`onSettle(${settled})`)}
               scrimColor="rgba(0, 0, 0, 0.4)"
             >
-              <SheetBody title="Press Escape">
+              <SheetBody title="Press Escape or tap outside">
                 <SheetText>
                   The sheet only reports the request. Your handler decides
                   whether it closes.
@@ -335,8 +335,8 @@ export const CloseRequestExample = interactiveExample(
                 onChange={setCloses}
               />
               <Hint>
-                Press <kbd>Esc</kbd>. On Android, the system Back button sends
-                the same request.
+                Press <kbd>Esc</kbd> or tap the scrim. On Android, the system
+                Back button sends the same request.
               </Hint>
             </ControlGroup>
             <ControlGroup>

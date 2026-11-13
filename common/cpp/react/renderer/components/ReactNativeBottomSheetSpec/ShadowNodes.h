@@ -29,7 +29,7 @@ class JSI_EXPORT BottomSheetViewShadowNode final
   // a clone that already has its children (see `syncCardContent`).
   void appendChild(const std::shared_ptr<const ShadowNode>& child) override;
 
-  // Toggles the `RootNodeKind` trait so a native-overlay sheet re-roots its
+  // Toggles the `RootNodeKind` trait so a window-overlay sheet re-roots its
   // descendants' layout coordinate space (see the definition). Driven from props
   // by the component descriptor's `adopt`.
   void setIsOverlayRoot(bool isOverlayRoot);
@@ -50,7 +50,7 @@ JSI_EXPORT extern const char BottomSheetSurfaceViewComponentName[];
 // The part of a child of the sheet that follows the card: the surface and the
 // content wrapper, which the native host scales and shifts with layer
 // transforms. Reporting that as the child's transform, instead of the sheet's,
-// lets `measure` include it in native-overlay mode too, where the sheet is a
+// lets `measure` include it in window-overlay mode too, where the sheet is a
 // layout root and `measure` skips a root's transform.
 //
 // The sheet's state holds the geometry, and a node can't reach its parent's

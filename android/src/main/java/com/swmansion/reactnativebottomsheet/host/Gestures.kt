@@ -147,7 +147,7 @@ internal class Gestures(
           scrimPressed = false
           scrimTouchActive = false
           activePointerId = MotionEvent.INVALID_POINTER_ID
-          if (shouldDismiss) snapping.attemptScrimDismissal()
+          if (shouldDismiss) snapping.requestClose()
           return true
         }
         MotionEvent.ACTION_CANCEL -> {

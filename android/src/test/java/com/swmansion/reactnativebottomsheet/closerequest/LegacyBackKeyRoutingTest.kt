@@ -38,8 +38,7 @@ class LegacyBackKeyRoutingTest {
   @Test
   fun `legacy Back reaches the host without an eligible portal and after disposal`() {
     withHost { activity, closeRequests ->
-      val controller =
-        openPortal(activity, closeRequests, inputState(hasCloseRequestHandler = false))
+      val controller = openPortal(activity, closeRequests, inputState(handlesCloseRequests = false))
 
       pressBack(activity)
       assertEquals(1, activity.legacyBackCount)
@@ -137,7 +136,7 @@ class LegacyBackKeyRoutingTest {
       val downTime = nextDownTime()
 
       assertTrue(dispatch(activity, backDown(downTime)))
-      controller.update(inputState(hasCloseRequestHandler = false), usesPortalPresentation = true)
+      controller.update(inputState(handlesCloseRequests = false), usesPortalPresentation = true)
       assertTrue(dispatch(activity, backUp(downTime)))
       assertEquals(0, closeRequests.count)
       assertEquals(0, activity.legacyBackCount)
@@ -225,12 +224,12 @@ class LegacyBackKeyRoutingTest {
       .also { it.update(state, usesPortalPresentation = true) }
   }
 
-  private fun inputState(hasCloseRequestHandler: Boolean = true) =
+  private fun inputState(handlesCloseRequests: Boolean = true) =
     CloseRequestInputState(
       isAttached = true,
       isLifecycleActive = true,
       isModal = true,
-      hasCloseRequestHandler = hasCloseRequestHandler,
+      handlesCloseRequests = handlesCloseRequests,
       isPresentationActive = true,
       isTargetResolvedAndOpen = true,
     )

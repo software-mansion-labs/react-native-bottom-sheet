@@ -218,11 +218,52 @@ export class BottomSheetWebController {
   readonly shouldCaptureResponder = () =>
     this.gestures.shouldCaptureResponder();
 
+  private get hasCloseRequestHandler() {
+    return this.config?.hasCloseRequestHandler ?? false;
+  }
+
+  private get isScrimVisible() {
+    return this.elements?.scrim.style.visibility === 'visible';
+  }
+
+  /**
+   * Whether Escape belongs to the sheet: it has an `onCloseRequest` handler
+   * or a closed detent to snap to, while its scrim shows or it is still
+   * closing, so a close keeps Escape until it settles either way.
+   */
+  get handlesCloseRequests() {
+    if (this.hasCloseRequestHandler) return true;
+    const isClosing =
+      this.snapping.isTargetClosed() && this.snapping.isSpringActive;
+    return (
+      this.snapping.scrimDismissIndex !== null &&
+      (this.isScrimVisible || isClosing)
+    );
+  }
+
+  /** An Escape press routed to this sheet. */
   handleCloseRequest() {
     // While a visible sheet is animating to a closed target, further requests
     // are consumed without another callback until it settles.
     if (this.snapping.isTargetClosed()) return;
-    this.emit((callbacks) => callbacks.onCloseRequest());
+    this.performCloseRequest();
+  }
+
+  /**
+   * The one path every close request takes: a scrim press, the scrim's
+   * dismiss button and Escape. With an `onCloseRequest` handler the request is
+   * only reported; without one the sheet snaps to its closed detent, which
+   * reports through `onIndexChange`.
+   */
+  private performCloseRequest() {
+    if (this.hasCloseRequestHandler) {
+      this.emit((callbacks) => callbacks.onCloseRequest());
+      return;
+    }
+    const dismissIndex = this.snapping.scrimDismissIndex;
+    if (dismissIndex !== null) {
+      this.snapping.snapToIndex(dismissIndex, 0);
+    }
   }
 
   // MARK: Geometry
@@ -523,30 +564,24 @@ export class BottomSheetWebController {
   }
 
   /**
-   * The closed detent a scrim press, including the scrim's dismiss button,
-   * snaps the sheet to, while one would. Requiring an open target also ignores
-   * presses once a close is running, including one to another zero-height
-   * detent.
+   * Whether a scrim press, including the scrim's dismiss button, would ask
+   * the sheet to close. Requiring an open target also ignores presses once a
+   * close is running, including one to another zero-height detent.
    */
-  get scrimDismissTargetIndex() {
-    const dismissIndex = this.snapping.scrimDismissIndex;
-    if (
-      this.config === null ||
-      !this.config.modal ||
-      dismissIndex === null ||
-      this.elements?.scrim.style.visibility !== 'visible' ||
-      !(this.snapping.detentPosition(this.targetIndex) > 0) ||
-      (this.snapping.isSpringActive && this.currentSheetHeight() <= 0.5)
-    ) {
-      return null;
-    }
-    return dismissIndex;
+  get canRequestCloseFromScrim() {
+    return (
+      this.config !== null &&
+      this.config.modal &&
+      this.isScrimVisible &&
+      (this.hasCloseRequestHandler ||
+        this.snapping.scrimDismissIndex !== null) &&
+      this.snapping.detentPosition(this.targetIndex) > 0 &&
+      !(this.snapping.isSpringActive && this.currentSheetHeight() <= 0.5)
+    );
   }
 
   private readonly handleScrimPress = () => {
-    const dismissIndex = this.scrimDismissTargetIndex;
-    if (dismissIndex === null) return;
-    this.snapping.snapToIndex(dismissIndex, 0);
+    if (this.canRequestCloseFromScrim) this.performCloseRequest();
   };
 
   updateCloseRequestRegistration() {
@@ -555,7 +590,6 @@ export class BottomSheetWebController {
       this,
       config !== null &&
         config.modal &&
-        config.hasCloseRequestHandler &&
         this.hasLaidOut &&
         (!this.snapping.isTargetClosed() || this.snapping.isSpringActive)
     );

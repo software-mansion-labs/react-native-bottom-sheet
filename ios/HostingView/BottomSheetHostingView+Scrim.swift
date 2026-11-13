@@ -17,32 +17,37 @@ extension BottomSheetHostingView {
   }
 
   @objc func handleScrimPress() {
-    attemptScrimDismissal()
+    requestClose()
   }
 
-  /// The closed detent a scrim tap, the scrim's dismiss button, or VoiceOver's
-  /// escape gesture snaps the sheet to, while one would. Requiring an open
-  /// target also ignores dismissals once a close is running, including one to
-  /// another zero-height detent.
-  var scrimDismissTargetIndex: Int? {
-    guard
-      isScrimVisible,
-      let closedIndex = scrimDismissIndex,
-      detentSpecs.indices.contains(targetIndex),
-      detentSpecs[targetIndex].position > 0,
-      activeSpring == nil || currentSheetHeight > 0.5
-    else {
-      return nil
-    }
-    return closedIndex
+  /// Whether a scrim tap, the scrim's dismiss button, or VoiceOver's escape
+  /// gesture can ask the sheet to close. Requiring an open target also ignores
+  /// requests once a close is running, including one to another zero-height
+  /// detent.
+  private var isCloseRequestEligible: Bool {
+    isScrimVisible
+      && detentSpecs.indices.contains(targetIndex)
+      && detentSpecs[targetIndex].position > 0
+      && (activeSpring == nil || currentSheetHeight > 0.5)
   }
 
-  /// Dismisses a modal sheet to its closed detent through the exact path a
-  /// scrim tap takes, returning whether a dismissal was actually performed.
+  /// Whether a close request would do anything: reach the `onCloseRequest`
+  /// handler or, without one, snap the sheet to its closed detent.
+  var canRequestClose: Bool {
+    isCloseRequestEligible && (hasCloseRequestHandler || scrimDismissIndex != nil)
+  }
+
+  /// Asks a modal sheet to close, as a scrim tap does, returning whether the
+  /// request was acted on. A sheet with an `onCloseRequest` handler only
+  /// reports the request; one without snaps to its closed detent.
   @discardableResult
-  func attemptScrimDismissal() -> Bool {
-    guard let closedIndex = scrimDismissTargetIndex else { return false }
-    snapToIndex(closedIndex, velocity: 0)
+  func requestClose() -> Bool {
+    guard canRequestClose else { return false }
+    if hasCloseRequestHandler {
+      eventDelegate?.bottomSheetHostingViewDidRequestClose(self)
+    } else if let closedIndex = scrimDismissIndex {
+      snapToIndex(closedIndex, velocity: 0)
+    }
     return true
   }
 
@@ -53,14 +58,14 @@ extension BottomSheetHostingView {
     return CGRect(x: 0, y: 0, width: bounds.width, height: top)
   }
 
-  /// VoiceOver's escape gesture (two-finger Z scrub) dismisses a modal sheet,
-  /// mirroring a scrim tap. While the scrim blocks the background, the gesture
-  /// stays with the sheet even when it can't dismiss (e.g., a programmatic-only
-  /// closed detent): bubbling would act on the screen behind it, like a
-  /// navigation controller popping it.
+  /// VoiceOver's escape gesture (two-finger Z scrub) asks a modal sheet to
+  /// close, mirroring a scrim tap. While the scrim blocks the background, the
+  /// gesture stays with the sheet even when it can't close (e.g., a
+  /// programmatic-only closed detent and no handler): bubbling would act on the
+  /// screen behind it, like a navigation controller popping it.
   override public func accessibilityPerformEscape() -> Bool {
     guard isScrimVisible else { return false }
-    attemptScrimDismissal()
+    requestClose()
     return true
   }
 
@@ -181,13 +186,13 @@ extension BottomSheetHostingView {
   }
 
   func updateInteractionState() {
-    scrimView.isUserInteractionEnabled = modal && (closedIndex != nil) && !scrimView.isHidden
-    // Expose the scrim to VoiceOver only while tapping it would dismiss the
-    // sheet; otherwise it would be an inert, unlabeled stop in the
-    // accessibility tree (a scrim over a programmatic-only close detent is
-    // decorative, not actionable). A sheet that fills the host leaves no scrim
-    // to frame; VoiceOver's escape gesture still dismisses it.
-    scrimView.isAccessibilityElement =
-      scrimDismissTargetIndex != nil && scrimDismissRegion.height >= 1
+    scrimView.isUserInteractionEnabled =
+      modal && (closedIndex != nil || hasCloseRequestHandler) && !scrimView.isHidden
+    // Expose the scrim to VoiceOver only while tapping it would ask the sheet
+    // to close; otherwise it would be an inert, unlabeled stop in the
+    // accessibility tree (a scrim over a programmatic-only close detent, with
+    // no handler, is decorative, not actionable). A sheet that fills the host
+    // leaves no scrim to frame; VoiceOver's escape gesture still works.
+    scrimView.isAccessibilityElement = canRequestClose && scrimDismissRegion.height >= 1
   }
 }

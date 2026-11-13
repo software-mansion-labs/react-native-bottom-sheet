@@ -10,7 +10,7 @@ import {
 } from '../demoShared';
 
 type HandlerMode = 'close' | 'no-op' | 'omitted';
-type PresentationMode = 'portal' | 'nativeOverlay';
+type PresentationMode = 'portal' | 'windowOverlay';
 
 export const CloseRequestScreen = () => {
   const [index, setIndex] = useState(0);
@@ -40,7 +40,7 @@ export const CloseRequestScreen = () => {
         <ModalBottomSheet
           detents={[0, 400]}
           index={index}
-          nativeOverlay={presentationMode === 'nativeOverlay'}
+          windowOverlay={presentationMode === 'windowOverlay'}
           onIndexChange={setIndex}
           onCloseRequest={
             handlerMode === 'omitted' ? undefined : handleCloseRequest
@@ -83,19 +83,19 @@ export const CloseRequestScreen = () => {
         </View>
       </View>
       <View style={styles.variantGroup}>
-        <Text style={styles.variantTitle}>nativeOverlay</Text>
+        <Text style={styles.variantTitle}>windowOverlay</Text>
         <View style={styles.controls}>
           <Button
             title="Open with closing callback"
-            onPress={() => openSheet('nativeOverlay', 'close')}
+            onPress={() => openSheet('windowOverlay', 'close')}
           />
           <Button
             title="Open with no-op callback"
-            onPress={() => openSheet('nativeOverlay', 'no-op')}
+            onPress={() => openSheet('windowOverlay', 'no-op')}
           />
           <Button
             title="Open without callback"
-            onPress={() => openSheet('nativeOverlay', 'omitted')}
+            onPress={() => openSheet('windowOverlay', 'omitted')}
           />
         </View>
       </View>

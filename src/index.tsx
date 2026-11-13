@@ -8,6 +8,7 @@ export type {
 export { ModalBottomSheet } from './ModalBottomSheet';
 export type { ModalBottomSheetProps } from './ModalBottomSheet';
 export { BottomSheetProvider } from './BottomSheetProvider';
+export type { BottomSheetProviderProps } from './BottomSheetProvider';
 export type {
   Detent,
   DetentConfig,

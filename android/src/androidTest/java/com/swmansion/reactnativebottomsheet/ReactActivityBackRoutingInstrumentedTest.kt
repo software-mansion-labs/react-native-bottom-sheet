@@ -79,7 +79,7 @@ class ReactActivityBackRoutingInstrumentedTest {
   }
 
   @Test
-  fun nativeOverlayBackWithoutHandlerEntersReactNativeOnceAndLeavesDialogVisible() {
+  fun windowOverlayBackWithoutHandlerEntersReactNativeOnceAndLeavesDialogVisible() {
     RecordingReactActivityDelegate.backEntryCount.set(0)
     val closeRequestCount = AtomicInteger()
     lateinit var controller: OverlayCloseRequestController
@@ -102,7 +102,7 @@ class ReactActivityBackRoutingInstrumentedTest {
             isAttached = true,
             isLifecycleActive = true,
             isModal = true,
-            hasCloseRequestHandler = false,
+            handlesCloseRequests = false,
             isPresentationActive = true,
             isTargetResolvedAndOpen = true,
           ),
@@ -153,7 +153,8 @@ class ReactActivityBackRoutingInstrumentedTest {
       setHasCloseRequestHandler(hasCloseRequestHandler)
       setDetents(
         listOf(
-          mapOf("value" to 0.0, "kind" to "points", "programmatic" to false),
+          // Without a handler, a dismissible closed detent would take Back to close the sheet.
+          mapOf("value" to 0.0, "kind" to "points", "programmatic" to !hasCloseRequestHandler),
           mapOf("value" to 300.0, "kind" to "points", "programmatic" to false),
         ),
       )

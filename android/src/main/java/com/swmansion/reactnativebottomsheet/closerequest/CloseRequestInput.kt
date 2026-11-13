@@ -21,13 +21,15 @@ internal enum class CloseRequestInputAction {
  *
  * [isTargetResolvedAndOpen] determines whether a close request may be emitted. In contrast,
  * [isPresentationActive] also remains true while a visible sheet animates to a closed target, so
- * the modal boundary is maintained until settle.
+ * the modal boundary is maintained until settle. [handlesCloseRequests] is whether a request has
+ * anything to act on: an `onCloseRequest` handler or, while the scrim shows, a closed detent the
+ * sheet snaps to.
  */
 internal data class CloseRequestInputState(
   val isAttached: Boolean,
   val isLifecycleActive: Boolean,
   val isModal: Boolean,
-  val hasCloseRequestHandler: Boolean,
+  val handlesCloseRequests: Boolean,
   val isPresentationActive: Boolean,
   val isTargetResolvedAndOpen: Boolean,
 ) {
@@ -37,7 +39,7 @@ internal data class CloseRequestInputState(
         isAttached = false,
         isLifecycleActive = false,
         isModal = false,
-        hasCloseRequestHandler = false,
+        handlesCloseRequests = false,
         isPresentationActive = false,
         isTargetResolvedAndOpen = false,
       )
@@ -51,7 +53,7 @@ internal fun resolveCloseRequestInputAction(
     !state.isAttached ||
       !state.isLifecycleActive ||
       !state.isModal ||
-      !state.hasCloseRequestHandler ||
+      !state.handlesCloseRequests ||
       !state.isPresentationActive
   ) {
     return CloseRequestInputAction.PASS_THROUGH

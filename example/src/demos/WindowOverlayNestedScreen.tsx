@@ -11,7 +11,7 @@ import {
 } from '../demoShared';
 
 /**
- * A native-overlay sheet mounted at a NONZERO origin (nested inside an offset
+ * A window-overlay sheet mounted at a NONZERO origin (nested inside an offset
  * container, beside other content). It must still position and measure correctly
  * — and, crucially, its content must be tappable. This exercises the re-rooting
  * (so `measureInWindow` reports the on-screen position regardless of where the
@@ -21,7 +21,7 @@ import {
  * Note: the sheet is intentionally rendered inside the screen body (not via
  * DemoScreen's `sheet` slot) so it mounts at a nonzero origin.
  */
-export const NativeOverlayNestedScreen = () => {
+export const WindowOverlayNestedScreen = () => {
   const [index, setIndex] = useState(0);
   const [taps, setTaps] = useState(0);
   const [measured, setMeasured] = useState('(tap "Measure header")');
@@ -39,9 +39,9 @@ export const NativeOverlayNestedScreen = () => {
   };
 
   return (
-    <DemoScreen title="Native overlay nested mount">
+    <DemoScreen title="Window overlay nested mount">
       <Text style={{ color: '#555', lineHeight: 22 }}>
-        A <Text style={{ fontWeight: 'bold' }}>nativeOverlay</Text> sheet
+        A <Text style={{ fontWeight: 'bold' }}>windowOverlay</Text> sheet
         mounted at a nonzero origin — nested inside the offset box below. It
         should still appear full-screen, measure correctly, and be tappable.
       </Text>
@@ -52,7 +52,7 @@ export const NativeOverlayNestedScreen = () => {
         <Button title="Open sheet" onPress={() => setIndex(1)} />
 
         <ModalBottomSheet
-          nativeOverlay
+          windowOverlay
           index={index}
           onIndexChange={setIndex}
           scrimColor={MODAL_SCRIM_COLOR}

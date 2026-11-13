@@ -86,7 +86,7 @@ class PortalCloseRequestControllerTest {
       assertEscape(activity::dispatchKeyEvent, expectedHandled = true)
       assertEquals(2, closeRequestCount)
 
-      controller.update(inputState(hasCloseRequestHandler = false), usesPortalPresentation = true)
+      controller.update(inputState(handlesCloseRequests = false), usesPortalPresentation = true)
       activity.onBackPressedDispatcher.onBackPressed()
       assertEquals(1, fallbackCount)
       assertEscape(activity::dispatchKeyEvent, expectedHandled = false)
@@ -118,7 +118,7 @@ class PortalCloseRequestControllerTest {
   }
 
   private fun inputState(
-    hasCloseRequestHandler: Boolean = true,
+    handlesCloseRequests: Boolean = true,
     isPresentationActive: Boolean = true,
     isTargetResolvedAndOpen: Boolean = true,
   ) =
@@ -126,7 +126,7 @@ class PortalCloseRequestControllerTest {
       isAttached = true,
       isLifecycleActive = true,
       isModal = true,
-      hasCloseRequestHandler = hasCloseRequestHandler,
+      handlesCloseRequests = handlesCloseRequests,
       isPresentationActive = isPresentationActive,
       isTargetResolvedAndOpen = isTargetResolvedAndOpen,
     )

@@ -60,7 +60,7 @@ class BottomSheetViewState final {
   float contentOffsetY{0};
   float contentScale{1};
   // Real measured size (dp) of the sheet in its window, reported natively once
-  // it lays out. Consumed by the component descriptor only in native-overlay
+  // it lays out. Consumed by the component descriptor only in window-overlay
   // mode, where the sheet is hoisted out of its in-tree slot; zero until the
   // first native report.
   Size frameSize{};
