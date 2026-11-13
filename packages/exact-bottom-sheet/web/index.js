@@ -212,14 +212,14 @@ class Adoption {
 }
 
 class BottomSheetView {
-  constructor({ implementation, element, props, events, view }) {
+  constructor({ implementation: instance, element, props, events, view }) {
     this.element = element;
     this.events = events;
     this.view = view;
     this.props = {};
     // What the sheet discloses to Exact's agent, through the implementation's
     // `state()` (see `stateEntry`).
-    this.sheets = implementation?.sheets ?? null;
+    this.sheets = instance?.sheets ?? null;
     this.settledIndex = null;
     this.lastPosition = 0;
     this.controller = new BottomSheetWebController();
@@ -371,7 +371,7 @@ class BottomSheetView {
       changed,
     });
     this.surfaceAdoption = new Adoption(element, this.surfaceSlot, { changed });
-    this.regionObserver.observe(this.card);
+    this.regionObserver.observe(this.surface);
     this.lastRegion = '';
     this.region = { width: 0, height: 0, surface: 0 };
     // Whether the sheet rests at a closed detent: the `BottomSheet`
@@ -561,8 +561,10 @@ class BottomSheetView {
   reportRegion() {
     const width = this.wrapper.clientWidth;
     const height = this.content.clientHeight;
-    // The surface's height: the card's, which the surface fills.
-    const surface = this.card.clientHeight;
+    // The surface's height: the surface element's, which the controller makes
+    // the sheet plus its surface overflow, so a scaled (narrower) card stays
+    // covered, as the iOS adapter reports the host's `surfaceOverflow`.
+    const surface = this.surface.clientHeight;
     const key = `${width}x${height}x${surface}`;
     if (key === this.lastRegion || width <= 0 || height <= 0) return;
     const regionChanged =
