@@ -1,6 +1,7 @@
 import type { Config } from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 import type { Options as RedirectsOptions } from '@docusaurus/plugin-client-redirects';
+import logoPreview from './plugins/logo-preview.mjs';
 import reactNativeWeb from './plugins/react-native-web.mjs';
 import swmGeo from './plugins/swm-geo.mjs';
 import { swmDark, swmLight } from './src/prism/swm';
@@ -29,6 +30,7 @@ const config: Config = {
   plugins: [
     reactNativeWeb,
     swmGeo,
+    logoPreview,
     [
       '@docusaurus/plugin-client-redirects',
       {
@@ -89,8 +91,8 @@ const config: Config = {
         alt: 'React Native Bottom Sheet',
         src: 'img/logo-with-text.svg',
         srcDark: 'img/logo-with-text-dark.svg',
-        width: 155,
-        height: 36,
+        width: 169,
+        height: 32,
       },
       items: [
         { type: 'search', position: 'right' },
