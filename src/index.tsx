@@ -4,6 +4,7 @@ export type {
   PositionChangeEventData,
   ScrollCoordination,
   ScrollCoordinationMode,
+  SheetPlacement,
 } from './BottomSheet';
 export { ModalBottomSheet } from './ModalBottomSheet';
 export type { ModalBottomSheetProps } from './ModalBottomSheet';

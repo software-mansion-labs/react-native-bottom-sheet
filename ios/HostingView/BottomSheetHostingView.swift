@@ -110,13 +110,17 @@ public final class BottomSheetHostingView: UIView {
   }
 
   var rawDetentSpecs: [RawDetentSpec] = []
-  /// Whether any detent keeps a gap at the card's sides or bottom, so the card
-  /// is narrower or shorter than the surface and has to clip it. A top inset
-  /// only lowers the detent's height, which needs no clip.
+  /// Whether any detent keeps a gap at the card's sides or bottom, or a maximum
+  /// width can leave one, so the card is narrower or shorter than the surface
+  /// and has to clip it. A top inset only lowers the detent's height, which
+  /// needs no clip.
   var hasCardGaps = false
-  /// The sum of the side insets of the widest card, which the content is laid
-  /// out against.
-  var widestCardSideGaps: CGFloat = 0
+  /// The side insets of the widest card, which the content is laid out against.
+  var widestCardInsets = DetentInsets()
+  /// The widest the card gets, in points; 0 for no cap. Sheet-wide.
+  var cardMaxWidth: CGFloat = 0
+  /// The share of the free width left of the card: 0 left, 0.5 center, 1 right.
+  var cardPlacementBias: CGFloat = 0.5
   var detentSpecs: [DetentSpec] = [] {
     didSet {
       setNeedsLayout()
@@ -470,11 +474,16 @@ public final class BottomSheetHostingView: UIView {
         widestCard: widestCard
       )
     }
-    let previousWidestCardSideGaps = widestCardSideGaps
-    widestCardSideGaps = rawDetentSpecs
-      .first(where: \.widestCard)
-      .map { $0.insets.left + $0.insets.right } ?? 0
-    let hasGaps = rawDetentSpecs.contains {
+    let previousWidestCardInsets = widestCardInsets
+    let previousCardMaxWidth = cardMaxWidth
+    widestCardInsets = rawDetentSpecs.first(where: \.widestCard)?.insets ?? DetentInsets()
+    // Sheet-wide, carried on every detent so they arrive with the detents.
+    let firstEntry = entries.first
+    cardMaxWidth = max(0, CGFloat(truncating: firstEntry?["maxWidth"] as? NSNumber ?? 0))
+    cardPlacementBias = min(
+      max(0, CGFloat(truncating: firstEntry?["placementBias"] as? NSNumber ?? 0.5)), 1
+    )
+    let hasGaps = cardMaxWidth > 0 || rawDetentSpecs.contains {
       $0.insets.left > 0 || $0.insets.right > 0 || $0.insets.bottom > 0
     }
     if hasGaps != hasCardGaps {
@@ -485,7 +494,10 @@ public final class BottomSheetHostingView: UIView {
     // against the previous region until Fabric commits the new inset; hold its
     // measurement until then. Decided from the detents alone so it also holds
     // while detached, when the status bar's overlap is not computable.
-    if hasLaidOut, rawDetentSpecs.last != previousTallestDetent || widestCardSideGaps != previousWidestCardSideGaps {
+    // A new maximum width resizes the widest card, which the content is laid out at.
+    let widestCardChanged =
+      widestCardInsets != previousWidestCardInsets || cardMaxWidth != previousCardMaxWidth
+    if hasLaidOut, rawDetentSpecs.last != previousTallestDetent || widestCardChanged {
       isContentRegionChangePending = true
     }
     refreshDetentsFromLayout()

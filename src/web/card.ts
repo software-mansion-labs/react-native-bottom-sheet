@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 
-import { firstOpenPosition } from './detents';
+import { cardSpan, firstOpenPosition } from './detents';
 import { clamp, processedColorToCss } from './dom';
 import type {
   BottomSheetWebConfig,
@@ -18,7 +18,7 @@ export type CardHost = {
   readonly detents: ResolvedDetent[];
   readonly rawDetents: ReadonlyArray<RawDetent>;
   readonly widestCardLeft: number;
-  readonly widestCardGaps: number;
+  widestCardWidth(hostWidth: number): number;
 };
 
 const NO_INSETS = { insetLeft: 0, insetRight: 0, insetBottom: 0 };
@@ -76,11 +76,11 @@ export class SheetCard {
     if (elements === null || hostState.config === null) return;
     const { card, content, host, shadow, surface } = elements;
     const position = this.currentPosition();
-    const {
-      insetLeft: left,
-      insetRight: right,
-      insetBottom: bottom,
-    } = this.cardInsets(position);
+    const insets = this.cardInsets(position);
+    const bottom = insets.insetBottom;
+    const span = cardSpan(hostState, insets, host.clientWidth);
+    const left = span.left;
+    const right = host.clientWidth - span.left - span.width;
     const cardHeight = clamp(position - bottom, 0, hostState.hostHeight);
     const clipInset = hostState.hostHeight - cardHeight;
 
@@ -88,9 +88,8 @@ export class SheetCard {
     // corners on the card's. The transform origin is the box's, which starts at
     // the container's left, so the layout margin scales along. Ahead of the
     // check below: the widest card can change while this card stays the same.
-    const widest = host.clientWidth - hostState.widestCardGaps;
-    const scale =
-      widest > 0 ? Math.max(0, host.clientWidth - left - right) / widest : 1;
+    const widest = hostState.widestCardWidth(host.clientWidth);
+    const scale = widest > 0 ? span.width / widest : 1;
     const transform =
       scale === 1 && left === hostState.widestCardLeft
         ? ''
@@ -133,12 +132,16 @@ export class SheetCard {
   currentLayoutHeight() {
     const hostState = this.host;
     const position = this.currentPosition();
-    const { insetLeft, insetRight, insetBottom } = this.cardInsets(position);
-    const height = clamp(position - insetBottom, 0, hostState.hostHeight);
+    const insets = this.cardInsets(position);
+    const height = clamp(
+      position - insets.insetBottom,
+      0,
+      hostState.hostHeight
+    );
     const width = hostState.elements?.host.clientWidth ?? 0;
-    const widest = width - hostState.widestCardGaps;
+    const widest = hostState.widestCardWidth(width);
     const scale =
-      widest > 0 ? Math.max(0, width - insetLeft - insetRight) / widest : 1;
+      widest > 0 ? cardSpan(hostState, insets, width).width / widest : 1;
     return scale > 0 ? height / scale : height;
   }
 
@@ -171,6 +174,7 @@ export class SheetCard {
       this.isCardRounded ||
       this.host.rawDetents.some(
         (detent) =>
+          detent.maxWidth > 0 ||
           detent.insetLeft > 0 ||
           detent.insetRight > 0 ||
           detent.insetBottom > 0

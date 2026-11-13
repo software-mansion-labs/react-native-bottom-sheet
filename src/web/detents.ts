@@ -1,6 +1,7 @@
 /// <reference lib="dom" />
 
 import { CONTENT_HEIGHT_MARKER_NATIVE_ID } from '../bottomSheetUtils';
+import { placeCard } from '../cardPlacement';
 import { clamp } from './dom';
 import type {
   BottomSheetWebCallbacks,
@@ -16,7 +17,7 @@ export type DetentsHost = {
   readonly rawDetents: ReadonlyArray<RawDetent>;
   readonly hostHeight: number;
   readonly statusBarOverlap: number;
-  readonly widestCardGaps: number;
+  widestCardWidth(hostWidth: number): number;
   lastReportedError: string | null;
   emit(event: (callbacks: BottomSheetWebCallbacks) => void): void;
 };
@@ -104,9 +105,26 @@ export const surfaceOverflow = (
  */
 const contentScale = (host: DetentsHost, spec: RawDetent) => {
   const width = host.elements?.host.clientWidth ?? 0;
-  const widest = width - host.widestCardGaps;
+  const widest = host.widestCardWidth(width);
   if (widest <= 0) return 1;
-  return Math.max(0, width - spec.insetLeft - spec.insetRight) / widest;
+  return cardSpan(host, spec, width).width / widest;
+};
+
+/** The card's horizontal span at a detent's side insets. */
+export const cardSpan = (
+  host: Readonly<{ rawDetents: ReadonlyArray<RawDetent> }>,
+  insets: Readonly<{ insetLeft: number; insetRight: number }>,
+  width: number
+) => {
+  // Sheet-wide, carried on every detent.
+  const layout = host.rawDetents[0];
+  return placeCard(
+    width,
+    insets.insetLeft,
+    insets.insetRight,
+    layout?.maxWidth ?? 0,
+    layout?.placementBias ?? 0.5
+  );
 };
 
 const measureContentHeight = (host: DetentsHost): number | null => {
@@ -255,7 +273,9 @@ export const areRawDetentsEqual = (
       detent.insetLeft === b[index]!.insetLeft &&
       detent.insetRight === b[index]!.insetRight &&
       detent.insetBottom === b[index]!.insetBottom &&
-      detent.widestCard === b[index]!.widestCard
+      detent.widestCard === b[index]!.widestCard &&
+      detent.maxWidth === b[index]!.maxWidth &&
+      detent.placementBias === b[index]!.placementBias
   );
 
 // Compared apart from `areRawDetentsEqual`: A scrim change only repaints the

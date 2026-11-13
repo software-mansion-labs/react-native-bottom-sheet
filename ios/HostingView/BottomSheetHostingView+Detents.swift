@@ -14,12 +14,24 @@ extension BottomSheetHostingView {
   /// How much the content is scaled for a card this wide: its width over the
   /// width of the widest card, which the content is laid out against.
   func contentScale(forCardWidth width: CGFloat) -> CGFloat {
-    let widest = bounds.width - widestCardSideGaps
+    let widest = placeCard(insets: widestCardInsets, hostWidth: bounds.width).width
     return widest > 0 ? width / widest : 1
   }
 
   func contentScale(for insets: DetentInsets) -> CGFloat {
-    contentScale(forCardWidth: max(0, bounds.width - insets.left - insets.right))
+    contentScale(forCardWidth: placeCard(insets: insets, hostWidth: bounds.width).width)
+  }
+
+  /// The card's horizontal span for its side insets: the space they leave,
+  /// capped at the maximum width, where the placement puts it in the whole
+  /// host, moved only as far as needed to keep clear of the insets. Mirrors
+  /// `placeCard` in `cardPlacement.ts`.
+  func placeCard(insets: DetentInsets, hostWidth: CGFloat) -> (minX: CGFloat, width: CGFloat) {
+    let available = max(0, hostWidth - insets.left - insets.right)
+    let width = cardMaxWidth > 0 ? min(cardMaxWidth, available) : available
+    let preferred = cardPlacementBias * (hostWidth - width)
+    let rightmost = max(insets.left, hostWidth - insets.right - width)
+    return (min(max(preferred, insets.left), rightmost), width)
   }
 
   /// The height of the content region: the Yoga box the sheet's in-flow

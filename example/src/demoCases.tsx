@@ -5,6 +5,7 @@ export type CaseKey =
   | 'surface-style'
   | 'corner-touches'
   | 'detached-sheet'
+  | 'wide-screen'
   | 'lazy-mounted-modal'
   | 'window-overlay-modal'
   | 'window-overlay-nested'
@@ -64,6 +65,11 @@ export const DEMO_CASES: DemoCase[] = [
     key: 'surface-style',
     title: 'Surface style (card shape)',
     href: '/surface-style',
+  },
+  {
+    key: 'wide-screen',
+    title: 'Wide screens (maxWidth, placement)',
+    href: '/wide-screen',
   },
   {
     key: 'corner-touches',

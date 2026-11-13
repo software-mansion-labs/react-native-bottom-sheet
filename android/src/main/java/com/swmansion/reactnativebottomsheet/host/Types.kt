@@ -26,6 +26,9 @@ internal data class DetentInsets(
   val bottom: Float = 0f,
 )
 
+/** The card's horizontal span in the host, in px. */
+internal data class CardSpan(val left: Float, val width: Float)
+
 internal data class RawDetentSpec(
   val value: Float,
   val kind: DetentKind,

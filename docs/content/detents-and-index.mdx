@@ -141,6 +141,47 @@ occupy the full screen height:
 </BottomSheet>
 ```
 
+## Wide screens
+
+On a tablet, a foldable, a desktop browser or a phone in landscape, a sheet that
+spans the whole width is hard to read. `maxWidth` caps the card's width, in
+points, and `placement` decides where the card sits when that leaves room on
+either side:
+
+```tsx
+<ModalBottomSheet
+  maxWidth={540}
+  placement="center" // The default; or 'leading' / 'trailing'.
+  detents={[0, 'content', '100%']}
+  index={index}
+  onIndexChange={setIndex}
+  surface={/* ... */}
+>
+  {/* ... */}
+</ModalBottomSheet>
+```
+
+The values match `UISheetPresentationController.Placement` from iOS 27:
+
+- `'center'` puts the card's middle on the host's.
+- `'leading'` and `'trailing'` put it at the start or end edge. They follow the
+  layout direction, so `'leading'` is the right edge in a right-to-left layout.
+
+The card takes the space its detent's side [insets](#insets) leave, up to
+`maxWidth`. The insets stay the least gap on each side, so a centered card moves
+off-center only as far as an inset requires. A screen narrower than `maxWidth`
+is filled as before, so the same props suit a phone and a tablet. As with
+insets, the content is laid out once, at the widest card's width, and the space
+beside the card isn't part of the sheet: touches there reach the scrim or
+whatever is behind it.
+
+`maxWidth` must be a number greater than 0; pass `Infinity`, or leave it unset,
+for no cap. `placement` must be one of the three values. The library throws an
+`Error` otherwise. It also throws when an open detent's `insets.left` and
+`insets.right` add up to the window's width or more: that would push the sheet
+out of the screen. `maxWidth` and `placement` can't do that on their own,
+because the card shrinks and moves to stay between the insets.
+
 ## Index events
 
 The `index` prop must be a finite, zero-based integer in the range

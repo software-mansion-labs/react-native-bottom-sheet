@@ -2,6 +2,7 @@ package com.swmansion.reactnativebottomsheet.host
 
 import android.view.ViewGroup
 import androidx.dynamicanimation.animation.SpringAnimation
+import com.facebook.react.modules.i18nmanager.I18nUtil
 import com.swmansion.reactnativebottomsheet.BottomSheetCardContainer
 import com.swmansion.reactnativebottomsheet.BottomSheetViewListener
 
@@ -37,6 +38,10 @@ internal class SheetState(val hostView: ViewGroup, val sheetContainer: BottomShe
   var hasCardGaps = false
   // The side insets of the widest open card, which the content is laid out against.
   var widestCardInsets = DetentInsets()
+  // The widest the card gets, in px; 0 for no cap. Sheet-wide.
+  var cardMaxWidth = 0f
+  // The share of the free width left of the card: 0 left, 0.5 center, 1 right.
+  var cardPlacementBias = 0.5f
   var detentSpecs: List<DetentSpec> = emptyList()
   var targetIndex: Int = 0
   var animateContentHeight: Boolean = true
@@ -92,10 +97,31 @@ internal class SheetState(val hostView: ViewGroup, val sheetContainer: BottomShe
   // How much the content is scaled at a detent: its card's width over the width of the widest card,
   // which the content is laid out against.
   fun contentScale(insets: DetentInsets): Float {
-    val widest = width - widestCardInsets.left - widestCardInsets.right
+    val widest = placeCard(widestCardInsets, width.toFloat()).width
     if (widest <= 0f) return 1f
-    return (width - insets.left - insets.right).coerceAtLeast(0f) / widest
+    return placeCard(insets, width.toFloat()).width / widest
   }
+
+  // The card's horizontal span for its side insets: the space they leave, capped at the maximum
+  // width, where the placement puts it in the whole host, moved only as far as needed to keep clear
+  // of the insets. Mirrors `placeCard` in `cardPlacement.ts`.
+  fun placeCard(insets: DetentInsets, hostWidth: Float): CardSpan {
+    val available = (hostWidth - insets.left - insets.right).coerceAtLeast(0f)
+    val cardWidth = if (cardMaxWidth > 0f) minOf(cardMaxWidth, available) else available
+    val preferred = cardPlacementBias * (hostWidth - cardWidth)
+    val rightmost = maxOf(insets.left, hostWidth - insets.right - cardWidth)
+    return CardSpan(preferred.coerceAtLeast(insets.left).coerceAtMost(rightmost), cardWidth)
+  }
+
+  // Where Yoga lays out a child of the sheet that is `childWidth` wide: at the widest card's inset
+  // on the start edge, which is the right one in a right-to-left layout. Narrower than the space
+  // the insets leave only under a maximum width.
+  fun contentLeft(childWidth: Float): Float =
+    if (I18nUtil.instance.isRTL(hostView.context)) {
+      sheetContainer.width - widestCardInsets.right - childWidth
+    } else {
+      widestCardInsets.left
+    }
 
   // The tallest the card can be at a detent: the host's height, less the detent's top and bottom
   // insets. Percentages resolve against it, so `100%` fits.

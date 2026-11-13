@@ -123,6 +123,9 @@ class BottomSheetViewManager :
           "insetRight" to inset("insetRight"),
           "insetBottom" to inset("insetBottom"),
           "widestCard" to (map.hasKey("widestCard") && map.getBoolean("widestCard")),
+          "maxWidth" to inset("maxWidth"),
+          "placementBias" to
+            (if (map.hasKey("placementBias")) map.getDouble("placementBias") else 0.5),
           "scrimOpacity" to
             (if (map.hasKey("scrimOpacity")) map.getDouble("scrimOpacity") else 1.0),
         ),

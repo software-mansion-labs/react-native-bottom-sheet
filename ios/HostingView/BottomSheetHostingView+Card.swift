@@ -133,10 +133,11 @@ extension BottomSheetHostingView {
   func cardRect(forPosition position: CGFloat) -> CGRect {
     let anchored = max(position, firstOpenDetentPosition, 0)
     let insets = cardInsets(forPosition: anchored)
+    let span = placeCard(insets: insets, hostWidth: sheetContainer.bounds.width)
     return CGRect(
-      x: insets.left,
+      x: span.minX,
       y: 0,
-      width: max(0, sheetContainer.bounds.width - insets.left - insets.right),
+      width: span.width,
       height: min(max(0, anchored - insets.bottom), sheetContainerHeight)
     )
   }

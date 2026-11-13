@@ -622,6 +622,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     state.hasCardGaps = false
     clipContainer.setClipsToCard(false)
     state.widestCardInsets = DetentInsets()
+    state.cardMaxWidth = 0f
+    state.cardPlacementBias = 0.5f
     scrim.scrimOpacities = emptyList()
     state.detentSpecs = emptyList()
     state.targetIndex = 0

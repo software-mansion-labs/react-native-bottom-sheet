@@ -112,6 +112,8 @@ using namespace facebook::react;
         @"insetRight": @(detent.insetRight),
         @"insetBottom": @(detent.insetBottom),
         @"widestCard": @(detent.widestCard),
+        @"maxWidth": @(detent.maxWidth),
+        @"placementBias": @(detent.placementBias),
         @"scrimOpacity": @(detent.scrimOpacity),
       }];
     }
