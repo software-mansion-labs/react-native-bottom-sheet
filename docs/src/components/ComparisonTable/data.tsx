@@ -20,10 +20,21 @@ export const products: Product[] = [
     key: 'formSheet',
     name: (
       <>
-        Expo Router <code>formSheet</code>
+        React Native Screens <code>formSheet</code>
       </>
     ),
-    href: 'https://docs.expo.dev/router/advanced/modals/#form-sheet',
+    subtitle: (
+      <>
+        Via{' '}
+        <a href="https://docs.expo.dev/router/advanced/modals/#form-sheet">
+          Expo Router
+        </a>{' '}
+        or{' '}
+        <a href="https://reactnavigation.org/docs/native-stack-navigator/#presentation">
+          React Navigation
+        </a>
+      </>
+    ),
   },
   {
     key: 'trueSheet',

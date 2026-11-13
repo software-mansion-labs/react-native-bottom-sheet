@@ -34,16 +34,18 @@ Handler. Because scroll coordination is native, regular React Native scrollables
 work inside the sheet without bottom-sheet-specific list components or wrapper
 factories.
 
-[Expo UI](https://docs.expo.dev/versions/latest/sdk/ui) sheets,
-[Expo Router form sheets](https://docs.expo.dev/router/advanced/modals/#form-sheet),
-and native modal-sheet libraries such as [True Sheet](https://sheet.lodev09.com)
-lean into platform presentation APIs. That is a good fit when you want a
-system-style presented sheet, but it also means the platform and presentation
-system decide more of the behavior. React Native Bottom Sheet is built as a
-lower-level sheet primitive instead: The same native implementation powers both
-persistent inline sheets and modal sheets, you provide the complete sheet
-surface in React, and detents can include app-level behavior such as
-programmatic-only snap points.
+[Expo UI](https://docs.expo.dev/versions/latest/sdk/ui) sheets, React Native
+Screens form sheets (what
+[Expo Router](https://docs.expo.dev/router/advanced/modals/#form-sheet) and
+[React Navigation](https://reactnavigation.org/docs/native-stack-navigator/#presentation)
+use for `presentation: 'formSheet'`), and native modal-sheet libraries such as
+[True Sheet](https://sheet.lodev09.com) lean into platform presentation APIs.
+That is a good fit when you want a system-style presented sheet, but it also
+means the platform and presentation system decide more of the behavior. React
+Native Bottom Sheet is built as a lower-level sheet primitive instead: The same
+native implementation powers both persistent inline sheets and modal sheets, you
+provide the complete sheet surface in React, and detents can include app-level
+behavior such as programmatic-only snap points.
 
 That difference also matters for layering. A platform-presented sheet can
 disable dimming and allow background interaction, but it is still drawn as a

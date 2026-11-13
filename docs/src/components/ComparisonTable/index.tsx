@@ -17,6 +17,8 @@ export type Product = {
   key: string;
   name: ReactNode;
   href?: string;
+  /** Secondary line under the name, such as the APIs that expose it. */
+  subtitle?: ReactNode;
   /** Highlights the column, for this library. */
   featured?: boolean;
 };
@@ -264,6 +266,11 @@ export default function ComparisonTable({
                       <a href={product.href}>{product.name}</a>
                     ) : (
                       product.name
+                    )}
+                    {product.subtitle && (
+                      <span className={styles.productSubtitle}>
+                        {product.subtitle}
+                      </span>
                     )}
                   </th>
                 ))}
