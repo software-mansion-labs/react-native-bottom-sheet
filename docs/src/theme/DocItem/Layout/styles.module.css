@@ -33,10 +33,25 @@
   flex-shrink: 0;
 }
 
-/* The TOC scrolls on its own when it is too long to fit above the card. */
-.sticky > :not(:last-child) {
-  position: static;
+/* The contents list scrolls on its own when it is too long to fit above the card. */
+.toc {
+  display: flex;
+  flex-direction: column;
   flex-shrink: 1;
   min-height: 0;
+}
+
+.tocTitle {
+  margin: 0 0 12px;
+  color: var(--bs-heading);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 24px;
+}
+
+.toc > :last-child {
+  position: static;
+  min-height: 0;
   max-height: none;
+  padding-top: 0;
 }

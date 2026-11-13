@@ -46,7 +46,14 @@ export default function DocItemLayout({ children }: Props): ReactNode {
       {isDesktop && (
         <div className={clsx('col col--3', styles.aside)}>
           <div className={styles.sticky}>
-            {hasTOC && <DocItemTOCDesktop />}
+            {hasTOC && (
+              <nav className={styles.toc} aria-labelledby="on-this-page">
+                <h2 id="on-this-page" className={styles.tocTitle}>
+                  On this page
+                </h2>
+                <DocItemTOCDesktop />
+              </nav>
+            )}
             <HireUs />
           </div>
         </div>
