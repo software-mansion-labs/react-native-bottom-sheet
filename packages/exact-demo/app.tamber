@@ -1,0 +1,9 @@
+// The demo's design: an app themes every BottomSheet here, by its `surface`
+// param (or the package's `exact-bottom-sheet.surface` token), rather than
+// per sheet. The demo's screens pin their own white to match the React
+// Native demo; the Surface backgrounds screen's "Design param" sheet shows
+// this value.
+tamber exact-demo
+
+params
+  BottomSheet.surface = light-dark(#e0f2fe, #1e293b)

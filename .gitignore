@@ -42,3 +42,13 @@ lib/
 ios/generated
 android/generated
 nitrogen/
+
+# Exact experiment (packages/exact-bottom-sheet, packages/exact-demo): generated
+# by packages/exact-bottom-sheet/scripts/prepare.mjs and the Exact build.
+packages/exact-bottom-sheet/apple/exact.json
+packages/exact-bottom-sheet/web/generated/
+packages/exact-demo/bun.lock
+packages/exact-demo/target/
+packages/exact-demo/.exact/
+packages/exact-demo/node_modules/
+packages/exact-demo/app.contract.d.ts

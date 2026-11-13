@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/expo/exact/956ae33a35ffa5313d7be3cebc55ed84f9480e0a/scripts/app.schema.json",
+  "name": "Bottom Sheet Demo",
+  "short_name": "Bottom Sheet Demo",
+  "id": "com.swmansion.exactbottomsheetdemo",
+  "start_url": "/",
+  "display": "standalone",
+  "app": {
+    "id": "com.swmansion.exactbottomsheetdemo",
+    "name": "Bottom Sheet Demo"
+  },
+  "host": {
+    "web": {},
+    "ios": {
+      "minimumOS": "17.0",
+      "deviceFamily": ["iphone", "ipad"]
+    }
+  },
+  "deploy": {
+    "store": {
+      "web": "0",
+      "ios": "0"
+    }
+  }
+}

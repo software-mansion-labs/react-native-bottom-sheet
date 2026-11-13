@@ -1,0 +1,73 @@
+test "the basic modal opens from the home list to its content detent"
+  tap "case-basic-modal"
+  clock settle
+  tap "bm-open"
+  clock +1500 real
+  expect state bmIndex == 1
+  expect state bmSettled == 1
+
+test "the inline sheet settles at its 256 detent, then goes back home"
+  tap "case-inline-detents"
+  clock settle
+  tap "id-open"
+  clock +1500 real
+  expect state idIndex == 1
+  expect state idSettled == 1
+  tap "id-back"
+  clock settle
+  expect tree missing "id-open"
+
+test "the lazy sheet mounts its content on open and unmounts it once it rests closed"
+  tap "case-lazy-mounted-modal"
+  clock settle
+  expect tree missing "lm-tap"
+  tap "lm-open"
+  clock +1500 real
+  expect state lmSettled == 1
+  expect tree has "lm-tap"
+  tap "lm-tap"
+  tap "lm-close-sheet"
+  clock +1500 real
+  expect state lmSettled == 0
+  expect tree missing "lm-tap"
+  tap "lm-open"
+  clock +1500 real
+  expect state lmOpens == 2
+  expect tree has "lm-tap"
+
+test "a lazy sheet closed right after opening keeps its content until it rests closed"
+  tap "case-lazy-mounted-modal"
+  clock settle
+  tap "lm-open"
+  clock +80 real
+  tap "lm-close-sheet"
+  clock +80 real
+  expect state lmIndex == 0
+  expect tree has "lm-tap"
+  clock +1500 real
+  expect state lmSettled == 0
+  expect tree missing "lm-tap"
+
+test "a lazy sheet reopened while closing keeps its content and state"
+  tap "case-lazy-mounted-modal"
+  clock settle
+  tap "lm-open"
+  clock +1500 real
+  tap "lm-tap"
+  tap "lm-close-sheet"
+  clock +120 real
+  tap "lm-open"
+  clock +1500 real
+  expect state lmOpens == 1
+  expect tree has "lm-tap"
+
+test "a sheet owned by a child component calls the child's own actions"
+  tap "case-child-owned-sheet"
+  clock settle
+  tap "co-open"
+  clock +1500 real
+  expect text "co-state" == "index: 1 · settled: 1"
+  expect text "co-moves" == "position reported"
+  tap "co-close"
+  clock +1500 real
+  expect text "co-state" == "index: 0 · settled: 0"

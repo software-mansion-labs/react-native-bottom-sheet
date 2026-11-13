@@ -1,0 +1,1630 @@
+// The bottom sheet in Exact: the React Native example app (example/) ported
+// screen by screen, so the two can be compared side by side. The home list,
+// each demo's title, description, controls, sheet parameters and sheet
+// content follow example/src/demoCases.tsx, example/src/demoShared.tsx and
+// example/src/demos/*.tsx. Each demo is a route pushed over the home list
+// (example/app/_layout.tsx's stack, its header hidden: the screen draws
+// demoShared's DemoScreen header with its round back button).
+//
+// Each sheet is the package's `BottomSheet` component (with
+// `options.trackPosition` where the demo reads `onPositionChange`), with its
+// content as children: the
+// component lays the content out at the sheet's content region, as React
+// Native's content wrapper does, so no screen binds the region itself. Each
+// screen keeps its children static (the page first, the sheet last) and
+// chooses inside the sheet's content with `if`. A package view's typed events
+// must name actions of the root component, so every screen's state and actions
+// live in `App`, prefixed per demo. Invalid props keeps the raw
+// `swm-bottom-sheet` tag: it sends props the sheet refuses, and its tag takes
+// no pointer events. See packages/exact-bottom-sheet/README.md.
+//
+// Exact only (no React Native counterpart): Surface backgrounds, the surface
+// as a Contract node (a literal colour, light-dark(), a colour role, a
+// gradient) and the raw tag's native surfaceColor string.
+//
+// Not ported (the package can't reproduce them):
+// - Keyboard content detent, Keyboard-aware list: the port has no keyboard
+//   tracking for content to pad itself with.
+//
+// Differences from the React Native screens (one line per demo):
+// - All: the back button draws the platform's back symbol, not Ionicons'
+//   arrow; the web uses the iOS shadow (RN's web shadow is softer, upward).
+// - Scrim press isolation: one background button (RN has an RNGH and an RN
+//   Pressable; Contract has one kind of press).
+// - Accessible dismissal: no Native overlay switch.
+// - Corner touches: one kind of press target behind the corners (no RN
+//   Pressable / Button / RNGH picker), and no green flash on a press.
+// - Detached sheet: no Native overlay or RTL switch, no Patterned surface
+//   (the surface is a fill colour) and no Keyboard input scenario; Huge gaps
+//   has no image; the probe and A/B buttons count presses but don't report
+//   `measure` frames; No closed detent's X snaps to 160 instead of unmounting.
+// - Close requests: portal variants only, and only the web raises it (Escape).
+// - Modal / Inline with FlatList, Fixed detent ScrollView, Per-detent scrim
+//   opacity: a Contract `scroll` stands in for FlatList and ScrollView.
+// - Per-detent scrim opacity: the half detent is measured from the screen
+//   when Open sheet is pressed (50% until then).
+// - Invalid props: the package refuses an invalid update and logs it (no
+//   error boundary to show the message on screen).
+// - Scroll coordination modes: turning list scrolling off swaps the scroll
+//   for a plain column (Contract's scroll has no scrollEnabled).
+// - Scroll interaction: no Refresh pull case (a `scroll` has no refresh
+//   control); "Expected:" is bold but not darker.
+// - Lazy mounted modal: Contract has no mount hook, so there's no "content
+//   mounted" readout or first-render index; "opens" counts opens from rest
+//   closed (each one mounts the content), and a tap counter inside the sheet
+//   shows its state resetting on each open.
+// - Native overlay modal: the modal route's bar has a Close button (an Exact
+//   modal route's bar takes its back control from the page).
+// - Native overlay nested mount: no "Measure header" readout (Contract has no
+//   measureInWindow).
+// - Native overlay keyboard input: a "chars: n" readout under the state panel,
+//   so typing can be checked from the screen.
+// - UI-thread onPositionChange (both): `positionchange` runs a root action
+//   every frame (no worklets); the readouts are text, not a TextInput.
+use BottomSheet, SheetOptions, SheetDetent, SheetInsets, SheetPosition, SheetShadow, sheetOptions, detent, programmaticDetent, insetDetent, scrimDetent, surfaceShadow from "@swmansion/exact-bottom-sheet/sheet"
+
+routes nav
+  home "/"
+    scrim-pressables "/scrim-pressables"
+    basic-modal "/basic-modal"
+    accessible-dismissal "/accessible-dismissal"
+    surface-style "/surface-style"
+    corner-touches "/corner-touches"
+    detached-sheet "/detached-sheet"
+    lazy-mounted-modal "/lazy-mounted-modal"
+    native-overlay-modal "/native-overlay-modal"
+    native-overlay-nested "/native-overlay-nested"
+    native-overlay-full-height-list "/native-overlay-full-height-list"
+    native-overlay-keyboard-input "/native-overlay-keyboard-input"
+    surface-backgrounds "/surface-backgrounds"
+    child-owned-sheet "/child-owned-sheet"
+    close-request "/close-request"
+    modal-scroll-view "/modal-scroll-view"
+    draggable-grabber "/draggable-grabber"
+    modal-flat-list "/modal-flat-list"
+    fixed-detent-scroll-view "/fixed-detent-scroll-view"
+    scrim-opacity "/scrim-opacity"
+    inline-detents "/inline-detents"
+    under-status-bar "/under-status-bar"
+    content-larger-detent "/content-larger-detent"
+    inline-flat-list "/inline-flat-list"
+    inline-nested-flat-list "/inline-nested-flat-list"
+    invalid-detents "/invalid-detents"
+    scroll-coordination "/scroll-coordination"
+    scroll-interaction "/scroll-interaction"
+    programmatic-detent-drag "/programmatic-detent-drag"
+    percentage-detents "/percentage-detents"
+    dynamic-detents "/dynamic-detents"
+    dynamic-content-height "/dynamic-content-height"
+    z-indexed-content "/z-indexed-content"
+    snap-callbacks "/snap-callbacks"
+    settle-duration "/settle-duration"
+    no-animate-in "/no-animate-in"
+    ui-thread-position "/ui-thread-position"
+    ui-thread-modal-position "/ui-thread-modal-position"
+
+// demoCases.tsx, minus the demos the package can't reproduce.
+shape DemoCase
+  key: string
+  href: string
+  title: string
+  throws: bool
+
+fn demoCases(): DemoCase[] = [
+  DemoCase(key="scrim-pressables", href=path("scrim-pressables"), title="Scrim press isolation", throws=false),
+  DemoCase(key="basic-modal", href=path("basic-modal"), title="Basic modal", throws=false),
+  DemoCase(key="accessible-dismissal", href=path("accessible-dismissal"), title="Accessible dismissal", throws=false),
+  DemoCase(key="surface-style", href=path("surface-style"), title="Surface style (card shape)", throws=false),
+  DemoCase(key="corner-touches", href=path("corner-touches"), title="Corner touches", throws=false),
+  DemoCase(key="detached-sheet", href=path("detached-sheet"), title="Detached sheet (gaps and insets)", throws=false),
+  DemoCase(key="lazy-mounted-modal", href=path("lazy-mounted-modal"), title="Lazy mounted modal", throws=false),
+  DemoCase(key="native-overlay-modal", href=path("native-overlay-modal"), title="Native overlay modal", throws=false),
+  DemoCase(key="native-overlay-nested", href=path("native-overlay-nested"), title="Native overlay nested mount", throws=false),
+  DemoCase(key="native-overlay-full-height-list", href=path("native-overlay-full-height-list"), title="Native overlay full-height list", throws=false),
+  DemoCase(key="native-overlay-keyboard-input", href=path("native-overlay-keyboard-input"), title="Native overlay keyboard input", throws=false),
+  DemoCase(key="surface-backgrounds", href=path("surface-backgrounds"), title="Surface backgrounds (Exact only)", throws=false),
+  DemoCase(key="child-owned-sheet", href=path("child-owned-sheet"), title="Sheet owned by a child (Exact only)", throws=false),
+  DemoCase(key="close-request", href=path("close-request"), title="Close requests", throws=false),
+  DemoCase(key="modal-scroll-view", href=path("modal-scroll-view"), title="Modal with ScrollView", throws=false),
+  DemoCase(key="draggable-grabber", href=path("draggable-grabber"), title="Draggable grabber", throws=false),
+  DemoCase(key="modal-flat-list", href=path("modal-flat-list"), title="Modal with FlatList", throws=false),
+  DemoCase(key="fixed-detent-scroll-view", href=path("fixed-detent-scroll-view"), title="Fixed detent ScrollView", throws=false),
+  DemoCase(key="scrim-opacity", href=path("scrim-opacity"), title="Per-detent scrim opacity", throws=false),
+  DemoCase(key="inline-detents", href=path("inline-detents"), title="Inline with detents", throws=false),
+  DemoCase(key="under-status-bar", href=path("under-status-bar"), title="Under status bar", throws=false),
+  DemoCase(key="content-larger-detent", href=path("content-larger-detent"), title="Content plus larger detent", throws=false),
+  DemoCase(key="inline-flat-list", href=path("inline-flat-list"), title="Inline with FlatList", throws=false),
+  DemoCase(key="inline-nested-flat-list", href=path("inline-nested-flat-list"), title="Inline with nested FlatLists", throws=false),
+  DemoCase(key="invalid-detents", href=path("invalid-detents"), title="Invalid props", throws=true),
+  DemoCase(key="scroll-coordination", href=path("scroll-coordination"), title="Scroll coordination modes", throws=false),
+  DemoCase(key="scroll-interaction", href=path("scroll-interaction"), title="Scroll interaction", throws=false),
+  DemoCase(key="programmatic-detent-drag", href=path("programmatic-detent-drag"), title="Programmatic detent drag", throws=false),
+  DemoCase(key="percentage-detents", href=path("percentage-detents"), title="Numeric and percentage detents", throws=false),
+  DemoCase(key="dynamic-detents", href=path("dynamic-detents"), title="Dynamic detent updates", throws=false),
+  DemoCase(key="dynamic-content-height", href=path("dynamic-content-height"), title="Dynamic content height", throws=false),
+  DemoCase(key="z-indexed-content", href=path("z-indexed-content"), title="Content with zIndex children", throws=false),
+  DemoCase(key="snap-callbacks", href=path("snap-callbacks"), title="Snap lifecycle callbacks", throws=false),
+  DemoCase(key="settle-duration", href=path("settle-duration"), title="Settle duration", throws=false),
+  DemoCase(key="no-animate-in", href=path("no-animate-in"), title="No animate in", throws=false),
+  DemoCase(key="ui-thread-position", href=path("ui-thread-position"), title="UI-thread onPositionChange", throws=false),
+  DemoCase(key="ui-thread-modal-position", href=path("ui-thread-modal-position"), title="UI-thread modal onPositionChange", throws=false)
+]
+
+// DetachedSheetScreen's FLOATING insets.
+fn floating(v: string): SheetDetent = insetDetent(v, 16, 16, 32)
+// demoShared's SHEET_SHADOW on iOS (shadowRadius 5.62 is a 11.24 blur).
+fn sheetShadow(): SheetShadow[] = [surfaceShadow(0, 4, 11.24, 0, "#000000", 0.19)]
+// demoShared's sheet: white, 16-point top corners and SHEET_SHADOW. The demo
+// pins the surface to the React Native demo's white (its page colours are
+// literals too); an app would theme it in its design (`BottomSheet.surface`).
+fn sheetLook(): SheetOptions = SheetOptions(sheetOptions(), surfaceColor="#ffffff", cornerRadii=[16, 16, 0, 0], shadows=sheetShadow())
+// A modal sheet's look adds demoShared's scrim.
+fn modalLook(): SheetOptions = SheetOptions(sheetLook(), scrimColor="rgba(0, 0, 0, 0.5)")
+// The Surface backgrounds screen's surfaces, by kind.
+fn sbLabel(k: number): string = k == 0 ? "Literal colour" : k == 1 ? "light-dark()" : k == 2 ? "Colour role" : k == 3 ? "Gradient" : "Design param"
+
+fn sbOptions(k: number): SheetOptions = k == 0 ? SheetOptions(modalLook(), surfaceColor="#fff3d6") : k == 1 ? SheetOptions(modalLook(), surfaceColor="light-dark(#ffffff, #2c2c2e)") : k == 2 ? SheetOptions(modalLook(), surfaceColor="-exact-secondary-grouped-background") : k == 3 ? SheetOptions(modalLook(), surfaceColor="#ffffff", surfaceImage="linear-gradient(180deg, #7c3aed 0%, #ec4899 50%, #f59e0b 100%)") : SheetOptions(modalLook(), surfaceColor="")
+
+fn detentLabel(x: SheetDetent): string = (x.value == "content" or x.value.endsWith("%")) ? `'${x.value}'` : x.value
+
+// SurfaceStyleScreen's SHAPES.
+shape SurfaceShape
+  label: string
+  radii: number[]
+  curve: enum<"circular", "continuous">
+  shadows: SheetShadow[]
+
+fn surfaceShapes(): SurfaceShape[] = [
+  SurfaceShape(label="Top corners, red shadow", radii=[32, 32, 0, 0], curve="continuous", shadows=[surfaceShadow(0, -6, 24, 0, "rgba(255, 0, 0, 0.6)", 1)]),
+  SurfaceShape(label="All corners, no shadow", radii=[32, 32, 32, 32], curve="circular", shadows=[]),
+  SurfaceShape(label="Mixed radii, two shadows", radii=[48, 12, 0, 24], curve="circular", shadows=[surfaceShadow(0, -2, 4, 0, "rgba(0, 0, 0, 0.3)", 1), surfaceShadow(0, -12, 32, 4, "rgba(0, 120, 255, 0.5)", 1)]),
+  SurfaceShape(label="Continuous, platform color", radii=[48, 20, 0, 0], curve="continuous", shadows=[surfaceShadow(0, -8, 32, 0, "light-dark(rgba(0, 0, 0, 0.5), rgba(255, 200, 0, 0.7))", 1)]),
+  SurfaceShape(label="Elevation and shadow props", radii=[32, 32, 0, 0], curve="circular", shadows=[surfaceShadow(0, -6, 24, 0, "rgb(255, 0, 0)", 0.6)]),
+  SurfaceShape(label="Mixed radii, elevation", radii=[48, 12, 0, 0], curve="circular", shadows=[surfaceShadow(0, -6, 24, 0, "rgb(0, 120, 255)", 0.6)]),
+  SurfaceShape(label="No surfaceStyle", radii=[], curve="circular", shadows=[])
+]
+fn surfaceShapeAt(i: number): SurfaceShape = match surfaceShapes().at(i) { case some(s) => s, case none => SurfaceShape(label="", radii=[], curve="circular", shadows=[]) }
+
+// DetachedSheetScreen's SCENARIOS (ROUNDED: 28 everywhere, continuous).
+shape Scenario
+  label: string
+  expect: string
+  detents: SheetDetent[]
+  topInset: option<number>
+  radii: number[]
+  curve: enum<"circular", "continuous">
+  scrollable: bool
+  hugeGaps: bool
+
+fn scenario(label: string, expect: string, detents: SheetDetent[], topInset: option<number>): Scenario = Scenario(label=label, expect=expect, detents=detents, topInset=topInset, radii=[28, 28, 28, 28], curve="continuous", scrollable=false, hugeGaps=false)
+fn scenarios(): Scenario[] = [
+  Scenario(scenario("Attached, no insets", "Full width and flush with the bottom, as without insets.", [detent("0"), detent("320"), detent("100%")], none), radii=[28, 28, 0, 0], curve="circular"),
+  scenario("Floating, attached when full", "Gaps at 320 blend away while dragging up to the full detent.", [detent("0"), floating("320"), detent("100%")], none),
+  scenario("Always floating", "The same gaps at every detent. Closing slides through the gap.", [detent("0"), floating("320"), floating("100%")], none),
+  scenario("Top inset at full", "The full detent stops 120 below the top and 32 above the bottom.", [detent("0"), floating("320"), floating("100%")], some(120)),
+  scenario("Percentage detents", "Percentages resolve against the space the insets leave.", [detent("0"), floating("25%"), floating("50%"), floating("100%")], some(80)),
+  scenario("Content height", "The card hugs its content and floats above the gap.", [detent("0"), floating("content")], none),
+  scenario("Scaled content height", "The card fits its scaled content, then grows to the full width.", [detent("0"), floating("content"), detent("100%")], none),
+  Scenario(scenario("Scrollable, narrows when full", "The last row reaches the bottom of the narrower full card.", [detent("0"), detent("320"), floating("100%")], none), scrollable=true),
+  Scenario(scenario("Narrow when full", "The surface and the last row reach the narrow card’s bottom.", [detent("0"), insetDetent("180", 24, 24, 24), insetDetent("100%", 64, 64, 0)], none), scrollable=true),
+  scenario("Lopsided gaps", "The gap moves across. The blue band keeps touching the card.", [detent("0"), insetDetent("240", 48, 0, 16), insetDetent("60%", 0, 48, 64)], none),
+  Scenario(scenario("Square corners", "Gaps clip the surface even with no radius.", [detent("0"), floating("320"), detent("100%")], none), radii=[0, 0, 0, 0], curve="circular"),
+  Scenario(scenario("Mixed radii", "Each corner keeps its own radius as the edges move.", [detent("0"), floating("320"), insetDetent("100%", 8, 8, 8)], some(8)), radii=[48, 12, 32, 0], curve="circular"),
+  Scenario(scenario("Huge gaps", "Scale 0.68 on a 402-wide screen. Tap a button to compare.", [detent("0"), insetDetent("400", 64, 64, 96), detent("100%")], none), hugeGaps=true),
+  Scenario(scenario("Scrollable content", "The last row is reachable above the gap at the full detent.", [detent("0"), floating("320"), floating("100%")], none), scrollable=true),
+  scenario("No closed detent", "Drags stop at 160. No detent hides it, so the X unmounts the sheet.", [floating("160"), insetDetent("50%", 32, 32, 64)], none)
+]
+fn scenarioAt(i: number): Scenario = match scenarios().at(i) { case some(s) => s, case none => scenario("", "", [detent("0")], none) }
+fn hasClosedDetent(s: Scenario): bool = match s.detents.at(0) { case some(x) => x.value == "0", case none => false }
+
+// InvalidDetentsScreen's VALIDATION_CASES.
+shape InvalidCase
+  label: string
+  detents: SheetDetent[]
+  index: number
+  topInset: option<number>
+  settleDuration: option<number>
+  modal: bool
+
+fn invalidCase(label: string, detents: SheetDetent[], index: number): InvalidCase = InvalidCase(label=label, detents=detents, index=index, topInset=none, settleDuration=none, modal=false)
+fn invalidCases(): InvalidCase[] = [
+  invalidCase("index: 1.5", [detent("0"), detent("content")], 1.5),
+  invalidCase("index equal to detents.length", [detent("0"), detent("content")], 2),
+  invalidCase("empty detents", [], 0),
+  invalidCase("numeric detent: -10", [detent("0"), detent("-10")], 0),
+  invalidCase("percentage detent: '-10%'", [detent("0"), detent("-10%")], 0),
+  InvalidCase(invalidCase("topInset: -1", [detent("0"), detent("content")], 0), topInset=some(-1)),
+  InvalidCase(invalidCase("settleDuration: 0", [detent("0"), detent("content")], 0), settleDuration=some(0)),
+  invalidCase("insets.left: -1", [detent("0"), insetDetent("300", -1, 0, 0)], 0),
+  InvalidCase(invalidCase("modal scrimOpacity: 2", [detent("0"), scrimDetent("300", 2)], 0), modal=true),
+  invalidCase("native ascending-order validation", [detent("360"), detent("120"), detent("content")], 1)
+]
+fn invalidCaseAt(i: number): InvalidCase = match invalidCases().at(i) { case some(c) => c, case none => invalidCase("", [detent("0")], 0) }
+
+// ScrollInteractionScreen's CASES (Refresh pull left out: no refresh control).
+shape InteractionCase
+  id: string
+  title: string
+  gesture: string
+  expected: string
+
+fn interactionCases(): InteractionCase[] = [
+  InteractionCase(id="down-up", title="Down then up", gesture="In the center of a row, drag down 30pt, then swipe up without lifting.", expected="The sheet expands. The list stays at its start until full height."),
+  InteractionCase(id="thumb-arc", title="Thumb arc", gesture="Drag left with a downward arc. Wiggle up, dip back to preview, then swipe up quickly, all in one touch.", expected="The sheet retakes the gesture and expands after the reversal."),
+  InteractionCase(id="scrolled-list", title="Scrolled list", gesture="Start at Item 6. Drag left and down, wiggle up, dip back to preview, then swipe up without lifting.", expected="The sheet expands and preserves a scrolled position instead of jumping to Item 1."),
+  InteractionCase(id="initial-expand", title="Initial: expand", gesture="At preview, drag down 30pt, then swipe up without lifting. Compare with a fresh upward drag.", expected="The reversal stays with the list. A fresh upward drag expands the sheet."),
+  InteractionCase(id="initial-collapse", title="Initial: collapse", gesture="Start fully expanded with the list at its top. Drag up 60pt, then down 15pt without lifting.", expected="The list keeps the gesture and its scrolled position. The sheet stays expanded.")
+]
+fn interactionCaseAt(id: string): InteractionCase = match first(interactionCases().filter(c => c.id == id)) { case some(c) => c, case none => InteractionCase(id="", title="", gesture="", expected="") }
+fn heightLabel(i: number): string = i == 0 ? "Closed" : (i == 1 ? "Preview" : (i == 2 ? "Expanded" : "Moving"))
+
+// SnapCallbacksScreen's labels and colours; an event is "id|source|index".
+fn snapLabel(source: string): string = source == "press" ? "⊙ setIndex — programmatic begin" : (source == "indexChange" ? "▶ onIndexChange — snap committed" : "■ onSettle — movement ended")
+fn snapColor(source: string): string = source == "press" ? "#8a5a1a" : (source == "indexChange" ? "#1f6feb" : "#1a8a4a")
+fn part(s: string, i: number): string = match s.split("|").at(i) { case some(x) => x, case none => "" }
+
+fn durationLabel(s: number): string = s == 0 ? "Default (0.45s)" : `${s}s`
+
+component App
+  // Navigation.
+  // Each screen starts fresh, as React Native's screen-local state does: an
+  // action of the root can't scope state to a route, so opening a demo resets
+  // every demo's state.
+  action open(href: string)
+    nav = push(nav, href)
+    spIndex = 0
+    spNestedIndex = 0
+    spBackgroundPresses = 0
+    spSheetPresses = 0
+    bmIndex = 0
+    bmSettled = -1
+    lmIndex = 0
+    lmSettled = 0
+    lmOpens = 0
+    noIndex = 0
+    nnIndex = 0
+    nnTaps = 0
+    nfIndex = 0
+    nfPresses = 0
+    nfLast = "none yet"
+    nkIndex = 0
+    sbIndex = 0
+    sbKind = 0
+    sbRawIndex = 0
+    nkValue = "Focus this input and type while the nativeOverlay sheet is mounted but closed."
+    adIndex = 0
+    adClosedProgrammatic = false
+    adFillsScreen = false
+    adCustomLabel = false
+    adIndexChanges = 0
+    ssIndex = 0
+    ssShape = 0
+    ctIndex = 1
+    ctBehindPresses = 0
+    ctSheetPresses = 0
+    dsIndex = 0
+    dsScenario = 0
+    dsModal = true
+    dsUnderStatusBar = false
+    dsShadow = true
+    dsBehindPresses = 0
+    dsProbePresses = 0
+    dsPressesA = 0
+    dsPressesB = 0
+    crIndex = 0
+    crHandler = "close"
+    crRequests = 0
+    msIndex = 0
+    dgIndex = 0
+    mfIndex = 0
+    fdIndex = 0
+    fdTaller = false
+    soIndex = 0
+    soHalf = ""
+    idIndex = 0
+    idSettled = -1
+    usIndex = 0
+    usUnder = false
+    clIndex = 1
+    clTaller = false
+    ifIndex = 0
+    inIndex = 0
+    ivCase = 0
+    scIndex = 0
+    scExpand = "handoff"
+    scCollapse = "initial"
+    scScrollEnabled = true
+    siCase = "down-up"
+    siRun = 0
+    siIndex = 0
+    siSettled = 0
+    siOffset = 0
+    siLiveOffset = 0
+    pdIndex = 0
+    pdPosition = 120
+    pcIndex = 0
+    pcPosition = 0
+    ddIndex = 0
+    ddMiddle = 200
+    ddShort = false
+    ddPosition = 0
+    dcIndex = 0
+    dcHeight = 160
+    dcPosition = 0
+    dcAnimate = true
+    ziIndex = 0
+    ziPosition = 0
+    snIndex = 0
+    snEvents = []
+    snNextId = 0
+    sdIndex = 0
+    sdDuration = 0
+    sdLastSettle = "–"
+    sdStart = -1
+    naMount = 0
+    naIndex = 1
+    utIndex = 1
+    utPosition = 0
+    utDetent = 0
+    umIndex = 1
+    umPosition = 0
+    umDetent = 0
+  action back
+    nav = back(nav)
+  action follow(url: string)
+    nav = go(nav, url)
+  // For the sheet events a demo doesn't use (`BottomSheet` takes them all).
+  action ignoreIndex(i: number)
+    let unused = i
+  action ignore
+    let unused = 0
+  action ignorePosition(p: SheetPosition)
+    let unused = p
+
+  // Scrim press isolation.
+  state spIndex = 0
+  state spNestedIndex = 0
+  state spBackgroundPresses = 0
+  state spSheetPresses = 0
+  action spSet(i: number)
+    spIndex = i
+  action spSetNested(i: number)
+    spNestedIndex = i
+  action spPressBackground
+    spBackgroundPresses = spBackgroundPresses + 1
+  action spPressSheet
+    spSheetPresses = spSheetPresses + 1
+
+  // Basic modal.
+  state bmIndex = 0
+  // Not shown (the React Native screen has no readout); the tests read it.
+  state bmSettled = -1
+  action bmSet(i: number)
+    bmIndex = i
+  action bmRested(i: number)
+    bmSettled = i
+
+  // Lazy mounted modal.
+  state lmIndex = 0
+  state lmSettled = 0
+  state lmOpens = 0
+  action lmSet(i: number)
+    lmOpens = i != 0 && lmIndex == 0 && lmSettled == 0 ? lmOpens + 1 : lmOpens
+    lmIndex = i
+  action lmRested(i: number)
+    lmSettled = i
+
+  // Native overlay modal and nested mount.
+  state noIndex = 0
+  action noSet(i: number)
+    noIndex = i
+  state nnIndex = 0
+  state nnTaps = 0
+  action nnSet(i: number)
+    nnIndex = i
+  action nnTap()
+    nnTaps = nnTaps + 1
+
+  // Native overlay full-height list and keyboard input.
+  state nfIndex = 0
+  state nfPresses = 0
+  state nfLast = "none yet"
+  action nfSet(i: number)
+    nfIndex = i
+  action nfPress(title: string)
+    nfPresses = nfPresses + 1
+    nfLast = title
+  state nkIndex = 0
+  state nkValue = "Focus this input and type while the nativeOverlay sheet is mounted but closed."
+  action nkSet(i: number)
+    nkIndex = i
+  action nkEdit(v: string)
+    nkValue = v
+
+  // Surface backgrounds (Exact only): the surface drawn as a Contract node.
+  state sbIndex = 0
+  state sbKind = 0
+  state sbRawIndex = 0
+  action sbSet(i: number)
+    sbIndex = i
+  action sbSetKind(k: number)
+    sbKind = k
+  action sbSetRaw(i: number)
+    sbRawIndex = i
+
+  // Accessible dismissal.
+  state adIndex = 0
+  state adClosedProgrammatic = false
+  state adFillsScreen = false
+  state adCustomLabel = false
+  state adIndexChanges = 0
+  action adSet(i: number)
+    adIndex = i
+  action adChanged(i: number)
+    adIndex = i
+    adIndexChanges = adIndexChanges + 1
+  action adSetClosedProgrammatic(v: bool)
+    adClosedProgrammatic = v
+  action adSetFillsScreen(v: bool)
+    adFillsScreen = v
+  action adSetCustomLabel(v: bool)
+    adCustomLabel = v
+
+  // Surface style.
+  state ssIndex = 0
+  state ssShape = 0
+  action ssSet(i: number)
+    ssIndex = i
+  action ssNextShape
+    ssShape = (ssShape + 1) % surfaceShapes().length
+
+  // Corner touches.
+  state ctIndex = 1
+  state ctBehindPresses = 0
+  state ctSheetPresses = 0
+  action ctSet(i: number)
+    ctIndex = i
+  action ctPressBehind
+    ctBehindPresses = ctBehindPresses + 1
+  action ctPressSheet
+    ctSheetPresses = ctSheetPresses + 1
+
+  // Detached sheet.
+  state dsIndex = 0
+  state dsScenario = 0
+  state dsModal = true
+  state dsUnderStatusBar = false
+  state dsShadow = true
+  state dsBehindPresses = 0
+  state dsProbePresses = 0
+  state dsPressesA = 0
+  state dsPressesB = 0
+  derive dsCurrent = scenarioAt(dsScenario)
+  action dsSet(i: number)
+    dsIndex = i
+  action dsOpen
+    dsIndex = (hasClosedDetent(dsCurrent) ? 1 : 0)
+  action dsClose
+    dsIndex = 0
+  action dsPick(i: number)
+    dsScenario = i
+    dsIndex = (hasClosedDetent(scenarioAt(i)) ? 1 : 0)
+  action dsSetModal(v: bool)
+    dsModal = v
+  action dsSetUnderStatusBar(v: bool)
+    dsUnderStatusBar = v
+  action dsSetShadow(v: bool)
+    dsShadow = v
+  action dsPressBehind
+    dsBehindPresses = dsBehindPresses + 1
+  action dsPressProbe
+    dsProbePresses = dsProbePresses + 1
+  action dsPressA
+    dsPressesA = dsPressesA + 1
+  action dsPressB
+    dsPressesB = dsPressesB + 1
+
+  // Close requests.
+  state crIndex = 0
+  state crHandler = "close"
+  state crRequests = 0
+  action crSet(i: number)
+    crIndex = i
+  action crOpen(handler: string)
+    crHandler = handler
+    crRequests = 0
+    crIndex = 1
+  action crRequest
+    crRequests = crRequests + 1
+    if crHandler == "close"
+      crIndex = 0
+
+  // Modal with ScrollView.
+  state msIndex = 0
+  action msSet(i: number)
+    msIndex = i
+
+  // Draggable grabber.
+  state dgIndex = 0
+  action dgSet(i: number)
+    dgIndex = i
+
+  // Modal with FlatList.
+  state mfIndex = 0
+  action mfSet(i: number)
+    mfIndex = i
+
+  // Fixed detent ScrollView.
+  state fdIndex = 0
+  state fdTaller = false
+  action fdSet(i: number)
+    fdIndex = i
+  action fdToggleTaller
+    fdTaller = not fdTaller
+
+  // Per-detent scrim opacity.
+  state soIndex = 0
+  state soHalf = ""
+  action soSet(i: number)
+    soIndex = i
+  action soOpen
+    soHalf = `${frame("scrim-opacity-screen").height / 2}`
+    soIndex = 1
+
+  // Inline with detents.
+  state idIndex = 0
+  state idSettled = -1
+  action idSet(i: number)
+    idIndex = i
+  action idRested(i: number)
+    idSettled = i
+
+  // Under status bar.
+  state usIndex = 0
+  state usUnder = false
+  action usSet(i: number)
+    usIndex = i
+  action usOpen(under: bool)
+    usUnder = under
+    usIndex = 1
+  // RN's content is `flex: 1`, so it fills the capped region and the sheet
+  // reaches the cap: the component lays the content out at the region.
+
+  // Content plus larger detent.
+  state clIndex = 1
+  state clTaller = false
+  derive clDetents = (clTaller ? [detent("0"), detent("content"), detent("600"), detent("700")] : [detent("0"), detent("content"), detent("560")])
+  action clSet(i: number)
+    clIndex = i
+  action clExpandTaller
+    clTaller = true
+    clIndex = 3
+  action clRestore
+    clTaller = false
+    clIndex = 1
+
+  // Inline with FlatList.
+  state ifIndex = 0
+  action ifSet(i: number)
+    ifIndex = i
+
+  // Inline with nested FlatLists.
+  state inIndex = 0
+  action inSet(i: number)
+    inIndex = i
+
+  // Invalid props.
+  state ivCase = 0
+  derive ivCurrent = invalidCaseAt(ivCase)
+  action ivNext
+    ivCase = (ivCase + 1) % invalidCases().length
+
+  // Scroll coordination modes.
+  state scIndex = 0
+  state scExpand: enum<"none", "initial", "handoff"> = "handoff"
+  state scCollapse: enum<"none", "initial", "handoff"> = "initial"
+  state scScrollEnabled = true
+  action scSet(i: number)
+    scIndex = i
+  action scSetExpand(mode: enum<"none", "initial", "handoff">)
+    scExpand = mode
+  action scSetCollapse(mode: enum<"none", "initial", "handoff">)
+    scCollapse = mode
+  action scSetScrollEnabled(v: bool)
+    scScrollEnabled = v
+
+  // Scroll interaction.
+  state siCase = "down-up"
+  state siRun = 0
+  state siIndex = 0
+  state siSettled = 0
+  state siOffset = 0
+  state siLiveOffset = 0
+  derive siCurrent = interactionCaseAt(siCase)
+  action siSelect(id: string)
+    siCase = id
+    siRun = siRun + 1
+    siIndex = 0
+    siSettled = 0
+    siOffset = (id == "scrolled-list" ? 240 : 0)
+  action siReset
+    let start = (siCase == "initial-collapse" ? 2 : 1)
+    siRun = siRun + 1
+    siIndex = start
+    siSettled = start
+    siOffset = (siCase == "scrolled-list" ? 240 : 0)
+  action siSelectHeight(i: number)
+    if i != siIndex
+      siSettled = -1
+      siIndex = i
+  action siRested(i: number)
+    siSettled = i
+  // Sampled when a scroll ends, as the React Native readout is.
+  action siScrolled(x: number, y: number)
+    siLiveOffset = round(y)
+  action siScrollEnded
+    siOffset = siLiveOffset
+
+  // Programmatic detent drag.
+  state pdIndex = 0
+  state pdPosition = 120
+  action pdSet(i: number)
+    pdIndex = i
+  action pdMoved(p: SheetPosition)
+    pdPosition = p.position
+
+  // Numeric and percentage detents.
+  state pcIndex = 0
+  state pcPosition = 0
+  action pcSet(i: number)
+    pcIndex = i
+  action pcMoved(p: SheetPosition)
+    pcPosition = p.position
+
+  // Dynamic detent updates.
+  state ddIndex = 0
+  state ddMiddle = 200
+  state ddShort = false
+  state ddPosition = 0
+  action ddSet(i: number)
+    ddIndex = i
+  action ddSetMiddle(v: number)
+    ddMiddle = v
+  action ddShorten
+    ddIndex = 1
+    ddShort = true
+  action ddRestore
+    ddIndex = 2
+    ddShort = false
+  action ddMoved(p: SheetPosition)
+    ddPosition = p.position
+
+  // Dynamic content height.
+  state dcIndex = 0
+  state dcHeight = 160
+  state dcPosition = 0
+  state dcAnimate = true
+  action dcSet(i: number)
+    dcIndex = i
+  action dcResize(h: number)
+    dcHeight = h
+  action dcSetAnimate(v: bool)
+    dcAnimate = v
+  action dcMoved(p: SheetPosition)
+    dcPosition = p.position
+
+  // Content with zIndex children.
+  state ziIndex = 0
+  state ziPosition = 0
+  action ziSet(i: number)
+    ziIndex = i
+  action ziMoved(p: SheetPosition)
+    ziPosition = p.position
+
+  // Snap lifecycle callbacks.
+  state snIndex = 0
+  state snEvents = []
+  state snNextId = 0
+  action snSnapTo(i: number)
+    snEvents = [`${snNextId}|press|${i}`].concat(snEvents).slice(0, 12)
+    snNextId = snNextId + 1
+    snIndex = i
+  action snChanged(i: number)
+    snEvents = [`${snNextId}|indexChange|${i}`].concat(snEvents).slice(0, 12)
+    snNextId = snNextId + 1
+    snIndex = i
+  action snRested(i: number)
+    snEvents = [`${snNextId}|settle|${i}`].concat(snEvents).slice(0, 12)
+    snNextId = snNextId + 1
+
+  // Settle duration.
+  state sdIndex = 0
+  state sdDuration = 0
+  state sdLastSettle = "–"
+  state sdStart = -1
+  action sdMoveTo(i: number)
+    sdStart = performanceNow()
+    sdIndex = i
+  action sdSetDuration(s: number)
+    sdDuration = s
+  action sdRested(i: number)
+    if sdStart >= 0
+      sdLastSettle = `${round(performanceNow() - sdStart)} ms`
+      sdStart = -1
+
+  // No animate in.
+  state naMount = 0
+  state naIndex = 1
+  action naSet(i: number)
+    naIndex = i
+  action naRemount
+    naIndex = 1
+    naMount = naMount + 1
+
+  // UI-thread onPositionChange.
+  state utIndex = 1
+  state utPosition = 0
+  state utDetent = 0
+  action utSet(i: number)
+    utIndex = i
+  action utMoved(p: SheetPosition)
+    utPosition = p.position
+    utDetent = p.index
+
+  // UI-thread modal onPositionChange.
+  state umIndex = 1
+  state umPosition = 0
+  state umDetent = 0
+  action umSet(i: number)
+    umIndex = i
+  action umMoved(p: SheetPosition)
+    umPosition = p.position
+    umDetent = p.index
+
+  view
+    main testId="root" viewport-fit="cover" status-bar-style="dark-content" navigationKey=`${top(nav).id}` navigate=follow width="100%" height="100%" background-color="#ffffff"
+      for e in stack(nav) key=e.id
+        if e.name == "home"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            scroll flex=1 min-height=0 testId="home-list"
+              column padding-top="env(safe-area-inset-top)" padding-bottom="env(safe-area-inset-bottom)"
+                for c, i in demoCases() key=c.key
+                  if i > 0
+                    view height=1 background-color="#eeeeee" flex-shrink=0
+                  column press=open(c.href) role="button" testId=`case-${c.key}` padding=16 flex-shrink=0
+                    text c.title font-size=17 color=(c.throws ? "#dd1111" : "#1f1f1f")
+
+        if e.name == "scrim-pressables"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Scrim press isolation", back=back, name="sp")
+              button press=spPressBackground testId="sp-background-press" align-items="center" padding=16 background-color="#d3d3d3"
+                text `Background presses: ${spBackgroundPresses}` font-size=14 color="#000000"
+              Button(label="Open sheet", press=spSet(1), id="sp-open")
+              Body(value=`Sheet index: ${spIndex}; nested index: ${spNestedIndex}`, id="sp-readout")
+            BottomSheet(id="sp", index=spIndex, detents=[detent("0"), detent("420")], modal=true, options=modalLook(), indexchange=spSet, settle=ignoreIndex, positionchange=ignorePosition, closerequest=ignore)
+              SheetHeader(title="Lower sheet", close=spSet(0), closeId="sp-close")
+              column padding=16 gap=16
+                button press=spPressSheet testId="sp-sheet-press" align-items="center" padding=16 background-color="#d3d3d3"
+                  text `Sheet presses: ${spSheetPresses}` font-size=14 color="#000000"
+                Button(label="Open nested sheet", press=spSetNested(1), id="sp-open-nested")
+            BottomSheet(id="sp-nested", index=spNestedIndex, detents=[detent("0"), detent("160")], modal=true, options=modalLook(), indexchange=spSetNested, settle=ignoreIndex, positionchange=ignorePosition, closerequest=ignore)
+              SheetHeader(title="Nested sheet", close=spSetNested(0), closeId="sp-nested-close")
+
+        if e.name == "basic-modal"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Basic modal", back=back, name="bm")
+              Button(label="Open sheet", press=bmSet(1), id="bm-open")
+            BottomSheet(id="bm", index=bmIndex, detents=[detent("0"), detent("content")], modal=true, options=modalLook(), indexchange=bmSet, settle=bmRested, positionchange=ignorePosition, closerequest=ignore)
+              SheetHeader(title="Basic modal", close=bmSet(0), closeId="bm-close")
+              column height="calc(176px + env(safe-area-inset-bottom))" box-sizing="border-box" padding-bottom="env(safe-area-inset-bottom)" align-items="center" justify-content="center"
+                Body(value="Swipe down or tap scrim to dismiss", id="bm-body")
+
+        if e.name == "native-overlay-modal"
+          column navigationKey=`${e.id}` navigationPresentation="modal" position="absolute" inset=0 display="flex" flex-direction="column" background-color="#ffffff"
+            header
+              button id="no-back" press=back testId="no-back"
+                text "Close"
+              text "Native overlay modal" role="heading"
+            column flex=1 padding=24 gap=16 align-items="center" justify-content="center"
+              text "This screen is presented as a native-stack modal. With nativeOverlay, the sheet is shown in a native overlay above everything, so it covers the whole screen—including the native modal header—instead of being trapped inside the modal's body." text-align="center" color="#555555" line-height="22px" font-size=14
+              column width=180 align-items="center" position="relative"
+                Button(label="Open sheet", press=noSet(1), id="no-open")
+                BottomSheet(id="no", index=noIndex, detents=[detent("0"), detent("content")], modal=true, options=SheetOptions(modalLook(), nativeOverlay=true), indexchange=noSet, settle=ignoreIndex, positionchange=ignorePosition, closerequest=ignore)
+                  SheetHeader(title="Native overlay", close=noSet(0), closeId="no-close")
+                  column height="calc(176px + env(safe-area-inset-bottom))" box-sizing="border-box" padding-bottom="env(safe-area-inset-bottom)" align-items="center" justify-content="center"
+                    Body(value="Swipe down or tap scrim to dismiss", id="no-body")
+
+        if e.name == "native-overlay-nested"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Native overlay nested mount", back=back, name="nn")
+              text "A nativeOverlay sheet mounted at a nonzero origin — nested inside the offset box below. It should still appear full-screen, measure correctly, and be tappable." color="#555555" line-height="22px" font-size=14
+              column margin-top=120 margin-left=80 align-self="flex-start" position="relative"
+                text "Nested mount" color="#999999" margin-bottom=8 font-size=14
+                Button(label="Open sheet", press=nnSet(1), id="nn-open")
+                BottomSheet(id="nn", index=nnIndex, detents=[detent("0"), detent("content")], modal=true, options=SheetOptions(modalLook(), nativeOverlay=true), indexchange=nnSet, settle=ignoreIndex, positionchange=ignorePosition, closerequest=ignore)
+                  SheetHeader(title="Nested overlay", close=nnSet(0), closeId="nn-close")
+                  column padding=24 padding-bottom="calc(24px + env(safe-area-inset-bottom))" gap=12
+                    for row in ["0", "1", "2", "3"] key=row
+                      column press=nnTap() role="button" testId=`nn-row-${row}` padding=16 background-color="#eeeeee" border-radius=8
+                        text `Tappable row ${row} — taps: ${nnTaps}` font-size=14 color="#000000"
+
+        if e.name == "native-overlay-full-height-list"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Native overlay full-height list", back=back, name="nf")
+              text "The issue #48 repro shape: a full-height nativeOverlay sheet with a FlatList of pressable rows. Every row should respond and update the readout, the list should scroll, and the sheet top should sit exactly at the bottom of the status bar." color="#555555" line-height="22px" font-size=14
+              Button(label="Open sheet", press=nfSet(1), id="nf-open")
+            BottomSheet(id="nf", index=nfIndex, detents=[detent("0"), detent("content")], modal=true, options=SheetOptions(modalLook(), nativeOverlay=true), indexchange=nfSet, settle=ignoreIndex, positionchange=ignorePosition, closerequest=ignore)
+              SheetHeader(title="Full-height overlay", close=nfSet(0), closeId="nf-close")
+              text `Presses: ${nfPresses} — last: ${nfLast}` padding-left=24 padding-right=24 padding-bottom=8 font-size=14 color="#000000" testId="nf-readout"
+              scroll flex=1 min-height=0 testId="nf-list"
+                column padding-bottom="calc(16px + env(safe-area-inset-bottom))"
+                  for row in ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "40"] key=row
+                    column press=nfPress(`Item ${row}`) role="button" testId=`nf-row-${row}` padding=16 margin-left=16 margin-right=16 margin-top=4 margin-bottom=4 border-radius=8 background-color="#f2f2f2"
+                      text `Item ${row}` font-size=14 color="#000000"
+
+        if e.name == "native-overlay-keyboard-input"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Native overlay keyboard input", back=back, name="nk")
+              text "This mounts a closed nativeOverlay sheet and keeps the keyboard target directly on the screen. Focus the input and confirm typing works while the sheet remains closed." color="#555555" line-height="22px" font-size=14
+              textarea id="nk-input" testId="nk-input" value=nkValue input=nkEdit placeholder="Try typing here" min-height=144 border-width=1 border-color="#d7dce2" border-radius=12 padding=14 font-size=16 line-height="22px" background-color="#f8fafc"
+              Button(label="Open mounted overlay", press=nkSet(1), id="nk-open")
+              column padding=16 border-radius=16 background-color="#f3f3f3" gap=6
+                text "Mounted overlay state" font-weight=600 font-size=14 color="#000000"
+                Body(value="nativeOverlay: true", id="nk-overlay")
+                Body(value=`index: ${nkIndex}`, id="nk-index")
+                Body(value="Keyboard target: base screen TextInput", id="nk-target")
+                Body(value=`chars: ${nkValue.length}`, id="nk-length")
+            BottomSheet(id="nk", index=nkIndex, detents=[detent("0"), detent("content")], modal=true, options=SheetOptions(modalLook(), nativeOverlay=true), indexchange=nkSet, settle=ignoreIndex, positionchange=ignorePosition, closerequest=ignore)
+              SheetHeader(title="Mounted native overlay", close=nkSet(0), closeId="nk-close")
+              column padding-top=20 padding-left=20 padding-right=20 padding-bottom="calc(20px + env(safe-area-inset-bottom))"
+                text "This nativeOverlay sheet remains mounted while the input lives on the base screen behind it." color="#555555" line-height="22px" font-size=14
+
+        if e.name == "surface-backgrounds"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Surface backgrounds", back=back, name="sb")
+              text "Exact only: the component draws the surface as a Contract node, so it takes any CSS colour, Exact's colour roles, light-dark() (try dark mode) and a background-image. Design param leaves surfaceColor empty: the surface is the BottomSheet.surface param, which this app's design (app.tamber) sets. The raw tag sheet uses its native surfaceColor string." color="#555555" line-height="22px" font-size=14
+              Button(label="Literal colour", press=sbSetKind(0), id="sb-kind-0")
+              Button(label="light-dark()", press=sbSetKind(1), id="sb-kind-1")
+              Button(label="Colour role", press=sbSetKind(2), id="sb-kind-2")
+              Button(label="Gradient", press=sbSetKind(3), id="sb-kind-3")
+              Button(label="Design param", press=sbSetKind(4), id="sb-kind-4")
+              Body(value=`surface: ${sbLabel(sbKind)}`, id="sb-kind")
+              Button(label="Open sheet", press=sbSet(1), id="sb-open")
+              Button(label="Open raw tag sheet", press=sbSetRaw(1), id="sb-raw-open")
+            BottomSheet(id="sb", index=sbIndex, detents=[detent("0"), detent("content")], modal=true, options=sbOptions(sbKind), indexchange=sbSet, settle=ignoreIndex, positionchange=ignorePosition, closerequest=ignore)
+              SheetHeader(title=sbLabel(sbKind), close=sbSet(0), closeId="sb-close")
+              column height="calc(176px + env(safe-area-inset-bottom))" box-sizing="border-box" padding-bottom="env(safe-area-inset-bottom)" align-items="center" justify-content="center"
+                Body(value="The surface is behind this content.", id="sb-body")
+            column testId="sb-raw-content" position="absolute" top=0 left=0 width="100%" height=200 padding=24 pointer-events="auto"
+              text "Raw tag: surfaceColor as a native string." font-size=14 color="#000000"
+              Button(label="Close", press=sbSetRaw(0), id="sb-raw-close")
+            swm-bottom-sheet testId="sb-raw-sheet" contentId="sb-raw-content" position="absolute" inset=0 pointer-events=(sbRawIndex == 0 ? "none" : "auto") index=sbRawIndex detents=[detent("0"), detent("200")] modal=true scrimColor="rgba(0, 0, 0, 0.5)" surfaceColor="#dcfce7" surfaceCornerRadii=[16, 16, 0, 0] indexchange=sbSetRaw
+
+        if e.name == "child-owned-sheet"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Sheet owned by a child", back=back, name="co")
+              text "Exact only: this sheet, its index and its handlers live in a child component (ChildOwnedSheet), not in the app's root. The component hears the native view's events itself and calls whatever actions it is given." color="#555555" line-height="22px" font-size=14
+            ChildOwnedSheet()
+
+        if e.name == "lazy-mounted-modal"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Lazy mounted modal", back=back, name="lm")
+              Button(label="Open sheet", press=lmSet(1), id="lm-open")
+              Body(value=`index: ${lmIndex}`, id="lm-index")
+              Body(value=`opens: ${lmOpens}`, id="lm-opens")
+            BottomSheet(id="lm", index=lmIndex, detents=[detent("0"), detent("content")], modal=true, options=SheetOptions(modalLook(), lazy=true), indexchange=lmSet, settle=lmRested, positionchange=ignorePosition, closerequest=ignore)
+              LazySheetContent(index=lmIndex, opens=lmOpens, close=lmSet(0))
+
+        if e.name == "accessible-dismissal"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Accessible dismissal", back=back, name="ad")
+              Toggle(label="Programmatic-only closed detent", value=adClosedProgrammatic, change=adSetClosedProgrammatic, id="ad-programmatic")
+              Toggle(label="Fills the screen", value=adFillsScreen, change=adSetFillsScreen, id="ad-fills")
+              Toggle(label="Custom label (“Cerrar”)", value=adCustomLabel, change=adSetCustomLabel, id="ad-label")
+              Button(label="Open sheet", press=adSet(1), id="ad-open")
+              text `index: ${adIndex} · index changes: ${adIndexChanges}` font-size=13 color="#555555" text-align="center" testId="ad-readout"
+            BottomSheet(id="ad", index=adIndex, detents=[(adClosedProgrammatic ? programmaticDetent("0") : detent("0")), (adFillsScreen ? detent("100%") : detent("content"))], modal=true, options=SheetOptions(modalLook(), topInset=(adFillsScreen ? 0 : -1), scrimLabel=(adCustomLabel ? "Cerrar" : "")), indexchange=adChanged, settle=ignoreIndex, positionchange=ignorePosition, closerequest=ignore)
+              SheetHeader(title="Accessible dismissal", close=adSet(0), closeId="ad-close")
+              column flex=(adFillsScreen ? 1 : 0) min-height="calc(176px + env(safe-area-inset-bottom))" box-sizing="border-box" padding-bottom="env(safe-area-inset-bottom)" padding-left=20 padding-right=20 gap=16 align-items="center" justify-content="center"
+                text "With VoiceOver or TalkBack on, find the scrim’s button above the sheet, or use the escape gesture (iOS) or the dismiss action (Android) from here." font-size=15 line-height="21px" text-align="center" color="#000000"
+                Button(label="A control in the sheet", press=adSet(adIndex), id="ad-control")
+
+        if e.name == "surface-style"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Surface style", back=back, name="ss")
+              Button(label="Open sheet", press=ssSet(1), id="ss-open")
+            BottomSheet(id="ss", index=ssIndex, detents=[detent("0"), detent("320"), detent("90%")], modal=true, options=SheetOptions(modalLook(), cornerRadii=surfaceShapeAt(ssShape).radii, cornerCurve=surfaceShapeAt(ssShape).curve, shadows=surfaceShapeAt(ssShape).shadows), indexchange=ssSet, settle=ignoreIndex, positionchange=ignorePosition, closerequest=ignore)
+              column background-color="#3b82f6"
+                SheetHeader(title=surfaceShapeAt(ssShape).label, close=ssSet(0), closeId="ss-close")
+              column padding=16 padding-bottom="calc(24px + env(safe-area-inset-bottom))" gap=12
+                Body(value="The blue band is part of the content, not the surface. With a surfaceStyle, it is clipped to the card's rounded corners.", id="ss-body")
+                Button(label="Next shape", press=ssNextShape, id="ss-next")
+
+        if e.name == "corner-touches"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Corner touches", back=back, name="ct")
+              text `Behind presses: ${ctBehindPresses}` font-size=18 margin-bottom=12 color="#000000" testId="ct-behind-count"
+            button press=ctPressBehind testId="ct-behind-0" aria-label="Behind" position="absolute" left=0 bottom=280 width=140 height=60 background-color="#f97316"
+            button press=ctPressBehind testId="ct-behind-1" aria-label="Behind" position="absolute" right=0 bottom=280 width=140 height=60 background-color="#f97316"
+            BottomSheet(id="ct", index=ctIndex, detents=[detent("0"), detent("320")], modal=false, options=SheetOptions(sheetLook(), cornerRadii=[48, 48, 0, 0], shadows=[]), indexchange=ctSet, settle=ignoreIndex, positionchange=ignorePosition, closerequest=ignore)
+              button press=ctPressSheet testId="ct-band" height=72 align-items="center" justify-content="center" background-color="#3b82f6"
+                text `Sheet presses: ${ctSheetPresses}` font-size=14 color="#000000"
+              column padding=16 padding-bottom="calc(24px + env(safe-area-inset-bottom))"
+                Body(value="The blue band fills the card's top edge, so the rounded corners cut it. Pressing a corner counts as a press behind the sheet, not on the band.", id="ct-body")
+
+        if e.name == "detached-sheet"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Detached sheet", back=back, name="ds")
+              scroll max-height=360 testId="ds-picker"
+                for s, i in scenarios() key=s.label
+                  column press=dsPick(i) role="button" testId=`ds-scenario-${i}` padding-top=8 padding-bottom=8 padding-left=12 padding-right=12 border-radius=8 background-color=(i == dsScenario ? "#dbeafe" : "transparent") flex-shrink=0
+                    text s.label font-size=14 color="#000000"
+              row flex-wrap="wrap" column-gap=16
+                SmallToggle(label="Modal", value=dsModal, change=dsSetModal, id="ds-modal")
+                SmallToggle(label="Under status bar", value=dsUnderStatusBar, change=dsSetUnderStatusBar, id="ds-under")
+                SmallToggle(label="Shadow", value=dsShadow, change=dsSetShadow, id="ds-shadow")
+              Button(label="Open sheet", press=dsOpen, id="ds-open")
+            button press=dsPressBehind testId="ds-behind" position="absolute" left=0 right=0 bottom=0 height=210 box-sizing="border-box" padding=8 align-items="center" justify-content="center" background-color="#fde68a"
+              text `Presses behind the sheet: ${dsBehindPresses}` font-size=14 color="#000000"
+            BottomSheet(id="ds", index=min(dsIndex, dsCurrent.detents.length - 1), detents=dsCurrent.detents, modal=dsModal, options=SheetOptions(sheetLook(), topInset=(dsUnderStatusBar ? 0 : match dsCurrent.topInset { case some(t) => t, case none => -1 }), scrimColor="rgba(0, 0, 0, 0.5)", cornerRadii=dsCurrent.radii, cornerCurve=dsCurrent.curve, shadows=(dsShadow ? [surfaceShadow(0, 4, 24, 0, "rgba(0, 0, 0, 0.35)", 1)] : [])), indexchange=dsSet, settle=ignoreIndex, positionchange=ignorePosition, closerequest=ignore)
+              column background-color="#3b82f6" flex-shrink=0
+                SheetHeader(title=dsCurrent.label, close=dsClose, closeId="ds-close")
+              if dsCurrent.scrollable
+                scroll flex=1 min-height=0 testId="ds-rows"
+                  for n in range(40) key=n
+                    text `Row ${n + 1}` padding=16 border-bottom="1px solid #ededed" font-size=14 color="#000000" flex-shrink=0
+              else
+                column padding=16 gap=12
+                  Body(value=dsCurrent.expect, id="ds-expect")
+                  if dsCurrent.hugeGaps
+                    row gap=8
+                      button press=dsPressA aria-label="Measured button A" testId="ds-button-a" flex=1 align-items="center" padding=12 border-radius=8 background-color="#2563eb"
+                        text `A (${dsPressesA})` color="#ffffff" font-weight=600 font-size=14
+                      button press=dsPressB aria-label="Measured button B" testId="ds-button-b" flex=1 align-items="center" padding=12 border-radius=8 background-color="#2563eb"
+                        text `B (${dsPressesB})` color="#ffffff" font-weight=600 font-size=14
+                  else
+                    button press=dsPressProbe aria-label="Measure probe" testId="ds-probe" align-items="flex-start" padding=8 min-height=72 box-sizing="border-box" background-color="#eef2ff"
+                      text `Presses: ${dsProbePresses}` font-size=14 color="#000000"
+                  row flex-wrap="wrap" gap=8
+                    for x, i in dsCurrent.detents key=i
+                      Button(label=`Detent ${i}`, press=dsSet(i), id=`ds-detent-${i}`)
+
+        if e.name == "close-request"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Close requests", back=back, name="cr")
+              column padding=12 border-radius=12 background-color="#f3f3f3" gap=4
+                text "Current state" font-weight=700 font-size=14 color="#000000"
+                Body(value="presentation: portal", id="cr-presentation")
+                Body(value=`callback: ${crHandler}`, id="cr-callback")
+                Body(value=`index: ${crIndex}`, id="cr-index")
+                Body(value=`onCloseRequest calls: ${crRequests}`, id="cr-calls")
+              column gap=8
+                text "Portal" font-size=17 font-weight=600 color="#000000"
+                column gap=12
+                  Button(label="Open with closing callback", press=crOpen("close"), id="cr-open-close")
+                  Button(label="Open with no-op callback", press=crOpen("no-op"), id="cr-open-noop")
+                  Button(label="Open without callback", press=crOpen("omitted"), id="cr-open-omitted")
+              text "Web only: Escape raises a close request. iOS never raises one." font-size=13 color="#555555"
+            BottomSheet(id="cr", index=crIndex, detents=[detent("0"), detent("400")], modal=true, options=SheetOptions(modalLook(), handlesCloseRequest=crHandler != "omitted"), indexchange=crSet, settle=ignoreIndex, positionchange=ignorePosition, closerequest=crRequest)
+              SheetHeader(title="Close request", close=crSet(0), closeId="cr-close")
+              column padding-top=12 padding-left=20 padding-right=20 padding-bottom=16 gap=8
+                text `portal · ${crHandler}` font-size=18 font-weight=600 color="#000000"
+                Body(value=`onCloseRequest calls: ${crRequests}`, id="cr-sheet-calls")
+
+        if e.name == "modal-scroll-view"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Modal with ScrollView", back=back, name="ms")
+              Button(label="Open sheet", press=msSet(1), id="ms-open")
+            BottomSheet(id="ms", index=msIndex, detents=[detent("0"), detent("content")], modal=true, options=modalLook(), indexchange=msSet, settle=ignoreIndex, positionchange=ignorePosition, closerequest=ignore)
+              SheetHeader(title="Modal with ScrollView", close=msSet(0), closeId="ms-close")
+              scroll flex=1 min-height=0 testId="ms-list"
+                column padding-bottom="calc(24px + env(safe-area-inset-bottom))"
+                  ListRows()
+
+        if e.name == "draggable-grabber"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Draggable grabber", back=back, name="dg")
+              Button(label="Open sheet", press=dgSet(1), id="dg-open")
+            BottomSheet(id="dg", index=dgIndex, detents=[detent("0"), detent("95%")], modal=true, options=modalLook(), indexchange=dgSet, settle=ignoreIndex, positionchange=ignorePosition, closerequest=ignore)
+              scroll flex=1 min-height=0 testId="dg-list"
+                column padding-top=28 padding-bottom="calc(24px + env(safe-area-inset-bottom))"
+                  ListRows()
+              column position="absolute" top=0 left=0 right=0 height=28 box-sizing="border-box" z-index=1000 align-items="center" padding-top=8
+                view width=36 height=5 border-radius=2.5 background-color="rgba(60, 60, 67, 0.3)"
+
+        if e.name == "modal-flat-list"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Modal with FlatList", back=back, name="mf")
+              Button(label="Open sheet", press=mfSet(1), id="mf-open")
+            BottomSheet(id="mf", index=mfIndex, detents=[detent("0"), detent("content")], modal=true, options=modalLook(), indexchange=mfSet, settle=ignoreIndex, positionchange=ignorePosition, closerequest=ignore)
+              SheetHeader(title="Modal with FlatList", close=mfSet(0), closeId="mf-close")
+              scroll flex=1 min-height=0 testId="mf-list"
+                column padding-bottom="calc(24px + env(safe-area-inset-bottom))"
+                  ListRows()
+
+        if e.name == "fixed-detent-scroll-view"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Fixed detent ScrollView", back=back, name="fd")
+              Button(label="Open sheet", press=fdSet(1), id="fd-open")
+              Button(label=(fdTaller ? "Remove taller detents" : "Add taller detents"), press=fdToggleTaller, id="fd-toggle")
+              Body(value=(fdTaller ? "detents: [0, 500, 650, 'content']" : "detents: [0, 500]"), id="fd-detents")
+              Body(value="Scroll the list to the end: Item 48 should be reachable.", id="fd-hint")
+              Body(value="Add the taller detents, then open the sheet and drag it up: it should reach 650pt and then full height.", id="fd-hint-2")
+            BottomSheet(id="fd", index=fdIndex, detents=(fdTaller ? [detent("0"), detent("500"), detent("650"), detent("content")] : [detent("0"), detent("500")]), modal=true, options=modalLook(), indexchange=fdSet, settle=ignoreIndex, positionchange=ignorePosition, closerequest=ignore)
+              SheetHeader(title="Fixed detent ScrollView", close=fdSet(0), closeId="fd-close")
+              scroll flex=1 min-height=0 testId="fd-list"
+                column padding-bottom="calc(24px + env(safe-area-inset-bottom))"
+                  ListRows()
+
+        if e.name == "scrim-opacity"
+          column navigationKey=`${e.id}` navigationBar="none" id="scrim-opacity-screen" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Per-detent scrim opacity", back=back, name="so")
+              Button(label="Open sheet", press=soOpen, id="so-open")
+            BottomSheet(id="so", index=soIndex, detents=[detent("0"), scrimDetent((soHalf == "" ? "50%" : soHalf), 0.5), detent("content")], modal=true, options=modalLook(), indexchange=soSet, settle=ignoreIndex, positionchange=ignorePosition, closerequest=ignore)
+              SheetHeader(title="Per-detent scrim opacity", close=soSet(0), closeId="so-close")
+              scroll flex=1 min-height=0 testId="so-list"
+                column padding-bottom="calc(24px + env(safe-area-inset-bottom))"
+                  column padding=20
+                    text "With scrimOpacity: 0.5 on the half detent, the scrim keeps deepening from the half detent to the full detent instead of snapping to full opacity at the first open detent. Drag between detents to watch it interpolate." font-size=15 line-height="22px" color="#555555"
+                  ListRows()
+
+        if e.name == "inline-detents"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Inline with detents", back=back, name="id")
+              Button(label="Open sheet", press=idSet(1), id="id-open")
+            BottomSheet(id="id", index=idIndex, detents=[detent("0"), detent("256"), detent("content")], modal=false, options=sheetLook(), indexchange=idSet, settle=idRested, positionchange=ignorePosition, closerequest=ignore)
+              SheetHeader(title="Inline with detents", close=idSet(0), closeId="id-close")
+              column height=176 box-sizing="border-box" align-items="center" justify-content="center"
+                Body(value="Section 1", id="id-section-1")
+              column height="calc(176px + env(safe-area-inset-bottom))" box-sizing="border-box" padding-bottom="env(safe-area-inset-bottom)" align-items="center" justify-content="center" border-top="1px solid #eeeeee"
+                Body(value="Section 2", id="id-section-2")
+
+        if e.name == "under-status-bar"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Under status bar", back=back, name="us")
+              Button(label="Open below status bar", press=usOpen(false), id="us-open-below")
+              Button(label="Open under status bar", press=usOpen(true), id="us-open-under")
+              Body(value=`top inset: ${usUnder ? "0" : "default"}`, id="us-inset")
+              Body(value="detents: [0, 'content']", id="us-detents")
+            BottomSheet(id="us", index=usIndex, detents=[detent("0"), detent("content")], modal=false, options=SheetOptions(sheetLook(), topInset=(usUnder ? 0 : -1), cornerRadii=usUnder ? [0, 0, 0, 0] : [16, 16, 0, 0]), indexchange=usSet, settle=ignoreIndex, positionchange=ignorePosition, closerequest=ignore)
+              column background-color="#e7f0ff" padding-top="calc(env(safe-area-inset-top) + 12px)"
+                SheetHeader(title="Under status bar", close=usSet(0), closeId="us-close")
+              column flex=1 padding-left=20 padding-right=20 padding-top=24 padding-bottom="calc(24px + env(safe-area-inset-bottom))" gap=16
+                text (usUnder ? "Sheet can use the full screen height." : "Sheet is capped below the status bar.") font-size=18 font-weight=600 color="#000000"
+                text "Open each mode and compare the sheet top edge. The blue header includes status-bar padding, so it visibly reaches the top only with a `topInset` of 0." font-size=15 line-height="22px" color="#555555"
+
+        if e.name == "content-larger-detent"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Content plus larger detent", back=back, name="cl")
+              Button(label="Open at content height", press=clSet(1), id="cl-open")
+              if clTaller
+                Button(label="Restore 560pt detents at content", press=clRestore, id="cl-restore")
+              else
+                Button(label="Expand to 560pt", press=clSet(2), id="cl-expand")
+                Button(label="Add 600pt and 700pt, expand to 700pt", press=clExpandTaller, id="cl-taller")
+              Body(value=`index: ${clIndex}`, id="cl-index")
+              Body(value=`detents: [${clDetents.map(x => detentLabel(x)).join(", ")}]`, id="cl-detents")
+            BottomSheet(id="cl", index=clIndex, detents=clDetents, modal=false, options=sheetLook(), indexchange=clSet, settle=ignoreIndex, positionchange=ignorePosition, closerequest=ignore)
+              SheetHeader(title="Content plus larger detent", close=clSet(0), closeId="cl-close")
+              column height=132 box-sizing="border-box" justify-content="center" padding-left=20 padding-right=20 gap=12
+                text "Short content, taller expansion." font-size=18 font-weight=600 color="#000000"
+                text "The content detent fits this block, while the 560pt detent expands the sheet beyond the measured content height." font-size=15 line-height="22px" color="#555555"
+
+        if e.name == "inline-flat-list"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Inline with FlatList", back=back, name="if")
+              Button(label="Open sheet", press=ifSet(1), id="if-open")
+            BottomSheet(id="if", index=ifIndex, detents=[detent("0"), detent("320"), detent("content")], modal=false, options=sheetLook(), indexchange=ifSet, settle=ignoreIndex, positionchange=ignorePosition, closerequest=ignore)
+              SheetHeader(title="Inline with FlatList", close=ifSet(0), closeId="if-close")
+              scroll flex=1 min-height=0 testId="if-list"
+                column padding-bottom="calc(24px + env(safe-area-inset-bottom))"
+                  ListRows()
+
+        if e.name == "inline-nested-flat-list"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Inline with nested FlatLists", back=back, name="in")
+              Button(label="Open sheet", press=inSet(1), id="in-open")
+            BottomSheet(id="in", index=inIndex, detents=[detent("0"), detent("416"), detent("content")], modal=false, options=sheetLook(), indexchange=inSet, settle=ignoreIndex, positionchange=ignorePosition, closerequest=ignore)
+              SheetHeader(title="Inline with nested FlatLists", close=inSet(0), closeId="in-close")
+              scroll flex=1 min-height=0 testId="in-list"
+                column padding-bottom="calc(24px + env(safe-area-inset-bottom))"
+                  for n in range(4) key=n
+                    ListRow(n=n)
+                  column height=144 box-sizing="border-box" border-bottom="1px solid #eeeeee" padding-top=12 padding-bottom=12 flex-shrink=0
+                    text "Horizontal FlatList" font-size=14 font-weight=600 padding-left=16 padding-right=16 margin-bottom=8 color="#000000"
+                    scroll overflow-x="scroll" overflow-y="hidden" testId="in-horizontal"
+                      row padding-left=16 padding-right=16 gap=12
+                        for n in range(16) key=n
+                          column width=136 height=88 flex-shrink=0 border-radius=8 background-color="#f2f4f8" align-items="center" justify-content="center"
+                            text `Card ${n + 1}` font-size=16 font-weight=600 color="#1f1f1f"
+                  for n in range(44) key=n
+                    ListRow(n=n + 4)
+
+        if e.name == "invalid-detents"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            column testId="iv-content" position="absolute" top=0 left=0 width="100%"
+              column align-items="center" padding-top=8 padding-bottom=4
+                view width=36 height=4 border-radius=2 background-color="#dddddd"
+              column height=64 box-sizing="border-box" justify-content="center" padding-left=20 padding-right=20 border-bottom="1px solid #eeeeee"
+                text "Invalid props" font-size=20 font-weight=700 color="#000000"
+              column height=160 box-sizing="border-box" padding-left=20 padding-right=20 justify-content="center" gap=12
+                text "This sheet should not be allowed." font-size=18 font-weight=600 color="#000000"
+                text "The final case reaches native layout to confirm that resolved detent ordering is still validated there." font-size=15 line-height="22px" color="#555555"
+            DemoPage(title="Invalid props", back=back, name="iv")
+              Body(value=`Case ${ivCase + 1} of ${invalidCases().length}: ${ivCurrent.label}`, id="iv-case")
+              Button(label="Show next invalid case", press=ivNext, id="iv-next")
+              Body(value="The sheet refuses each invalid update: it logs the error (Exact's log on iOS, the console on the web) and keeps its last accepted props. The final case passes the props checks and is refused by native layout's ascending-order check.", id="iv-note")
+            swm-bottom-sheet testId="iv-sheet" contentId="iv-content" position="absolute" inset=0 pointer-events="none" modal=ivCurrent.modal index=ivCurrent.index detents=ivCurrent.detents topInset=ivCurrent.topInset settleDuration=ivCurrent.settleDuration surfaceColor="#ffffff" surfaceCornerRadii=[16, 16, 0, 0] surfaceShadows=some(sheetShadow())
+
+        if e.name == "scroll-coordination"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Scroll coordination", back=back, name="sc")
+              text "Change either direction while the sheet is open, then drag on a list row. “Initial” picks one owner at touch-down; “handoff” can cross the boundary without lifting." color="#555555" font-size=14 line-height="20px"
+              column gap=8
+                text "Expand" color="#222222" font-size=15 font-weight=600
+                row gap=8
+                  ModeOption(mode="none", selected=(scExpand == "none"), press=scSetExpand("none"), id="sc-expand-none")
+                  ModeOption(mode="initial", selected=(scExpand == "initial"), press=scSetExpand("initial"), id="sc-expand-initial")
+                  ModeOption(mode="handoff", selected=(scExpand == "handoff"), press=scSetExpand("handoff"), id="sc-expand-handoff")
+              column gap=8
+                text "Collapse" color="#222222" font-size=15 font-weight=600
+                row gap=8
+                  ModeOption(mode="none", selected=(scCollapse == "none"), press=scSetCollapse("none"), id="sc-collapse-none")
+                  ModeOption(mode="initial", selected=(scCollapse == "initial"), press=scSetCollapse("initial"), id="sc-collapse-initial")
+                  ModeOption(mode="handoff", selected=(scCollapse == "handoff"), press=scSetCollapse("handoff"), id="sc-collapse-handoff")
+              row align-items="center" justify-content="space-between"
+                text "List scrolling" color="#222222" font-size=15 font-weight=600
+                input type="checkbox" switch checked=scScrollEnabled change=scSetScrollEnabled aria-label="List scrolling" testId="sc-scrolling"
+              column gap=8 padding-top=4
+                Button(label="Open preview", press=scSet(1), id="sc-open")
+                Button(label="Open fully", press=scSet(2), id="sc-open-full")
+                Button(label="Close", press=scSet(0), id="sc-close-page")
+            BottomSheet(id="sc", index=scIndex, detents=[detent("0"), detent("320"), detent("content")], modal=false, options=SheetOptions(sheetLook(), scrollExpand=scExpand, scrollCollapse=scCollapse), indexchange=scSet, settle=ignoreIndex, positionchange=ignorePosition, closerequest=ignore)
+              SheetHeader(title="Scroll coordination", close=scSet(0), closeId="sc-close")
+              if scScrollEnabled
+                scroll flex=1 min-height=0 testId="sc-list"
+                  column padding-bottom="calc(24px + env(safe-area-inset-bottom))"
+                    ListRows()
+              else
+                column flex=1 min-height=0 overflow="hidden" testId="sc-static-list"
+                  column padding-bottom="calc(24px + env(safe-area-inset-bottom))"
+                    ListRows()
+
+        if e.name == "scroll-interaction"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            // Keyed by the run, as the React Native sheet is, to remount it.
+            for run in [siRun] key=run
+              column position="absolute" inset=0
+                DemoScrollPage(title="Scroll interaction", back=back, name="si")
+                  text "Choose a case. Reset case repeats its starting state." color="#555555" font-size=14
+                  row flex-wrap="wrap" gap=6
+                    for c in interactionCases() key=c.id
+                      button press=siSelect(c.id) role="radio" aria-checked=(c.id == siCase) testId=`si-case-${c.id}` flex-basis="48%" flex-grow=1 min-height=36 box-sizing="border-box" justify-content="center" align-items="center" padding-left=6 padding-right=6 border="1px solid" border-color=(c.id == siCase ? "#1f1f1f" : "#d7d7d7") border-radius=8 background-color=(c.id == siCase ? "#1f1f1f" : "transparent")
+                        text c.title color=(c.id == siCase ? "#ffffff" : "#333333") font-size=14 font-weight=600
+                  column gap=6
+                    text siCurrent.gesture color="#555555" font-size=14 line-height="19px"
+                    text `**Expected:** ${siCurrent.expected}` markup="markdown" color="#555555" font-size=14 line-height="19px"
+                  button press=siReset testId="si-start" min-height=40 border-radius=8 justify-content="center" align-items="center" background-color="#f0f4ff"
+                    text (siCase == "initial-collapse" ? "Start fully expanded" : "Start at preview") color="#1764c0" font-size=15 font-weight=600
+                BottomSheet(id="si", index=siIndex, detents=[programmaticDetent("0"), detent("352"), detent("content")], modal=false, options=SheetOptions(sheetLook(), animateIn=false, scrollExpand=siCase == "initial-expand" ? "initial" : "handoff", scrollCollapse="initial"), indexchange=siSelectHeight, settle=siRested, positionchange=ignorePosition, closerequest=ignore)
+                  column height=112 box-sizing="border-box" border-bottom="1px solid #eeeeee" flex-shrink=0
+                    column height=16 box-sizing="border-box" padding-top=8 align-items="center"
+                      view width=36 height=4 border-radius=2 background-color="#dddddd"
+                    row height=28 padding-left=16 padding-right=8 align-items="center"
+                      text `${siCurrent.title} · ${heightLabel(siSettled < 0 ? 3 : siSettled)}` flex=1 color="#222222" font-size=15 font-weight=600 white-space="nowrap" overflow="hidden" text-overflow="ellipsis" testId="si-status"
+                      button press=siSelectHeight(0) aria-label="Close interaction sheet" testId="si-close" width=44 height=28 align-items="center" justify-content="center"
+                        text "×" color="#555555" font-size=25 line-height="28px"
+                    row height=32 padding-left=16 padding-right=16 align-items="center"
+                      text `Last offset: ${siOffset}pt` color="#555555" font-size=12 testId="si-offset"
+                    row flex=1
+                      SheetAction(title="Reset case", press=siReset, id="si-reset")
+                      SheetAction(title="Preview", press=siSelectHeight(1), id="si-preview")
+                      SheetAction(title="Full", press=siSelectHeight(2), id="si-full")
+                  scroll flex=1 min-height=0 scrollTop=(siCase == "scrolled-list" ? 240 : 0) scroll=siScrolled scrollend=siScrollEnded testId="si-list"
+                    column padding-bottom="calc(24px + env(safe-area-inset-bottom))"
+                      ListRows()
+
+        if e.name == "programmatic-detent-drag"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Programmatic detent drag", back=back, name="pd")
+              column gap=12
+                Button(label="Snap to 120pt", press=pdSet(0), id="pd-120")
+                Button(label="Snap to 320pt", press=pdSet(1), id="pd-320")
+                Button(label="Snap programmatically to 720pt", press=pdSet(2), id="pd-720")
+              Card()
+                text "Current state" font-weight=600 font-size=14 color="#000000"
+                Body(value="detents: [120, 320, { value: 720, programmatic: true }]", id="pd-detents")
+                Body(value=`index: ${pdIndex}`, id="pd-index")
+                Body(value=`position: ${pdPosition.toFixed(0)}pt`, id="pd-position")
+            BottomSheet(id="pd", index=pdIndex, detents=[detent("120"), detent("320"), programmaticDetent("720")], modal=false, options=SheetOptions(sheetLook(), trackPosition=true), indexchange=pdSet, settle=ignoreIndex, closerequest=ignore, positionchange=pdMoved)
+              SheetHeader(title="Programmatic detent drag", close=pdSet(0), closeId="pd-close")
+              column height="calc(760px + env(safe-area-inset-bottom))" box-sizing="border-box" padding-left=20 padding-right=20 padding-bottom="env(safe-area-inset-bottom)" justify-content="center" gap=12
+                text "Start at the programmatic detent" font-size=18 font-weight=600 color="#000000"
+                text "Open to 720pt, then drag lightly downward. The sheet should not jump to 320pt, and it should snap back to 720pt unless the drag clearly commits downward." font-size=15 line-height="22px" color="#555555"
+
+        if e.name == "percentage-detents"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Numeric and percentage detents", back=back, name="pc")
+              column gap=12
+                Button(label="Collapse to 0% (0)", press=pcSet(0), id="pc-0")
+                Button(label="Open to 80pt (1)", press=pcSet(1), id="pc-1")
+                Button(label="Open to 45% (2)", press=pcSet(2), id="pc-2")
+                Button(label="Open to 100% (3)", press=pcSet(3), id="pc-3")
+              Card()
+                text "Current state" font-weight=600 font-size=14 color="#000000"
+                Body(value="detents: ['0%', 80, '45%', '100%']", id="pc-detents")
+                Body(value=`index: ${pcIndex}`, id="pc-index")
+                Body(value=`position: ${pcPosition.toFixed(1)}pt`, id="pc-position")
+            BottomSheet(id="pc", index=pcIndex, detents=[detent("0%"), detent("80"), detent("45%"), detent("100%")], modal=false, options=SheetOptions(sheetLook(), trackPosition=true), indexchange=pcSet, settle=ignoreIndex, closerequest=ignore, positionchange=pcMoved)
+              SheetHeader(title="Responsive detents", close=pcSet(0), closeId="pc-close")
+              column height="calc(680px + env(safe-area-inset-bottom))" box-sizing="border-box" padding-left=20 padding-right=20 padding-top=20 padding-bottom="env(safe-area-inset-bottom)" gap=12
+                text "Resize the app window" font-size=18 font-weight=600 color="#000000"
+                text "The 80pt detent stays fixed. The 45% and 100% detents are recalculated from the usable native height, including when the app window changes size." font-size=15 line-height="22px" color="#555555"
+
+        if e.name == "dynamic-detents"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Dynamic detent updates", back=back, name="dd")
+              column gap=12
+                Button(label="Open at index 1", press=ddSet(1), id="dd-open")
+                Button(label="Expand to content", press=ddRestore, id="dd-expand")
+                Button(label="Collapse", press=ddSet(0), id="dd-collapse")
+              column gap=12
+                Button(label="Use 200pt middle detent", press=ddSetMiddle(200), id="dd-200")
+                Button(label="Use 300pt middle detent", press=ddSetMiddle(300), id="dd-300")
+                Button(label="Shorten detents and select last index", press=ddShorten, id="dd-shorten")
+                Button(label="Restore content detent and select it", press=ddRestore, id="dd-restore")
+              Card()
+                text "Current state" font-weight=600 font-size=14 color="#000000"
+                Body(value=`detents: [0, ${ddMiddle}${ddShort ? "" : ", 'content'"}]`, id="dd-detents")
+                Body(value=`index: ${ddIndex}`, id="dd-index")
+                Body(value=`position: ${ddPosition.toFixed(0)}pt`, id="dd-position")
+                Body(value="Shortening and restoring update detents and index in the same render.", id="dd-note")
+            BottomSheet(id="dd", index=ddIndex, detents=(ddShort ? [detent("0"), detent(`${ddMiddle}`)] : [detent("0"), detent(`${ddMiddle}`), detent("content")]), modal=false, options=SheetOptions(sheetLook(), trackPosition=true), indexchange=ddSet, settle=ignoreIndex, closerequest=ignore, positionchange=ddMoved)
+              SheetHeader(title="Dynamic detent updates", close=ddSet(0), closeId="dd-close")
+              column height="calc(360px + env(safe-area-inset-bottom))" box-sizing="border-box" padding-left=20 padding-right=20 padding-bottom="env(safe-area-inset-bottom)" justify-content="center" gap=12
+                text "Watch the middle detent animate" font-size=18 font-weight=600 color="#000000"
+                text "With the sheet at index 1, tap the 200pt and 300pt buttons above. The active detent should transition smoothly between the two heights." font-size=15 line-height="22px" color="#555555"
+
+        if e.name == "dynamic-content-height"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Dynamic content height", back=back, name="dc")
+              Button(label="Open sheet", press=dcSet(1), id="dc-open")
+              Card()
+                text "Current state" font-weight=600 font-size=14 color="#000000"
+                Body(value=`animateContentHeight: ${dcAnimate ? "true" : "false"}`, id="dc-animate-state")
+                Body(value=`content height: ${dcHeight}pt`, id="dc-height")
+                Body(value=`index: ${dcIndex}`, id="dc-index")
+                Body(value=`position: ${dcPosition.toFixed(0)}pt`, id="dc-position")
+            BottomSheet(id="dc", index=dcIndex, detents=[detent("0"), detent("content")], modal=true, options=SheetOptions(modalLook(), animateContentHeight=dcAnimate, trackPosition=true), indexchange=dcSet, settle=ignoreIndex, closerequest=ignore, positionchange=dcMoved)
+              SheetHeader(title="Dynamic content height", close=dcSet(0), closeId="dc-close")
+              column padding-top=20 padding-left=20 padding-right=20 padding-bottom="calc(20px + env(safe-area-inset-bottom))" gap=12
+                text "Resize the content while the sheet is open" font-size=18 font-weight=600 color="#000000"
+                text "When animateContentHeight is on, the content snaps to its new height and the sheet animates. Turn it off when the content animates its own height and the sheet should follow immediately." font-size=15 line-height="22px" color="#555555"
+                row min-height=44 align-items="center" justify-content="space-between" gap=16
+                  text "animateContentHeight" flex-shrink=1 font-size=15 font-weight=600 color="#000000"
+                  input type="checkbox" switch checked=dcAnimate change=dcSetAnimate aria-label="animateContentHeight" testId="dc-animate"
+                Button(label="Short content", press=dcResize(160), id="dc-short")
+                Button(label="Tall content", press=dcResize(440), id="dc-tall")
+                column height=dcHeight box-sizing="border-box" transition=(dcAnimate ? "none" : "height 450ms") border-radius=16 background-color="#dbe7ff" align-items="center" justify-content="center" testId="dc-resizable"
+                  text `Resizable content · ${dcHeight}pt` font-weight=600 color="#334455" font-size=14
+
+        if e.name == "z-indexed-content"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Content with zIndex children", back=back, name="zi")
+              Button(label="Open sheet", press=ziSet(1), id="zi-open")
+              Body(value=`index: ${ziIndex}`, id="zi-index")
+              Body(value=`position: ${ziPosition.toFixed(0)}pt`, id="zi-position")
+            BottomSheet(id="zi", index=ziIndex, detents=[detent("0"), detent("content")], modal=true, options=SheetOptions(modalLook(), trackPosition=true), indexchange=ziSet, settle=ignoreIndex, closerequest=ignore, positionchange=ziMoved)
+              SheetHeader(title="Content with zIndex children", close=ziSet(0), closeId="zi-close")
+              column position="relative" padding-top=28 padding-left=20 padding-right=20 padding-bottom="calc(20px + env(safe-area-inset-bottom))" gap=12
+                column position="absolute" top=-16 right=20 z-index=1 padding-top=6 padding-bottom=6 padding-left=12 padding-right=12 border-radius=999 background-color="#334455"
+                  text "zIndex: 1" color="#ffffff" font-weight=600 font-size=14
+                text "A z-indexed child sits above the content" font-size=18 font-weight=600 color="#000000"
+                text "The badge overlaps this text with a positive zIndex. The sheet still opens to its measured content height instead of parking below the screen edge." font-size=15 line-height="22px" color="#555555"
+
+        if e.name == "snap-callbacks"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Snap lifecycle callbacks", back=back, name="sn")
+              column gap=12
+                Button(label="Snap to collapsed", press=snSnapTo(0), id="sn-0")
+                Button(label="Snap to preview", press=snSnapTo(1), id="sn-1")
+                Button(label="Snap to content", press=snSnapTo(2), id="sn-2")
+              column padding=16 border-radius=16 background-color="#f3f3f3" gap=8
+                text "Event log (newest first)" font-weight=600 font-size=14 color="#000000"
+                if snEvents.length == 0
+                  text "No events yet. Drag the sheet or tap a button." color="#888888" font-size=14
+                for ev in snEvents key=part(ev, 0)
+                  text `${snapLabel(part(ev, 1))} → index ${part(ev, 2)}` font-variant-numeric="tabular-nums" color=snapColor(part(ev, 1)) font-size=14
+            BottomSheet(id="sn", index=snIndex, detents=[detent("0"), detent("256"), detent("content")], modal=false, options=sheetLook(), indexchange=snChanged, settle=snRested, positionchange=ignorePosition, closerequest=ignore)
+              SheetHeader(title="Snap lifecycle callbacks", close=snSnapTo(0), closeId="sn-close")
+              column height="calc(176px + env(safe-area-inset-bottom))" box-sizing="border-box" padding-left=20 padding-right=20 padding-bottom="env(safe-area-inset-bottom)" justify-content="center" gap=12
+                text "Drag the sheet or use the buttons" font-size=18 font-weight=600 color="#000000"
+                text "onIndexChange fires the instant a drag commits to a detent; onSettle fires when the sheet arrives. For a programmatic snap the begin moment is the button press itself, so only onSettle follows." font-size=15 line-height="22px" color="#555555"
+
+        if e.name == "settle-duration"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Settle duration", back=back, name="sd")
+              text "settleDuration" font-size=15 font-weight=600 color="#000000"
+              row flex-wrap="wrap" gap=8
+                for s in [0, 0.25, 1, 2, 4] key=s
+                  ColorButton(label=durationLabel(s), color=(s == sdDuration ? "#2563eb" : "#9ca3af"), press=sdSetDuration(s), id=`sd-duration-${s}`)
+              text `Last settle: ${sdLastSettle}` font-size=18 font-variant-numeric="tabular-nums" color="#000000" testId="sd-last-settle"
+              row gap=8
+                Button(label="Open", press=sdMoveTo(1), id="sd-open")
+                Button(label="Expand", press=sdMoveTo(2), id="sd-expand")
+                Button(label="Collapse", press=sdMoveTo(0), id="sd-collapse")
+            BottomSheet(id="sd", index=sdIndex, detents=[detent("0"), detent("256"), detent("content")], modal=false, options=SheetOptions(sheetLook(), settleDuration=sdDuration), indexchange=sdMoveTo, settle=sdRested, positionchange=ignorePosition, closerequest=ignore)
+              SheetHeader(title="Settle duration", close=sdMoveTo(0), closeId="sd-close")
+              column height=176 box-sizing="border-box" align-items="center" justify-content="center"
+                Body(value="Drag between the detents, or flick.", id="sd-body")
+              column height="calc(176px + env(safe-area-inset-bottom))" box-sizing="border-box" padding-bottom="env(safe-area-inset-bottom)" align-items="center" justify-content="center" border-top="1px solid #eeeeee"
+                Body(value="Section 2", id="sd-section-2")
+
+        if e.name == "no-animate-in"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            // Keyed by the mount count, as the React Native sheet is, to remount it.
+            for mount in [naMount] key=mount
+              column position="absolute" inset=0
+                DemoPage(title="No animate in", back=back, name="na")
+                  column gap=12
+                    Button(label="Remount sheet", press=naRemount, id="na-remount")
+                    Button(label="Collapse", press=naSet(0), id="na-collapse")
+                    Button(label="Expand to content", press=naSet(2), id="na-expand")
+                BottomSheet(id="na", index=naIndex, detents=[detent("0"), detent("256"), detent("content")], modal=false, options=SheetOptions(sheetLook(), animateIn=false), indexchange=naSet, settle=ignoreIndex, positionchange=ignorePosition, closerequest=ignore)
+                  SheetHeader(title="No animate in", close=naSet(0), closeId="na-close")
+                  column height="calc(176px + env(safe-area-inset-bottom))" box-sizing="border-box" padding-left=20 padding-right=20 padding-bottom="env(safe-area-inset-bottom)" justify-content="center" gap=12
+                    text "Sheet should appear without sliding up" font-size=18 font-weight=600 color="#000000"
+                    text "With animateIn={false} and an initial index of 1, the sheet should be at its detent immediately on first layout. Tap \"Remount sheet\" to re-observe the initial layout — it must not animate in." font-size=15 line-height="22px" color="#555555"
+
+        if e.name == "ui-thread-position"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="UI-thread onPositionChange", back=back, name="ut")
+              column padding=16 border-radius=16 background-color="#f3f3f3" gap=12
+                text "Position (UI thread)" font-weight=600 color="#1f1f1f" font-size=14
+                text `${round(utPosition)} pt` font-size=36 font-weight=700 color="#1f1f1f" testId="ut-position"
+                ProgressTrack(fraction=min(1, utPosition / 600))
+              column padding=16 border-radius=16 background-color="#f3f3f3" gap=12
+                text "Detent index / progress (UI thread)" font-weight=600 color="#1f1f1f" font-size=14
+                text `detent ${utDetent.toFixed(2)}` font-size=36 font-weight=700 color="#1f1f1f" testId="ut-detent"
+                text "detent index 0 → 2" color="#555555" font-size=14
+                ProgressTrack(fraction=utDetent / 2)
+              text `index: ${utIndex} · detents: [120, 360, 600]` color="#555555" font-size=14 testId="ut-index"
+            column position="absolute" left=0 right=0 bottom=utPosition align-items="center" pointer-events="none"
+              view width=14 height=14 border-radius=7 background-color="#3b82f6"
+            BottomSheet(id="ut", index=utIndex, detents=[detent("120"), detent("360"), detent("600")], modal=false, options=SheetOptions(sheetLook(), trackPosition=true), indexchange=utSet, settle=ignoreIndex, closerequest=ignore, positionchange=utMoved)
+              SheetHeader(title="UI-thread onPositionChange", close=utSet(0), closeId="ut-close")
+              column height="calc(560px + env(safe-area-inset-bottom))" box-sizing="border-box" padding-left=20 padding-right=20 padding-top=16 padding-bottom="env(safe-area-inset-bottom)" gap=12
+                text "Drag the sheet" font-size=18 font-weight=600 color="#000000"
+                text "The read-out, progress bar, and the dot riding the sheet edge are all updated by a Reanimated worklet on the UI thread—no JS-thread state, no per-frame bridge traffic." font-size=15 line-height="22px" color="#555555"
+
+        if e.name == "ui-thread-modal-position"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="UI-thread modal onPositionChange", back=back, name="um")
+              column gap=12
+                Button(label="Open at 360pt", press=umSet(1), id="um-open")
+                Button(label="Expand to 600pt", press=umSet(2), id="um-expand")
+                Button(label="Close", press=umSet(0), id="um-close-page")
+              column padding=16 border-radius=16 background-color="#f3f3f3" gap=12
+                text "Position (UI thread)" font-weight=600 color="#1f1f1f" font-size=14
+                text `${round(umPosition)} pt` font-size=36 font-weight=700 color="#1f1f1f" testId="um-position"
+                text "max detent: 600pt" color="#555555" font-size=14
+              column padding=16 border-radius=16 background-color="#f3f3f3" gap=12
+                text "Detent index / progress (UI thread)" font-weight=600 color="#1f1f1f" font-size=14
+                text `detent ${umDetent.toFixed(2)}` font-size=36 font-weight=700 color="#1f1f1f" testId="um-detent"
+                text "detent index 0 → 2" color="#555555" font-size=14
+                ProgressTrack(fraction=umDetent / 2)
+            column position="absolute" left=0 right=0 bottom=umPosition align-items="center" pointer-events="none"
+              view width=24 height=24 border-radius=12 background-color="#3b82f6"
+            BottomSheet(id="um", index=umIndex, detents=[detent("0"), detent("360"), detent("600")], modal=true, options=SheetOptions(modalLook(), trackPosition=true), indexchange=umSet, settle=ignoreIndex, closerequest=ignore, positionchange=umMoved)
+              SheetHeader(title="UI-thread modal", close=umSet(0), closeId="um-close")
+              column height="calc(560px + env(safe-area-inset-bottom))" box-sizing="border-box" padding-left=20 padding-right=20 padding-top=16 padding-bottom="env(safe-area-inset-bottom)" gap=12
+                text "Drag the modal sheet" font-size=18 font-weight=600 color="#000000"
+                text "The read-out behind the scrim is updated by a Reanimated worklet on the UI thread, even though the modal renders through a portal." font-size=15 line-height="22px" color="#555555"
+
+// demoShared's DemoScreen: a header with a round back button and the title
+// over a hairline, then the controls. The page is opaque, so on Invalid props
+// it covers the raw tag's content node until the sheet adopts it.
+component DemoPage
+  props
+    title: string
+    back: action
+    name: string
+  slot
+  view
+    column position="absolute" inset=0 background-color="#ffffff"
+      DemoHeader(title=title, back=back, name=name)
+      column flex=1 min-height=0 padding-left=20 padding-right=20 padding-top=16
+        column gap=12
+          children
+
+// DemoScreen with `scrollableControls`.
+component DemoScrollPage
+  props
+    title: string
+    back: action
+    name: string
+  slot
+  view
+    column position="absolute" inset=0 background-color="#ffffff"
+      DemoHeader(title=title, back=back, name=name)
+      column flex=1 min-height=0 padding-left=20 padding-right=20 padding-top=16
+        scroll flex=1 min-height=0
+          column gap=12 padding-bottom="calc(16px + env(safe-area-inset-bottom))"
+            children
+
+component DemoHeader
+  props
+    title: string
+    back: action
+    name: string
+  view
+    row padding-top="calc(env(safe-area-inset-top) + 8px)" padding-left=16 padding-right=16 padding-bottom=12 border-bottom="1px solid #ededed" background-color="#ffffff" align-items="center" gap=12 flex-shrink=0
+      column press=back role="button" aria-label="Back" testId=`${name}-back` width=40 height=40 box-sizing="border-box" border-radius=20 background-color="#f3f3f3" align-items="center" justify-content="center" flex-shrink=0
+        // The chevron sits left of centre in its symbol frame: nudge it to the
+        // circle's centre.
+        image "symbol:back" color="#000000" font-size=20 margin-left=2
+      text title font-size=20 font-weight=700 flex-shrink=1 color="#000000"
+
+// demoShared's SheetHeader: a grabber, then the close button and the title
+// over a hairline. 80 points tall.
+component SheetHeader
+  props
+    title: string
+    close: action
+    closeId: string
+  view
+    column flex-shrink=0
+      column align-items="center" padding-top=8 padding-bottom=4
+        view width=36 height=4 border-radius=2 background-color="#dddddd"
+      row align-items="center" gap=16 height=64 box-sizing="border-box" padding-left=16 padding-right=16 border-bottom="1px solid #eeeeee"
+        column press=close role="button" aria-label="Close" testId=closeId width=40 height=40 box-sizing="border-box" border-radius=20 background-color="#eeeeee" align-items="center" justify-content="center" flex-shrink=0
+          image "symbol:close" color="#000000" font-size=24
+        text title font-size=20 font-weight=700 color="#000000"
+
+// demoShared's ListRow over DATA: 48 rows of 48 points.
+component ListRows
+  view
+    column
+      for n in range(48) key=n
+        ListRow(n=n)
+
+component ListRow
+  props
+    n: number
+  view
+    column height=48 box-sizing="border-box" flex-shrink=0 justify-content="center" padding-left=16 padding-right=16 border-bottom=(n == 47 ? "none" : "1px solid #eeeeee")
+      text `Item ${n + 1}` font-size=14 color="#000000"
+
+// React Native's iOS `Button`: centred 18-point text in the tint colour, with 8
+// points of padding (a custom box, since Contract's native button pads itself
+// differently).
+component Button
+  props
+    label: string
+    press: action
+    id: string
+  view
+    column press=press role="button" aria-label=label testId=id padding=8 align-items="center"
+      text label font-size=18 color="#007aff"
+
+// A `Button` with a `color`.
+component ColorButton
+  props
+    label: string
+    color: string
+    press: action
+    id: string
+  view
+    column press=press role="button" aria-label=label testId=id padding=8 align-items="center"
+      text label font-size=18 color=color
+
+// LazyMountedModalScreen's LazySheetContent, with a tap counter of its own: in
+// a lazy sheet it starts at 0 on every open, as the content mounts again.
+component LazySheetContent
+  props
+    index: number
+    opens: number
+    close: action
+  state taps = 0
+  action tap()
+    taps = taps + 1
+  view
+    column
+      SheetHeader(title="Lazy mounted modal", close=close, closeId="lm-close")
+      column height="calc(176px + env(safe-area-inset-bottom))" box-sizing="border-box" padding-bottom="env(safe-area-inset-bottom)" padding-left=20 padding-right=20 justify-content="center" gap=8
+        Body(value=`current index: ${index}`, id="lm-current")
+        Body(value=`mount count: ${opens}`, id="lm-mounts")
+        Button(label=`Taps since mount: ${taps}`, press=tap(), id="lm-tap")
+        Button(label="Close from sheet", press=close, id="lm-close-sheet")
+
+// A sheet whose state and handlers are a child component's own: the
+// `BottomSheet` component calls them, so they needn't be the root's.
+component ChildOwnedSheet
+  state index = 0
+  state settled = -1
+  state moves = 0
+  action setIndex(i: number)
+    index = i
+  action rested(i: number)
+    settled = i
+  action moved(p: SheetPosition)
+    moves = moves + 1
+  action ignore
+    let unused = 0
+  view
+    column position="absolute" inset=0
+      column position="absolute" top=300 left=20 right=20 gap=8
+        Button(label="Open sheet", press=setIndex(1), id="co-open")
+        Body(value=`index: ${index} · settled: ${settled}`, id="co-state")
+        Body(value=moves > 0 ? "position reported" : "no position yet", id="co-moves")
+      BottomSheet(id="co", index=index, detents=[detent("0"), detent("content")], modal=true, options=SheetOptions(modalLook(), trackPosition=true), indexchange=setIndex, settle=rested, positionchange=moved, closerequest=ignore)
+        SheetHeader(title="Owned by a child", close=setIndex(0), closeId="co-close")
+        column height="calc(176px + env(safe-area-inset-bottom))" box-sizing="border-box" padding-bottom="env(safe-area-inset-bottom)" align-items="center" justify-content="center"
+          Body(value="Tap the scrim: the child's own indexchange closes it.", id="co-body")
+
+// React Native's default `Text`: 14 points, black.
+component Body
+  props
+    value: string
+    id: string
+  view
+    text value font-size=14 color="#000000" testId=id
+
+component Card
+  slot
+  view
+    column padding=16 border-radius=16 background-color="#f3f3f3" gap=6
+      children
+
+// AccessibleDismissalScreen's Toggle: a label and a switch.
+component Toggle
+  props
+    label: string
+    value: bool
+    change: action
+    id: string
+  view
+    row align-items="center" justify-content="space-between" gap=12
+      text label flex=1 font-size=15 color="#000000"
+      input type="checkbox" switch checked=value change=change aria-label=label testId=id
+
+// DetachedSheetScreen's Toggle: two to a row.
+component SmallToggle
+  props
+    label: string
+    value: bool
+    change: action
+    id: string
+  view
+    row width="45%" align-items="center" justify-content="space-between"
+      text label font-size=14 color="#000000"
+      input type="checkbox" switch checked=value change=change aria-label=label testId=id
+
+// ScrollCoordinationScreen's mode option.
+component ModeOption
+  props
+    mode: string
+    selected: bool
+    press: action
+    id: string
+  view
+    button press=press role="radio" aria-checked=selected testId=id flex=1 align-items="center" padding-left=8 padding-right=8 padding-top=10 padding-bottom=10 border="1px solid" border-color=(selected ? "#1f1f1f" : "#d7d7d7") border-radius=8 background-color=(selected ? "#1f1f1f" : "transparent")
+      text mode color=(selected ? "#ffffff" : "#333333") font-size=13 font-weight=600
+
+// ScrollInteractionScreen's SheetAction.
+component SheetAction
+  props
+    title: string
+    press: action
+    id: string
+  view
+    button press=press aria-label=`${title} interaction sheet` testId=id flex=1 align-items="center" justify-content="center"
+      text title color="#1764c0" font-size=14 font-weight=500
+
+// UIThreadPositionScreen's progress track.
+component ProgressTrack
+  props
+    fraction: number
+  view
+    view height=8 border-radius=4 background-color="#dddddd" overflow="hidden"
+      view height="100%" width=`${fraction * 100}%` border-radius=4 background-color="#3b82f6"
