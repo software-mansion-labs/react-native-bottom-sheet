@@ -60,3 +60,14 @@ test "a lazy sheet reopened while closing keeps its content and state"
   clock +1500 real
   expect state lmOpens == 1
   expect tree has "lm-tap"
+
+test "a sheet owned by a child component calls the child's own actions"
+  tap "case-child-owned-sheet"
+  clock settle
+  tap "co-open"
+  clock +1500 real
+  expect text "co-state" == "index: 1 · settled: 1"
+  expect text "co-moves" == "position reported"
+  tap "co-close"
+  clock +1500 real
+  expect text "co-state" == "index: 0 · settled: 0"

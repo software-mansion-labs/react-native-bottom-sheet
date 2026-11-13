@@ -114,7 +114,9 @@ Props:
 - `id: string`: names its nodes for tests: `${id}-content`, `${id}-surface`,
   `${id}-sheet` (the tag), `${id}-end` (the marker), `${id}-layer`.
 - `index: number`, `detents: SheetDetent[]`: the controlled detent and the
-  detents. Make detents with `detent`, `programmaticDetent` and `insetDetent`.
+  detents. Make detents with `detent("50%")`, `programmaticDetent("0")` (a
+  detent only `index` reaches), `insetDetent("320", 16, 16, 32)` (a detached
+  card) and `scrimDetent("100%", 0.3)` (a modal sheet's scrim at that detent).
 - `modal: bool`: a scrim behind the sheet, as `ModalBottomSheet`.
 - `options: SheetOptions`: everything else, as plain values with Exact's
   conventions (`""`, `0`, `-1` or `[]` for the default, enums with a default
@@ -125,9 +127,12 @@ Props:
   required, as a library component's actions are; bind an action that does
   nothing to one you don't need. Exact can't tell a view which events are bound,
   so `positionchange` (every frame the sheet moves) is sent only with
-  `trackPosition`, and `closerequest` only with `handlesCloseRequest`. The
-  handlers must be actions of the root component (Exact's rule for a package
-  view's events).
+  `trackPosition`, and `closerequest` only with `handlesCloseRequest`. Any
+  action will do, a child component's too: the component hears the native view's
+  events itself (through the tag's built-in `change`) and calls these, so
+  Exact's rule that a package view's typed events name root actions stops at the
+  component. The demo's "Sheet owned by a child" keeps a sheet and its handlers
+  in a child component.
 
 **Its look.** The surface is the component's `surface` param, whose default is
 the package's token `exact-bottom-sheet.surface` (`exact-bottom-sheet.tamber`:
@@ -152,9 +157,28 @@ the content follows a detached card and is scaled at a narrower detent) and the
 region's height (so a `flex=1` child fills the sheet, and a
 `scroll flex=1 min-height=0` child scrolls inside it). A zero-height marker
 after the children gives a `content` detent its height. The app binds nothing.
-Place it last among its parent's children: it fills its parent's box, takes no
-touches outside the card and the scrim, and keeps the content invisible until
-the sheet has reported its region.
+
+**Placement.** The sheet fills its parent's box
+(`position: absolute; inset: 0`), takes no touches outside the card and the
+scrim, and draws over its earlier siblings, so place it last in a container that
+is as big as the area it should cover: for an inline sheet, the area it rises
+from (React Native's `BottomSheet` fills its parent the same way); for a modal
+sheet, the screen, usually the route's own full-screen column:
+
+```contract
+if e.name == "settings"
+  column navigationKey=`${e.id}` position="absolute" inset=0
+    // …the page…
+    BottomSheet(id="sheet", modal=true, …)
+      // …the sheet's content…
+```
+
+React Native's `ModalBottomSheet` instead portals to its `BottomSheetProvider`
+at the app's root, so it covers the app wherever it is written. Contract has
+neither a portal nor `position: fixed` (`position` is `relative`, `absolute`,
+`static` or `sticky`), so a modal sheet covers the box it is placed in; to cover
+the whole window from anywhere, native modal routes included, use
+`options.nativeOverlay`, which lifts it into Exact's top layer.
 
 **`lazy`.** The content (and the surface) is in the tree only while the sheet is
 open or still closing: it mounts in the same update that `index` selects an open
@@ -361,6 +385,32 @@ itself:
   `StyleSheet` or `I18nManager`.
 
 ## Limitations
+
+### What Exact doesn't allow yet
+
+What the package works around, and what an app pays for each (checked against
+the pinned Exact):
+
+- **The import is a subpath, `@swmansion/exact-bottom-sheet/sheet`.** A
+  package's views are found only through `exports["."]` naming its `exact.json`
+  (unlike its native module, read from the root whatever `.` names), so the root
+  can't also be the Contract file the way `@exact/lists`'s is. Pointing `.` at
+  `sheet.contract` loses the view ("depends on no package that serves a view").
+- **Corners, shadows and the scrim are options, not design params.** A param is
+  only a value of Contract's own styles, and a package view can't read the
+  design (`ExactTamber` is an app module's, not a package's), so what the native
+  code draws can't be themed in the app's design. The surface, drawn in
+  Contract, is.
+- **Tests can't assert the sheet's own state.** The sheet publishes it to the
+  agent (`state extensions`, below), but `expect state` reads only the app's
+  state, so a `.test.contract` asserts through the app's handlers or the tree.
+- **Content is adopted, not passed.** A package view can't have children, so the
+  component renders the content next to the tag and the adapters move it into
+  the sheet by `testId` (see Architecture).
+- **No optional actions.** Each event takes an action, so an app binds one that
+  does nothing to an event it doesn't use, as with any Exact component.
+
+### Other limitations
 
 - **Android is not supported.** Exact's Android host paints Contract content on
   a Canvas rather than as Android views, and a hosted view is a leaf that only

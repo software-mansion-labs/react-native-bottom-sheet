@@ -331,11 +331,13 @@ class BottomSheetView {
     this.controller.setCallbacks({
       onIndexChange: (index) => {
         events.emit('indexchange', index);
+        events.change(`index:${index}`);
         this.index = index;
         this.publishState();
       },
       onSettle: (index) => {
         events.emit('settle', index);
+        events.change(`settle:${index}`);
         this.settledIndex = index;
         this.publishState();
         const detent = this.detents?.[index];
@@ -346,10 +348,15 @@ class BottomSheetView {
       // bound, and this one runs every frame the sheet moves.
       onPositionChange: (position, index) => {
         this.lastPosition = position;
-        if (this.props.trackPosition === true)
+        if (this.props.trackPosition === true) {
           events.emit('positionchange', { position, index });
+          events.change(`position:${position},${index}`);
+        }
       },
-      onCloseRequest: () => events.emit('closerequest'),
+      onCloseRequest: () => {
+        events.emit('closerequest');
+        events.change('close');
+      },
       onError: (message) =>
         console.error(`swm-bottom-sheet ${view}: ${message}`),
     });
@@ -575,17 +582,17 @@ class BottomSheetView {
     this.emitChange();
   }
 
-  // The built-in `change` event, "<width>,<height>,<resting closed: 0|1>,
-  // <surface height>", which a child component can handle with its own action
-  // (a typed event must name a root action): the `BottomSheet` component lays
-  // its content node out with the region, its surface node with the region's
-  // width and the surface height, and unmounts a `lazy` sheet once it rests
-  // closed.
+  // The built-in `change` event, which a child component can handle with its
+  // own action (a typed event must name a root action), so the `BottomSheet`
+  // component hears everything through it and calls the app's action props,
+  // which may then be any action: `region:<width>,<height>,<resting closed>,
+  // <surface height>`, `index:<i>`, `settle:<i>`, `position:<points>,<index>`
+  // and `close`, each also raised as its typed event for the raw tag.
   emitChange() {
     if (this.destroyed) return;
     const { width, height, surface } = this.region;
     this.events.change(
-      `${width},${height},${this.restingClosed ? 1 : 0},${surface}`
+      `region:${width},${height},${this.restingClosed ? 1 : 0},${surface}`
     );
   }
 

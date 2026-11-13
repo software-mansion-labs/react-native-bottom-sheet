@@ -101,6 +101,10 @@ fn sheetOptions(): SheetOptions = SheetOptions(topInset=-1, lazy=false, nativeOv
 // "content", the content's height. "0" closes the sheet.
 fn detent(value: string): SheetDetent = SheetDetent(value=value, programmatic=none, insets=none, scrimOpacity=none)
 
+// A modal sheet's detent with its own scrim opacity, 0 to 1 (by default 1,
+// or 0 at a closed detent), which the scrim fades between as the sheet moves.
+fn scrimDetent(value: string, scrimOpacity: number): SheetDetent = SheetDetent(value=value, programmatic=none, insets=none, scrimOpacity=some(scrimOpacity))
+
 // A detent a drag can't reach, only `index`.
 fn programmaticDetent(value: string): SheetDetent = SheetDetent(value=value, programmatic=some(true), insets=none, scrimOpacity=none)
 
@@ -110,9 +114,11 @@ fn insetDetent(value: string, left: number, right: number, bottom: number): Shee
 // A shadow for `shadows`.
 fn surfaceShadow(offsetX: number, offsetY: number, blurRadius: number, spreadDistance: number, color: string, opacity: number): SheetShadow = SheetShadow(offsetX=offsetX, offsetY=offsetY, blurRadius=blurRadius, spreadDistance=spreadDistance, color=color, opacity=opacity)
 
-// One number of the tag's `change` event, "<width>,<height>,<resting closed>,
-// <surface height>", 0 when unreadable.
-fn sheetRegionPart(v: string, i: number): number = match v.split(",").at(i) { case some(x) => match parseNumber(x) { case some(n) => n, case none => 0 }, case none => 0 }
+// The tag's `change` event, "<kind>:<values>" (the adapters' `emitChange`):
+// its kind, and one of its comma-separated numbers, 0 when unreadable.
+fn sheetEventKind(v: string): string = match v.split(":").at(0) { case some(k) => k, case none => "" }
+
+fn sheetEventPart(v: string, i: number): number = match v.split(":").at(1) { case some(rest) => match rest.split(",").at(i) { case some(x) => match parseNumber(x) { case some(n) => n, case none => 0 }, case none => 0 }, case none => 0 }
 
 // Whether a detent is closed (`isNormalizedDetentClosed`): a point or
 // percentage value of 0. The adapters refuse any other malformed value.
@@ -141,9 +147,10 @@ fn sheetPointerEvents(modal: bool, detents: SheetDetent[], index: number): strin
 // rest at, `positionchange` its position every frame it moves (with
 // `trackPosition`), `closerequest` the web's Escape on a modal sheet (with
 // `handlesCloseRequest`). Each is required, as a library component's actions
-// are: bind an action that does nothing to one you don't need. The handlers
-// must be actions of the root component (Exact's rule for a package view's
-// events).
+// are: bind an action that does nothing to one you don't need. Any action
+// will do, a child component's too: the component hears the tag's events
+// itself and calls these, so Exact's rule that a package view's events name
+// root actions stops at the component.
 component BottomSheet
   params
     surface: color = "exact-bottom-sheet.surface" control = "token" group = "Color" priority = 1 label = "Surface"
@@ -175,18 +182,29 @@ component BottomSheet
   state restingClosed = true
   // Whether an overlay sheet's layer was put in the top layer.
   state lifted = false
-  action sized(v: string)
-    regionWidth = sheetRegionPart(v, 0) > 0 ? sheetRegionPart(v, 0) : regionWidth
-    regionHeight = sheetRegionPart(v, 1) > 0 ? sheetRegionPart(v, 1) : regionHeight
-    surfaceHeight = sheetRegionPart(v, 3) > 0 ? sheetRegionPart(v, 3) : surfaceHeight
-    // An overlay sheet is lifted on the tag's first report, and again each
-    // time it opens from rest, which brings it in front of the others (as
-    // `BottomSheetComponentView.mm`'s `bringOverlayToFront`).
-    if sheetUsesOverlay(modal, options) && (!lifted || (restingClosed && sheetRegionPart(v, 2) == 0))
-      hidePopover(`${id}-layer`)
-      showPopover(`${id}-layer`)
-      lifted = true
-    restingClosed = sheetRegionPart(v, 2) == 1
+  // Every event of the tag, which this calls the app's actions for.
+  action heard(v: string)
+    let kind = sheetEventKind(v)
+    if kind == "index"
+      indexchange(sheetEventPart(v, 0))
+    else if kind == "settle"
+      settle(sheetEventPart(v, 0))
+    else if kind == "position"
+      positionchange(SheetPosition(position=sheetEventPart(v, 0), index=sheetEventPart(v, 1)))
+    else if kind == "close"
+      closerequest()
+    else if kind == "region"
+      regionWidth = sheetEventPart(v, 0) > 0 ? sheetEventPart(v, 0) : regionWidth
+      regionHeight = sheetEventPart(v, 1) > 0 ? sheetEventPart(v, 1) : regionHeight
+      surfaceHeight = sheetEventPart(v, 3) > 0 ? sheetEventPart(v, 3) : surfaceHeight
+      // An overlay sheet is lifted on the tag's first report, and again each
+      // time it opens from rest, which brings it in front of the others (as
+      // `BottomSheetComponentView.mm`'s `bringOverlayToFront`).
+      if sheetUsesOverlay(modal, options) && (!lifted || (restingClosed && sheetEventPart(v, 2) == 0))
+        hidePopover(`${id}-layer`)
+        showPopover(`${id}-layer`)
+        lifted = true
+      restingClosed = sheetEventPart(v, 2) == 1
   view
     column id=`${id}-layer` popover=(sheetUsesOverlay(modal, options) ? some("manual") : none) aria-modal=sheetOverlayModal(modal, options, detents, index, restingClosed) position="absolute" top=0 left=0 width="100%" height="100%" margin=0 padding=0 border-width=0 background-color="transparent" overflow="visible" pointer-events="none"
       if sheetMounted(options, detents, index, restingClosed)
@@ -195,4 +213,4 @@ component BottomSheet
         column part="content" testId=`${id}-content` position="absolute" top=0 left=0 width=(regionWidth == 0 ? "100%" : `${regionWidth}px`) height=(regionHeight == 0 ? "auto" : `${regionHeight}px`) display="flex" flex-direction="column" pointer-events="auto" opacity=(regionWidth == 0 ? 0 : 1)
           children
           view testId=`${id}-end` height=0 flex-shrink=0
-      swm-bottom-sheet testId=`${id}-sheet` contentId=`${id}-content` surfaceId=some(`${id}-surface`) position="absolute" inset=0 pointer-events=sheetPointerEvents(modal, detents, index) index=index detents=detents topInset=(options.topInset < 0 ? none : some(options.topInset)) modal=some(modal) animateIn=some(options.animateIn) animateContentHeight=some(options.animateContentHeight) settleDuration=(options.settleDuration > 0 ? some(options.settleDuration) : none) scrollExpand=some(options.scrollExpand) scrollCollapse=some(options.scrollCollapse) scrimColor=(options.scrimColor == "" ? none : some(options.scrimColor)) scrimLabel=(options.scrimLabel == "" ? none : some(options.scrimLabel)) surfaceCornerRadii=some(options.cornerRadii) surfaceCornerCurve=some(options.cornerCurve) surfaceShadows=some(options.shadows) handlesCloseRequest=some(options.handlesCloseRequest) trackPosition=some(options.trackPosition) nativeOverlay=some(sheetUsesOverlay(modal, options)) change=sized indexchange=indexchange settle=settle closerequest=closerequest positionchange=positionchange
+      swm-bottom-sheet testId=`${id}-sheet` contentId=`${id}-content` surfaceId=some(`${id}-surface`) position="absolute" inset=0 pointer-events=sheetPointerEvents(modal, detents, index) index=index detents=detents topInset=(options.topInset < 0 ? none : some(options.topInset)) modal=some(modal) animateIn=some(options.animateIn) animateContentHeight=some(options.animateContentHeight) settleDuration=(options.settleDuration > 0 ? some(options.settleDuration) : none) scrollExpand=some(options.scrollExpand) scrollCollapse=some(options.scrollCollapse) scrimColor=(options.scrimColor == "" ? none : some(options.scrimColor)) scrimLabel=(options.scrimLabel == "" ? none : some(options.scrimLabel)) surfaceCornerRadii=some(options.cornerRadii) surfaceCornerCurve=some(options.cornerCurve) surfaceShadows=some(options.shadows) handlesCloseRequest=some(options.handlesCloseRequest) trackPosition=some(options.trackPosition) nativeOverlay=some(sheetUsesOverlay(modal, options)) change=heard

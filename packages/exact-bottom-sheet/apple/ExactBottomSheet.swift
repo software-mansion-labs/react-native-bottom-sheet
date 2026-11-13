@@ -731,15 +731,17 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
     }
   }
 
-  /// The built-in `change` event, "<width>,<height>,<resting closed: 0|1>,
-  /// <surface height>", which a child component can handle with its own
-  /// action (a typed event must name a root action): the `BottomSheet`
-  /// component lays its content node out with the region, its surface node
-  /// with the region's width and the surface height (the sheet plus
-  /// `surfaceOverflow`), and unmounts a `lazy` sheet once it rests closed.
+  /// The built-in `change` event, which a child component can handle with
+  /// its own action (a typed event must name a root action), so the
+  /// `BottomSheet` component hears everything through it and calls the app's
+  /// action props, which may then be any action: `region:<width>,<height>,
+  /// <resting closed: 0|1>,<surface height>` (its content and surface
+  /// layout, and when a `lazy` sheet unmounts), `index:<i>`, `settle:<i>` and
+  /// `position:<points>,<index>`, each also raised as its typed event for the
+  /// raw tag.
   private func emitChange() {
     events.change(
-      "\(Double(lastRegion.width)),\(Double(lastRegion.height)),\(restingClosed == true ? 1 : 0),\(Double(lastSurfaceHeight))"
+      "region:\(Double(lastRegion.width)),\(Double(lastRegion.height)),\(restingClosed == true ? 1 : 0),\(Double(lastSurfaceHeight))"
     )
   }
 
@@ -978,12 +980,14 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
     guard !destroyed else { return }
     lastIndex = index
     events.emit("indexchange", [index])
+    events.change("index:\(index)")
     publishState()
   }
 
   func bottomSheetHostingView(_: BottomSheetHostingView, didSettle index: Int) {
     guard !destroyed else { return }
     events.emit("settle", [index])
+    events.change("settle:\(index)")
     settledIndex = index
     if index < closedDetents.count {
       setRestingClosed(closedDetents[index])
@@ -1001,6 +1005,7 @@ final class ExactBottomSheetView: NSObject, ExactPackageView, BottomSheetHosting
     updateOverlayAccessibility()
     guard tracksPosition else { return }
     events.emit("positionchange", [["position": Double(position), "index": Double(index)]])
+    events.change("position:\(Double(position)),\(Double(index))")
   }
 
   func bottomSheetHostingView(_: BottomSheetHostingView, didReportError message: String) {

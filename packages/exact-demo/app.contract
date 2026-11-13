@@ -61,7 +61,7 @@
 //   so typing can be checked from the screen.
 // - UI-thread onPositionChange (both): `positionchange` runs a root action
 //   every frame (no worklets); the readouts are text, not a TextInput.
-use BottomSheet, SheetOptions, SheetDetent, SheetInsets, SheetPosition, SheetShadow, sheetOptions, detent, programmaticDetent, insetDetent, surfaceShadow from "@swmansion/exact-bottom-sheet/sheet"
+use BottomSheet, SheetOptions, SheetDetent, SheetInsets, SheetPosition, SheetShadow, sheetOptions, detent, programmaticDetent, insetDetent, scrimDetent, surfaceShadow from "@swmansion/exact-bottom-sheet/sheet"
 
 routes nav
   home "/"
@@ -77,6 +77,7 @@ routes nav
     native-overlay-full-height-list "/native-overlay-full-height-list"
     native-overlay-keyboard-input "/native-overlay-keyboard-input"
     surface-backgrounds "/surface-backgrounds"
+    child-owned-sheet "/child-owned-sheet"
     close-request "/close-request"
     modal-scroll-view "/modal-scroll-view"
     draggable-grabber "/draggable-grabber"
@@ -122,6 +123,7 @@ fn demoCases(): DemoCase[] = [
   DemoCase(key="native-overlay-full-height-list", href=path("native-overlay-full-height-list"), title="Native overlay full-height list", throws=false),
   DemoCase(key="native-overlay-keyboard-input", href=path("native-overlay-keyboard-input"), title="Native overlay keyboard input", throws=false),
   DemoCase(key="surface-backgrounds", href=path("surface-backgrounds"), title="Surface backgrounds (Exact only)", throws=false),
+  DemoCase(key="child-owned-sheet", href=path("child-owned-sheet"), title="Sheet owned by a child (Exact only)", throws=false),
   DemoCase(key="close-request", href=path("close-request"), title="Close requests", throws=false),
   DemoCase(key="modal-scroll-view", href=path("modal-scroll-view"), title="Modal with ScrollView", throws=false),
   DemoCase(key="draggable-grabber", href=path("draggable-grabber"), title="Draggable grabber", throws=false),
@@ -148,8 +150,6 @@ fn demoCases(): DemoCase[] = [
   DemoCase(key="ui-thread-modal-position", href=path("ui-thread-modal-position"), title="UI-thread modal onPositionChange", throws=false)
 ]
 
-// Detents with a scrim opacity (the package's `detent` has none).
-fn scrimDetent(v: string, o: number): SheetDetent = SheetDetent(detent(v), scrimOpacity=some(o))
 // DetachedSheetScreen's FLOATING insets.
 fn floating(v: string): SheetDetent = insetDetent(v, 16, 16, 32)
 // demoShared's SHEET_SHADOW on iOS (shadowRadius 5.62 is a 11.24 blur).
@@ -900,6 +900,12 @@ component App
               Button(label="Close", press=sbSetRaw(0), id="sb-raw-close")
             swm-bottom-sheet testId="sb-raw-sheet" contentId="sb-raw-content" position="absolute" inset=0 pointer-events=(sbRawIndex == 0 ? "none" : "auto") index=sbRawIndex detents=[detent("0"), detent("200")] modal=true scrimColor="rgba(0, 0, 0, 0.5)" surfaceColor="#dcfce7" surfaceCornerRadii=[16, 16, 0, 0] indexchange=sbSetRaw
 
+        if e.name == "child-owned-sheet"
+          column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
+            DemoPage(title="Sheet owned by a child", back=back, name="co")
+              text "Exact only: this sheet, its index and its handlers live in a child component (ChildOwnedSheet), not in the app's root. The component hears the native view's events itself and calls whatever actions it is given." color="#555555" line-height="22px" font-size=14
+            ChildOwnedSheet()
+
         if e.name == "lazy-mounted-modal"
           column navigationKey=`${e.id}` navigationBar="none" position="absolute" inset=0 background-color="#ffffff"
             DemoPage(title="Lazy mounted modal", back=back, name="lm")
@@ -1530,6 +1536,31 @@ component LazySheetContent
         Body(value=`mount count: ${opens}`, id="lm-mounts")
         Button(label=`Taps since mount: ${taps}`, press=tap(), id="lm-tap")
         Button(label="Close from sheet", press=close, id="lm-close-sheet")
+
+// A sheet whose state and handlers are a child component's own: the
+// `BottomSheet` component calls them, so they needn't be the root's.
+component ChildOwnedSheet
+  state index = 0
+  state settled = -1
+  state moves = 0
+  action setIndex(i: number)
+    index = i
+  action rested(i: number)
+    settled = i
+  action moved(p: SheetPosition)
+    moves = moves + 1
+  action ignore
+    let unused = 0
+  view
+    column position="absolute" inset=0
+      column position="absolute" top=300 left=20 right=20 gap=8
+        Button(label="Open sheet", press=setIndex(1), id="co-open")
+        Body(value=`index: ${index} · settled: ${settled}`, id="co-state")
+        Body(value=moves > 0 ? "position reported" : "no position yet", id="co-moves")
+      BottomSheet(id="co", index=index, detents=[detent("0"), detent("content")], modal=true, options=SheetOptions(modalLook(), trackPosition=true), indexchange=setIndex, settle=rested, positionchange=moved, closerequest=ignore)
+        SheetHeader(title="Owned by a child", close=setIndex(0), closeId="co-close")
+        column height="calc(176px + env(safe-area-inset-bottom))" box-sizing="border-box" padding-bottom="env(safe-area-inset-bottom)" align-items="center" justify-content="center"
+          Body(value="Tap the scrim: the child's own indexchange closes it.", id="co-body")
 
 // React Native's default `Text`: 14 points, black.
 component Body
