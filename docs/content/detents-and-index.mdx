@@ -88,11 +88,12 @@ values, all 0 by default, and the gaps blend as the sheet moves between detents.
 direction, so `start` is the left in a left-to-right layout and the right in a
 right-to-left one, and they take precedence over the side they resolve to. On
 the web, the layout direction is the document’s. Each side must be a finite,
-non-negative number; the library throws an `Error` otherwise. An open detent's
-side insets must also add up to less than the host's width, so the card has
-room. The native host checks this against its measured width, the way it checks
-the detents' order against its measured height, and raises an error otherwise.
-A closed detent ignores its insets, so the card leaves through the gap with its
+non-negative number; the library throws an `Error` otherwise. Keep an open
+detent's side insets below the host's width: insets that fill it leave the card
+no room, so it's squeezed to nothing. That's not an error, since a host can get
+that narrow at runtime (a resized window, a container animating open), but in
+development the library warns about it, against the host's laid-out width. A
+closed detent ignores its insets, so the card leaves through the gap with its
 shape intact.
 
 ```tsx
@@ -174,17 +175,17 @@ The values match `UISheetPresentationController.Placement` from iOS 27:
 The card takes the space its detent's side [insets](#insets) leave, up to
 `maxWidth`. The insets stay the least gap on each side, so a centered card moves
 off-center only as far as an inset requires. A screen narrower than `maxWidth`
-is filled as before, so the same props suit a phone and a tablet. As with
-insets, the content is laid out once, at the widest card's width, and the space
-beside the card isn't part of the sheet: touches there reach the scrim or
-whatever is behind it.
+is filled as before, so the same props suit a phone and a tablet; the card is
+clipped only where `maxWidth` actually narrows it. As with insets, the content
+is laid out once, at the widest card's width, and the space beside the card
+isn't part of the sheet: touches there reach the scrim or whatever is behind it.
 
 `maxWidth` must be a number greater than 0; pass `Infinity`, or leave it unset,
 for no cap. `placement` must be one of the three values. The library throws an
 `Error` otherwise. `maxWidth` and `placement` can't push the sheet out of the
-screen: the card shrinks and moves to stay between the side insets. Side insets
-that leave it no room are an error, which the native host raises once it
-measures its width (see [Insets](#insets)).
+screen: the card shrinks and moves to stay between the side insets. On the web,
+the direction comes from the page (for example `dir="rtl"`), since React Native
+Web's `I18nManager` doesn't report it.
 
 ## Index events
 

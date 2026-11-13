@@ -50,6 +50,8 @@ export class BottomSheetWebController {
   rawDetents: ReadonlyArray<RawDetent> = [];
   /** The widest card's side gaps, which the content is laid out against. */
   widestCardInsets = { insetLeft: 0, insetRight: 0 };
+  /** Whether the host lays out right to left, which flips `placement`. */
+  isLayoutRTL = false;
   /**
    * Where the browser laid out the content: at the widest card's inset on the
    * start edge, or, under `maxWidth`, wherever that put the capped box. Read
@@ -314,6 +316,7 @@ export class BottomSheetWebController {
     if (hostHeight <= 0 || host.clientWidth <= 0) return;
 
     this.hostHeight = hostHeight;
+    this.isLayoutRTL = getComputedStyle(host).direction === 'rtl';
     // The part of the top safe-area inset that overlaps the host: the default
     // top inset.
     this.statusBarOverlap = Math.max(

@@ -327,6 +327,8 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
   }
 
   private fun performHostLayout(w: Int, h: Int) {
+    // Whether the maximum width leaves a gap depends on the host's width.
+    detents.refreshCardGaps()
     // The default top inset depends on this view's window position, which can
     // change without a resize.
     contentRegion.recomputeNativeGeometry()
@@ -620,6 +622,7 @@ class BottomSheetHostView(context: Context) : ReactViewGroup(context), NestedScr
     detents.releaseContentHeightMarker()
     state.rawDetentSpecs = emptyList()
     state.hasCardGaps = false
+    state.hasInsetGaps = false
     clipContainer.setClipsToCard(false)
     state.widestCardInsets = DetentInsets()
     state.cardMaxWidth = 0f

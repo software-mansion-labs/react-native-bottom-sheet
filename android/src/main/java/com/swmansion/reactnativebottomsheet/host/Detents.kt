@@ -32,6 +32,17 @@ internal class Detents(
       refreshDetentsFromLayout()
     }
 
+  // Recomputes whether the card clips, from the detents' insets and whether the maximum width
+  // narrows
+  // the widest card in this host. The widest card has the tightest insets, so a cap that doesn't
+  // narrow it narrows none.
+  fun refreshCardGaps() {
+    val widestAvailable = state.width - state.widestCardInsets.left - state.widestCardInsets.right
+    val isNarrowedByMaxWidth = state.cardMaxWidth > 0f && state.cardMaxWidth < widestAvailable
+    state.hasCardGaps = state.hasInsetGaps || isNarrowedByMaxWidth
+    clipContainer.setClipsToCard(state.hasCardGaps)
+  }
+
   fun setDetents(raw: List<Map<String, Any>>) {
     val previousTallestDetent = state.rawDetentSpecs.lastOrNull()
     val previousWidestCardInsets = state.widestCardInsets
@@ -76,12 +87,11 @@ internal class Detents(
       ((firstEntry?.get("maxWidth") as? Number)?.toFloat() ?: 0f).coerceAtLeast(0f) * state.density
     state.cardPlacementBias =
       ((firstEntry?.get("placementBias") as? Number)?.toFloat() ?: 0.5f).coerceIn(0f, 1f)
-    state.hasCardGaps =
-      state.cardMaxWidth > 0f ||
-        state.rawDetentSpecs.any {
-          it.insets.left > 0f || it.insets.right > 0f || it.insets.bottom > 0f
-        }
-    clipContainer.setClipsToCard(state.hasCardGaps)
+    state.hasInsetGaps =
+      state.rawDetentSpecs.any {
+        it.insets.left > 0f || it.insets.right > 0f || it.insets.bottom > 0f
+      }
+    refreshCardGaps()
     // The tallest detent bounds the content region, so its inset must be
     // re-derived — and republished when it changed — before the detents are
     // re-resolved against the current layout.
@@ -160,12 +170,6 @@ internal class Detents(
     val measuredContentHeight = validContentHeight().takeIf { maxHeight > 0f && it.isFinite() }
     var previousPosition: Float? = null
     return state.rawDetentSpecs.mapIndexed { index, spec ->
-      // Checked against the host's measured width, as positions are against its height. A closed
-      // detent's insets are 0.
-      val sideGaps = spec.insets.left + spec.insets.right
-      require(state.width <= 0 || sideGaps < state.width) {
-        "Invalid bottom sheet detent at index $index: `insets.left` and `insets.right` add up to ${sideGaps / state.density}, which leaves no room for the sheet in its ${state.width / state.density}-point-wide host. Keep their sum below the host's width."
-      }
       val available = state.availableCardHeight(spec)
       val height =
         when (spec.kind) {

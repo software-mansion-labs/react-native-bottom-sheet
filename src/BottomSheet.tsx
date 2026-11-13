@@ -1,6 +1,14 @@
-import { useMemo, useState, type ComponentType, type ReactNode } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+  type ReactNode,
+} from 'react';
 import type {
   ColorValue,
+  LayoutChangeEvent,
   NativeSyntheticEvent,
   StyleProp,
   ViewStyle,
@@ -16,6 +24,7 @@ import type { NativeProps } from './BottomSheetNativeComponent';
 import { Portal } from './BottomSheetProvider';
 import { isLayoutRTL } from './layoutDirection';
 import {
+  crowdedInsetsWarning,
   resolveMaxWidth,
   resolvePlacement,
   type SheetPlacement,
@@ -428,6 +437,32 @@ export const BottomSheet = (props: BottomSheetProps) => {
       >
   );
 
+  // Side insets that fill the host squeeze the card to nothing; the hosts clamp
+  // it rather than fail, since a host can get that narrow at runtime. Warn in
+  // development, against the host's laid-out width, after every render (the
+  // detents may change without a layout) and on every layout.
+  const hostWidthRef = useRef(0);
+  const lastWarningRef = useRef<string | null>(null);
+  const warnAboutCrowdedInsets = () => {
+    const warning = crowdedInsetsWarning(
+      normalizedDetents,
+      hostWidthRef.current
+    );
+    if (warning !== null && warning !== lastWarningRef.current) {
+      console.warn(warning);
+    }
+    lastWarningRef.current = warning;
+  };
+  useEffect(() => {
+    if (__DEV__) warnAboutCrowdedInsets();
+  });
+  const handleLayout = __DEV__
+    ? (event: LayoutChangeEvent) => {
+        hostWidthRef.current = event.nativeEvent.layout.width;
+        warnAboutCrowdedInsets();
+      }
+    : undefined;
+
   if (lazy && !isSheetActive) {
     return null;
   }
@@ -500,6 +535,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
           onSettle={handleSettle}
           onPositionChange={onPositionChange}
           onCloseRequest={onCloseRequest}
+          onLayout={handleLayout}
         >
           {surface != null && (
             <BottomSheetSurfaceView

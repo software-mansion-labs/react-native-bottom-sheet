@@ -29,7 +29,10 @@ extension BottomSheetHostingView {
   func placeCard(insets: DetentInsets, hostWidth: CGFloat) -> (minX: CGFloat, width: CGFloat) {
     let available = max(0, hostWidth - insets.left - insets.right)
     let width = cardMaxWidth > 0 ? min(cardMaxWidth, available) : available
-    let preferred = cardPlacementBias * (hostWidth - width)
+    // On a whole device pixel, so a centered card in an odd free width doesn't
+    // blur its edges and content.
+    let pixelScale = max(1, traitCollection.displayScale)
+    let preferred = (cardPlacementBias * (hostWidth - width) * pixelScale).rounded() / pixelScale
     let rightmost = max(insets.left, hostWidth - insets.right - width)
     return (min(max(preferred, insets.left), rightmost), width)
   }
@@ -121,15 +124,6 @@ extension BottomSheetHostingView {
     resolvedDetents.reserveCapacity(rawDetentSpecs.count)
 
     for (index, spec) in rawDetentSpecs.enumerated() {
-      // Checked against the host's measured width, as positions are against its
-      // height. A closed detent's insets are 0.
-      let sideGaps = spec.insets.left + spec.insets.right
-      if bounds.width > 0, sideGaps >= bounds.width {
-        reportInvalidDetent(
-          "Invalid bottom sheet detent at index \(index): `insets.left` and `insets.right` add up to \(sideGaps), which leaves no room for the sheet in its \(bounds.width)-point-wide host. Keep their sum below the host's width."
-        )
-        return nil
-      }
       let available = availableCardHeight(for: spec)
       let height: CGFloat
       switch spec.kind {
@@ -145,9 +139,12 @@ extension BottomSheetHostingView {
       let resolvedHeight = min(max(0, height), available)
       let position = resolvedHeight > 0 ? resolvedHeight + spec.insets.bottom : 0
       if let previous = resolvedDetents.last, position < previous.position {
-        reportInvalidDetent(
+        let message =
           "Invalid bottom sheet detent at index \(index): resolved position \(position) is lower than previous detent position \(previous.position). Detents must be passed in ascending order."
-        )
+        if lastReportedInvalidDetentMessage != message {
+          lastReportedInvalidDetentMessage = message
+          eventDelegate?.bottomSheetHostingView(self, didReportError: message)
+        }
         return nil
       }
       resolvedDetents.append(
@@ -157,13 +154,6 @@ extension BottomSheetHostingView {
 
     lastReportedInvalidDetentMessage = nil
     return resolvedDetents
-  }
-
-  /// Reports a detent that can't be resolved, once until the detents resolve again.
-  private func reportInvalidDetent(_ message: String) {
-    guard lastReportedInvalidDetentMessage != message else { return }
-    lastReportedInvalidDetentMessage = message
-    eventDelegate?.bottomSheetHostingView(self, didReportError: message)
   }
 
   private func unresolvedContentDetentHeight(after index: Int, maxHeight: CGFloat) -> CGFloat {

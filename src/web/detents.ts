@@ -19,6 +19,8 @@ type CardLayoutHost = Readonly<{
   rawDetents: ReadonlyArray<RawDetent>;
   /** The side insets of the widest card, which the content is laid out against. */
   widestCardInsets: SideInsets;
+  /** Whether the host lays out right to left, read from the DOM. */
+  isLayoutRTL: boolean;
 }>;
 
 /** The controller's state that detents resolve from. */
@@ -28,6 +30,7 @@ export type DetentsHost = {
   readonly hostHeight: number;
   readonly statusBarOverlap: number;
   readonly widestCardInsets: SideInsets;
+  readonly isLayoutRTL: boolean;
   lastReportedError: string | null;
   emit(event: (callbacks: BottomSheetWebCallbacks) => void): void;
 };
@@ -122,18 +125,21 @@ export const contentScale = (host: CardLayoutHost, insets: SideInsets) => {
 
 /** The card's horizontal span at a detent's side insets. */
 export const cardSpan = (
-  host: Pick<CardLayoutHost, 'rawDetents'>,
+  host: Pick<CardLayoutHost, 'rawDetents' | 'isLayoutRTL'>,
   insets: SideInsets,
   width: number
 ) => {
-  // Sheet-wide, carried on every detent.
+  // Sheet-wide, carried on every detent. On the web it's the left-to-right
+  // bias, as React Native Web can't tell the page's direction.
   const layout = host.rawDetents[0];
+  const bias = layout?.placementBias ?? 0.5;
   return placeCard(
     width,
     insets.insetLeft,
     insets.insetRight,
     layout?.maxWidth ?? 0,
-    layout?.placementBias ?? 0.5
+    host.isLayoutRTL ? 1 - bias : bias,
+    window.devicePixelRatio || 1
   );
 };
 
@@ -160,33 +166,15 @@ const measureContentHeight = (host: DetentsHost): number | null => {
   return Number.isFinite(height) && height > 0 ? height : null;
 };
 
-/** Reports a detent that can't be resolved, once until the detents resolve again. */
-const reportInvalidDetent = (host: DetentsHost, message: string) => {
-  if (host.lastReportedError === message) return;
-  host.lastReportedError = message;
-  host.emit((callbacks) => callbacks.onError(message));
-};
-
 export const resolveDetentSpecs = (
   host: DetentsHost
 ): ResolvedDetent[] | null => {
   const maxHeight = host.hostHeight;
   const measuredContentHeight =
     maxHeight > 0 ? measureContentHeight(host) : null;
-  const hostWidth = host.elements?.host.clientWidth ?? 0;
   const resolved: ResolvedDetent[] = [];
 
   for (const [index, spec] of host.rawDetents.entries()) {
-    // Checked against the host's measured width, as positions are against its
-    // height. A closed detent's insets are 0.
-    const sideGaps = spec.insetLeft + spec.insetRight;
-    if (hostWidth > 0 && sideGaps >= hostWidth) {
-      reportInvalidDetent(
-        host,
-        `Invalid bottom sheet detent at index ${index}: \`insets.left\` and \`insets.right\` add up to ${sideGaps}, which leaves no room for the sheet in its ${hostWidth}-point-wide host. Keep their sum below the host's width.`
-      );
-      return null;
-    }
     const available = availableCardHeight(
       spec,
       maxHeight,
@@ -210,10 +198,11 @@ export const resolveDetentSpecs = (
     const position = resolvedHeight > 0 ? resolvedHeight + spec.insetBottom : 0;
     const previous = resolved[resolved.length - 1];
     if (previous !== undefined && position < previous.position) {
-      reportInvalidDetent(
-        host,
-        `Invalid bottom sheet detent at index ${index}: resolved position ${position} is lower than previous detent position ${previous.position}. Detents must be passed in ascending order.`
-      );
+      const message = `Invalid bottom sheet detent at index ${index}: resolved position ${position} is lower than previous detent position ${previous.position}. Detents must be passed in ascending order.`;
+      if (host.lastReportedError !== message) {
+        host.lastReportedError = message;
+        host.emit((callbacks) => callbacks.onError(message));
+      }
       return null;
     }
     resolved.push({

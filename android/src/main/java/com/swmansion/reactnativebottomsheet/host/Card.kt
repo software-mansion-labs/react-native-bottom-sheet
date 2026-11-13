@@ -128,8 +128,12 @@ internal class Card(
       child.translationX = cardLeft - child.left
     }
     shadowContentScale = scale
-    // The shadow tree scales and shifts the children from their Yoga position.
-    shadowContentOffsetX = cardLeft - scale * state.contentLeft(widest)
+    // The shadow tree scales and shifts the children from where they are laid out, so `measure`
+    // follows what is drawn even before a new layout catches up with a resize.
+    val contentLeft =
+      if (clipContainer.childCount > 0) clipContainer.getChildAt(0).left.toFloat()
+      else state.contentLeft(widest)
+    shadowContentOffsetX = cardLeft - scale * contentLeft
   }
 
   // Fabric recycles the view, which must not keep the card's scale.

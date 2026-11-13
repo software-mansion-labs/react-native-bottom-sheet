@@ -3,6 +3,7 @@
 import { describe, expect, test } from 'bun:test';
 
 import {
+  crowdedInsetsWarning,
   placeCard,
   resolveMaxWidth,
   resolvePlacement,
@@ -144,4 +145,43 @@ describe('resolvePlacement', () => {
       ).toThrow(/Invalid bottom sheet `placement`/);
     }
   );
+});
+
+describe('pixel snapping', () => {
+  test('a centered card in an odd free width rests on a whole device pixel', () => {
+    // 1001 - 600 = 401 free points: 200.5 unsnapped.
+    expect(placeCard(1001, 0, 0, 600, CENTER).left).toBe(201);
+    expect(placeCard(1001, 0, 0, 600, CENTER, 2).left).toBe(200.5);
+    expect(placeCard(1001, 0, 0, 600, CENTER, 3).left).toBeCloseTo(200.667, 3);
+  });
+
+  test('insets still win over the snapped position', () => {
+    expect(placeCard(1001, 201, 0, 600, CENTER).left).toBe(201);
+  });
+});
+
+describe('crowdedInsetsWarning', () => {
+  const insets = (insetLeft: number, insetRight: number) => ({
+    insetLeft,
+    insetRight,
+  });
+
+  test('is null when every card has room', () => {
+    expect(crowdedInsetsWarning([insets(16, 16), insets(199, 200)], 400)).toBe(
+      null
+    );
+  });
+
+  test('names the first detent whose insets fill the host', () => {
+    expect(
+      crowdedInsetsWarning([insets(16, 16), insets(200, 200)], 400)
+    ).toMatch(
+      /detent at index 1: `insets.left` and `insets.right` add up to 400, which leaves no room for the sheet in its 400-point-wide host/
+    );
+  });
+
+  test('is null before the host is laid out', () => {
+    expect(crowdedInsetsWarning([insets(300, 300)], 0)).toBe(null);
+    expect(crowdedInsetsWarning([insets(300, 300)], NaN)).toBe(null);
+  });
 });

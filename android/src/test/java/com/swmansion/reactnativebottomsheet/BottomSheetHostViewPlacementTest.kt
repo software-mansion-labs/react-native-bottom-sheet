@@ -8,11 +8,9 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.facebook.react.internal.featureflags.ReactNativeFeatureFlagsForTests
-import com.facebook.react.modules.i18nmanager.I18nUtil
 import com.facebook.react.uimanager.TouchTargetHelper
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -126,15 +124,15 @@ class BottomSheetHostViewPlacementTest {
   fun `in a right-to-left layout the content starts at the right, as Yoga lays it out`() {
     val context = RuntimeEnvironment.getApplication()
     val flags = context.applicationInfo.flags
-    // React Native lays out right to left only in an app that declares RTL support.
+    // Android resolves a right-to-left layout direction only in an app that declares RTL support.
     context.applicationInfo.flags = flags or ApplicationInfo.FLAG_SUPPORTS_RTL
-    I18nUtil.instance.forceRTL(context, true)
     try {
       withSheet(
         listOf(points(0.0), points(300.0, left = 8.0, right = 24.0, widest = true)),
         maxWidth = 400.0,
         bias = 1.0,
         contentWidthDp = 400.0,
+        layoutDirection = View.LAYOUT_DIRECTION_RTL,
       ) { sheet ->
         val d = sheet.density
         val content = sheet.getSheetChildAt(0)!!
@@ -145,7 +143,6 @@ class BottomSheetHostViewPlacementTest {
         assertEquals(WIDTH_PX - 424 * d, content.left + content.translationX, 0.5f)
       }
     } finally {
-      I18nUtil.instance.forceRTL(context, false)
       context.applicationInfo.flags = flags
     }
   }
@@ -182,17 +179,26 @@ class BottomSheetHostViewPlacementTest {
   }
 
   @Test
-  fun `side insets that fill the host's measured width are rejected`() {
+  fun `side insets that fill the host squeeze the card to nothing instead of failing`() {
+    // A host can get this narrow at runtime, so the card is clamped; JS warns in development.
     val half = WIDTH_DP / 2
-    val error =
-      assertThrows(IllegalArgumentException::class.java) {
-        withSheet(
-          listOf(points(0.0), points(300.0, left = half, right = half)),
-          maxWidth = 0.0,
-          bias = 0.5,
-        ) {}
-      }
-    assertTrue(error.message!!.contains("leaves no room for the sheet"))
+    withSheet(
+      listOf(points(0.0), points(300.0, left = half, right = half + 10)),
+      maxWidth = 0.0,
+      bias = 0.5,
+    ) { sheet ->
+      assertFalse(sheet.clip.cardContains(WIDTH_PX / 2f, 50 * sheet.density))
+    }
+  }
+
+  @Test
+  fun `a maximum width that doesn't narrow the card leaves it unclipped`() {
+    withSheet(listOf(points(0.0), points(300.0)), maxWidth = WIDTH_DP * 2, bias = 0.5) { sheet ->
+      assertFalse(sheet.clip.clipsContent)
+    }
+    withSheet(listOf(points(0.0), points(300.0)), maxWidth = WIDTH_DP / 2, bias = 0.5) { sheet ->
+      assertTrue(sheet.clip.clipsContent)
+    }
   }
 
   @Test
@@ -254,12 +260,15 @@ class BottomSheetHostViewPlacementTest {
     maxWidth: Double,
     bias: Double,
     contentWidthDp: Double? = null,
+    layoutDirection: Int = View.LAYOUT_DIRECTION_LTR,
     block: (BottomSheetHostView) -> Unit,
   ) {
     val controller = Robolectric.buildActivity(Activity::class.java).setup()
     val sheet = BottomSheetHostView(controller.get())
     try {
       sheet.animateIn = false
+      // Fabric gives the sheet's view its Yoga direction; the host inherits it.
+      sheet.layoutDirection = layoutDirection
       val density = sheet.resources.displayMetrics.density
       // As Yoga would size it: the widest card's width, or a stand-in when that doesn't matter.
       val contentWidthPx = contentWidthDp?.let { (it * density).toInt() } ?: 100
