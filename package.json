@@ -53,14 +53,14 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/software-mansion-labs/react-native-bottom-sheet.git"
+    "url": "git+https://github.com/software-mansion/react-native-bottom-sheet.git"
   },
   "author": "Software Mansion",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/software-mansion-labs/react-native-bottom-sheet/issues"
+    "url": "https://github.com/software-mansion/react-native-bottom-sheet/issues"
   },
-  "homepage": "https://github.com/software-mansion-labs/react-native-bottom-sheet",
+  "homepage": "https://github.com/software-mansion/react-native-bottom-sheet",
   "publishConfig": {
     "registry": "https://registry.npmjs.org"
   },

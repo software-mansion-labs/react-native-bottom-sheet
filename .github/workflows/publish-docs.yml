@@ -64,7 +64,7 @@ jobs:
             echo "::error::$file is missing or empty"
             exit 1
           fi
-          count=$(grep -cE '^- \[[^]]+\]\(https://software-mansion-labs\.github\.io/react-native-bottom-sheet/[^)]+\)' "$file" || true)
+          count=$(grep -cE '^- \[[^]]+\]\(https://docs\.swmansion\.com/react-native-bottom-sheet/[^)]+\)' "$file" || true)
           if [ "$count" -eq 0 ]; then
             echo "::error::$file lists no pages"
             exit 1

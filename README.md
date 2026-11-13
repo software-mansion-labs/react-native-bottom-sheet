@@ -7,7 +7,7 @@
 React Native Bottom Sheet provides bottom-sheet components for React Native.
 
 Learn more in
-[the documentation](https://software-mansion-labs.github.io/react-native-bottom-sheet).
+[the documentation](https://docs.swmansion.com/react-native-bottom-sheet/).
 
 ## By [Software Mansion](https://swmansion.com)
 

@@ -15,9 +15,9 @@ const config: Config = {
     v4: true,
   },
 
-  url: 'https://software-mansion-labs.github.io',
+  url: 'https://docs.swmansion.com',
   baseUrl: process.env.DOCUSAURUS_BASE_URL ?? '/',
-  organizationName: 'software-mansion-labs',
+  organizationName: 'software-mansion',
   projectName: 'react-native-bottom-sheet',
 
   onBrokenLinks: 'throw',
@@ -71,7 +71,7 @@ const config: Config = {
           breadcrumbs: false,
           sidebarPath: './sidebars.ts',
           editUrl:
-            'https://github.com/software-mansion-labs/react-native-bottom-sheet/tree/main/docs/',
+            'https://github.com/software-mansion/react-native-bottom-sheet/tree/main/docs/',
         },
         blog: false,
         theme: {
@@ -105,7 +105,7 @@ const config: Config = {
         },
         {
           'href':
-            'https://github.com/software-mansion-labs/react-native-bottom-sheet',
+            'https://github.com/software-mansion/react-native-bottom-sheet',
           'position': 'right',
           'className': 'navbar-github',
           'aria-label': 'GitHub',

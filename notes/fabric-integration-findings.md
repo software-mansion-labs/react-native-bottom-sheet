@@ -1,9 +1,8 @@
 # Fabric integration findings: sheet geometry, state, and animation
 
 Technical reference for the investigation behind issues
-[#48](https://github.com/software-mansion-labs/react-native-bottom-sheet/issues/48)
-/
-[PR #49](https://github.com/software-mansion-labs/react-native-bottom-sheet/pull/49)
+[#48](https://github.com/software-mansion/react-native-bottom-sheet/issues/48) /
+[PR #49](https://github.com/software-mansion/react-native-bottom-sheet/pull/49)
 and the native-measurement refactor that followed (`75f7a59` → `287ac5c` on
 `main`). Everything below was verified against source (RN core `main` + tags
 v0.76–v0.83.2, plus the pinned 0.85.3; react-native-screens `main`) or
