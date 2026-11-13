@@ -1,6 +1,11 @@
 /// <reference lib="dom" />
 
-import { cardSpan, firstOpenPosition } from './detents';
+import {
+  cardSpan,
+  contentScale,
+  firstOpenPosition,
+  type SideInsets,
+} from './detents';
 import { clamp, processedColorToCss } from './dom';
 import type {
   BottomSheetWebConfig,
@@ -18,7 +23,7 @@ export type CardHost = {
   readonly detents: ResolvedDetent[];
   readonly rawDetents: ReadonlyArray<RawDetent>;
   readonly widestCardLeft: number;
-  widestCardWidth(hostWidth: number): number;
+  readonly widestCardInsets: SideInsets;
 };
 
 const NO_INSETS = { insetLeft: 0, insetRight: 0, insetBottom: 0 };
@@ -88,8 +93,7 @@ export class SheetCard {
     // corners on the card's. The transform origin is the box's, which starts at
     // the container's left, so the layout margin scales along. Ahead of the
     // check below: the widest card can change while this card stays the same.
-    const widest = hostState.widestCardWidth(host.clientWidth);
-    const scale = widest > 0 ? span.width / widest : 1;
+    const scale = contentScale(hostState, insets);
     const transform =
       scale === 1 && left === hostState.widestCardLeft
         ? ''
@@ -138,10 +142,7 @@ export class SheetCard {
       0,
       hostState.hostHeight
     );
-    const width = hostState.elements?.host.clientWidth ?? 0;
-    const widest = hostState.widestCardWidth(width);
-    const scale =
-      widest > 0 ? cardSpan(hostState, insets, width).width / widest : 1;
+    const scale = contentScale(hostState, insets);
     return scale > 0 ? height / scale : height;
   }
 

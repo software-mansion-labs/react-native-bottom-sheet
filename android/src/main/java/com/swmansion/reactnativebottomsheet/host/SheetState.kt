@@ -38,6 +38,9 @@ internal class SheetState(val hostView: ViewGroup, val sheetContainer: BottomShe
   var hasCardGaps = false
   // The side insets of the widest open card, which the content is laid out against.
   var widestCardInsets = DetentInsets()
+  // Whether React Native lays the app out right to left. Read once: it only changes with an app
+  // restart, and the card reads it on every frame.
+  private val isLayoutRtl by lazy { I18nUtil.instance.isRTL(hostView.context) }
   // The widest the card gets, in px; 0 for no cap. Sheet-wide.
   var cardMaxWidth = 0f
   // The share of the free width left of the card: 0 left, 0.5 center, 1 right.
@@ -117,7 +120,7 @@ internal class SheetState(val hostView: ViewGroup, val sheetContainer: BottomShe
   // on the start edge, which is the right one in a right-to-left layout. Narrower than the space
   // the insets leave only under a maximum width.
   fun contentLeft(childWidth: Float): Float =
-    if (I18nUtil.instance.isRTL(hostView.context)) {
+    if (isLayoutRtl) {
       sheetContainer.width - widestCardInsets.right - childWidth
     } else {
       widestCardInsets.left

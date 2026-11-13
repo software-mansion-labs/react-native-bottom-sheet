@@ -121,6 +121,15 @@ extension BottomSheetHostingView {
     resolvedDetents.reserveCapacity(rawDetentSpecs.count)
 
     for (index, spec) in rawDetentSpecs.enumerated() {
+      // Checked against the host's measured width, as positions are against its
+      // height. A closed detent's insets are 0.
+      let sideGaps = spec.insets.left + spec.insets.right
+      if bounds.width > 0, sideGaps >= bounds.width {
+        reportInvalidDetent(
+          "Invalid bottom sheet detent at index \(index): `insets.left` and `insets.right` add up to \(sideGaps), which leaves no room for the sheet in its \(bounds.width)-point-wide host. Keep their sum below the host's width."
+        )
+        return nil
+      }
       let available = availableCardHeight(for: spec)
       let height: CGFloat
       switch spec.kind {
@@ -136,12 +145,9 @@ extension BottomSheetHostingView {
       let resolvedHeight = min(max(0, height), available)
       let position = resolvedHeight > 0 ? resolvedHeight + spec.insets.bottom : 0
       if let previous = resolvedDetents.last, position < previous.position {
-        let message =
+        reportInvalidDetent(
           "Invalid bottom sheet detent at index \(index): resolved position \(position) is lower than previous detent position \(previous.position). Detents must be passed in ascending order."
-        if lastReportedInvalidDetentMessage != message {
-          lastReportedInvalidDetentMessage = message
-          eventDelegate?.bottomSheetHostingView(self, didReportError: message)
-        }
+        )
         return nil
       }
       resolvedDetents.append(
@@ -151,6 +157,13 @@ extension BottomSheetHostingView {
 
     lastReportedInvalidDetentMessage = nil
     return resolvedDetents
+  }
+
+  /// Reports a detent that can't be resolved, once until the detents resolve again.
+  private func reportInvalidDetent(_ message: String) {
+    guard lastReportedInvalidDetentMessage != message else { return }
+    lastReportedInvalidDetentMessage = message
+    eventDelegate?.bottomSheetHostingView(self, didReportError: message)
   }
 
   private func unresolvedContentDetentHeight(after index: Int, maxHeight: CGFloat) -> CGFloat {

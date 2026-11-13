@@ -12,11 +12,13 @@ import com.facebook.react.modules.i18nmanager.I18nUtil
 import com.facebook.react.uimanager.TouchTargetHelper
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
@@ -122,9 +124,10 @@ class BottomSheetHostViewPlacementTest {
 
   @Test
   fun `in a right-to-left layout the content starts at the right, as Yoga lays it out`() {
-    val context = Robolectric.buildActivity(Activity::class.java).get().applicationContext
-    context.applicationInfo.flags =
-      context.applicationInfo.flags or ApplicationInfo.FLAG_SUPPORTS_RTL
+    val context = RuntimeEnvironment.getApplication()
+    val flags = context.applicationInfo.flags
+    // React Native lays out right to left only in an app that declares RTL support.
+    context.applicationInfo.flags = flags or ApplicationInfo.FLAG_SUPPORTS_RTL
     I18nUtil.instance.forceRTL(context, true)
     try {
       withSheet(
@@ -143,6 +146,7 @@ class BottomSheetHostViewPlacementTest {
       }
     } finally {
       I18nUtil.instance.forceRTL(context, false)
+      context.applicationInfo.flags = flags
     }
   }
 
@@ -177,6 +181,32 @@ class BottomSheetHostViewPlacementTest {
     }
   }
 
+  @Test
+  fun `side insets that fill the host's measured width are rejected`() {
+    val half = WIDTH_DP / 2
+    val error =
+      assertThrows(IllegalArgumentException::class.java) {
+        withSheet(
+          listOf(points(0.0), points(300.0, left = half, right = half)),
+          maxWidth = 0.0,
+          bias = 0.5,
+        ) {}
+      }
+    assertTrue(error.message!!.contains("leaves no room for the sheet"))
+  }
+
+  @Test
+  fun `side insets just inside the host's measured width leave a sliver of card`() {
+    val half = WIDTH_DP / 2
+    withSheet(
+      listOf(points(0.0), points(300.0, left = half - 2, right = half)),
+      maxWidth = 0.0,
+      bias = 0.5,
+    ) { sheet ->
+      assertCardSpan(sheet, WIDTH_PX / 2f - 2 * sheet.density, WIDTH_PX / 2f)
+    }
+  }
+
   /** Checks the card's edges, in px, half a pixel inside and out, at the card's middle height. */
   private fun assertCardSpan(sheet: BottomSheetHostView, left: Float, right: Float) {
     val middle = 50 * sheet.density
@@ -199,13 +229,7 @@ class BottomSheetHostViewPlacementTest {
 
   private val WIDTH_DP: Double
     get() =
-      WIDTH_PX /
-        Robolectric.buildActivity(Activity::class.java)
-          .get()
-          .resources
-          .displayMetrics
-          .density
-          .toDouble()
+      WIDTH_PX / RuntimeEnvironment.getApplication().resources.displayMetrics.density.toDouble()
 
   private fun points(
     value: Double,

@@ -11,13 +11,23 @@ import type {
   ResolvedDetent,
 } from './types';
 
+export type SideInsets = Readonly<{ insetLeft: number; insetRight: number }>;
+
+/** The controller's state that the card's width and scale derive from. */
+type CardLayoutHost = Readonly<{
+  elements: BottomSheetWebElements | null;
+  rawDetents: ReadonlyArray<RawDetent>;
+  /** The side insets of the widest card, which the content is laid out against. */
+  widestCardInsets: SideInsets;
+}>;
+
 /** The controller's state that detents resolve from. */
 export type DetentsHost = {
   readonly elements: BottomSheetWebElements | null;
   readonly rawDetents: ReadonlyArray<RawDetent>;
   readonly hostHeight: number;
   readonly statusBarOverlap: number;
-  widestCardWidth(hostWidth: number): number;
+  readonly widestCardInsets: SideInsets;
   lastReportedError: string | null;
   emit(event: (callbacks: BottomSheetWebCallbacks) => void): void;
 };
@@ -103,17 +113,17 @@ export const surfaceOverflow = (
  * How much the content is scaled at a detent: its card's width over the width
  * of the widest card, which the content is laid out against.
  */
-const contentScale = (host: DetentsHost, spec: RawDetent) => {
+export const contentScale = (host: CardLayoutHost, insets: SideInsets) => {
   const width = host.elements?.host.clientWidth ?? 0;
-  const widest = host.widestCardWidth(width);
+  const widest = cardSpan(host, host.widestCardInsets, width).width;
   if (widest <= 0) return 1;
-  return cardSpan(host, spec, width).width / widest;
+  return cardSpan(host, insets, width).width / widest;
 };
 
 /** The card's horizontal span at a detent's side insets. */
 export const cardSpan = (
-  host: Readonly<{ rawDetents: ReadonlyArray<RawDetent> }>,
-  insets: Readonly<{ insetLeft: number; insetRight: number }>,
+  host: Pick<CardLayoutHost, 'rawDetents'>,
+  insets: SideInsets,
   width: number
 ) => {
   // Sheet-wide, carried on every detent.
@@ -150,15 +160,33 @@ const measureContentHeight = (host: DetentsHost): number | null => {
   return Number.isFinite(height) && height > 0 ? height : null;
 };
 
+/** Reports a detent that can't be resolved, once until the detents resolve again. */
+const reportInvalidDetent = (host: DetentsHost, message: string) => {
+  if (host.lastReportedError === message) return;
+  host.lastReportedError = message;
+  host.emit((callbacks) => callbacks.onError(message));
+};
+
 export const resolveDetentSpecs = (
   host: DetentsHost
 ): ResolvedDetent[] | null => {
   const maxHeight = host.hostHeight;
   const measuredContentHeight =
     maxHeight > 0 ? measureContentHeight(host) : null;
+  const hostWidth = host.elements?.host.clientWidth ?? 0;
   const resolved: ResolvedDetent[] = [];
 
   for (const [index, spec] of host.rawDetents.entries()) {
+    // Checked against the host's measured width, as positions are against its
+    // height. A closed detent's insets are 0.
+    const sideGaps = spec.insetLeft + spec.insetRight;
+    if (hostWidth > 0 && sideGaps >= hostWidth) {
+      reportInvalidDetent(
+        host,
+        `Invalid bottom sheet detent at index ${index}: \`insets.left\` and \`insets.right\` add up to ${sideGaps}, which leaves no room for the sheet in its ${hostWidth}-point-wide host. Keep their sum below the host's width.`
+      );
+      return null;
+    }
     const available = availableCardHeight(
       spec,
       maxHeight,
@@ -182,11 +210,10 @@ export const resolveDetentSpecs = (
     const position = resolvedHeight > 0 ? resolvedHeight + spec.insetBottom : 0;
     const previous = resolved[resolved.length - 1];
     if (previous !== undefined && position < previous.position) {
-      const message = `Invalid bottom sheet detent at index ${index}: resolved position ${position} is lower than previous detent position ${previous.position}. Detents must be passed in ascending order.`;
-      if (host.lastReportedError !== message) {
-        host.lastReportedError = message;
-        host.emit((callbacks) => callbacks.onError(message));
-      }
+      reportInvalidDetent(
+        host,
+        `Invalid bottom sheet detent at index ${index}: resolved position ${position} is lower than previous detent position ${previous.position}. Detents must be passed in ascending order.`
+      );
       return null;
     }
     resolved.push({

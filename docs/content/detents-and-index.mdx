@@ -88,8 +88,12 @@ values, all 0 by default, and the gaps blend as the sheet moves between detents.
 direction, so `start` is the left in a left-to-right layout and the right in a
 right-to-left one, and they take precedence over the side they resolve to. On
 the web, the layout direction is the document’s. Each side must be a finite,
-non-negative number; the library throws an `Error` otherwise. A closed detent
-ignores its insets, so the card leaves through the gap with its shape intact.
+non-negative number; the library throws an `Error` otherwise. An open detent's
+side insets must also add up to less than the host's width, so the card has
+room. The native host checks this against its measured width, the way it checks
+the detents' order against its measured height, and raises an error otherwise.
+A closed detent ignores its insets, so the card leaves through the gap with its
+shape intact.
 
 ```tsx
 <ModalBottomSheet
@@ -177,10 +181,10 @@ whatever is behind it.
 
 `maxWidth` must be a number greater than 0; pass `Infinity`, or leave it unset,
 for no cap. `placement` must be one of the three values. The library throws an
-`Error` otherwise. It also throws when an open detent's `insets.left` and
-`insets.right` add up to the window's width or more: that would push the sheet
-out of the screen. `maxWidth` and `placement` can't do that on their own,
-because the card shrinks and moves to stay between the insets.
+`Error` otherwise. `maxWidth` and `placement` can't push the sheet out of the
+screen: the card shrinks and moves to stay between the side insets. Side insets
+that leave it no room are an error, which the native host raises once it
+measures its width (see [Insets](#insets)).
 
 ## Index events
 

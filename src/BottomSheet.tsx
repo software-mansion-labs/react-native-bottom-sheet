@@ -19,7 +19,6 @@ import {
   resolveMaxWidth,
   resolvePlacement,
   type SheetPlacement,
-  validateCardFits,
 } from './cardPlacement';
 import {
   CONTENT_HEIGHT_MARKER_NATIVE_ID,
@@ -360,9 +359,6 @@ export const BottomSheet = (props: BottomSheetProps) => {
     modal,
     isRTL
   );
-  // The host is never wider than its window, so a card with no room in the
-  // window has none in the host either.
-  validateCardFits(normalizedDetents, windowWidth);
 
   const selectedNormalizedDetent = normalizedDetents[index]!;
   const isSheetClosed = isNormalizedDetentClosed(selectedNormalizedDetent);

@@ -160,6 +160,12 @@ internal class Detents(
     val measuredContentHeight = validContentHeight().takeIf { maxHeight > 0f && it.isFinite() }
     var previousPosition: Float? = null
     return state.rawDetentSpecs.mapIndexed { index, spec ->
+      // Checked against the host's measured width, as positions are against its height. A closed
+      // detent's insets are 0.
+      val sideGaps = spec.insets.left + spec.insets.right
+      require(state.width <= 0 || sideGaps < state.width) {
+        "Invalid bottom sheet detent at index $index: `insets.left` and `insets.right` add up to ${sideGaps / state.density}, which leaves no room for the sheet in its ${state.width / state.density}-point-wide host. Keep their sum below the host's width."
+      }
       val available = state.availableCardHeight(spec)
       val height =
         when (spec.kind) {

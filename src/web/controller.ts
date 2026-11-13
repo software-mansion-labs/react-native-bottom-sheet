@@ -6,7 +6,6 @@ import {
   setCloseRequestRegistration,
 } from './closeRequest';
 import {
-  cardSpan,
   areNumbersEqual,
   areRawDetentsEqual,
   areResolvedDetentsEqual,
@@ -57,11 +56,6 @@ export class BottomSheetWebController {
    * from the DOM, so it follows the layout direction.
    */
   widestCardLeft = 0;
-
-  /** The width of the widest card, which the content is laid out against. */
-  widestCardWidth(hostWidth: number) {
-    return cardSpan(this, this.widestCardInsets, hostWidth).width;
-  }
   statusBarOverlap = 0;
   detents: ResolvedDetent[] = [];
   targetIndex = 0;

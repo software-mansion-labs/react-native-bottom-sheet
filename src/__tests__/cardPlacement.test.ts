@@ -4,18 +4,16 @@ import { describe, expect, test } from 'bun:test';
 
 import {
   placeCard,
-  placementBias,
   resolveMaxWidth,
   resolvePlacement,
   type SheetPlacement,
-  validateCardFits,
 } from '../cardPlacement';
 
 const LEFT = 0;
 const CENTER = 0.5;
 const RIGHT = 1;
 
-describe('placementBias', () => {
+describe('resolvePlacement bias', () => {
   test.each<[SheetPlacement, boolean, number]>([
     ['leading', false, LEFT],
     ['center', false, CENTER],
@@ -26,7 +24,7 @@ describe('placementBias', () => {
   ])(
     '%s with isRTL %p is %p',
     (placement: SheetPlacement, isRTL: boolean, bias: number) => {
-      expect(placementBias(placement, isRTL)).toBe(bias);
+      expect(resolvePlacement(placement, isRTL)).toBe(bias);
     }
   );
 });
@@ -146,53 +144,4 @@ describe('resolvePlacement', () => {
       ).toThrow(/Invalid bottom sheet `placement`/);
     }
   );
-});
-
-describe('validateCardFits', () => {
-  const open = (insetLeft: number, insetRight: number) => ({
-    insetLeft,
-    insetRight,
-    kind: 'points',
-    value: 300,
-  });
-
-  test('accepts insets that leave the card room', () => {
-    expect(() =>
-      validateCardFits([open(16, 16), open(199, 200)], 400)
-    ).not.toThrow();
-  });
-
-  test('throws when an open detent’s insets cover the window', () => {
-    expect(() => validateCardFits([open(16, 16), open(200, 200)], 400)).toThrow(
-      /detent at index 1: `insets.left` and `insets.right` add up to 400/
-    );
-  });
-
-  test('throws when the insets are wider than the window', () => {
-    expect(() => validateCardFits([open(500, 0)], 400)).toThrow(
-      /leaves no room for the sheet/
-    );
-  });
-
-  test('checks a content detent, which is never closed', () => {
-    expect(() =>
-      validateCardFits(
-        [{ insetLeft: 300, insetRight: 300, kind: 'content', value: 0 }],
-        400
-      )
-    ).toThrow(/detent at index 0/);
-  });
-
-  test('ignores a closed detent', () => {
-    expect(() =>
-      validateCardFits(
-        [{ insetLeft: 300, insetRight: 300, kind: 'points', value: 0 }],
-        400
-      )
-    ).not.toThrow();
-  });
-
-  test('skips the check before the window is measured', () => {
-    expect(() => validateCardFits([open(300, 300)], 0)).not.toThrow();
-  });
 });
