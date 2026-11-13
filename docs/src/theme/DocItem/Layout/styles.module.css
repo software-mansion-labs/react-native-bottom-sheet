@@ -1,0 +1,42 @@
+.docItemContainer header + *,
+.docItemContainer article > *:first-child {
+  margin-top: 0;
+}
+
+@media (min-width: 997px) {
+  .docItemCol {
+    max-width: 75% !important;
+  }
+}
+
+@media (max-width: 996px) {
+  .docItemContainer {
+    padding: 0 0.3rem;
+  }
+
+  .aside {
+    display: none;
+  }
+}
+
+/* Takes over the TOC's own stickiness, so the card stays pinned under it. */
+.sticky {
+  position: sticky;
+  top: calc(var(--ifm-navbar-height) + 1rem);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-height: calc(100vh - (var(--ifm-navbar-height) + 2rem));
+}
+
+.sticky > * {
+  flex-shrink: 0;
+}
+
+/* The TOC scrolls on its own when it is too long to fit above the card. */
+.sticky > :not(:last-child) {
+  position: static;
+  flex-shrink: 1;
+  min-height: 0;
+  max-height: none;
+}
