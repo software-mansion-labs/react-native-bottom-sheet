@@ -38,6 +38,9 @@ export interface NativeProps extends ViewProps {
   // opens). A higher value raises a native-overlay sheet above the others and
   // ranks it first for Android portal close requests.
   openOrder?: CodegenTypes.Int32;
+  // Whether this modal sheet pushes back the open modal sheet directly beneath
+  // it, as native iOS sheets do.
+  stacked?: boolean;
   // Signal that JS supplied `onCloseRequest`. Native event-handler presence is
   // not otherwise observable, so Android (and the web host) use this to decide
   // whether a modal should own Back/Escape input.

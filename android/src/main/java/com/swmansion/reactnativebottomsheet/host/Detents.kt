@@ -159,7 +159,7 @@ internal class Detents(
           DetentKind.CONTENT ->
             measuredContentHeight?.let { it * state.contentScale(spec.insets) }
               ?: unresolvedContentDetentHeight(index, maxHeight)
-        }.coerceIn(0f, available)
+        }.coerceIn(0f, state.tallestCardHeight(spec))
       val position = if (height > 0f) height + spec.insets.bottom else 0f
       previousPosition?.let {
         if (position < it) {
@@ -185,8 +185,8 @@ internal class Detents(
         DetentKind.CONTENT -> available
       }
     // Whatever its inset, this detent must not rise above the next one's top.
-    return nextBoundHeight.coerceIn(0f, available) + nextBound.insets.bottom -
-      state.rawDetentSpecs[index].insets.bottom
+    return nextBoundHeight.coerceIn(0f, state.tallestCardHeight(nextBound)) +
+      nextBound.insets.bottom - state.rawDetentSpecs[index].insets.bottom
   }
 
   fun refreshDetentsFromLayout() {

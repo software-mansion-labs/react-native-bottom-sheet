@@ -118,6 +118,8 @@ internal class Snapping(
     card.updateCardGeometry()
     contentRegion.updateShadowState(ty)
     state.scrollIndicators.refit()
+    // A sheet this one covers follows it in the same frame.
+    Stacking.updateAll()
   }
 
   // Fractional detent index in 0..(detentSpecs.size - 1): 0 at the shortest

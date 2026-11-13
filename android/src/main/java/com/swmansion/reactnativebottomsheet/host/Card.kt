@@ -74,6 +74,16 @@ internal class Card(
     )
   }
 
+  /** Dims the card while stacked sheets cover it, in 0-1. */
+  fun setStackDim(value: Float) = clipContainer.setDim(value)
+
+  /** The card's left and right edges at a sheet position, in sheet-container coordinates. */
+  fun cardSidesAt(position: Float): Pair<Float, Float> {
+    val insets = cardInsetsAt(position)
+    val left = insets.left
+    return left to (state.sheetContainer.width - insets.right).coerceAtLeast(left)
+  }
+
   /**
    * Keeps the card clip and shadows in step with the sheet, in sheet-container coordinates. For a
    * sheet position (the height of the sheet's top above the host's bottom) at or above the first

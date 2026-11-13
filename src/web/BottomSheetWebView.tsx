@@ -57,6 +57,7 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
     modal,
     nativeOverlay = false,
     openOrder = 0,
+    stacked = false,
     hasCloseRequestHandler,
     scrollExpandCoordination,
     scrollCollapseCoordination,
@@ -89,6 +90,7 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
   const shadowRef = useRef<ViewInstance>(null);
   const surfaceRef = useRef<ViewInstance>(null);
   const contentRef = useRef<ViewInstance>(null);
+  const stackDimRef = useRef<ViewInstance>(null);
   // Detents that fail validation are found while measuring, outside render.
   // Rethrow them during render so error boundaries see them, as the native
   // hosts raise them as fatal errors.
@@ -124,6 +126,7 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
     const shadow = asElement(shadowRef.current);
     const surfaceElement = asElement(surfaceRef.current);
     const content = asElement(contentRef.current);
+    const stackDim = asElement(stackDimRef.current);
     if (
       !host ||
       !scrim ||
@@ -132,7 +135,8 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
       !card ||
       !shadow ||
       !surfaceElement ||
-      !content
+      !content ||
+      !stackDim
     ) {
       return;
     }
@@ -145,6 +149,7 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
       shadow,
       surface: surfaceElement,
       content,
+      stackDim,
     });
     return () => controller.detach();
   }, [controller, isMounted]);
@@ -170,6 +175,8 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
       modal: modal === true,
       hasCloseRequestHandler: hasCloseRequestHandler === true,
       openOrder,
+      nativeOverlay,
+      stacked,
       scrollExpandCoordination,
       scrollCollapseCoordination,
       settleDuration: settleDuration ?? 0,
@@ -235,6 +242,11 @@ export const BottomSheetView = (props: BottomSheetViewProps) => {
             {surface}
           </View>
           <View ref={contentRef}>{sheetContent}</View>
+          <View
+            ref={stackDimRef}
+            style={[StyleSheet.absoluteFill, styles.stackDim]}
+            pointerEvents="none"
+          />
         </View>
       </View>
     </View>
@@ -288,6 +300,7 @@ const styles = StyleSheet.create({
   },
   container: { position: 'absolute', left: 0, right: 0, top: 0 },
   shadow: { position: 'absolute', left: 0, right: 0, top: 0 },
+  stackDim: { backgroundColor: 'black', opacity: 0 },
   overlay: {
     // React Native for Web supports fixed positioning; the overlay spans the
     // viewport above the app, like the native window-level overlay.

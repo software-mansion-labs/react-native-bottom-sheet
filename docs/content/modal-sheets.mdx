@@ -6,6 +6,7 @@ import {
   CloseRequestExample,
   LazyExample,
   ScrimExample,
+  StackedExample,
   StackingExample,
 } from '@site/src/examples/modal-sheets';
 
@@ -70,6 +71,54 @@ sheet that has a handler; a top sheet without one does not block those below it
 (on Android it does, see [Presentation ordering](#presentation-ordering)).
 
 <StackingExample />
+
+### Stacked sheets
+
+By default, an open sheet stays where it is when another one opens over it. Set
+`stacked` on the sheet that goes on top to push the one beneath it back, as
+native iOS sheets do: The sheet beneath is scaled down, so its top edge peeks
+out above the new sheet.
+
+```tsx
+<ModalBottomSheet index={first} onIndexChange={setFirst} surface={/* ... */}>
+  {/* ... */}
+</ModalBottomSheet>
+<ModalBottomSheet
+  stacked
+  index={second}
+  onIndexChange={setSecond}
+  surface={/* ... */}
+>
+  {/* ... */}
+</ModalBottomSheet>
+```
+
+Only a `stacked` sheet’s tallest detent pushes back the open modal sheets
+beneath it, and only those whose top edge it covers. Its other detents leave the
+sheets beneath in place, and the effect follows the top sheet as it is dragged
+or settles between its two tallest detents. With more than two sheets, each
+sheet is pushed back as far as the `stacked` sheet above it that covers it most,
+even with a shorter sheet between them.
+
+Like a native sheet, a `stacked` sheet’s card stops 10 points below where the
+default top inset would let it rise, so a full-height stacked sheet rests 10
+points lower, the sheet beneath shrinks in place, and its edge shows above the
+new sheet. Shorter detents are unaffected. With an explicit `topInset`, the
+sheet beneath is shifted up instead, as far as its edge needs to show.
+
+Stacked sheets dim like native ones too. Each sheet beneath a `stacked` sheet
+is dimmed on its own card, by 12% black, or 16% under two or more stacked
+sheets, fading in and out with them. In dark appearance it is 29% and 38%. A `stacked` sheet’s scrim isn’t painted
+over the open sheets beneath it, whose scrim already dims the background, so the
+background is dimmed once however many sheets are open, by the `scrimColor` of
+the sheet at the bottom. Native sheets dim it by 20% black, or 48% in dark
+appearance, which a `scrimColor` picked with `useColorScheme()` matches. A tap above a `stacked` sheet still
+closes it, as on its own.
+
+Only sheets that fill the same area stack: a `nativeOverlay` sheet stacks over a
+portal sheet when `BottomSheetProvider` spans the window.
+
+<StackedExample />
 
 ## Scrim
 

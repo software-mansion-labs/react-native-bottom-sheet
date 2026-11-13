@@ -90,6 +90,26 @@
   _impl.modal = modal;
 }
 
+- (void)setNativeOverlay:(BOOL)nativeOverlay
+{
+  _impl.nativeOverlay = nativeOverlay;
+}
+
+- (BOOL)stacked
+{
+  return _impl.stacked;
+}
+
+- (void)setStacked:(BOOL)stacked
+{
+  _impl.stacked = stacked;
+}
+
+- (void)setOpenOrder:(NSInteger)openOrder
+{
+  _impl.openOrder = openOrder;
+}
+
 - (void)setDetents:(NSArray<NSDictionary *> *)raw
 {
   [_impl setDetents:raw];

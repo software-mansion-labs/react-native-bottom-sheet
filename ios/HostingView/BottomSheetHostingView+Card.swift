@@ -123,6 +123,7 @@ extension BottomSheetHostingView {
   func setSheetTranslation(_ ty: CGFloat) {
     sheetContainer.transform = CGAffineTransform(translationX: 0, y: ty)
     applyCardGeometry(forPosition: sheetContainerHeight - ty)
+    Self.updateStacks()
   }
 
   /// The card in sheet-container coordinates for a sheet position (the height

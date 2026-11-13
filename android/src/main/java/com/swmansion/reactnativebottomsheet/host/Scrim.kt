@@ -13,6 +13,15 @@ internal class Scrim(private val state: SheetState) {
   var scrimOpacities = emptyList<Float>()
   private var scrimProgress = 0f
 
+  // How much of the scrim is painted, in 0-1. A stacked sheet leaves the background to the sheet
+  // beneath it, which dims it already; its scrim still takes the touches that close it.
+  var paintOpacity = 1f
+    set(value) {
+      if (field == value) return
+      field = value
+      state.hostView.invalidate()
+    }
+
   fun setScrimColor(color: Int?) {
     scrimColor = color ?: Color.TRANSPARENT
     state.hostView.invalidate()
@@ -83,11 +92,11 @@ internal class Scrim(private val state: SheetState) {
   fun isScrimVisible(): Boolean = state.modal && scrimProgress > 0.001f
 
   fun drawScrim(canvas: Canvas) {
-    if (!state.modal || scrimProgress <= 0.001f) {
+    if (!state.modal || scrimProgress <= 0.001f || paintOpacity <= 0f) {
       return
     }
 
-    val alpha = (Color.alpha(scrimColor) * scrimProgress).toInt().coerceIn(0, 255)
+    val alpha = (Color.alpha(scrimColor) * scrimProgress * paintOpacity).toInt().coerceIn(0, 255)
     scrimPaint.color =
       Color.argb(alpha, Color.red(scrimColor), Color.green(scrimColor), Color.blue(scrimColor))
     canvas.drawRect(0f, 0f, state.width.toFloat(), state.height.toFloat(), scrimPaint)

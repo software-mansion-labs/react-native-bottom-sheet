@@ -139,8 +139,9 @@ export interface BottomSheetProps {
   /**
    * The minimum space between the card’s top and the host’s top, in points,
    * at every detent. Defaults to the part of the status bar that overlaps the
-   * host, so the card stops below it; pass a lower value, or `0`, to go under
-   * the status bar.
+   * host, so the card stops below it (a `stacked` modal sheet's card stops 10
+   * points lower still); pass a lower value, or `0`, to go under the status
+   * bar.
    */
   topInset?: number;
   /**
@@ -239,6 +240,8 @@ type ModalOnlyBottomSheetProps = {
    * instead of the `BottomSheetProvider` portal.
    */
   nativeOverlay?: boolean;
+  /** Internal flag used by `ModalBottomSheet`. */
+  stacked?: boolean;
   /** Scrim color used by `ModalBottomSheet`. */
   scrimColor?: string;
   /** Scrim dismiss-control label used by `ModalBottomSheet`. */
@@ -275,6 +278,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
     wrapNativeView,
     modal = false,
     nativeOverlay = false,
+    stacked = false,
     scrollCoordination,
     scrimColor,
     scrimAccessibilityLabel,
@@ -414,6 +418,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
           modal={modal}
           nativeOverlay={usesNativeOverlay}
           openOrder={openOrder}
+          stacked={modal && stacked}
           hasCloseRequestHandler={hasCloseRequestHandler}
           scrollExpandCoordination={
             SCROLL_COORDINATION_LEVEL[resolvedExpandCoordination]

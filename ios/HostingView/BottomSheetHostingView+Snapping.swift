@@ -190,6 +190,8 @@ extension BottomSheetHostingView {
     sheetContainer.layer.add(animation, forKey: Self.springAnimationKey)
     addCardAnimations(matching: animation)
     activeSpring = spring
+    // A sheet this one covers follows the same spring.
+    Self.updateStacks()
 
     startDisplayLink()
 

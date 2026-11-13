@@ -22,6 +22,7 @@ import { SheetGestures } from './gestures';
 import { applyScrim, detentIndex } from './scrim';
 import { ScrollMomentum } from './scrollCoordination';
 import { SheetSnapping } from './snapping';
+import { applyStacks, setStackRegistration, updateStacks } from './stacking';
 import type {
   BottomSheetWebCallbacks,
   BottomSheetWebConfig,
@@ -60,6 +61,11 @@ export class BottomSheetWebController {
   private lastAppliedHostHeight = NaN;
   private appliedSurfaceOverflow = 0;
   translateY = 0;
+  hostRect: DOMRect | null = null;
+  /** The scale that pushes the sheet back, after its translation. */
+  private stackTransform = '';
+  /** How much of the scrim is painted; see `setScrimPaint`. */
+  scrimPaint = 1;
   lastReportedError: string | null = null;
 
   scrimPinnedFull = false;
@@ -115,6 +121,7 @@ export class BottomSheetWebController {
     scrim.addEventListener('click', this.handleScrimPress);
     // Screen readers activate the button with a click.
     elements.scrimDismiss.addEventListener('click', this.handleScrimPress);
+    setStackRegistration(this, true);
   }
 
   detach() {
@@ -134,6 +141,7 @@ export class BottomSheetWebController {
     }
     this.gestures.reset();
     setCloseRequestRegistration(this, false);
+    setStackRegistration(this, false);
     this.elements = null;
   }
 
@@ -201,6 +209,8 @@ export class BottomSheetWebController {
     }
     this.updateScrim();
     this.updateCloseRequestRegistration();
+    // The open order and `stacked` shape the stack without the sheet moving.
+    applyStacks();
   }
 
   emit(event: (callbacks: BottomSheetWebCallbacks) => void) {
@@ -269,10 +279,8 @@ export class BottomSheetWebController {
     this.hostHeight = hostHeight;
     // The part of the top safe-area inset that overlaps the host: the default
     // top inset.
-    this.statusBarOverlap = Math.max(
-      0,
-      readSafeAreaTop() - host.getBoundingClientRect().top
-    );
+    this.hostRect = host.getBoundingClientRect();
+    this.statusBarOverlap = Math.max(0, readSafeAreaTop() - this.hostRect.top);
     container.style.height = `${hostHeight}px`;
     content.style.height = `${contentRegionHeight(this)}px`;
     this.card.updateCardClip();
@@ -427,9 +435,44 @@ export class BottomSheetWebController {
     this.translateY = ty;
     const container = this.elements?.container;
     if (container) {
-      container.style.transform = `translate3d(0px, ${ty}px, 0px)`;
+      container.style.transform = `translate3d(0px, ${ty}px, 0px)${this.stackTransform}`;
     }
     this.card.updateCardClip();
+    // A sheet this one covers follows it in the same frame.
+    updateStacks();
+  }
+
+  // MARK: Stacking
+
+  cardSides(position: number) {
+    return this.card.cardSides(position);
+  }
+
+  setStackDim(opacity: number) {
+    const dim = this.elements?.stackDim;
+    if (dim) dim.style.opacity = String(opacity);
+  }
+
+  setScrimPaint(opacity: number) {
+    if (opacity === this.scrimPaint) return;
+    this.scrimPaint = opacity;
+    this.updateScrim();
+  }
+
+  setStackTransform(
+    transform: { scale: number; originX: number; originY: number } | null
+  ) {
+    const container = this.elements?.container;
+    const stackTransform =
+      transform === null ? '' : ` scale(${transform.scale})`;
+    if (container && transform !== null) {
+      container.style.transformOrigin = `${transform.originX}px ${transform.originY}px`;
+    }
+    if (stackTransform === this.stackTransform) return;
+    this.stackTransform = stackTransform;
+    if (container) {
+      container.style.transform = `translate3d(0px, ${this.translateY}px, 0px)${stackTransform}`;
+    }
   }
 
   private setDetentIndex(newIndex: number) {

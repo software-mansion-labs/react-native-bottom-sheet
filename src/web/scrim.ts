@@ -16,6 +16,8 @@ export type ScrimHost = {
   readonly hasLaidOut: boolean;
   readonly isPanning: boolean;
   readonly scrimPinnedFull: boolean;
+  /** How much of the scrim is painted, while it still takes presses. */
+  readonly scrimPaint: number;
   readonly detents: ResolvedDetent[];
   readonly hostHeight: number;
   /** The closed detent a scrim press dismisses to, while one would. */
@@ -46,7 +48,7 @@ export const applyScrim = (host: ScrimHost, position: number) => {
       : scrimOpacity(position, host.config.detents, host.detents);
   }
   const isVisible = opacity > 0.001;
-  scrim.style.opacity = String(isVisible ? opacity : 0);
+  scrim.style.opacity = String(isVisible ? opacity * host.scrimPaint : 0);
   scrim.style.visibility = isVisible ? 'visible' : 'hidden';
   scrim.style.pointerEvents = isVisible ? 'auto' : 'none';
   applyScrimDismiss(host, position);
@@ -99,7 +101,11 @@ export const detentIndex = (position: number, detents: ResolvedDetent[]) =>
     detents.map((_, index) => index)
   );
 
-const interpolate = (
+/**
+ * Interpolates a per-detent value (one per detent, by index) by the sheet
+ * position, using each detent's resolved position as the breakpoint.
+ */
+export const interpolate = (
   position: number,
   detents: ResolvedDetent[],
   values: number[]

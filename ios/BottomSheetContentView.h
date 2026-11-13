@@ -26,6 +26,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL animateIn;
 @property (nonatomic) BOOL animateContentHeight;
 @property (nonatomic) BOOL modal;
+@property (nonatomic) BOOL stacked;
 @property (nonatomic) NSInteger scrollExpandCoordination;
 @property (nonatomic) NSInteger scrollCollapseCoordination;
 @property (nonatomic) NSTimeInterval settleDuration;
@@ -48,6 +49,10 @@ NS_ASSUME_NONNULL_BEGIN
 // keeps at least `previous`, the overflow last reported.
 - (CGFloat)surfaceOverflowHolding:(CGFloat)previous;
 - (void)setDetentIndex:(NSInteger)newIndex;
+// Where the sheet sits among the others in its window, which a stacked sheet
+// reads: whether it is in the native overlay, and when it last opened.
+- (void)setNativeOverlay:(BOOL)nativeOverlay;
+- (void)setOpenOrder:(NSInteger)openOrder;
 - (void)setScrimColor:(UIColor *_Nullable)color;
 - (void)setScrimAccessibilityLabel:(NSString *_Nullable)label;
 // Physical corner radii of the card (top-left, top-right, bottom-right,

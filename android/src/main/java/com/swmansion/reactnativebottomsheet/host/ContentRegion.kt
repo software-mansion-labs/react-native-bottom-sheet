@@ -92,14 +92,14 @@ internal class ContentRegion(
   // leave alone: its resolved height is measured from the content region, so bounding the region by
   // it would be circular.
   private fun cardHeightBound(spec: RawDetentSpec): Float {
-    val available = state.availableCardHeight(spec)
+    val tallest = state.tallestCardHeight(spec)
     val bound =
       when (spec.kind) {
         DetentKind.POINTS -> spec.value
-        DetentKind.PERCENTAGE -> available * spec.value
-        DetentKind.CONTENT -> available
+        DetentKind.PERCENTAGE -> state.availableCardHeight(spec) * spec.value
+        DetentKind.CONTENT -> tallest
       }
-    return bound.coerceIn(0f, available)
+    return bound.coerceIn(0f, tallest)
   }
 
   // How far the surface extends below the sheet, in layout units, so that once scaled it still

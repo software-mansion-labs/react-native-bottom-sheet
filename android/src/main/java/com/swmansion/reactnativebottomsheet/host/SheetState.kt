@@ -64,11 +64,14 @@ internal class SheetState(val hostView: ViewGroup, val sheetContainer: BottomShe
   // from the height.
   var lastAppliedMaxDetentHeight = Float.NaN
 
-  // The default top inset: the part of the window's top (status bar / display
-  // cutout) inset that actually overlaps this view. Measured from real window
-  // geometry in every mode — inline, portal, and overlay — so no JS-estimated
-  // dimensions are involved.
+  // The part of the window's top (status bar / display cutout) inset that
+  // actually overlaps this view. Measured from real window geometry in every
+  // mode — inline, portal, and overlay — so no JS-estimated dimensions are
+  // involved.
   var statusBarOverlapPx = 0f
+
+  // Whether this modal sheet pushes back the open modal sheets beneath it.
+  var stacked = false
 
   val closedIndex: Int?
     get() = detentSpecs.indexOfFirst { it.position == 0f }.takeIf { it >= 0 }
@@ -90,10 +93,22 @@ internal class SheetState(val hostView: ViewGroup, val sheetContainer: BottomShe
     return (width - insets.left - insets.right).coerceAtLeast(0f) / widest
   }
 
-  // The tallest the card can be at a detent: the host's height, less the detent's top and bottom
-  // insets. Percentages resolve against it, so `100%` fits.
+  // The space a detent's insets leave the card: the host's height, less its top and bottom insets.
+  // Percentages resolve against it, so `100%` fits.
   fun availableCardHeight(spec: RawDetentSpec): Float =
     (height - (spec.insets.top ?: statusBarOverlapPx) - spec.insets.bottom).coerceAtLeast(0f)
+
+  // The tallest the card may get at a detent: the available height, less the peek for a stacked
+  // sheet on the default top inset. Its card then stops below the edge of the sheet it covers, as
+  // native iOS sheets do, while its percentages still match those of the sheet beneath.
+  fun tallestCardHeight(spec: RawDetentSpec): Float {
+    val available = availableCardHeight(spec)
+    return if (stacked && spec.insets.top == null) {
+      (available - STACK_PEEK * density).coerceAtLeast(0f)
+    } else {
+      available
+    }
+  }
 
   // Interpolates a per-detent value (one per detent, by index) by the sheet
   // position, using each detent's resolved position as the breakpoint.

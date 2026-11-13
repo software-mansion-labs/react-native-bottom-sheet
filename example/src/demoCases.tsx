@@ -8,6 +8,7 @@ export type CaseKey =
   | 'lazy-mounted-modal'
   | 'native-overlay-modal'
   | 'native-overlay-nested'
+  | 'stacked-sheets'
   | 'native-overlay-full-height-list'
   | 'native-overlay-keyboard-input'
   | 'close-request'
@@ -89,6 +90,11 @@ export const DEMO_CASES: DemoCase[] = [
     key: 'native-overlay-nested',
     title: 'Native overlay nested mount',
     href: '/native-overlay-nested',
+  },
+  {
+    key: 'stacked-sheets',
+    title: 'Stacked sheets',
+    href: '/stacked-sheets',
   },
   {
     key: 'native-overlay-full-height-list',

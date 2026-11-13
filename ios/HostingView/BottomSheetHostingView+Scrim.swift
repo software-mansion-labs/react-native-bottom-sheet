@@ -153,7 +153,7 @@ extension BottomSheetHostingView {
 
   /// Interpolates a per-detent value (one per detent, by index) by the sheet
   /// position, using each detent's resolved position as the breakpoint.
-  private func interpolate(forPosition position: CGFloat, values: [CGFloat]) -> CGFloat {
+  func interpolate(forPosition position: CGFloat, values: [CGFloat]) -> CGFloat {
     let pairs = zip(detentSpecs.map(\.position), values)
       .map { (position: $0, value: $1) }
       .sorted { $0.position < $1.position }
