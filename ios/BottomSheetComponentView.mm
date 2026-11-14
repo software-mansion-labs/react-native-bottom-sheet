@@ -481,8 +481,12 @@ using namespace facebook::react;
                withSurfaceTelemetry:(const facebook::react::SurfaceTelemetry &)surfaceTelemetry
 {
   [_sheetView contentRegionLayoutDidApply];
-  // The content's layout and the detents can move these without the sheet moving.
-  [self pushContentGeometry];
+  // Position callbacks publish spring movement. Sampling it again after each
+  // Fabric commit advances time and can feed another commit back into this hook.
+  // Keep layout-only geometry updates for sheets without an active spring.
+  if (!_sheetView.isSettling) {
+    [self pushContentGeometry];
+  }
 }
 
 #pragma mark - BottomSheetContentViewDelegate

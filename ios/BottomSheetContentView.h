@@ -37,6 +37,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) BOOL isModalAccessibilityActive;
 // Whether the sheet is on screen, regardless of its scrim.
 @property (nonatomic, readonly) BOOL isPresented;
+@property (nonatomic, readonly) BOOL isSettling;
 
 - (void)setDetents:(NSArray<NSDictionary *> *)raw;
 // Records the content-region inset of a state Fabric committed.
