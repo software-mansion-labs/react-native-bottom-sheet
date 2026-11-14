@@ -41,6 +41,11 @@
       var(--ifm-transition-timing-default);
 }
 
+/* In the narrowest columns the label and arrow use some of the padding instead. */
+.cta svg {
+  flex-shrink: 0;
+}
+
 .cta:is(:hover, :focus-visible) {
   background: transparent;
   color: var(--bs-accent);
