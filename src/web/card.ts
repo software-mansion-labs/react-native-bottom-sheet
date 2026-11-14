@@ -1,5 +1,6 @@
 /// <reference lib="dom" />
 
+import { columnWidth } from '../cardPlacement';
 import {
   cardSpan,
   contentScale,
@@ -24,7 +25,6 @@ export type CardHost = {
   readonly rawDetents: ReadonlyArray<RawDetent>;
   readonly widestCardLeft: number;
   readonly widestCardInsets: SideInsets;
-  readonly isLayoutRTL: boolean;
 };
 
 const NO_INSETS = { insetLeft: 0, insetRight: 0, insetBottom: 0 };
@@ -185,14 +185,11 @@ export class SheetCard {
   }
 
   /**
-   * Whether `maxWidth` leaves a gap beside the card in this host. The widest
-   * card has the tightest insets, so a cap that doesn't narrow it narrows none.
+   * Whether `maxWidth` leaves a gap beside the sheet in this host: whether its
+   * column is narrower than the host.
    */
   private isNarrowedByMaxWidth() {
-    const { widestCardInsets } = this.host;
     const width = this.host.elements?.host.clientWidth ?? 0;
-    const available =
-      width - widestCardInsets.insetLeft - widestCardInsets.insetRight;
-    return cardSpan(this.host, widestCardInsets, width).width < available;
+    return columnWidth(width, this.host.rawDetents[0]?.maxWidth ?? 0) < width;
   }
 }

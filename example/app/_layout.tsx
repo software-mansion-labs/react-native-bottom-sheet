@@ -34,6 +34,10 @@ export default function RootLayout() {
               options={{ title: 'Surface style', headerShown: false }}
             />
             <Stack.Screen
+              name="wide-screen"
+              options={{ title: 'Wide screens', headerShown: false }}
+            />
+            <Stack.Screen
               name="corner-touches"
               options={{ title: 'Corner touches', headerShown: false }}
             />

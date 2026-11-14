@@ -34,18 +34,17 @@ internal class SheetState(val hostView: ViewGroup, val sheetContainer: BottomShe
     get() = hostView.height
 
   var rawDetentSpecs: List<RawDetentSpec> = emptyList()
-  // Whether any detent keeps a gap at the card's sides or bottom, or the maximum width leaves one
-  // in
-  // this host, so the card is narrower or shorter than the surface and has to clip it. A top inset
-  // only lowers the detent's height. Kept by `Detents.refreshCardGaps`.
+  // Whether any detent keeps a gap at the card's sides or bottom, or the maximum width leaves
+  // one in this host, so the card is narrower or shorter than the surface and has to clip it. A
+  // top inset only lowers the detent's height. Kept by `Detents.refreshCardGaps`.
   var hasCardGaps = false
   // Whether any detent's insets keep a gap at the card's sides or bottom.
   var hasInsetGaps = false
   // The side insets of the widest open card, which the content is laid out against.
   var widestCardInsets = DetentInsets()
-  // The widest the card gets, in px; 0 for no cap. Sheet-wide.
+  // The widest the sheet's column gets, side insets included, in px; 0 for no cap. Sheet-wide.
   var cardMaxWidth = 0f
-  // The share of the free width left of the card: 0 left, 0.5 center, 1 right.
+  // The share of the free width left of the sheet's column: 0 left, 0.5 center, 1 right.
   var cardPlacementBias = 0.5f
   var detentSpecs: List<DetentSpec> = emptyList()
   var targetIndex: Int = 0
@@ -107,16 +106,23 @@ internal class SheetState(val hostView: ViewGroup, val sheetContainer: BottomShe
     return placeCard(insets, width.toFloat()).width / widest
   }
 
-  // The card's horizontal span for its side insets: the space they leave, capped at the maximum
-  // width, where the placement puts it in the whole host, moved only as far as needed to keep clear
-  // of the insets. Mirrors `placeCard` in `cardPlacement.ts`.
+  // The width of the sheet's column in a host this wide: the host's width, capped at the maximum
+  // width. The card and its side insets share it. Mirrors `columnWidth` in `cardPlacement.ts`.
+  fun columnWidth(hostWidth: Float): Float =
+    if (cardMaxWidth > 0f) minOf(cardMaxWidth, hostWidth) else hostWidth
+
+  // The card's horizontal span for its side insets: the sheet's column sits where the placement
+  // puts it in the host, and the card fills the column between its insets, as it would fill a
+  // screen that wide. Mirrors `placeCard` in `cardPlacement.ts`.
   fun placeCard(insets: DetentInsets, hostWidth: Float): CardSpan {
-    val available = (hostWidth - insets.left - insets.right).coerceAtLeast(0f)
-    val cardWidth = if (cardMaxWidth > 0f) minOf(cardMaxWidth, available) else available
-    // On a whole pixel, so a centered card in an odd free width doesn't blur its edges and content.
-    val preferred = round(cardPlacementBias * (hostWidth - cardWidth))
-    val rightmost = maxOf(insets.left, hostWidth - insets.right - cardWidth)
-    return CardSpan(preferred.coerceAtLeast(insets.left).coerceAtMost(rightmost), cardWidth)
+    val column = columnWidth(hostWidth)
+    // On a whole pixel, so a centered column in an odd free width doesn't blur the card's edges
+    // and content.
+    val columnLeft = round(cardPlacementBias * (hostWidth - column))
+    return CardSpan(
+      columnLeft + insets.left,
+      (column - insets.left - insets.right).coerceAtLeast(0f),
+    )
   }
 
   // Where Yoga lays out a child of the sheet that is `childWidth` wide: at the widest card's inset

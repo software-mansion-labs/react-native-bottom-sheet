@@ -119,9 +119,11 @@ public final class BottomSheetHostingView: UIView {
   var hasInsetGaps = false
   /// The side insets of the widest card, which the content is laid out against.
   var widestCardInsets = DetentInsets()
-  /// The widest the card gets, in points; 0 for no cap. Sheet-wide.
+  /// The widest the sheet's column gets, side insets included, in points; 0
+  /// for no cap. Sheet-wide.
   var cardMaxWidth: CGFloat = 0
-  /// The share of the free width left of the card: 0 left, 0.5 center, 1 right.
+  /// The share of the free width left of the sheet's column: 0 left, 0.5
+  /// center, 1 right.
   var cardPlacementBias: CGFloat = 0.5
   var detentSpecs: [DetentSpec] = [] {
     didSet {
@@ -587,11 +589,9 @@ public final class BottomSheetHostingView: UIView {
   }
 
   /// Recomputes `hasCardGaps` from the detents' insets and whether the maximum
-  /// width narrows the widest card in this host. The widest card has the
-  /// tightest insets, so a cap that doesn't narrow it narrows none.
+  /// width makes the sheet's column narrower than this host.
   func refreshCardGaps() {
-    let widestAvailable = bounds.width - widestCardInsets.left - widestCardInsets.right
-    let isNarrowedByMaxWidth = cardMaxWidth > 0 && cardMaxWidth < widestAvailable
+    let isNarrowedByMaxWidth = columnWidth(hostWidth: bounds.width) < bounds.width
     let hasGaps = hasInsetGaps || isNarrowedByMaxWidth
     guard hasGaps != hasCardGaps else { return }
     hasCardGaps = hasGaps

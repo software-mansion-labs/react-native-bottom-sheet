@@ -13,7 +13,7 @@ import type {
   StyleProp,
   ViewStyle,
 } from 'react-native';
-import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import {
   BottomSheetContentWrapperView,
@@ -168,24 +168,25 @@ export interface BottomSheetProps {
    */
   topInset?: number;
   /**
-   * The widest the card gets, in points, so a sheet on a tablet, a foldable,
+   * The widest the sheet gets, in points, so a sheet on a tablet, a foldable,
    * a desktop browser or a landscape phone doesn't stretch across the whole
-   * screen. The card takes the space its detent's side `insets` leave, up to
-   * this width; `placement` decides where it sits when that leaves room on
-   * either side. Applies at every detent, and doesn't relayout the content:
-   * the content is laid out at the widest card's width.
+   * screen. It caps the column the sheet sits in, side `insets` included: the
+   * card fills the column between its detent's insets, as it would fill a
+   * screen this wide, and `placement` decides where the column sits when it is
+   * narrower than the host. Applies at every detent, and doesn't relayout the
+   * content: the content is laid out at the widest card's width.
    *
    * A number greater than 0. Leave it unset, or pass `Infinity`, for no cap.
    */
   maxWidth?: number;
   /**
-   * Where the card sits across the host when `maxWidth` makes it narrower
-   * than the space its side insets leave, as `UISheetPresentationController`'s
-   * `preferredPlacement` does on iOS 27. `'center'` puts the card's middle on
-   * the host's; `'leading'` and `'trailing'` put it at the start or end edge,
-   * following the layout direction, so `'leading'` is on the right in a
-   * right-to-left layout. The side insets stay the least gap on each side, so
-   * a centered card moves off-center only as far as an inset requires.
+   * Where the sheet sits across the host when `maxWidth` makes it narrower
+   * than the host, like `UISheetPresentationController`'s `preferredPlacement`
+   * on iOS 27. `'center'` puts the sheet's middle on the host's; `'start'` and
+   * `'end'` put it against the start or end edge, following the layout
+   * direction like the detents' `start` and `end` insets, so `'start'` is on
+   * the right in a right-to-left layout. The detent's side insets then apply within the
+   * sheet's width, as on a narrow screen.
    *
    * @default 'center'
    */
@@ -360,10 +361,7 @@ export const BottomSheet = (props: BottomSheetProps) => {
     topInset,
     {
       maxWidth: resolvedMaxWidth,
-      placementBias: resolvePlacement(
-        placement,
-        Platform.OS !== 'web' && isRTL
-      ),
+      placementBias: resolvePlacement(placement, isRTL),
     },
     modal,
     isRTL
@@ -388,10 +386,14 @@ export const BottomSheet = (props: BottomSheetProps) => {
   const widestDetent = normalizedDetents.find((detent) => detent.widestCard);
   const contentLeft = widestDetent?.insetLeft ?? 0;
   const contentRight = widestDetent?.insetRight ?? 0;
-  // Caps the content at the widest card's width. The hosts place the card
+  // Caps the content at the widest card's width: the sheet's column less that
+  // card's side insets, which Yoga applies as margins. The hosts place the card
   // themselves and move the content onto it, so where Yoga puts the capped box
   // (the start edge) only has to be the same for the surface and the content.
-  const contentMaxWidth = resolvedMaxWidth > 0 ? resolvedMaxWidth : undefined;
+  const contentMaxWidth =
+    resolvedMaxWidth > 0
+      ? Math.max(0, resolvedMaxWidth - contentLeft - contentRight)
+      : undefined;
   // When the sheet last opened, relative to other sheets: 0 until it first
   // opens. This includes reopening while it is still closing.
   const [wasSheetClosed, setWasSheetClosed] = useState(isSheetClosed);
@@ -446,7 +448,8 @@ export const BottomSheet = (props: BottomSheetProps) => {
   const warnAboutCrowdedInsets = () => {
     const warning = crowdedInsetsWarning(
       normalizedDetents,
-      hostWidthRef.current
+      hostWidthRef.current,
+      resolvedMaxWidth
     );
     if (warning !== null && warning !== lastWarningRef.current) {
       console.warn(warning);

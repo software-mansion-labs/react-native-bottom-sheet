@@ -32,13 +32,11 @@ internal class Detents(
       refreshDetentsFromLayout()
     }
 
-  // Recomputes whether the card clips, from the detents' insets and whether the maximum width
-  // narrows
-  // the widest card in this host. The widest card has the tightest insets, so a cap that doesn't
-  // narrow it narrows none.
+  // Recomputes whether the card clips, from the detents' insets and whether the maximum width makes
+  // the sheet's column narrower than this host.
   fun refreshCardGaps() {
-    val widestAvailable = state.width - state.widestCardInsets.left - state.widestCardInsets.right
-    val isNarrowedByMaxWidth = state.cardMaxWidth > 0f && state.cardMaxWidth < widestAvailable
+    val hostWidth = state.width.toFloat()
+    val isNarrowedByMaxWidth = state.columnWidth(hostWidth) < hostWidth
     state.hasCardGaps = state.hasInsetGaps || isNarrowedByMaxWidth
     clipContainer.setClipsToCard(state.hasCardGaps)
   }
@@ -47,6 +45,7 @@ internal class Detents(
     val previousTallestDetent = state.rawDetentSpecs.lastOrNull()
     val previousWidestCardInsets = state.widestCardInsets
     val previousCardMaxWidth = state.cardMaxWidth
+    val previousCardPlacementBias = state.cardPlacementBias
     val previousScrimOpacities = scrim.scrimOpacities
     // Entries without a value are dropped up front, so the specs and the scrim
     // opacities stay aligned by index.
@@ -112,6 +111,20 @@ internal class Detents(
     // The re-resolved detents can change the card's shape at its current position.
     contentRegion.recomputeNativeGeometry()
     if (scrim.scrimOpacities != previousScrimOpacities) scrim.updateScrim()
+    // The resolved detents don't carry the maximum width or the placement, so a change to either
+    // alone can leave them as they were, and nothing above re-places the card. Request a layout:
+    // the host posts its pass, which runs after this mount batch, once Fabric has re-measured the
+    // children against the new cap, and re-places the card, its clip, its content and the state
+    // snapshot.
+    if (
+      state.hasLaidOut &&
+        state.width > 0 &&
+        state.height > 0 &&
+        (state.cardMaxWidth != previousCardMaxWidth ||
+          state.cardPlacementBias != previousCardPlacementBias)
+    ) {
+      state.hostView.requestLayout()
+    }
   }
 
   fun setIndex(newIndex: Int) {

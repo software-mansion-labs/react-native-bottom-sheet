@@ -21,9 +21,9 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
- * `maxWidth` caps the card's width and `placement` (sent as a physical bias: 0 left, 0.5 center, 1
- * right) puts it across the host. The side insets stay the least gap, and the content follows the
- * card from where Yoga laid it out.
+ * `maxWidth` caps the sheet's column, side insets included, and `placement` (sent as a physical
+ * bias: 0 left, 0.5 center, 1 right) puts the column across the host. The card fills the column
+ * between its side insets, and the content follows the card from where Yoga laid it out.
  */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35], shadows = [TestArgumentsShadow::class])
@@ -43,41 +43,41 @@ class BottomSheetHostViewPlacementTest {
   }
 
   @Test
-  fun `a leading card sits at the left edge`() {
+  fun `a start card sits at the left edge`() {
     withSheet(listOf(points(0.0), points(300.0)), maxWidth = 600.0, bias = 0.0) { sheet ->
       assertCardSpan(sheet, 0f, 600 * sheet.density)
     }
   }
 
   @Test
-  fun `a trailing card sits at the right edge`() {
+  fun `an end card sits at the right edge`() {
     withSheet(listOf(points(0.0), points(300.0)), maxWidth = 600.0, bias = 1.0) { sheet ->
       assertCardSpan(sheet, WIDTH_PX - 600 * sheet.density, WIDTH_PX.toFloat())
     }
   }
 
   @Test
-  fun `a placed card keeps its side insets`() {
+  fun `side insets apply within the maximum width`() {
     val detents = listOf(points(0.0), points(300.0, left = 24.0, right = 16.0))
     withSheet(detents, maxWidth = 600.0, bias = 0.0) { sheet ->
       val d = sheet.density
-      assertCardSpan(sheet, 24 * d, 624 * d)
+      assertCardSpan(sheet, 24 * d, 584 * d)
     }
     withSheet(detents, maxWidth = 600.0, bias = 1.0) { sheet ->
       val d = sheet.density
-      assertCardSpan(sheet, WIDTH_PX - 616 * sheet.density, WIDTH_PX - 16 * d)
+      assertCardSpan(sheet, WIDTH_PX - 576 * d, WIDTH_PX - 16 * d)
     }
   }
 
   @Test
-  fun `a centered card moves off center only as far as an inset requires`() {
-    // Centered, it would start inside the left inset.
+  fun `uneven insets shift the card within a centered column, as on a narrow screen`() {
     withSheet(
       listOf(points(0.0), points(300.0, left = WIDTH_DP * 0.4)),
       maxWidth = WIDTH_DP * 0.5,
       bias = 0.5,
     ) { sheet ->
-      assertCardSpan(sheet, WIDTH_PX * 0.4f, WIDTH_PX * 0.9f)
+      // The column spans 0.25-0.75 of the host; the card is its last fifth.
+      assertCardSpan(sheet, WIDTH_PX * 0.65f, WIDTH_PX * 0.75f)
     }
   }
 
@@ -105,18 +105,18 @@ class BottomSheetHostViewPlacementTest {
   }
 
   @Test
-  fun `the content scales to a card the insets make narrower than the maximum width`() {
-    // The widest card is capped at maxWidth; the other one is narrower still.
+  fun `the content scales to a card the insets make narrower within the maximum width`() {
+    // The widest card fills the 20-point-narrower column; the other one keeps 40-point gaps in it.
     val maxWidth = WIDTH_DP - 20
     val detents = listOf(points(100.0, left = 40.0, right = 40.0), points(300.0, widest = true))
     withSheet(detents, index = 0, maxWidth = maxWidth, bias = 0.5, contentWidthDp = maxWidth) {
       sheet ->
       val d = sheet.density
       val content = sheet.getSheetChildAt(0)!!
-      val narrow = WIDTH_PX - 80 * d
+      val narrow = WIDTH_PX - 100 * d
       assertEquals(narrow / (maxWidth.toFloat() * d), content.scaleX, 0.001f)
-      assertEquals(40 * d, content.left + content.translationX, 0.5f)
-      assertCardSpan(sheet, 40 * d, WIDTH_PX - 40 * d)
+      assertEquals(50 * d, content.left + content.translationX, 0.5f)
+      assertCardSpan(sheet, 50 * d, WIDTH_PX - 50 * d)
     }
   }
 
@@ -131,16 +131,17 @@ class BottomSheetHostViewPlacementTest {
         listOf(points(0.0), points(300.0, left = 8.0, right = 24.0, widest = true)),
         maxWidth = 400.0,
         bias = 1.0,
-        contentWidthDp = 400.0,
+        // As Yoga sizes it: the maximum width less the widest card's side insets.
+        contentWidthDp = 368.0,
         layoutDirection = View.LAYOUT_DIRECTION_RTL,
       ) { sheet ->
         val d = sheet.density
         val content = sheet.getSheetChildAt(0)!!
         // Yoga puts the capped box at the start inset, which is the right one.
-        assertEquals((WIDTH_PX - 24 * d - 400 * d).toInt(), content.left)
-        // The card, placed at the right (leading in RTL), carries it along.
-        assertCardSpan(sheet, WIDTH_PX - 424 * d, WIDTH_PX - 24 * d)
-        assertEquals(WIDTH_PX - 424 * d, content.left + content.translationX, 0.5f)
+        assertEquals((WIDTH_PX - 24 * d - 368 * d).toInt(), content.left)
+        // The card, in a column at the right (start in RTL), carries it along.
+        assertCardSpan(sheet, WIDTH_PX - 392 * d, WIDTH_PX - 24 * d)
+        assertEquals(WIDTH_PX - 392 * d, content.left + content.translationX, 0.5f)
       }
     } finally {
       context.applicationInfo.flags = flags
@@ -174,7 +175,49 @@ class BottomSheetHostViewPlacementTest {
     }
     withSheet(detents, index = 2, maxWidth = 500.0, bias = 0.0) { sheet ->
       val d = sheet.density
-      assertCardSpan(sheet, 16 * d, 516 * d)
+      assertCardSpan(sheet, 16 * d, 484 * d)
+    }
+  }
+
+  @Test
+  fun `a new placement on a settled sheet re-places the card without a host layout`() {
+    val detents = listOf(points(0.0), points(300.0))
+    withSheet(detents, maxWidth = 600.0, bias = 0.5) { sheet ->
+      val d = sheet.density
+      sendDetents(sheet, detents, maxWidth = 600.0, bias = 0.0)
+      shadowOf(Looper.getMainLooper()).idle()
+      assertCardSpan(sheet, 0f, 600 * d)
+      sendDetents(sheet, detents, maxWidth = 600.0, bias = 1.0)
+      shadowOf(Looper.getMainLooper()).idle()
+      assertCardSpan(sheet, WIDTH_PX - 600 * d, WIDTH_PX.toFloat())
+    }
+  }
+
+  @Test
+  fun `a new maximum width on a settled sheet re-places the card and its content`() {
+    val detents = listOf(points(0.0), points(300.0))
+    withSheet(detents, maxWidth = 0.0, bias = 0.5, contentWidthDp = WIDTH_DP) { sheet ->
+      val d = sheet.density
+      val content = sheet.getSheetChildAt(0)!!
+      assertFalse(sheet.clip.clipsContent)
+
+      // Fabric re-measures the content against its new Yoga cap in the same mount batch.
+      sendDetents(sheet, detents, maxWidth = 320.0, bias = 0.5)
+      remeasure(content, (320 * d).toInt())
+      shadowOf(Looper.getMainLooper()).idle()
+      val left = (WIDTH_PX - 320 * d) / 2f
+      assertCardSpan(sheet, left, left + 320 * d)
+      assertTrue(sheet.clip.clipsContent)
+      assertEquals(left, content.left + content.translationX, 0.5f)
+      assertEquals(1f, content.scaleX, 0.001f)
+
+      // Removing the cap fills the host again, unclipped.
+      sendDetents(sheet, detents, maxWidth = 0.0, bias = 0.5)
+      remeasure(content, WIDTH_PX)
+      shadowOf(Looper.getMainLooper()).idle()
+      assertCardSpan(sheet, 0f, WIDTH_PX.toFloat())
+      assertFalse(sheet.clip.clipsContent)
+      assertEquals(0f, content.left + content.translationX, 0.5f)
     }
   }
 
@@ -254,6 +297,26 @@ class BottomSheetHostViewPlacementTest {
       "widestCard" to widest,
     )
 
+  private fun sendDetents(
+    sheet: BottomSheetHostView,
+    detents: List<Map<String, Any>>,
+    maxWidth: Double,
+    bias: Double,
+  ) {
+    sheet.setDetents(detents.map { it + mapOf("maxWidth" to maxWidth, "placementBias" to bias) })
+  }
+
+  /**
+   * As Fabric does after a Yoga width change: re-measures and lays out the view at Yoga's origin.
+   */
+  private fun remeasure(view: View, widthPx: Int) {
+    view.measure(
+      View.MeasureSpec.makeMeasureSpec(widthPx, View.MeasureSpec.EXACTLY),
+      View.MeasureSpec.makeMeasureSpec(view.measuredHeight, View.MeasureSpec.EXACTLY),
+    )
+    view.layout(0, 0, widthPx, view.measuredHeight)
+  }
+
   private fun withSheet(
     detents: List<Map<String, Any>>,
     index: Int = 1,
@@ -281,9 +344,7 @@ class BottomSheetHostViewPlacementTest {
         },
         0,
       )
-      sheet.setDetents(
-        detents.map { it + mapOf("maxWidth" to maxWidth, "placementBias" to bias) },
-      )
+      sendDetents(sheet, detents, maxWidth, bias)
       sheet.setIndex(index)
       controller.get().setContentView(sheet, ViewGroup.LayoutParams(WIDTH_PX, HEIGHT_PX))
       sheet.measure(

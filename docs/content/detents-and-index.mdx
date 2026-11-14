@@ -149,14 +149,14 @@ occupy the full screen height:
 ## Wide screens
 
 On a tablet, a foldable, a desktop browser or a phone in landscape, a sheet that
-spans the whole width is hard to read. `maxWidth` caps the card's width, in
-points, and `placement` decides where the card sits when that leaves room on
+spans the whole width is hard to read. `maxWidth` caps the sheet's width, in
+points, and `placement` decides where the sheet sits when that leaves room on
 either side:
 
 ```tsx
 <ModalBottomSheet
   maxWidth={540}
-  placement="center" // The default; or 'leading' / 'trailing'.
+  placement="center" // The default; or 'start' / 'end'.
   detents={[0, 'content', '100%']}
   index={index}
   onIndexChange={setIndex}
@@ -166,26 +166,31 @@ either side:
 </ModalBottomSheet>
 ```
 
-The values match `UISheetPresentationController.Placement` from iOS 27:
+The values correspond to `UISheetPresentationController.Placement` from iOS 27,
+named like the rest of React Native's direction-aware props:
 
-- `'center'` puts the card's middle on the host's.
-- `'leading'` and `'trailing'` put it at the start or end edge. They follow the
-  layout direction, so `'leading'` is the right edge in a right-to-left layout.
+- `'center'` puts the sheet's middle on the host's.
+- `'start'` and `'end'` put it against the start or end edge. Like the `start`
+  and `end` [insets](#insets), they follow the layout direction, so `'start'` is
+  the right edge in a right-to-left layout.
 
-The card takes the space its detent's side [insets](#insets) leave, up to
-`maxWidth`. The insets stay the least gap on each side, so a centered card moves
-off-center only as far as an inset requires. A screen narrower than `maxWidth`
-is filled as before, so the same props suit a phone and a tablet; the card is
-clipped only where `maxWidth` actually narrows it. As with insets, the content
-is laid out once, at the widest card's width, and the space beside the card
-isn't part of the sheet: touches there reach the scrim or whatever is behind it.
+`maxWidth` includes the detent's side [insets](#insets): the sheet gets a column
+up to `maxWidth` wide, and the card fills it between its insets, just as it
+would fill a screen that wide. With `maxWidth={540}` and 16-point side insets,
+the card is 508 points wide, and moving to a detent without side insets widens
+it to 540, as on a phone. To get a 540-point floating card, pass
+`maxWidth={572}`. A screen narrower than `maxWidth` is filled as before, so the
+same props suit a phone and a tablet; the card is clipped only where `maxWidth`
+actually narrows the sheet. As with insets, the content is laid out once, at the
+widest card's width, and the space beside the sheet isn't part of it: touches
+there reach the scrim or whatever is behind it.
 
 `maxWidth` must be a number greater than 0; pass `Infinity`, or leave it unset,
 for no cap. `placement` must be one of the three values. The library throws an
-`Error` otherwise. `maxWidth` and `placement` can't push the sheet out of the
-screen: the card shrinks and moves to stay between the side insets. On the web,
-the direction comes from the page (for example `dir="rtl"`), since React Native
-Web's `I18nManager` doesn't report it.
+`Error` otherwise. Both can change while the sheet is open. Keep the side insets
+below `maxWidth`, too: insets that fill it squeeze the card to nothing, and the
+library warns about it in development. On the web, the direction is the
+document's, as for `start` and `end` insets.
 
 ## Index events
 

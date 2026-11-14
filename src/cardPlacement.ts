@@ -1,38 +1,45 @@
-// Horizontal placement of the sheet's card: its width under `maxWidth` and
-// where it sits for a `placement`. Kept free of React Native imports so it can
+// Horizontal placement of the sheet's card: the column `maxWidth` gives it and
+// where that sits for a `placement`. Kept free of React Native imports so it can
 // be unit tested on its own. The iOS and Android hosts mirror `placeCard` in
 // `BottomSheetHostingView+Detents.swift` and `SheetState.kt`; keep them in sync.
 
 /**
- * Where the card sits across the host when it is narrower than the space its
- * side insets leave, as in UIKit's `UISheetPresentationController.Placement`.
- * `leading` and `trailing` follow the layout direction: `leading` is the left
- * edge in a left-to-right layout and the right edge in a right-to-left one.
+ * Where the sheet sits across the host when `maxWidth` makes it narrower than
+ * the host, as in UIKit's `UISheetPresentationController.Placement`. `start`
+ * and `end` follow the layout direction, like the detents' `start` and `end`
+ * insets: `start` is the left edge in a left-to-right layout and the right edge
+ * in a right-to-left one.
  */
-export type SheetPlacement = 'leading' | 'center' | 'trailing';
+export type SheetPlacement = 'start' | 'center' | 'end';
 
 /**
- * The share of the host's free width left of the card, for each placement in a
- * left-to-right layout: 0 puts it on the left, 0.5 in the middle, and 1 on the
- * right. Physical, like the detents' insets, so the native hosts don't need to
- * know the layout direction.
+ * The share of the host's free width left of the sheet's column, for each
+ * placement in a left-to-right layout: 0 puts it on the left, 0.5 in the
+ * middle, and 1 on the right. Physical, like the detents' insets, so the native
+ * hosts don't need to know the layout direction.
  */
 const PLACEMENT_BIAS: Readonly<Record<SheetPlacement, number>> = {
-  leading: 0,
+  start: 0,
   center: 0.5,
-  trailing: 1,
+  end: 1,
 };
 
 /** The card's horizontal span in the host, in points. */
 export type CardSpan = Readonly<{ left: number; width: number }>;
 
 /**
- * Places the card across a host `hostWidth` wide, in points with
- * `pixelRatio` device pixels each. Its width is the space the
- * side insets leave, capped by `maxWidth` (0 for no cap). It sits where the bias
- * puts it in the whole host, so a centered card's middle is the host's, and is
- * then moved, if needed, to keep clear of the insets, which stay the least gap
- * on each side.
+ * The width of the sheet's column in a host `hostWidth` wide: the host's
+ * width, capped by `maxWidth` (0 for no cap). The card and its side insets
+ * share the column, so a capped sheet looks as it would on a screen that wide.
+ */
+export const columnWidth = (hostWidth: number, maxWidth: number) =>
+  maxWidth > 0 ? Math.min(maxWidth, hostWidth) : hostWidth;
+
+/**
+ * Places the card across a host `hostWidth` wide, in points with `pixelRatio`
+ * device pixels each. The sheet's column, at most `maxWidth` wide (0 for no
+ * cap), sits where the bias puts it in the host, and the card fills the column
+ * between its side insets, as it would fill a screen that wide.
  */
 export const placeCard = (
   hostWidth: number,
@@ -42,16 +49,14 @@ export const placeCard = (
   bias: number,
   pixelRatio = 1
 ): CardSpan => {
-  const available = Math.max(0, hostWidth - insetLeft - insetRight);
-  const width = maxWidth > 0 ? Math.min(maxWidth, available) : available;
-  // On a whole device pixel, so a centered card in an odd free width doesn't
-  // blur its edges and content.
-  const preferred =
-    Math.round(bias * (hostWidth - width) * pixelRatio) / pixelRatio;
-  const rightmost = Math.max(insetLeft, hostWidth - insetRight - width);
+  const column = columnWidth(hostWidth, maxWidth);
+  // On a whole device pixel, so a centered column in an odd free width doesn't
+  // blur the card's edges and content.
+  const columnLeft =
+    Math.round(bias * (hostWidth - column) * pixelRatio) / pixelRatio;
   return {
-    left: Math.min(Math.max(preferred, insetLeft), rightmost),
-    width,
+    left: columnLeft + insetLeft,
+    width: Math.max(0, column - insetLeft - insetRight),
   };
 };
 
@@ -79,30 +84,35 @@ export const resolvePlacement = (
   // `hasOwn` keeps inherited keys such as `'toString'` out.
   if (!Object.hasOwn(PLACEMENT_BIAS, key)) {
     throw new Error(
-      `Invalid bottom sheet \`placement\`: received ${JSON.stringify(placement)}. Expected 'leading', 'center' or 'trailing'.`
+      `Invalid bottom sheet \`placement\`: received ${JSON.stringify(placement)}. Expected 'start', 'center' or 'end'.`
     );
   }
-  // Leading and trailing swap sides in a right-to-left layout.
+  // Start and end swap sides in a right-to-left layout.
   return isRTL ? 1 - PLACEMENT_BIAS[key] : PLACEMENT_BIAS[key];
 };
 
 /**
  * A warning for side insets that leave the card no width in a host
- * `hostWidth` wide, or null when every detent's card has room. The hosts clamp
- * such a card to nothing rather than fail, since a host can get that narrow at
- * runtime (a resized window, a container animating open). A closed detent's
- * insets are already 0. `maxWidth` and `placement` alone can't cause this: the
- * card shrinks and moves to stay between the insets.
+ * `hostWidth` wide under `maxWidth` (0 for no cap), or null when every
+ * detent's card has room. The hosts clamp such a card to nothing rather than
+ * fail, since a host can get that narrow at runtime (a resized window, a
+ * container animating open). A closed detent's insets are already 0.
  */
 export const crowdedInsetsWarning = (
   detents: ReadonlyArray<Readonly<{ insetLeft: number; insetRight: number }>>,
-  hostWidth: number
+  hostWidth: number,
+  maxWidth: number
 ): string | null => {
   if (!(hostWidth > 0)) return null;
+  const column = columnWidth(hostWidth, maxWidth);
+  const room =
+    column < hostWidth
+      ? `its ${column}-point \`maxWidth\``
+      : `its ${hostWidth}-point-wide host`;
   for (const [index, detent] of detents.entries()) {
     const gaps = detent.insetLeft + detent.insetRight;
-    if (gaps >= hostWidth) {
-      return `Bottom sheet detent at index ${index}: \`insets.left\` and \`insets.right\` add up to ${gaps}, which leaves no room for the sheet in its ${hostWidth}-point-wide host, so the sheet is squeezed to nothing. Keep their sum below the host's width.`;
+    if (gaps >= column) {
+      return `Bottom sheet detent at index ${index}: \`insets.left\` and \`insets.right\` add up to ${gaps}, which leaves no room for the sheet in ${room}, so the sheet is squeezed to nothing. Keep their sum below the sheet's width.`;
     }
   }
   return null;

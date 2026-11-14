@@ -19,8 +19,6 @@ type CardLayoutHost = Readonly<{
   rawDetents: ReadonlyArray<RawDetent>;
   /** The side insets of the widest card, which the content is laid out against. */
   widestCardInsets: SideInsets;
-  /** Whether the host lays out right to left, read from the DOM. */
-  isLayoutRTL: boolean;
 }>;
 
 /** The controller's state that detents resolve from. */
@@ -30,7 +28,6 @@ export type DetentsHost = {
   readonly hostHeight: number;
   readonly statusBarOverlap: number;
   readonly widestCardInsets: SideInsets;
-  readonly isLayoutRTL: boolean;
   lastReportedError: string | null;
   emit(event: (callbacks: BottomSheetWebCallbacks) => void): void;
 };
@@ -125,20 +122,19 @@ export const contentScale = (host: CardLayoutHost, insets: SideInsets) => {
 
 /** The card's horizontal span at a detent's side insets. */
 export const cardSpan = (
-  host: Pick<CardLayoutHost, 'rawDetents' | 'isLayoutRTL'>,
+  host: Pick<CardLayoutHost, 'rawDetents'>,
   insets: SideInsets,
   width: number
 ) => {
-  // Sheet-wide, carried on every detent. On the web it's the left-to-right
-  // bias, as React Native Web can't tell the page's direction.
+  // Sheet-wide, carried on every detent. The bias is physical: JS resolved
+  // `placement` against the document's direction, like `start` and `end`.
   const layout = host.rawDetents[0];
-  const bias = layout?.placementBias ?? 0.5;
   return placeCard(
     width,
     insets.insetLeft,
     insets.insetRight,
     layout?.maxWidth ?? 0,
-    host.isLayoutRTL ? 1 - bias : bias,
+    layout?.placementBias ?? 0.5,
     window.devicePixelRatio || 1
   );
 };

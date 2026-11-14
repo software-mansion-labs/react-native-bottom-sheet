@@ -14,10 +14,12 @@ mock.module('react-native', () => ({
 let normalizeDetents: typeof import('../bottomSheetUtils').normalizeDetents;
 let cardSpan: typeof import('../web/detents').cardSpan;
 let contentScale: typeof import('../web/detents').contentScale;
+let resolvePlacement: typeof import('../cardPlacement').resolvePlacement;
 
 beforeAll(async () => {
   ({ normalizeDetents } = await import('../bottomSheetUtils'));
   ({ cardSpan, contentScale } = await import('../web/detents'));
+  ({ resolvePlacement } = await import('../cardPlacement'));
 });
 
 describe('normalizeDetents', () => {
@@ -26,6 +28,7 @@ describe('normalizeDetents', () => {
       [0, { value: 300, insets: { left: 16, right: 16 } }, '100%'],
       undefined,
       { maxWidth: 540, placementBias: 1 },
+      false,
       false
     );
     for (const detent of detents) {
@@ -44,6 +47,7 @@ describe('normalizeDetents', () => {
       ],
       undefined,
       { maxWidth: 300, placementBias: 0.5 },
+      false,
       false
     );
     expect(detents.map((detent) => detent.widestCard)).toEqual([false, true]);
@@ -65,11 +69,10 @@ describe('web placement', () => {
     placementBias,
     scrimOpacity: 1,
   });
-  const host = (placementBias: number, isLayoutRTL: boolean) => ({
+  const host = (placementBias: number) => ({
     elements: { host: { clientWidth: 1000 } } as never,
     rawDetents: [rawDetent(placementBias)],
     widestCardInsets: { insetLeft: 0, insetRight: 0 },
-    isLayoutRTL,
   });
   const noInsets = { insetLeft: 0, insetRight: 0 };
 
@@ -77,25 +80,38 @@ describe('web placement', () => {
     (globalThis as { window?: unknown }).window = { devicePixelRatio: 1 };
   });
 
-  test('a leading card sits on the left of a left-to-right page', () => {
-    expect(cardSpan(host(0, false), noInsets, 1000)).toEqual({
-      left: 0,
-      width: 400,
-    });
-  });
-
-  test('a leading card sits on the right of a right-to-left page', () => {
-    // JS sends the left-to-right bias on the web; the host flips it.
-    expect(cardSpan(host(0, true), noInsets, 1000)).toEqual({
+  test('places the column by the physical bias JS resolved', () => {
+    expect(cardSpan(host(0), noInsets, 1000)).toEqual({ left: 0, width: 400 });
+    expect(cardSpan(host(1), noInsets, 1000)).toEqual({
       left: 600,
       width: 400,
     });
   });
 
-  test('scales the content by the card’s width over the widest card’s', () => {
-    expect(contentScale(host(0.5, false), noInsets)).toBe(1);
+  test('a start sheet resolves to the right on a right-to-left page', () => {
+    const [detent] = normalizeDetents(
+      [{ value: 300 }],
+      undefined,
+      { maxWidth: 400, placementBias: resolvePlacement('start', true) },
+      false,
+      true
+    );
+    expect(cardSpan({ rawDetents: [detent!] }, noInsets, 1000)).toEqual({
+      left: 600,
+      width: 400,
+    });
+  });
+
+  test('applies the side insets within the column', () => {
     expect(
-      contentScale(host(0.5, false), { insetLeft: 400, insetRight: 400 })
-    ).toBe(0.5);
+      cardSpan(host(0.5), { insetLeft: 16, insetRight: 16 }, 1000)
+    ).toEqual({ left: 316, width: 368 });
+  });
+
+  test('scales the content by the card’s width over the widest card’s', () => {
+    expect(contentScale(host(0.5), noInsets)).toBe(1);
+    expect(contentScale(host(0.5), { insetLeft: 100, insetRight: 100 })).toBe(
+      0.5
+    );
   });
 });

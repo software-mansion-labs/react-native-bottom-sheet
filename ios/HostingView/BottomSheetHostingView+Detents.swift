@@ -22,19 +22,24 @@ extension BottomSheetHostingView {
     contentScale(forCardWidth: placeCard(insets: insets, hostWidth: bounds.width).width)
   }
 
-  /// The card's horizontal span for its side insets: the space they leave,
-  /// capped at the maximum width, where the placement puts it in the whole
-  /// host, moved only as far as needed to keep clear of the insets. Mirrors
+  /// The width of the sheet's column in a host this wide: the host's width,
+  /// capped at the maximum width. The card and its side insets share it.
+  /// Mirrors `columnWidth` in `cardPlacement.ts`.
+  func columnWidth(hostWidth: CGFloat) -> CGFloat {
+    cardMaxWidth > 0 ? min(cardMaxWidth, hostWidth) : hostWidth
+  }
+
+  /// The card's horizontal span for its side insets: the sheet's column sits
+  /// where the placement puts it in the host, and the card fills the column
+  /// between its insets, as it would fill a screen that wide. Mirrors
   /// `placeCard` in `cardPlacement.ts`.
   func placeCard(insets: DetentInsets, hostWidth: CGFloat) -> (minX: CGFloat, width: CGFloat) {
-    let available = max(0, hostWidth - insets.left - insets.right)
-    let width = cardMaxWidth > 0 ? min(cardMaxWidth, available) : available
-    // On a whole device pixel, so a centered card in an odd free width doesn't
-    // blur its edges and content.
+    let column = columnWidth(hostWidth: hostWidth)
+    // On a whole device pixel, so a centered column in an odd free width
+    // doesn't blur the card's edges and content.
     let pixelScale = max(1, traitCollection.displayScale)
-    let preferred = (cardPlacementBias * (hostWidth - width) * pixelScale).rounded() / pixelScale
-    let rightmost = max(insets.left, hostWidth - insets.right - width)
-    return (min(max(preferred, insets.left), rightmost), width)
+    let columnMinX = (cardPlacementBias * (hostWidth - column) * pixelScale).rounded() / pixelScale
+    return (columnMinX + insets.left, max(0, column - insets.left - insets.right))
   }
 
   /// The height of the content region: the Yoga box the sheet's in-flow

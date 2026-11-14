@@ -22,12 +22,14 @@ import {
 } from '../demoShared';
 
 const MAX_WIDTHS = [undefined, 320, 540] as const;
-const PLACEMENTS: SheetPlacement[] = ['leading', 'center', 'trailing'];
+const PLACEMENTS: SheetPlacement[] = ['start', 'center', 'end'];
 
 /**
  * `maxWidth` and `placement`. On a phone in portrait the sheet fills the width
  * as before; rotate to landscape, or try a tablet, foldable or the web, to see
- * the card capped and placed. Floating insets show that they stay the least gap.
+ * the sheet capped and placed. Floating insets apply within the maximum width,
+ * as they would on a screen that wide. The buttons inside the sheet change both
+ * while it's open.
  */
 export const WideScreenScreen = () => {
   const [index, setIndex] = useState(0);
@@ -76,6 +78,16 @@ export const WideScreenScreen = () => {
               This text is laid out once, at the widest card's width, so it
               never reflows as the card moves.
             </Text>
+            <View style={styles.options}>
+              <Button
+                title="Next maxWidth"
+                onPress={() => setMaxWidth(next(MAX_WIDTHS, maxWidth))}
+              />
+              <Button
+                title="Next placement"
+                onPress={() => setPlacement(next(PLACEMENTS, placement))}
+              />
+            </View>
           </View>
         </ModalBottomSheet>
       }
@@ -114,6 +126,9 @@ export const WideScreenScreen = () => {
     </DemoScreen>
   );
 };
+
+const next = <T,>(options: ReadonlyArray<T>, current: T): T =>
+  options[(options.indexOf(current) + 1) % options.length]!;
 
 const styles = StyleSheet.create({
   heading: { fontSize: 15, fontWeight: '600' },
