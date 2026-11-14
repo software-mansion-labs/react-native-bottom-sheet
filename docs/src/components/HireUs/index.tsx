@@ -14,8 +14,18 @@ export default function HireUs() {
         rel="noopener noreferrer"
       >
         Hire us
-        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>
-          <path fill="currentColor" d="M16.01 11H4v2h12.01v3L20 12l-3.99-4z" />
+        <svg
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="M5 12h14M12 5l7 7-7 7" />
         </svg>
       </a>
     </aside>
