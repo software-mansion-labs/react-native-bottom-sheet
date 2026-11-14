@@ -140,6 +140,8 @@ public final class BottomSheetHostingView: UIView {
   let scrimView = BottomSheetScrimControl()
   var panGesture: SheetPanGestureRecognizer!
   var activeSpring: CriticalSpring?
+  /// Movement is published by position callbacks while a spring is active.
+  public var isSettling: Bool { activeSpring != nil }
   var activeSpringTargetIndex: Int = 0
   var activeSpringEmitsSettle = false
   var scrimPinnedFull = false
