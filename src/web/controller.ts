@@ -49,8 +49,13 @@ export class BottomSheetWebController {
 
   rawDetents: ReadonlyArray<RawDetent> = [];
   /** The widest card's side gaps, which the content is laid out against. */
+  widestCardInsets = { insetLeft: 0, insetRight: 0 };
+  /**
+   * Where the browser laid out the content: at the widest card's inset on the
+   * start edge, or, under `maxWidth`, wherever that put the capped box. Read
+   * from the DOM, so it follows the layout direction.
+   */
   widestCardLeft = 0;
-  widestCardGaps = 0;
   statusBarOverlap = 0;
   detents: ResolvedDetent[] = [];
   targetIndex = 0;
@@ -184,9 +189,10 @@ export class BottomSheetWebController {
       this.rawDetents = config.detents;
       // Flagged in `normalizeDetents`, which lays the content out against it.
       const widest = config.detents.find((detent) => detent.widestCard);
-      this.widestCardLeft = widest?.insetLeft ?? 0;
-      this.widestCardGaps =
-        (widest?.insetLeft ?? 0) + (widest?.insetRight ?? 0);
+      this.widestCardInsets = {
+        insetLeft: widest?.insetLeft ?? 0,
+        insetRight: widest?.insetRight ?? 0,
+      };
     }
 
     const indexChanged = this.appliedIndex !== config.index;
@@ -316,6 +322,12 @@ export class BottomSheetWebController {
     );
     container.style.height = `${hostHeight}px`;
     content.style.height = `${contentRegionHeight(this)}px`;
+    // `offsetLeft` ignores the transform the card puts on the content.
+    const wrapper = content.firstElementChild;
+    this.widestCardLeft =
+      wrapper instanceof HTMLElement
+        ? wrapper.offsetLeft
+        : this.widestCardInsets.insetLeft;
     this.card.updateCardClip();
 
     this.resolveDetentsFromLayout();

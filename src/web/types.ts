@@ -13,6 +13,10 @@ export type RawDetent = Readonly<{
   insetBottom: number;
   /** The widest open card, which the content is laid out against. */
   widestCard: boolean;
+  /** The sheet's maximum card width; 0 for none. The same on every detent. */
+  maxWidth: number;
+  /** The share of the free width left of the card. The same on every detent. */
+  placementBias: number;
   /** The scrim’s opacity at this detent, in 0-1. */
   scrimOpacity: number;
 }>;

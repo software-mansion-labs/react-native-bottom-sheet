@@ -32,9 +32,20 @@ internal class Detents(
       refreshDetentsFromLayout()
     }
 
+  // Recomputes whether the card clips, from the detents' insets and whether the maximum width makes
+  // the sheet's column narrower than this host.
+  fun refreshCardGaps() {
+    val hostWidth = state.width.toFloat()
+    val isNarrowedByMaxWidth = state.columnWidth(hostWidth) < hostWidth
+    state.hasCardGaps = state.hasInsetGaps || isNarrowedByMaxWidth
+    clipContainer.setClipsToCard(state.hasCardGaps)
+  }
+
   fun setDetents(raw: List<Map<String, Any>>) {
     val previousTallestDetent = state.rawDetentSpecs.lastOrNull()
     val previousWidestCardInsets = state.widestCardInsets
+    val previousCardMaxWidth = state.cardMaxWidth
+    val previousCardPlacementBias = state.cardPlacementBias
     val previousScrimOpacities = scrim.scrimOpacities
     // Entries without a value are dropped up front, so the specs and the scrim
     // opacities stay aligned by index.
@@ -69,18 +80,25 @@ internal class Detents(
     }
     state.widestCardInsets =
       state.rawDetentSpecs.firstOrNull { it.widestCard }?.insets ?: DetentInsets()
-    state.hasCardGaps =
+    // Sheet-wide, carried on every detent so they arrive with the detents.
+    val firstEntry = entries.firstOrNull()
+    state.cardMaxWidth =
+      ((firstEntry?.get("maxWidth") as? Number)?.toFloat() ?: 0f).coerceAtLeast(0f) * state.density
+    state.cardPlacementBias =
+      ((firstEntry?.get("placementBias") as? Number)?.toFloat() ?: 0.5f).coerceIn(0f, 1f)
+    state.hasInsetGaps =
       state.rawDetentSpecs.any {
         it.insets.left > 0f || it.insets.right > 0f || it.insets.bottom > 0f
       }
-    clipContainer.setClipsToCard(state.hasCardGaps)
+    refreshCardGaps()
     // The tallest detent bounds the content region, so its inset must be
     // re-derived — and republished when it changed — before the detents are
     // re-resolved against the current layout.
     if (
       state.hasLaidOut &&
         (state.rawDetentSpecs.lastOrNull() != previousTallestDetent ||
-          state.widestCardInsets != previousWidestCardInsets)
+          state.widestCardInsets != previousWidestCardInsets ||
+          state.cardMaxWidth != previousCardMaxWidth)
     ) {
       // The content stays laid out against the previous region until Fabric
       // commits the new inset; hold its measurement until then. Decided from
@@ -93,6 +111,20 @@ internal class Detents(
     // The re-resolved detents can change the card's shape at its current position.
     contentRegion.recomputeNativeGeometry()
     if (scrim.scrimOpacities != previousScrimOpacities) scrim.updateScrim()
+    // The resolved detents don't carry the maximum width or the placement, so a change to either
+    // alone can leave them as they were, and nothing above re-places the card. Request a layout:
+    // the host posts its pass, which runs after this mount batch, once Fabric has re-measured the
+    // children against the new cap, and re-places the card, its clip, its content and the state
+    // snapshot.
+    if (
+      state.hasLaidOut &&
+        state.width > 0 &&
+        state.height > 0 &&
+        (state.cardMaxWidth != previousCardMaxWidth ||
+          state.cardPlacementBias != previousCardPlacementBias)
+    ) {
+      state.hostView.requestLayout()
+    }
   }
 
   fun setIndex(newIndex: Int) {

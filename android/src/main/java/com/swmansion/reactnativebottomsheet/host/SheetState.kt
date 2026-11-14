@@ -1,9 +1,11 @@
 package com.swmansion.reactnativebottomsheet.host
 
+import android.view.View
 import android.view.ViewGroup
 import androidx.dynamicanimation.animation.SpringAnimation
 import com.swmansion.reactnativebottomsheet.BottomSheetCardContainer
 import com.swmansion.reactnativebottomsheet.BottomSheetViewListener
+import kotlin.math.round
 
 /** Calls the parts of the sheet make back into the host view. */
 internal interface SheetHost {
@@ -32,11 +34,18 @@ internal class SheetState(val hostView: ViewGroup, val sheetContainer: BottomShe
     get() = hostView.height
 
   var rawDetentSpecs: List<RawDetentSpec> = emptyList()
-  // Whether any detent keeps a gap at the card's sides or bottom, so the card is narrower or
-  // shorter than the surface and has to clip it. A top inset only lowers the detent's height.
+  // Whether any detent keeps a gap at the card's sides or bottom, or the maximum width leaves
+  // one in this host, so the card is narrower or shorter than the surface and has to clip it. A
+  // top inset only lowers the detent's height. Kept by `Detents.refreshCardGaps`.
   var hasCardGaps = false
+  // Whether any detent's insets keep a gap at the card's sides or bottom.
+  var hasInsetGaps = false
   // The side insets of the widest open card, which the content is laid out against.
   var widestCardInsets = DetentInsets()
+  // The widest the sheet's column gets, side insets included, in px; 0 for no cap. Sheet-wide.
+  var cardMaxWidth = 0f
+  // The share of the free width left of the sheet's column: 0 left, 0.5 center, 1 right.
+  var cardPlacementBias = 0.5f
   var detentSpecs: List<DetentSpec> = emptyList()
   var targetIndex: Int = 0
   var animateContentHeight: Boolean = true
@@ -92,10 +101,40 @@ internal class SheetState(val hostView: ViewGroup, val sheetContainer: BottomShe
   // How much the content is scaled at a detent: its card's width over the width of the widest card,
   // which the content is laid out against.
   fun contentScale(insets: DetentInsets): Float {
-    val widest = width - widestCardInsets.left - widestCardInsets.right
+    val widest = placeCard(widestCardInsets, width.toFloat()).width
     if (widest <= 0f) return 1f
-    return (width - insets.left - insets.right).coerceAtLeast(0f) / widest
+    return placeCard(insets, width.toFloat()).width / widest
   }
+
+  // The width of the sheet's column in a host this wide: the host's width, capped at the maximum
+  // width. The card and its side insets share it. Mirrors `columnWidth` in `cardPlacement.ts`.
+  fun columnWidth(hostWidth: Float): Float =
+    if (cardMaxWidth > 0f) minOf(cardMaxWidth, hostWidth) else hostWidth
+
+  // The card's horizontal span for its side insets: the sheet's column sits where the placement
+  // puts it in the host, and the card fills the column between its insets, as it would fill a
+  // screen that wide. Mirrors `placeCard` in `cardPlacement.ts`.
+  fun placeCard(insets: DetentInsets, hostWidth: Float): CardSpan {
+    val column = columnWidth(hostWidth)
+    // On a whole pixel, so a centered column in an odd free width doesn't blur the card's edges
+    // and content.
+    val columnLeft = round(cardPlacementBias * (hostWidth - column))
+    return CardSpan(
+      columnLeft + insets.left,
+      (column - insets.left - insets.right).coerceAtLeast(0f),
+    )
+  }
+
+  // Where Yoga lays out a child of the sheet that is `childWidth` wide: at the widest card's inset
+  // on the start edge, which is the right one in a right-to-left layout. Narrower than the space
+  // the insets leave only under a maximum width. Fabric gives each view its Yoga direction, which
+  // the host inherits from the sheet's view.
+  fun contentLeft(childWidth: Float): Float =
+    if (hostView.layoutDirection == View.LAYOUT_DIRECTION_RTL) {
+      sheetContainer.width - widestCardInsets.right - childWidth
+    } else {
+      widestCardInsets.left
+    }
 
   // The tallest the card can be at a detent: the host's height, less the detent's top and bottom
   // insets. Percentages resolve against it, so `100%` fits.

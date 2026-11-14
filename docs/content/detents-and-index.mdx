@@ -88,8 +88,13 @@ values, all 0 by default, and the gaps blend as the sheet moves between detents.
 direction, so `start` is the left in a left-to-right layout and the right in a
 right-to-left one, and they take precedence over the side they resolve to. On
 the web, the layout direction is the document’s. Each side must be a finite,
-non-negative number; the library throws an `Error` otherwise. A closed detent
-ignores its insets, so the card leaves through the gap with its shape intact.
+non-negative number; the library throws an `Error` otherwise. Keep an open
+detent's side insets below the host's width: insets that fill it leave the card
+no room, so it's squeezed to nothing. That's not an error, since a host can get
+that narrow at runtime (a resized window, a container animating open), but in
+development the library warns about it, against the host's laid-out width. A
+closed detent ignores its insets, so the card leaves through the gap with its
+shape intact.
 
 ```tsx
 <ModalBottomSheet
@@ -140,6 +145,52 @@ occupy the full screen height:
   <View style={{ flex: 1 }}>{/* Full-screen sheet content. */}</View>
 </BottomSheet>
 ```
+
+## Wide screens
+
+On a tablet, a foldable, a desktop browser or a phone in landscape, a sheet that
+spans the whole width is hard to read. `maxWidth` caps the sheet's width, in
+points, and `placement` decides where the sheet sits when that leaves room on
+either side:
+
+```tsx
+<ModalBottomSheet
+  maxWidth={540}
+  placement="center" // The default; or 'start' / 'end'.
+  detents={[0, 'content', '100%']}
+  index={index}
+  onIndexChange={setIndex}
+  surface={/* ... */}
+>
+  {/* ... */}
+</ModalBottomSheet>
+```
+
+The values correspond to `UISheetPresentationController.Placement` from iOS 27,
+named like the rest of React Native's direction-aware props:
+
+- `'center'` puts the sheet's middle on the host's.
+- `'start'` and `'end'` put it against the start or end edge. Like the `start`
+  and `end` [insets](#insets), they follow the layout direction, so `'start'` is
+  the right edge in a right-to-left layout.
+
+`maxWidth` includes the detent's side [insets](#insets): the sheet gets a column
+up to `maxWidth` wide, and the card fills it between its insets, just as it
+would fill a screen that wide. With `maxWidth={540}` and 16-point side insets,
+the card is 508 points wide, and moving to a detent without side insets widens
+it to 540, as on a phone. To get a 540-point floating card, pass
+`maxWidth={572}`. A screen narrower than `maxWidth` is filled as before, so the
+same props suit a phone and a tablet; the card is clipped only where `maxWidth`
+actually narrows the sheet. As with insets, the content is laid out once, at the
+widest card's width, and the space beside the sheet isn't part of it: touches
+there reach the scrim or whatever is behind it.
+
+`maxWidth` must be a number greater than 0; pass `Infinity`, or leave it unset,
+for no cap. `placement` must be one of the three values. The library throws an
+`Error` otherwise. Both can change while the sheet is open. Keep the side insets
+below `maxWidth`, too: insets that fill it squeeze the card to nothing, and the
+library warns about it in development. On the web, the direction is the
+document's, as for `start` and `end` insets.
 
 ## Index events
 

@@ -375,8 +375,15 @@ type NormalizedDetent = Readonly<{
   insetBottom: number;
   /** Whether this is the widest open card, which content is laid out against. */
   widestCard: boolean;
+  /** The sheet's `maxWidth`, or 0 for none. The same on every detent. */
+  maxWidth: number;
+  /** The sheet's `placement` as a physical bias. The same on every detent. */
+  placementBias: number;
   scrimOpacity: number;
 }>;
+
+/** The sheet-wide horizontal layout, carried on every native detent. */
+type CardLayout = Readonly<{ maxWidth: number; placementBias: number }>;
 
 /** A closed sheet is fully off-screen, whatever its detent’s insets say. */
 const CLOSED_INSETS = {
@@ -495,6 +502,7 @@ const normalizeDetent = (
   detent: ModalDetent,
   index: number,
   topInset: ReturnType<typeof resolveTopInset>,
+  cardLayout: CardLayout,
   modal: boolean,
   isRTL: boolean
 ): NormalizedDetent => {
@@ -521,6 +529,7 @@ const normalizeDetent = (
     programmatic: config.programmatic === true,
     ...(isClosed ? CLOSED_INSETS : { ...topInset, ...insets }),
     widestCard: false,
+    ...cardLayout,
     scrimOpacity,
   };
 };
@@ -533,12 +542,13 @@ const normalizeDetent = (
 export const normalizeDetents = (
   detents: ReadonlyArray<ModalDetent>,
   topInset: number | undefined,
+  cardLayout: CardLayout,
   modal: boolean,
   isRTL: boolean
 ): NormalizedDetent[] => {
   const resolvedTopInset = resolveTopInset(topInset);
   const normalized = detents.map((detent, index) =>
-    normalizeDetent(detent, index, resolvedTopInset, modal, isRTL)
+    normalizeDetent(detent, index, resolvedTopInset, cardLayout, modal, isRTL)
   );
   const widest = findWidestDetent(normalized);
   return normalized.map((detent) =>
@@ -553,7 +563,8 @@ export const isNormalizedDetentClosed = (
 
 /**
  * The open detent with the widest card, whose tightest side gaps the content is
- * laid out against. On a tie, the tallest detent.
+ * laid out against. On a tie, the tallest detent. `maxWidth` caps every card
+ * alike, so it never changes which card is widest.
  */
 const findWidestDetent = (detents: ReadonlyArray<NormalizedDetent>) => {
   let widest: NormalizedDetent | undefined;

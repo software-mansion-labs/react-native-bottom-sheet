@@ -110,13 +110,21 @@ public final class BottomSheetHostingView: UIView {
   }
 
   var rawDetentSpecs: [RawDetentSpec] = []
-  /// Whether any detent keeps a gap at the card's sides or bottom, so the card
-  /// is narrower or shorter than the surface and has to clip it. A top inset
-  /// only lowers the detent's height, which needs no clip.
+  /// Whether any detent keeps a gap at the card's sides or bottom, or the
+  /// maximum width leaves one in this host, so the card is narrower or shorter
+  /// than the surface and has to clip it. A top inset only lowers the detent's
+  /// height, which needs no clip. Kept by `refreshCardGaps`.
   var hasCardGaps = false
-  /// The sum of the side insets of the widest card, which the content is laid
-  /// out against.
-  var widestCardSideGaps: CGFloat = 0
+  /// Whether any detent's insets keep a gap at the card's sides or bottom.
+  var hasInsetGaps = false
+  /// The side insets of the widest card, which the content is laid out against.
+  var widestCardInsets = DetentInsets()
+  /// The widest the sheet's column gets, side insets included, in points; 0
+  /// for no cap. Sheet-wide.
+  var cardMaxWidth: CGFloat = 0
+  /// The share of the free width left of the sheet's column: 0 left, 0.5
+  /// center, 1 right.
+  var cardPlacementBias: CGFloat = 0.5
   var detentSpecs: [DetentSpec] = [] {
     didSet {
       setNeedsLayout()
@@ -333,6 +341,8 @@ public final class BottomSheetHostingView: UIView {
     }
 
     scrimView.frame = bounds
+    // Whether the maximum width leaves a gap depends on the host's width.
+    refreshCardGaps()
     refreshDetentsFromLayout()
     let maxHeight = sheetContainerHeight
     lastAppliedMaxDetentHeight = maxHeight
@@ -470,22 +480,27 @@ public final class BottomSheetHostingView: UIView {
         widestCard: widestCard
       )
     }
-    let previousWidestCardSideGaps = widestCardSideGaps
-    widestCardSideGaps = rawDetentSpecs
-      .first(where: \.widestCard)
-      .map { $0.insets.left + $0.insets.right } ?? 0
-    let hasGaps = rawDetentSpecs.contains {
+    let previousWidestCardInsets = widestCardInsets
+    let previousCardMaxWidth = cardMaxWidth
+    widestCardInsets = rawDetentSpecs.first(where: \.widestCard)?.insets ?? DetentInsets()
+    // Sheet-wide, carried on every detent so they arrive with the detents.
+    let firstEntry = entries.first
+    cardMaxWidth = max(0, CGFloat(truncating: firstEntry?["maxWidth"] as? NSNumber ?? 0))
+    cardPlacementBias = min(
+      max(0, CGFloat(truncating: firstEntry?["placementBias"] as? NSNumber ?? 0.5)), 1
+    )
+    hasInsetGaps = rawDetentSpecs.contains {
       $0.insets.left > 0 || $0.insets.right > 0 || $0.insets.bottom > 0
     }
-    if hasGaps != hasCardGaps {
-      hasCardGaps = hasGaps
-      updateCardShape()
-    }
+    refreshCardGaps()
     // The tallest detent bounds the content region. The content stays laid out
     // against the previous region until Fabric commits the new inset; hold its
     // measurement until then. Decided from the detents alone so it also holds
     // while detached, when the status bar's overlap is not computable.
-    if hasLaidOut, rawDetentSpecs.last != previousTallestDetent || widestCardSideGaps != previousWidestCardSideGaps {
+    // A new maximum width resizes the widest card, which the content is laid out at.
+    let widestCardChanged =
+      widestCardInsets != previousWidestCardInsets || cardMaxWidth != previousCardMaxWidth
+    if hasLaidOut, rawDetentSpecs.last != previousTallestDetent || widestCardChanged {
       isContentRegionChangePending = true
     }
     refreshDetentsFromLayout()
@@ -573,6 +588,16 @@ public final class BottomSheetHostingView: UIView {
     setDetentIndex(index)
   }
 
+  /// Recomputes `hasCardGaps` from the detents' insets and whether the maximum
+  /// width makes the sheet's column narrower than this host.
+  func refreshCardGaps() {
+    let isNarrowedByMaxWidth = columnWidth(hostWidth: bounds.width) < bounds.width
+    let hasGaps = hasInsetGaps || isNarrowedByMaxWidth
+    guard hasGaps != hasCardGaps else { return }
+    hasCardGaps = hasGaps
+    updateCardShape()
+  }
+
   public func mountChildComponentView(_ childView: UIView, atIndex index: Int) {
     clipContainer.insertSubview(childView, at: index)
     refreshContentHeightMarker()
@@ -617,6 +642,10 @@ public final class BottomSheetHostingView: UIView {
     removeSettleAnimations()
     rawDetentSpecs = []
     detentSpecs = []
+    hasInsetGaps = false
+    widestCardInsets = DetentInsets()
+    cardMaxWidth = 0
+    cardPlacementBias = 0.5
     targetIndex = 0
     pendingIndex = nil
     pendingSnapRequest = nil

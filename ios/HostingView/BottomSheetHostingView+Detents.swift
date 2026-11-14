@@ -14,12 +14,32 @@ extension BottomSheetHostingView {
   /// How much the content is scaled for a card this wide: its width over the
   /// width of the widest card, which the content is laid out against.
   func contentScale(forCardWidth width: CGFloat) -> CGFloat {
-    let widest = bounds.width - widestCardSideGaps
+    let widest = placeCard(insets: widestCardInsets, hostWidth: bounds.width).width
     return widest > 0 ? width / widest : 1
   }
 
   func contentScale(for insets: DetentInsets) -> CGFloat {
-    contentScale(forCardWidth: max(0, bounds.width - insets.left - insets.right))
+    contentScale(forCardWidth: placeCard(insets: insets, hostWidth: bounds.width).width)
+  }
+
+  /// The width of the sheet's column in a host this wide: the host's width,
+  /// capped at the maximum width. The card and its side insets share it.
+  /// Mirrors `columnWidth` in `cardPlacement.ts`.
+  func columnWidth(hostWidth: CGFloat) -> CGFloat {
+    cardMaxWidth > 0 ? min(cardMaxWidth, hostWidth) : hostWidth
+  }
+
+  /// The card's horizontal span for its side insets: the sheet's column sits
+  /// where the placement puts it in the host, and the card fills the column
+  /// between its insets, as it would fill a screen that wide. Mirrors
+  /// `placeCard` in `cardPlacement.ts`.
+  func placeCard(insets: DetentInsets, hostWidth: CGFloat) -> (minX: CGFloat, width: CGFloat) {
+    let column = columnWidth(hostWidth: hostWidth)
+    // On a whole device pixel, so a centered column in an odd free width
+    // doesn't blur the card's edges and content.
+    let pixelScale = max(1, traitCollection.displayScale)
+    let columnMinX = (cardPlacementBias * (hostWidth - column) * pixelScale).rounded() / pixelScale
+    return (columnMinX + insets.left, max(0, column - insets.left - insets.right))
   }
 
   /// The height of the content region: the Yoga box the sheet's in-flow

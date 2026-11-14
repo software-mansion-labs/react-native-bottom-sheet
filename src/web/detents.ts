@@ -1,6 +1,7 @@
 /// <reference lib="dom" />
 
 import { CONTENT_HEIGHT_MARKER_NATIVE_ID } from '../bottomSheetUtils';
+import { placeCard } from '../cardPlacement';
 import { clamp } from './dom';
 import type {
   BottomSheetWebCallbacks,
@@ -10,13 +11,23 @@ import type {
   ResolvedDetent,
 } from './types';
 
+export type SideInsets = Readonly<{ insetLeft: number; insetRight: number }>;
+
+/** The controller's state that the card's width and scale derive from. */
+type CardLayoutHost = Readonly<{
+  elements: BottomSheetWebElements | null;
+  rawDetents: ReadonlyArray<RawDetent>;
+  /** The side insets of the widest card, which the content is laid out against. */
+  widestCardInsets: SideInsets;
+}>;
+
 /** The controller's state that detents resolve from. */
 export type DetentsHost = {
   readonly elements: BottomSheetWebElements | null;
   readonly rawDetents: ReadonlyArray<RawDetent>;
   readonly hostHeight: number;
   readonly statusBarOverlap: number;
-  readonly widestCardGaps: number;
+  readonly widestCardInsets: SideInsets;
   lastReportedError: string | null;
   emit(event: (callbacks: BottomSheetWebCallbacks) => void): void;
 };
@@ -102,11 +113,30 @@ export const surfaceOverflow = (
  * How much the content is scaled at a detent: its card's width over the width
  * of the widest card, which the content is laid out against.
  */
-const contentScale = (host: DetentsHost, spec: RawDetent) => {
+export const contentScale = (host: CardLayoutHost, insets: SideInsets) => {
   const width = host.elements?.host.clientWidth ?? 0;
-  const widest = width - host.widestCardGaps;
+  const widest = cardSpan(host, host.widestCardInsets, width).width;
   if (widest <= 0) return 1;
-  return Math.max(0, width - spec.insetLeft - spec.insetRight) / widest;
+  return cardSpan(host, insets, width).width / widest;
+};
+
+/** The card's horizontal span at a detent's side insets. */
+export const cardSpan = (
+  host: Pick<CardLayoutHost, 'rawDetents'>,
+  insets: SideInsets,
+  width: number
+) => {
+  // Sheet-wide, carried on every detent. The bias is physical: JS resolved
+  // `placement` against the document's direction, like `start` and `end`.
+  const layout = host.rawDetents[0];
+  return placeCard(
+    width,
+    insets.insetLeft,
+    insets.insetRight,
+    layout?.maxWidth ?? 0,
+    layout?.placementBias ?? 0.5,
+    window.devicePixelRatio || 1
+  );
 };
 
 const measureContentHeight = (host: DetentsHost): number | null => {
@@ -255,7 +285,9 @@ export const areRawDetentsEqual = (
       detent.insetLeft === b[index]!.insetLeft &&
       detent.insetRight === b[index]!.insetRight &&
       detent.insetBottom === b[index]!.insetBottom &&
-      detent.widestCard === b[index]!.widestCard
+      detent.widestCard === b[index]!.widestCard &&
+      detent.maxWidth === b[index]!.maxWidth &&
+      detent.placementBias === b[index]!.placementBias
   );
 
 // Compared apart from `areRawDetentsEqual`: A scrim change only repaints the

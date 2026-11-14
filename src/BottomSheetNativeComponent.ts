@@ -23,6 +23,11 @@ type NativeDetent = Readonly<{
   // The widest open card, which the content is laid out against. Flagged in JS,
   // which lays the content out, so every platform agrees on it.
   widestCard: boolean;
+  // The sheet-wide `maxWidth`, 0 for none, and `placement`, resolved to the
+  // share of the free width left of the card (0 left, 0.5 center, 1 right).
+  // Carried on every detent for the same reason as `topInset`.
+  maxWidth: CodegenTypes.Double;
+  placementBias: CodegenTypes.Double;
   // The scrim’s opacity at this detent, in 0-1. Ignored by inline sheets.
   scrimOpacity: CodegenTypes.Double;
 }>;
